@@ -36,7 +36,7 @@ use crate::aggs::bucket::{
 };
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::resolve::bad_request;
-pub(crate) use crate::aggs::metric::resolve::{Resolved, resolve};
+pub(crate) use crate::aggs::metric::resolve::{Resolved, resolve, value_kind};
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
@@ -65,6 +65,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::TopHits
         | Metric::Terms
         | Metric::SignificantTerms
+        | Metric::RareTerms
         | Metric::Histogram
         | Metric::DateHistogram => NEED_COUNT,
         Metric::Range
@@ -119,6 +120,9 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::SignificantTerms => crate::aggs::bucket::significant_collect::unmapped(
             &crate::aggs::bucket::significant_collect::spec_of(agg),
         ),
+        Metric::RareTerms => crate::aggs::bucket::rare_collect::unmapped(
+            &crate::aggs::bucket::rare_collect::spec_of(agg),
+        ),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
@@ -156,7 +160,7 @@ fn check_execution_hint(agg: &MetricAgg) -> Result<(), ShardError> {
 }
 
 /// The engine's node for a numeric `agg` at `precision` (a `cardinality`'s).
-pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
+pub(crate) fn node(agg: &MetricAgg, precision: u32, values: ValueKind) -> AggNode {
     // ALLOC: one field name an aggregation, bounded by the request's.
     let field = agg.field.clone();
     // `byte` to `long` and `date` are longs read as they are.
@@ -170,20 +174,20 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
         Metric::Composite => unreachable!("a composite's node is made by composite_collect::node"),
         Metric::Cardinality => AggNode::Cardinality {
             field,
-            kind: CardinalityKind::Numeric(ValueKind::Long),
+            kind: CardinalityKind::Numeric(values),
             precision: Some(precision),
         },
         Metric::Percentiles | Metric::PercentileRanks => AggNode::Percentiles {
             field,
             missing: None,
-            kind: ValueKind::Long,
+            kind: values,
             compression: agg.percentiles.compression,
             hdr: false,
         },
         metric => AggNode::Metric {
             field,
             missing: None,
-            kind: ValueKind::Long,
+            kind: values,
             source: Source::DocValues,
             needs: needs(metric),
             script: None,
@@ -212,7 +216,7 @@ pub(crate) fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<V
                 .map(|h| Value::Cardinality(Some(h)))
                 .ok_or_else(|| engine_error(&"an unreadable cardinality sketch")),
         },
-        // A long or a date is never NaN, which a digest refuses.
+        // A number field never holds a NaN, which a digest refuses.
         Some(AggResult::Digests {
             digests,
             nan: false,
@@ -312,7 +316,7 @@ pub fn collect<S: BlobStore + 'static>(
         let mut queries = filters_collect::Queries::new(filters.get(i));
         match r {
             Resolved::Numeric(_) => {
-                let mut made = node(agg, precision);
+                let mut made = node(agg, precision, value_kind(agg, shard));
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
@@ -403,3 +407,7 @@ pub fn collect<S: BlobStore + 'static>(
 #[cfg(test)]
 #[path = "collect_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "collect_decimal_tests.rs"]
+mod decimal_tests;

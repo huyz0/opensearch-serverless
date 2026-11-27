@@ -107,9 +107,9 @@ src/aggs/metric/tdigest.rs	port	server/src/main/java/org/opensearch/search/aggre
 src/aggs/metric/tdigest_tests.rs	new		tests of tdigest.rs against vectors printed by OpenSearch's TDigestState
 src/aggs/metric/tests.rs	new		tests of the metric aggregations, against messages and values recorded from OpenSearch
 src/aggs/metric/collect_tests.rs	new		tests of collect.rs over a real index
-src/overlay/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@429b4cbc	the in-memory segment of the latest version of each pushed id, the ids it replaces or deletes
+src/overlay/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@3.10.0	the in-memory segment of the latest version of each pushed id, the ids it replaces or deletes
 src/overlay/commit.rs	new		finds the commit documents an overlay replaces or deletes by one filter search, which the Java shell does with a per-id version map
-src/overlay/view.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@429b4cbc	the commit hidden by a live-documents mask beside the overlay segment
+src/overlay/view.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@3.10.0	the commit hidden by a live-documents mask beside the overlay segment
 src/overlay/source.rs	new		the overlay a search asks for: finished or nothing, never a build on the search path
 src/response_selected.rs	new		writes chosen hits of a top_hits result, or of a shard's top-level hits, as response.rs writes them, for a coordinator that merged several shards
 src/response_selected_tests.rs	new		tests of response_selected.rs over a real index
@@ -150,7 +150,7 @@ src/prefetch/plan_tests.rs	new		tests of plan.rs over a hand-built file table
 src/prefetch/primed.rs	new		holds the fetched bytes and serves the engine store from them until the open returns
 src/prefetch/tests.rs	new		tests of the open prefetch over a real index on the emulator
 src/aggs/partial.rs	new		the shared shard-level result and the reduce dispatch, lifted out of aggs/metric/partial.rs
-src/frozen.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReaders.java@429b4cbc	openFrozenReader: the incarnation check and the view's own manifest for the shard; the files resolve to blob ranges
+src/frozen.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReaders.java@3.10.0	openFrozenReader: the incarnation check and the view's own manifest for the shard; the files resolve to blob ranges
 src/dsl/pit.rs	port	server/src/main/java/org/opensearch/search/builder/PointInTimeBuilder.java@3.10.0	the parser of a search body's pit: id required, keep_alive kept as written
 src/response_values.rs	port	server/src/main/java/org/opensearch/search/SearchHit.java@3.10.0	Float.toString and Uid.decodeId as the response prints them, split from response.rs
 src/aggs/bucket/range.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/InternalRange.java@3.10.0	RangeAggregator.Range's bounds, InternalRange.Bucket and InternalRange.reduce
@@ -279,3 +279,25 @@ src/aggs/bucket/significant.rs	port	server/src/main/java/org/opensearch/search/a
 src/aggs/bucket/significant_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/SignificantTermsAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters checks and the factory shard size
 src/aggs/bucket/significant_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/SignificanceLookup.java@3.10.0	the engine node, the background counts and size of SignificanceLookup
 src/aggs/bucket/significant_tests.rs	new		tests of significant_terms parsing, scoring, reduce and running
+src/dsl/queries/function_score_painless.rs	new		sends a Painless script_score to the engine as source, which compiles it in Rust; Java compiles it to bytecode in the script service
+src/painless_switch.rs	new		the process-wide switch for compiling Painless in Rust; Java has no such choice
+src/script_failure.rs	new		turns the engine's encoded script error into a script_exception; Java raises the ScriptException itself
+src/dsl/queries/phrase_prefix.rs	port	server/src/main/java/org/opensearch/index/query/MatchPhrasePrefixQueryBuilder.java@3.10.0	fromXContent and doToQuery, with MatchQuery.parse of type PHRASE_PREFIX and TextFieldMapper.createPhrasePrefixQuery
+src/dsl/queries/phrase_prefix_tests.rs	new		tests of phrase_prefix.rs
+src/ltr/mod.rs	new		the learning to rank evaluators; the stock plugin (o19s) is a separate Java plugin, ported natively by ADR 0071
+src/ltr/json.rs	new		reads a model definition through the search body recorder
+src/ltr/linear.rs	new		model/linear of the plugin
+src/ltr/xgboost.rs	new		model/xgboost+json of the plugin, scored as XGBoost predicts
+src/ltr/ranklib.rs	new		model/ranklib of the plugin (MART, LambdaMART, Random Forests), scored as RankLib evaluates
+src/ltr/tests.rs	new		unit tests of the evaluators
+src/dsl/queries/script_query.rs	port	server/src/main/java/org/opensearch/index/query/ScriptQueryBuilder.java@3.10.0	fromXContent for Painless source only, and the engine filter built from it
+src/dsl/queries/script_switch_tests.rs	new		tests of the Painless switch on script_score and the script query; Java has no such switch
+src/date_pattern.rs	port	server/src/main/java/org/opensearch/common/time/DateFormatter.java@3.10.0	the printing of the names and java.time letters a date_histogram format may carry, held against fixtures/date-format/java-3.10.0.txt
+src/aggs/bucket/date_histogram_format_tests.rs	new		tests of the date_histogram format option
+src/date_pattern_tests.rs	new		tests of the date printer against the recorded Java prints
+src/aggs/bucket/rare.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalRareTerms.java@3.10.0	the shard result of StringRareTermsAggregator (exact, in place of its cuckoo filter), InternalRareTerms.reduce and the body
+src/aggs/bucket/rare_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/RareTermsAggregationBuilder.java@3.10.0	the parser and the setters checks of max_doc_count and precision
+src/aggs/bucket/rare_collect.rs	new		runs a rare_terms on the engine SignificantTerms node and splits the terms at max_doc_count
+src/aggs/bucket/rare_tests.rs	new		tests of rare_terms
+src/mapping_types.rs	new		the name a refusal gives a field type, and the knn_vector space, split out of mapping.rs
+src/aggs/metric/collect_decimal_tests.rs	new		tests of the metric aggregations over float and double fields

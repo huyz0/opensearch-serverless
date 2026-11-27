@@ -41,6 +41,8 @@ src/snapshot_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/ingest/mod.rs	new		the ingest pipeline engine: compile a stored definition and run it over a document; the Java runs the ingest-common processors in core
 src/ingest/compile.rs	new		the processors and options the engine runs, each refused at compile when not run
 src/ingest/run.rs	new		runs each processor over a document tree, as the ingest-common processors do
+src/ingest/script.rs	new		the script processor: Painless over a document by the Rust front end, behind the native-compile switch
+src/docs/update_script.rs	new		the update script: Painless over a ctx of the source and the operation, by the Rust runtime, behind the native-compile switch
 src/repository_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/RepositoryHandler.java@bf347adb	the repository write decisions: reserved names, the registration body, delete names, answers
 src/snapshot_take_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotHandler.java@bf347adb	the create branch: body keys, bounds and the failures a take answers
 src/security/mod.rs	new		the security configuration kinds and their answers

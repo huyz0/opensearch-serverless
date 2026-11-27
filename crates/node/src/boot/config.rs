@@ -108,6 +108,8 @@ pub struct NodeConfig {
     pub node_packs: Option<crate::writer::PackConfig>,
     /// `OSS_COMMIT_LOGGED` and `OSS_COMMIT_OPEN_FROM_LOGGED`: what staged commits do besides staging.
     pub commit_logged: commits::Logged,
+    /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
+    pub ltr: bool,
     /// `serverless.security.enabled`: serve the security configuration API. Off by default.
     pub security: bool,
     /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).
@@ -120,6 +122,8 @@ pub struct NodeConfig {
     pub nested: bool,
     /// `serverless.reader.vector_warm.at_open`.
     pub vector_warm_at_open: bool,
+    /// `OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE`: compile Painless source here.
+    pub painless_native_compile: bool,
     /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
     pub extensions_percent: usize,
     /// `OSS_EXTENSIONS_REPLAY_FUEL_FACTOR`: a replayed call's fuel and memory, times its record's.
@@ -322,6 +326,7 @@ impl NodeConfig {
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
+        let ltr = flag("OSS_LTR", "false")?;
         let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
         let security_admin = match (
@@ -446,12 +451,14 @@ impl NodeConfig {
             commit_checkpoint_millis,
             commit_logged,
             node_packs: packs::read(&flag, &bounded)?,
+            ltr,
             security,
             security_admin,
             security_refresh_millis,
             knn,
             nested,
             vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
+            painless_native_compile: flag("OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE", "false")?,
             extensions_percent,
             extensions_replay_factor,
             store_usage,

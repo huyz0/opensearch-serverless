@@ -267,7 +267,7 @@ fn bad_requests_fail_with_opensearchs_messages() {
 fn unserved_keys_zones_and_orders_are_refused_as_not_supported_yet() {
     for body in [
         r#"{"field":"t","interval":"day"}"#,
-        r#"{"field":"t","calendar_interval":"day","format":"yyyy"}"#,
+        r#"{"field":"t","calendar_interval":"day","format":"EEE"}"#,
         r#"{"field":"t","calendar_interval":"day","missing":"2020-01-01"}"#,
         r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Nowhere"}"#,
         r#"{"field":"t","calendar_interval":"day","order":[{"_key":"asc"},{"_count":"asc"}]}"#,

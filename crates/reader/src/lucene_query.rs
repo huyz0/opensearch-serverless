@@ -258,7 +258,9 @@ pub(crate) fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<
             (true, true),
             DateSpec::default(),
         )?,
-        FieldType::Unsupported(_) => return Err(unsupported("this field type")),
+        FieldType::Float | FieldType::Double | FieldType::Unsupported(_) => {
+            return Err(unsupported("this field type"));
+        }
     })
 }
 

@@ -7,7 +7,7 @@
 //! a score sort descending.
 
 use crate::dsl::error::DslError;
-use crate::dsl::queries::function_score_script::{ScriptScore, object};
+use crate::dsl::queries::function_score_script::{ScriptScore, object_with};
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::suggest;
@@ -161,7 +161,9 @@ fn script_key(p: &mut Parser<'_>) -> Result<SortKey, DslError> {
                 return Err(DslError::unsupported("[_script] sort of type [string]"));
             }
             ("order", Some(Kind::String)) => ascending = order(p.text())?,
-            ("script", Some(Kind::StartObject)) => script = Some(object(p)?),
+            ("script", Some(Kind::StartObject)) => {
+                script = Some(object_with(p, crate::painless_switch::native_compile())?);
+            }
             ("script", Some(Kind::String)) => {
                 return Err(DslError::illegal(
                     "[_script] runs only lang [expression] on this node, and a script given as text is painless",

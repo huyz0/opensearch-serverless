@@ -8,8 +8,12 @@
 //! search from its own state, with no request to the store. This is not write
 //! fencing: see ADR 0057.
 
+mod answer_value;
 mod convert;
+mod histogram;
 mod local;
+mod range;
+mod terms;
 
 pub use local::{Local, run};
 
@@ -22,7 +26,7 @@ use oss_reader::dsl::SearchSource;
 use oss_reader::failure::SearchError;
 use oss_reader::response::Row;
 use oss_transport::actions::search_shard::{
-    AggAnswer, AggValue, Bounds, Hit, MAX_BYTES, Refusal, Request as Ask, Response,
+    AggAnswer, Bounds, Hit, MAX_BYTES, Refusal, Request as Ask, Response,
 };
 use oss_transport::exception::RemoteException;
 use oss_transport::server::{Handler, Request};
@@ -233,7 +237,7 @@ impl Handler for SearchShardHandler {
         // The lease is checked again: a search that outlasted it answers
         // nothing.
         self.owns(&uuid, shard)?;
-        write_answer(&found, out)
+        write_answer(&found, &ask.source.aggregations, out)
     }
 }
 
@@ -244,41 +248,16 @@ fn id_of(row: &Row) -> Result<String, RemoteException> {
 
 /// The shard's results as the wire writes them: the single-value metrics over
 /// a number or a date, which a Java coordinator reduces.
-fn answers(
-    parts: &[oss_reader::aggs::partial::Partial],
-) -> Result<Vec<AggAnswer<'_>>, RemoteException> {
-    use oss_reader::aggs::partial::{Format, Value as Part};
+fn answers<'a>(
+    parts: &'a [oss_reader::aggs::partial::Partial],
+    asked: &[oss_transport::actions::search_shard::AggRequest],
+) -> Result<Vec<AggAnswer<'a>>, RemoteException> {
+    use oss_reader::aggs::partial::Format;
     // ALLOC: one answer an aggregation, bounded by the request's.
     let mut out = Vec::with_capacity(parts.len());
     for p in parts {
         let date = p.format == Format::Date;
-        let value = match p.value {
-            Part::Min(v) => AggValue::Min(v),
-            Part::Max(v) => AggValue::Max(v),
-            Part::Sum(v) => AggValue::Sum(v),
-            Part::Avg { sum, count } => AggValue::Avg {
-                sum,
-                count: i64::try_from(count).unwrap_or(i64::MAX),
-            },
-            Part::Stats {
-                count,
-                sum,
-                min,
-                max,
-            } => AggValue::Stats {
-                count: i64::try_from(count).unwrap_or(i64::MAX),
-                min,
-                max,
-                sum,
-            },
-            Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(n).unwrap_or(i64::MAX)),
-            _ => {
-                return Err(refuse(
-                    "a forwarded aggregation of this kind is not supported by this node",
-                    "BAD_REQUEST",
-                ));
-            }
-        };
+        let value = answer_value::value(&p.name, &p.value, p.format, asked)?;
         out.push(AggAnswer {
             name: &p.name,
             value,
@@ -288,7 +267,11 @@ fn answers(
     Ok(out)
 }
 
-fn write_answer(found: &Found, out: &mut Output<'_>) -> Result<(), RemoteException> {
+fn write_answer(
+    found: &Found,
+    asked: &[oss_transport::actions::search_shard::AggRequest],
+    out: &mut Output<'_>,
+) -> Result<(), RemoteException> {
     let ids = found
         .rows
         .iter()
@@ -308,7 +291,7 @@ fn write_answer(found: &Found, out: &mut Output<'_>) -> Result<(), RemoteExcepti
             source: &row.source,
         })
         .collect();
-    let aggregations = answers(&found.aggregations)?;
+    let aggregations = answers(&found.aggregations, asked)?;
     Response {
         total: i64::try_from(found.total).unwrap_or(i64::MAX),
         total_is_lower_bound: !found.exact,

@@ -93,6 +93,9 @@ pub fn node<S: BlobStore + 'static>(
     if agg.metric == Metric::SignificantTerms {
         return super::significant_collect::node(agg, shard, ords);
     }
+    if agg.metric == Metric::RareTerms {
+        return super::rare_collect::node(agg, shard, ords);
+    }
     if !ords.contains_key(&agg.field) {
         let built = shard
             .reader
@@ -129,7 +132,11 @@ pub fn sub_nodes<S: BlobStore + 'static>(
     for (sub, r) in agg.subs.iter().zip(resolved(agg, shard, keyword_parent)?) {
         match r {
             Resolved::Numeric(_) => {
-                let mut made = metric_node(sub, DEFAULT_PRECISION);
+                let mut made = metric_node(
+                    sub,
+                    DEFAULT_PRECISION,
+                    crate::aggs::metric::collect::value_kind(sub, shard),
+                );
                 // A bucket aggregation carries its own sub-aggregations.
                 with_subs::attach(&mut made, sub, shard, ords, queries)?;
                 subs.push(made);
@@ -389,6 +396,9 @@ pub fn value<S: BlobStore + 'static>(
     }
     if agg.metric == Metric::SignificantTerms {
         return super::significant_collect::value(agg, shard, result);
+    }
+    if agg.metric == Metric::RareTerms {
+        return super::rare_collect::value(agg, shard, result);
     }
     if agg.subs.is_empty() {
         return keyword_collect::value(&spec_of(agg), result);

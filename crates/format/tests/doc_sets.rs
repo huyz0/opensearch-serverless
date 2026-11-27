@@ -197,3 +197,28 @@ fn a_marker_names_replaces_removes_and_shares() {
     assert!(marker.shares("k1"));
     assert_eq!(marker.content("b"), Some("k1"));
 }
+
+#[test]
+fn the_learning_to_rank_sets_have_their_own_directories_and_a_model_may_be_larger() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::LtrStores).unwrap(),
+        "ltr/stores/_version"
+    );
+    assert_eq!(
+        doc_set_marker_key("ltr/shop/", DocKind::LtrFeatureSets).unwrap(),
+        "ltr/shop/featuresets/_version"
+    );
+    assert_eq!(
+        doc_content_key("ltr/shop/", DocKind::LtrModels, "k").unwrap(),
+        "ltr/shop/models/blob-k"
+    );
+    assert_eq!(
+        DocKind::LtrFeatureSets.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+    assert_eq!(
+        DocKind::LtrModels.max_doc_bytes(),
+        oss_format::MAX_MODEL_BYTES
+    );
+    assert_eq!(oss_format::MAX_MODEL_BYTES, 10 << 20);
+}

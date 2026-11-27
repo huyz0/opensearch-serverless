@@ -381,3 +381,39 @@ fn a_merge_grows_buffers_shorter_than_it_needs() {
     assert_eq!(short.weight, whole.weight);
     assert_eq!(short.quantile(0.9).to_bits(), whole.quantile(0.9).to_bits());
 }
+
+/// The digests OpenSearch 3.10.0's `TDigestState.write` wrote
+/// (`fixtures/search-shard/java-percentiles-3.10.0.txt`): the values 1 to 10
+/// at compression 100, and none.
+#[test]
+fn a_digest_writes_the_bytes_java_wrote() {
+    const RECORDED: &str =
+        include_str!("../../../../../fixtures/search-shard/java-percentiles-3.10.0.txt");
+    let after = |name: &str, prefix: &str| -> Vec<u8> {
+        let line = RECORDED
+            .lines()
+            .find_map(|l| l.strip_prefix(name).and_then(|r| r.strip_prefix(' ')))
+            .expect("a recorded answer");
+        let rest = line.strip_prefix(prefix).expect("the keys");
+        (0..rest.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&rest[i..i + 2], 16).expect("hex"))
+            .collect()
+    };
+    // The list, the type, the name, no metadata, `raw`, then the keys.
+    let head = "0113746469676573745f70657263656e74696c65730170ff03726177";
+    let small = after(
+        "response.percentiles_small",
+        &format!(
+            "{head}073ff00000000000004014000000000000403900000000000040490000000000004052c000000000004057c000000000004058c00000000000"
+        ),
+    );
+    // A `vint` length (192 bytes is two), the digest, and `keyed`.
+    let digest = &small[2..small.len() - 1];
+    assert_eq!(built((1..=10).map(f64::from), 100.0).to_bytes(), digest);
+    let empty = after(
+        "response.percentiles_empty",
+        &format!("{head}01404900000000000020"),
+    );
+    assert_eq!(Digest::new(100.0).to_bytes(), &empty[..empty.len() - 1]);
+}

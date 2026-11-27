@@ -38,7 +38,7 @@ impl MultiType {
 }
 
 /// `zero_terms_query`: true for `all`.
-fn zero_terms(p: &Parser<'_>) -> Result<bool, DslError> {
+pub(crate) fn zero_terms(p: &Parser<'_>) -> Result<bool, DslError> {
     match p.text() {
         t if t.eq_ignore_ascii_case("none") => Ok(false),
         t if t.eq_ignore_ascii_case("all") => Ok(true),

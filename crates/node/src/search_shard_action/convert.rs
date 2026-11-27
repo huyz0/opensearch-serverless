@@ -3,7 +3,10 @@
 //! parser, so a query means here what it means on a REST search.
 
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
-use oss_transport::actions::search_shard::{Node, Query, Source, Value};
+use oss_transport::actions::search_shard::{
+    AggKind, AggRequest, DateHistogramRequest, IntervalType, Node, OrderSpec, Query, RangesRequest,
+    Source, Value,
+};
 use serde_json::{Map, Number, Value as Json, json};
 
 /// Why a decoded source could not become a search source.
@@ -228,6 +231,132 @@ fn body(source: &Source) -> Result<Json, ConvertError> {
     Ok(Json::Object(top))
 }
 
+/// An order as the body's `,"order":...` key.
+fn order_json(order: &OrderSpec) -> Result<String, ConvertError> {
+    let items: Vec<Json> = order
+        .items
+        .iter()
+        .map(|o| {
+            let (key, direction) = o.json();
+            json!({ key: direction })
+        })
+        .collect();
+    let value = if order.compound {
+        Json::Array(items)
+    } else {
+        items.into_iter().next().unwrap_or(Json::Null)
+    };
+    let value = serde_json::to_string(&value).map_err(|_| ConvertError::Number("an order"))?;
+    Ok(format!(",\"order\":{value}"))
+}
+
+/// A `range`'s or `date_range`'s options as the body's keys, each after a
+/// comma: an unbounded end has no key, and a bound given as text is text.
+fn range_options(r: &RangesRequest) -> Result<String, ConvertError> {
+    let mut ranges = Vec::new();
+    for a in &r.ranges {
+        let mut one = Map::new();
+        if let Some(key) = &a.key {
+            one.insert("key".to_owned(), json!(key));
+        }
+        for (name, number, text) in [("from", a.from, &a.from_text), ("to", a.to, &a.to_text)] {
+            if let Some(text) = text {
+                one.insert(name.to_owned(), json!(text));
+            } else if number.is_finite() {
+                let n = Number::from_f64(number).ok_or(ConvertError::Number("a range bound"))?;
+                one.insert(name.to_owned(), Json::Number(n));
+            }
+        }
+        ranges.push(Json::Object(one));
+    }
+    let ranges = serde_json::to_string(&ranges).map_err(|_| ConvertError::Number("the ranges"))?;
+    Ok(format!(",\"keyed\":{},\"ranges\":{ranges}", r.keyed))
+}
+
+/// A `date_histogram`'s options as the body's keys, each after a comma.
+fn histogram_options(h: &DateHistogramRequest) -> Result<String, ConvertError> {
+    let key = match h.interval_type {
+        IntervalType::Fixed => "fixed_interval",
+        IntervalType::Calendar => "calendar_interval",
+    };
+    let interval =
+        serde_json::to_string(&h.interval).map_err(|_| ConvertError::Number("an interval"))?;
+    let mut text = format!(
+        ",\"{key}\":{interval},\"offset\":{},\"keyed\":{},\"min_doc_count\":{}",
+        h.offset, h.keyed, h.min_doc_count
+    );
+    text.push_str(&order_json(&h.order)?);
+    Ok(text)
+}
+
+/// A `terms`' options as the body's keys, each after a comma.
+fn terms_options(
+    t: &oss_transport::actions::search_shard::TermsRequest,
+) -> Result<String, ConvertError> {
+    let mut text = format!(
+        ",\"size\":{},\"min_doc_count\":{},\"shard_min_doc_count\":{},\"show_term_doc_count_error\":{}",
+        t.size, t.min_doc_count, t.shard_min_doc_count, t.show_error
+    );
+    if t.shard_size >= 0 {
+        text.push_str(&format!(",\"shard_size\":{}", t.shard_size));
+    }
+    if !t.order.is_default() {
+        text.push_str(&order_json(&t.order)?);
+    }
+    Ok(text)
+}
+
+/// The aggregations as a body's `aggs` object, in request order, with each
+/// bucket aggregation's own sub-aggregations after its options.
+fn write_aggs(aggs: &[AggRequest], text: &mut Vec<u8>) -> Result<(), ConvertError> {
+    text.push(b'{');
+    for (i, a) in aggs.iter().enumerate() {
+        if i > 0 {
+            text.push(b',');
+        }
+        let name = serde_json::to_vec(&a.name).map_err(|_| ConvertError::Number("a name"))?;
+        let field = serde_json::to_vec(&a.field).map_err(|_| ConvertError::Number("a field"))?;
+        text.extend_from_slice(&name);
+        text.extend_from_slice(format!(":{{\"{}\":{{\"field\":", a.kind.name()).as_bytes());
+        text.extend_from_slice(&field);
+        if let Some(t) = a.precision_threshold {
+            text.extend_from_slice(format!(",\"precision_threshold\":{t}").as_bytes());
+        }
+        if let Some(t) = &a.terms {
+            text.extend_from_slice(terms_options(t)?.as_bytes());
+        }
+        if let Some(h) = &a.histogram {
+            text.extend_from_slice(histogram_options(h)?.as_bytes());
+        }
+        if let Some(r) = &a.ranges {
+            text.extend_from_slice(range_options(r)?.as_bytes());
+        }
+        if let Some(p) = &a.percentiles {
+            let keys = serde_json::to_string(&p.keys)
+                .map_err(|_| ConvertError::Number("a percentile key"))?;
+            let key = if a.kind == AggKind::PercentileRanks {
+                "values"
+            } else {
+                "percents"
+            };
+            text.extend_from_slice(format!(",\"{key}\":{keys},\"keyed\":{}", p.keyed).as_bytes());
+            if let Some(c) = p.compression {
+                let c =
+                    serde_json::to_string(&c).map_err(|_| ConvertError::Number("a compression"))?;
+                text.extend_from_slice(format!(",\"tdigest\":{{\"compression\":{c}}}").as_bytes());
+            }
+        }
+        text.push(b'}');
+        if !a.subs.is_empty() {
+            text.extend_from_slice(b",\"aggs\":");
+            write_aggs(&a.subs, text)?;
+        }
+        text.push(b'}');
+    }
+    text.push(b'}');
+    Ok(())
+}
+
 /// The search source `source` stands for.
 ///
 /// # Errors
@@ -241,20 +370,8 @@ pub fn search_source(source: &Source) -> Result<SearchSource, ConvertError> {
         // Written by hand after the rest of the body: a JSON map would sort
         // the aggregations, and the answer lists them in the request's order.
         text.pop(); // the closing brace
-        text.extend_from_slice(b",\"aggs\":{");
-        for (i, a) in source.aggregations.iter().enumerate() {
-            if i > 0 {
-                text.push(b',');
-            }
-            let name = serde_json::to_vec(&a.name).map_err(|_| ConvertError::Number("a name"))?;
-            let field =
-                serde_json::to_vec(&a.field).map_err(|_| ConvertError::Number("a field"))?;
-            text.extend_from_slice(&name);
-            text.extend_from_slice(format!(":{{\"{}\":{{\"field\":", a.kind.name()).as_bytes());
-            text.extend_from_slice(&field);
-            text.extend_from_slice(b"}}");
-        }
-        text.push(b'}');
+        text.extend_from_slice(b",\"aggs\":");
+        write_aggs(&source.aggregations, &mut text)?;
         text.push(b'}');
     }
     let mut rec = Recorder::new(MAX_RECORDED_BYTES);

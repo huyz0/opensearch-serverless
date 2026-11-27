@@ -36,6 +36,9 @@ pub mod range;
 pub mod range_collect;
 pub mod range_parse;
 pub mod range_render;
+pub mod rare;
+pub mod rare_collect;
+pub mod rare_parse;
 pub mod running;
 pub mod significant;
 pub mod significant_collect;
@@ -91,6 +94,8 @@ mod composite_collect_tests;
 mod composite_tests;
 #[cfg(test)]
 mod date_histogram_collect_tests;
+#[cfg(test)]
+mod date_histogram_format_tests;
 #[cfg(test)]
 mod date_histogram_region_tests;
 #[cfg(test)]
@@ -148,6 +153,8 @@ mod nested_under_terms_tests;
 mod range_collect_tests;
 #[cfg(test)]
 mod range_tests;
+#[cfg(test)]
+mod rare_tests;
 #[cfg(test)]
 mod running_tests;
 #[cfg(test)]

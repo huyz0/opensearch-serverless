@@ -43,6 +43,10 @@ pub enum FieldType {
     /// `date` in the default format (`strict_date_optional_time||epoch_millis`),
     /// as epoch milliseconds in `LongPoint`s and sorted numeric doc values.
     Date,
+    /// `float`: `FloatPoint`s and doc values of the sortable int.
+    Float,
+    /// `double`: `DoublePoint`s and doc values of the sortable long.
+    Double,
     /// A type, or an option, this reader does not search yet.
     Unsupported(String),
 }
@@ -82,36 +86,7 @@ pub struct Fetch {
     pub stored: bool,
 }
 
-/// The space a `knn_vector` field scores in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Space {
-    /// `l2`, the default.
-    L2,
-    /// `cosinesimil`.
-    CosineSimil,
-    /// `innerproduct`.
-    InnerProduct,
-}
-
-impl Space {
-    /// The name the plugin's messages give the space (`SpaceType.name()`).
-    pub fn name(self) -> &'static str {
-        match self {
-            Space::L2 => "L2",
-            Space::CosineSimil => "COSINESIMIL",
-            Space::InnerProduct => "INNER_PRODUCT",
-        }
-    }
-}
-
-/// What the `knn` query reads of a `knn_vector` field.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct KnnField {
-    /// The vectors' length.
-    pub dimension: u32,
-    /// The space the field's `space_type` names.
-    pub space: Space,
-}
+pub use crate::mapping_types::{KnnField, Space};
 
 /// An index's fields by full name.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -456,6 +431,8 @@ impl Mapping {
             },
             ("long", None) => FieldType::Long,
             ("date", None) => FieldType::Date,
+            ("float", None) => FieldType::Float,
+            ("double", None) => FieldType::Double,
             // ALLOC: one description a field this reader does not search.
             (other, None) => FieldType::Unsupported(format!("a [{other}] field")),
         };

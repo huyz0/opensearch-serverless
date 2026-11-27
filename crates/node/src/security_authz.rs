@@ -94,6 +94,11 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         Rule::Index("indices:data/write/index"),
     ),
     (
+        &[Method::Post],
+        "/{index}/_update/{id}",
+        Rule::Index("indices:data/write/update"),
+    ),
+    (
         &[Method::Delete],
         "/{index}/_doc/{id}",
         Rule::Index("indices:data/write/delete"),

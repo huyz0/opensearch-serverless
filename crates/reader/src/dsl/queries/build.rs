@@ -122,11 +122,13 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             ..
         } => full_text_build::phrase(cx, field, query, *slop, *zero_terms_all),
         More::MatchBoolPrefix(m, _) => super::bool_prefix::build(cx, m),
+        More::MatchPhrasePrefix(m, _) => super::phrase_prefix::build(cx, m),
         More::FuzzyMatch(m, _) => full_text_build::fuzzy_match(cx, m),
         More::MultiMatch(m, _) => full_text_build::multi_match(cx, m),
         More::SimpleQueryString(s, _) => super::simple_string_build::simple_query_string(cx, s),
         More::QueryString(q, _) => super::query_string_build::query_string(cx, q),
         More::FunctionScore(q, _) => super::function_score_build::function_score(cx, q),
+        More::Script(q, _) => super::script_query::build(cx, q),
         More::Knn(q) if matches!(q.mode, super::knn::Mode::TopK(_)) => cx
             .knn
             .and_then(|r| r.get(q))
@@ -154,13 +156,15 @@ fn constant(inner: Clause) -> Clause {
 }
 
 /// The type name OpenSearch's messages give a field type.
-fn type_name(ty: &FieldType) -> &str {
+pub(super) fn type_name(ty: &FieldType) -> &str {
     match ty {
         FieldType::Text => "text",
         FieldType::Keyword => "keyword",
         FieldType::Int { name, .. } => name,
         FieldType::Long => "long",
         FieldType::Date => "date",
+        FieldType::Float => "float",
+        FieldType::Double => "double",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -310,7 +314,9 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
             // ALLOC: one box a bool of a date field's terms.
             Ok(constant(Clause::Boolean(Box::new(q))))
         }
-        FieldType::Unsupported(_) => Err(unsupported("this field type")),
+        FieldType::Float | FieldType::Double | FieldType::Unsupported(_) => {
+            Err(unsupported("this field type"))
+        }
     }
 }
 

@@ -6,3 +6,5 @@ src/budget.rs	port	serverless/testkit/src/test/java/org/opensearch/serverless/te
 src/index.rs	new		a one-shard index written by lucene-rust and laid out as the shell's blobs; the Java tests index through a node instead
 src/index/tests.rs	new		pins the vector generator and the files of a vector index; the Java tests have no such helper
 src/index/nested.rs	new		the nested objects of a Spec::with_nested index
+src/index/decimals.rs	new		the double and float fields of a Spec::with_decimals index
+src/index/support.rs	new		small encoders the index builder shares

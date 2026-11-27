@@ -8,3 +8,4 @@
 - AC-5: `a_found_document_is_scripted_or_merged` in crates/coordinator/tests/it/update.rs
 - AC-6: `a_scripts_operation_is_kept_only_where_it_makes_sense` in crates/coordinator/tests/it/update.rs
 - AC-7: `the_write_carries_the_callers_condition_or_the_one_just_read` in crates/coordinator/tests/it/update.rs
+- AC-8: `an_update_script_edits_the_source_and_chooses_the_operation` in crates/coordinator/tests/update_script.rs (run 2026-11-27: `cargo test -p oss-coordinator --test update_script`)

@@ -18,6 +18,7 @@ pub mod full_text_build;
 pub mod function_score;
 pub mod function_score_build;
 mod function_score_modes;
+mod function_score_painless;
 pub mod function_score_random;
 pub mod function_score_script;
 pub mod inner_hits;
@@ -25,8 +26,10 @@ pub mod knn;
 mod leaf_common;
 pub mod nested;
 pub mod nested_build;
+pub mod phrase_prefix;
 pub mod query_string;
 pub mod query_string_build;
+pub mod script_query;
 pub mod simple_string;
 pub mod simple_string_build;
 mod simple_string_leaf;
@@ -54,6 +57,7 @@ pub const NAMES: &[&str] = &[
     "match_none",
     "match_phrase",
     "match_bool_prefix",
+    "match_phrase_prefix",
     "multi_match",
     "simple_query_string",
     "query_string",
@@ -230,6 +234,8 @@ pub enum More {
     FuzzyMatch(Box<full_text::FuzzyMatch>, f32),
     /// `MatchBoolPrefixQueryBuilder`, and its boost.
     MatchBoolPrefix(Box<bool_prefix::BoolPrefix>, f32),
+    /// `MatchPhrasePrefixQueryBuilder`, and its boost.
+    MatchPhrasePrefix(Box<phrase_prefix::PhrasePrefix>, f32),
     /// `MultiMatchQueryBuilder` of the types served, and its boost.
     MultiMatch(Box<full_text::MultiMatch>, f32),
     /// `SimpleQueryStringBuilder`, and its boost.
@@ -240,6 +246,8 @@ pub enum More {
     FunctionScore(Box<function_score::FunctionScore>, f32),
     /// `NestedQueryBuilder`, with its boost.
     Nested(Box<nested::NestedQuery>, f32),
+    /// `ScriptQueryBuilder` over Painless, and its boost.
+    Script(Box<function_score_script::ScriptScore>, f32),
     /// The k-NN plugin's `KNNQueryBuilder`.
     Knn(Box<knn::Knn>),
 }
@@ -263,10 +271,12 @@ impl More {
             | More::MultiMatch(_, boost)
             | More::FuzzyMatch(_, boost)
             | More::MatchBoolPrefix(_, boost)
+            | More::MatchPhrasePrefix(_, boost)
             | More::SimpleQueryString(_, boost)
             | More::QueryString(_, boost)
             | More::FunctionScore(_, boost)
             | More::Nested(_, boost)
+            | More::Script(_, boost)
             | More::MatchNone { boost } => *boost,
             More::Knn(q) => q.boost,
         }
@@ -289,6 +299,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "boosting" => compound::parse_boosting(p),
         "match_phrase" => full_text::parse_match_phrase(p),
         "match_bool_prefix" => bool_prefix::parse(p),
+        "match_phrase_prefix" => phrase_prefix::parse(p),
         "multi_match" => full_text::parse_multi_match(p),
         "simple_query_string" => simple_string::parse_simple_query_string(p),
         "query_string" => query_string::parse_query_string(p),
@@ -327,6 +338,9 @@ mod fuzzy_match_tests;
 
 #[cfg(test)]
 mod function_score_tests;
+
+#[cfg(test)]
+mod script_switch_tests;
 
 #[cfg(test)]
 mod query_string_build_tests;

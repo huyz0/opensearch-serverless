@@ -265,7 +265,8 @@ fn kind_of(name: &str, mapping: &Mapping) -> Result<ValueKind, ShardError> {
             )));
         }
         // ALLOC: error path; one message.
-        FieldType::Unsupported(what) => {
+        ty @ (FieldType::Float | FieldType::Double | FieldType::Unsupported(_)) => {
+            let what = ty.refusal_name();
             return Err(unsupported(&format!(
                 "[docvalue_fields] of the {what} [{name}]"
             )));

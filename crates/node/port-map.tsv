@@ -37,6 +37,8 @@ src/open_prefetch.rs	new		whether a cold open prefetches (index, cluster, node, 
 src/writer/publishing.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/BackgroundReconciler.java	the publish pass: lazyPublishDue then SegmentPublisher.publish, the manifest remembered as the newest commit; the timer, per-index refresh_interval age and log ordinal are not ported yet
 src/writer/publish_timer.rs	new		one thread running the publish pass on an interval; the Java reconciler is a scheduled executor task
 src/doc_route.rs	new		the _doc, _create and delete routes over the writer role, each one item through the bulk path; the Java has the REST actions in OpenSearch core
+src/update_route.rs	new		the _update route over the writer role: a realtime read, the coordinator plan, one conditional write item, retried on conflict
+src/update_body.rs	new		the update body keys and the merge of a doc into a source
 src/get_route.rs	new		the _doc and _source get routes over the writer role; the Java has the REST actions in OpenSearch core
 src/refresh_route.rs	new		the _refresh route over the writer role's shards; the Java has the REST action in OpenSearch core
 src/writer/get.rs	new		the role's get of a shard it holds and its index lookup
@@ -257,3 +259,14 @@ src/pack_holds.rs	new		the live points in time and snapshots as holds on a node 
 src/pack_pass.rs	new		the node's collect pass: the writer's collector over the live membership with commit and view references; stock's NodePackCollector runs on a timer in every node
 src/boot/pack_collect.rs	new		the thread that runs the node's pack collection pass every minute when collection is on; stock's NodePackCollector runs on a timer in every node
 src/boot/pack_collect_tests.rs	new		tests of that thread
+src/search_shard_action/terms.rs	new		a shard terms result as the forwarded answer
+src/search_shard_action/tests/aggregations.rs	new		tests of the forwarded aggregations answered
+src/search_shard_action/answer_value.rs	new		a shard result as the forwarded answer's value
+src/search_shard_action/histogram.rs	new		a shard date histogram result as the forwarded answer's value
+src/search_shard_action/range.rs	new		a shard range result as the forwarded answer's value
+src/search_shard_action/tests/ranges.rs	new		tests of the forwarded range answers
+src/ltr_setting.rs	new		serverless.ltr.enabled
+src/ltr_route/mod.rs	new		the learning to rank feature store service over document sets; the Java plugin (o19s) is ported natively by ADR 0071
+src/ltr_route/objects.rs	new		the feature set and model objects as the plugin shapes them
+src/ltr_route/stores.rs	new		create, delete and list the stores
+src/ltr_route/routes.rs	new		the route table under /_ltr and /_plugins/_ltr
