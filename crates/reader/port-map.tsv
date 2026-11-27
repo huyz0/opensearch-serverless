@@ -348,3 +348,4 @@ src/dsl/queries/named_tests.rs	new		_name on the compound, full-text, nested and
 src/aggs/pipeline/script.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketScriptPipelineAggregator.java@429b4cbc	bucket_script and bucket_selector compute (BucketSelectorPipelineAggregator.reduce too), over the rendered buckets
 src/aggs/pipeline/script_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketScriptPipelineAggregationBuilder.java@429b4cbc	the bucket_script parser; bucket_selector's loop is BucketSelectorPipelineAggregationBuilder.parse
 src/aggs/pipeline/script_tests.rs	new		both script pipelines computed and parsed against the bytes Java wrote
+src/search_finish.rs	new		a search's hits capped, and its script pipelines run once, before the response starts

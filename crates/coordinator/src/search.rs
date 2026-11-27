@@ -235,6 +235,14 @@ fn search_scoped<T: Shards>(
     })
     .map_err(|e| fetch_failure(&e))?;
     let (parts, top_bodies) = reduce_aggregations(t, &queries, p)?;
+    oss_reader::aggs::pipeline::script::settle(&parts, &p.pipelines, p.typed_keys).map_err(
+        |f| {
+            SearchFailure::Aggs(AggsError::Script {
+                name: f.name,
+                message: f.message,
+            })
+        },
+    )?;
     // ALLOC: the response, bounded by the page's rendered hits.
     let mut out = Vec::new();
     // Writing to a vector cannot fail.
