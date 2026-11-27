@@ -405,3 +405,45 @@ fn ignore_unavailable_with_nothing_left_answers_an_empty_result() {
     let (status, body) = post(&node, "/compat-term/_search?ignore_unavailable=maybe", ALL);
     assert_eq!(status, 400, "{body}");
 }
+
+#[test]
+fn ignore_unavailable_on_field_caps_skips_the_names_that_are_no_index() {
+    let node = start();
+    let caps = |path: &str| {
+        let r = request(node.addr(), "GET", path, None);
+        (r.status, r.text())
+    };
+    let (_, one) = caps("/compat-term/_field_caps?fields=*");
+    let (status, both) =
+        caps("/compat-term,no-such-index/_field_caps?fields=*&ignore_unavailable=true");
+    assert_eq!((status, &both), (200, &one));
+    let (status, text) = caps("/compat-term,no-such-index/_field_caps?fields=*");
+    assert_eq!(status, 404, "{text}");
+    let (status, text) = caps("/no-such-index/_field_caps?fields=*&ignore_unavailable=true");
+    assert_eq!(status, 200, "{text}");
+    assert_eq!(text, r#"{"indices":[],"fields":{}}"#);
+    let (status, text) = caps("/compat-term/_field_caps?fields=*&ignore_unavailable=maybe");
+    assert_eq!(status, 400, "{text}");
+}
+
+#[test]
+fn ignore_unavailable_in_an_msearch_header_skips_the_names_that_are_no_index() {
+    let node = start();
+    let (_, one) = post(&node, "/compat-term/_search", ALL);
+    let item = |header: &str| post(&node, "/_msearch", &format!("{header}\n{ALL}\n"));
+    for header in [
+        r#"{"index":"compat-term,no-such-index","ignore_unavailable":true}"#,
+        r#"{"index":"no-such-index,compat-term","ignore_unavailable":"true"}"#,
+    ] {
+        let (status, answer) = item(header);
+        assert_eq!(status, 200, "{header}: {answer}");
+        assert_eq!(totals(&answer), vec![total(&one)], "{header}: {answer}");
+    }
+    let (_, answer) = item(r#"{"index":"compat-term,no-such-index"}"#);
+    assert!(answer.contains(r#""status":404"#), "{answer}");
+    let (_, answer) = item(r#"{"index":"no-such-index","ignore_unavailable":true}"#);
+    assert_eq!(totals(&answer), vec![0], "{answer}");
+    assert!(answer.contains(r#""status":200"#), "{answer}");
+    let (_, answer) = item(r#"{"index":"compat-term","ignore_unavailable":"maybe"}"#);
+    assert!(answer.contains(r#""status":400"#), "{answer}");
+}
