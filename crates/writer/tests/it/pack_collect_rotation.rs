@@ -93,3 +93,39 @@ fn a_named_pack_is_asked_about_a_few_times_a_day_in_a_big_cluster() {
     let (_, asked) = run_cluster(50, 144, true);
     assert!(asked <= 12, "asked {asked} times in a day with 50 members");
 }
+
+/// The tracking cap belongs to the collector, not to each node it judges:
+/// with a cap of four, two nodes with three old packs each have four packs
+/// tracked between them, so four are deleted at the second pass and the rest
+/// follow once the first are gone.
+#[test]
+fn the_tracking_cap_is_the_collectors_across_every_node() {
+    let e = Arc::new(Emulator::new(1 << 30, 7));
+    let store = Arc::clone(&e) as Arc<dyn BlobStore>;
+    for node in ["node-a", "node-b"] {
+        PackIndexStore::new(Arc::clone(&store), "")
+            .add(node, 1)
+            .expect("indexed");
+        PackLedger::new(Arc::clone(&store), "", node)
+            .expect("ledger")
+            .reserve(1, 8)
+            .expect("reserved");
+        for ordinal in 0..3 {
+            let key = node_pack_key("", node, 1, ordinal).expect("key");
+            e.put(&key, &mut SliceSource::new(b"pack"), &mut [0; 16])
+                .expect("put");
+        }
+    }
+    e.advance_clock(16 * MIN);
+    let me = vec!["collector".to_owned()];
+    let mut c = PackCollector::new(Arc::clone(&store), "", 4);
+    let refs = Counting::default();
+    let mut deleted = Vec::new();
+    for w in 100..108 {
+        let now = w * WINDOW_MILLIS + MIN;
+        let out = c.tick("collector", &me, now, &refs).expect("tick");
+        deleted.push(out.deleted);
+    }
+    assert_eq!(deleted.iter().take(2).sum::<usize>(), 4, "{deleted:?}");
+    assert_eq!(deleted.iter().sum::<usize>(), 6, "all go in the end");
+}

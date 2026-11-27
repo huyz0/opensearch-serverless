@@ -26,7 +26,7 @@ pub struct PackPassParts {
     pub pits: Arc<PointInTimeStore>,
     /// The bounds on what a run reads of the views.
     pub limits: HoldLimits,
-    /// The most packs one node's judge tracks.
+    /// The most packs the collector tracks, across every node it judges.
     pub max_tracked: usize,
     /// The live members' ids, sorted.
     pub members: Box<dyn Fn() -> Vec<String> + Send + Sync>,
