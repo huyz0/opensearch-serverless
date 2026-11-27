@@ -19,10 +19,11 @@ Refused by name, as before: a sub-aggregation, a pipeline aggregation, metadata,
 - AC-5: an aggregation over a date field is answered with `DocValueFormat.DateTime` of the default date format, in UTC and milliseconds (`date_time`, `strict_date_time_no_millis||strict_date_optional_time||epoch_millis`, print pattern `strict_date_optional_time`, `Z`, resolution 0), where a number's is `raw`. A `max` of the time field is what anomaly detection asks first.
 - AC-6: a `stats` aggregation is read and written like the single-value metrics, and answered as `InternalStats`: the format, a `vlong` count, then min, max and sum as doubles.
 - AC-7: the request and the answers above are the bytes OpenSearch 3.10.0's own classes write (`fixtures/search-shard/java-aggs-3.10.0.txt`, from `AggRecordings.java`).
+- AC-8: a `cardinality` aggregation, with its `precision_threshold` if any, is read, written and answered as `InternalCardinality` (the format, a present flag, and the sketch `AbstractHyperLogLogPlusPlus.writeTo` writes, or the absent flag when no value was seen); an `execution_hint` is refused by name. The sketch's bytes written from a read one are the ones Java wrote, for no hashes, a few, and a HyperLogLog one.
 
 ## Test plan
 
-Unit tests in `oss-transport` (`aggs.rs`: AC-1 to AC-3 and AC-5), the Java recordings in `crates/transport/tests/search_shard.rs` (AC-1, AC-3, AC-5 to AC-7) and `oss-node` (`search_shard_action/tests.rs`, `convert_tests.rs`: AC-4, AC-6). `AggRecordings.java` records the bytes of the 3.10.0 classes (`AggregatorFactories.Builder`, `InternalAggregations`); the first two slices were written from reading the Java source and the recordings agree with them.
+Unit tests in `oss-transport` (`aggs.rs`: AC-1 to AC-3 and AC-5), the Java recordings in `crates/transport/tests/search_shard_aggs.rs` (AC-1, AC-3, AC-5 to AC-7) and `oss-node` (`search_shard_action/tests.rs`, `convert_tests.rs`: AC-4, AC-6). `AggRecordings.java` records the bytes of the 3.10.0 classes (`AggregatorFactories.Builder`, `InternalAggregations`); the first two slices were written from reading the Java source and the recordings agree with them.
 
 ## S3 request budget
 

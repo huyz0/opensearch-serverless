@@ -29,6 +29,8 @@ pub enum AggKind {
     ValueCount,
     /// `stats`.
     Stats,
+    /// `cardinality`.
+    Cardinality,
 }
 
 impl AggKind {
@@ -41,6 +43,7 @@ impl AggKind {
             Self::Avg => "avg",
             Self::ValueCount => "value_count",
             Self::Stats => "stats",
+            Self::Cardinality => "cardinality",
         }
     }
 
@@ -52,6 +55,7 @@ impl AggKind {
             Self::Avg,
             Self::ValueCount,
             Self::Stats,
+            Self::Cardinality,
         ]
         .into_iter()
         .find(|k| k.name() == name)
@@ -67,10 +71,12 @@ pub struct AggRequest {
     pub kind: AggKind,
     /// The field it reads.
     pub field: String,
+    /// A `cardinality`'s `precision_threshold`.
+    pub precision_threshold: Option<i64>,
 }
 
 /// One shard-level result.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AggValue {
     /// `InternalMin`'s value; positive infinity when nothing matched.
     Min(f64),
@@ -87,6 +93,9 @@ pub enum AggValue {
     },
     /// `InternalValueCount`'s value.
     ValueCount(i64),
+    /// `InternalCardinality`: the sketch as `AbstractHyperLogLogPlusPlus`
+    /// writes it, or none when no value was seen.
+    Cardinality(Option<Vec<u8>>),
     /// `InternalStats`.
     Stats {
         /// How many values.
@@ -101,7 +110,7 @@ pub enum AggValue {
 }
 
 /// A result with the name of its aggregation.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AggAnswer<'a> {
     /// The aggregation's name.
     pub name: &'a str,
@@ -172,7 +181,7 @@ pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
         let name = input.string("aggregation name")?;
         empty_builder(input, "sub-aggregations")?;
         null_generic(input, "aggregation metadata")?;
-        if kind == AggKind::ValueCount {
+        if matches!(kind, AggKind::ValueCount | AggKind::Cardinality) {
             // `serializeTargetValueType`: a null writeable.
             none(input, "a value type target")?;
         }
@@ -186,7 +195,21 @@ pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
         }
         null_generic(input, "an aggregation missing value")?;
         none(input, "an aggregation time zone")?;
-        out.push(AggRequest { name, kind, field });
+        let mut precision_threshold = None;
+        if kind == AggKind::Cardinality {
+            if input.bool("a precision threshold flag")? {
+                precision_threshold = Some(input.long("a precision threshold")?);
+            }
+            if input.optional_string("an execution hint")?.is_some() {
+                return Err(Refusal::Unsupported("an execution hint"));
+            }
+        }
+        out.push(AggRequest {
+            name,
+            kind,
+            field,
+            precision_threshold,
+        });
     }
     // Pipeline aggregations.
     if input.vint("pipeline aggregations")? != 0 {
@@ -208,7 +231,7 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         out.vint(0)?; // sub-aggregations
         out.vint(0)?; // sub pipeline aggregations
         out.byte(0xFF)?; // metadata: null
-        if agg.kind == AggKind::ValueCount {
+        if matches!(agg.kind, AggKind::ValueCount | AggKind::Cardinality) {
             out.bool(false)?; // target value type
         }
         out.optional_string(Some(&agg.field))?;
@@ -217,6 +240,13 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         out.optional_string(None)?; // format
         out.byte(0xFF)?; // missing: null
         out.bool(false)?; // time zone
+        if agg.kind == AggKind::Cardinality {
+            out.bool(agg.precision_threshold.is_some())?;
+            if let Some(t) = agg.precision_threshold {
+                out.long(t)?;
+            }
+            out.optional_string(None)?; // execution hint
+        }
     }
     out.vint(0) // pipeline aggregations
 }
@@ -230,28 +260,36 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
 pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<(), WireError> {
     out.count(answers.len())?;
     for a in answers {
-        let (kind, ()) = match a.value {
+        let (kind, ()) = match &a.value {
             AggValue::Min(_) => (AggKind::Min, ()),
             AggValue::Max(_) => (AggKind::Max, ()),
             AggValue::Sum(_) => (AggKind::Sum, ()),
             AggValue::Avg { .. } => (AggKind::Avg, ()),
             AggValue::ValueCount(_) => (AggKind::ValueCount, ()),
             AggValue::Stats { .. } => (AggKind::Stats, ()),
+            AggValue::Cardinality(_) => (AggKind::Cardinality, ()),
         };
         out.string(kind.name())?;
         out.string(a.name)?;
         out.byte(0xFF)?; // metadata: null
-        match a.value {
+        match &a.value {
             AggValue::Min(v) | AggValue::Max(v) | AggValue::Sum(v) => {
                 write_format(out, a.date)?;
                 out.bytes(&v.to_bits().to_be_bytes())?;
             }
+            AggValue::Cardinality(sketch) => {
+                write_format(out, a.date)?;
+                out.bool(sketch.is_some())?;
+                if let Some(bytes) = sketch {
+                    out.bytes(bytes)?;
+                }
+            }
             AggValue::Avg { sum, count } => {
                 write_format(out, a.date)?;
                 out.bytes(&sum.to_bits().to_be_bytes())?;
-                out.vlong(count)?;
+                out.vlong(*count)?;
             }
-            AggValue::ValueCount(n) => out.vlong(n)?,
+            AggValue::ValueCount(n) => out.vlong(*n)?,
             AggValue::Stats {
                 count,
                 min,
@@ -259,7 +297,7 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
                 sum,
             } => {
                 write_format(out, a.date)?;
-                out.vlong(count)?;
+                out.vlong(*count)?;
                 for v in [min, max, sum] {
                     out.bytes(&v.to_bits().to_be_bytes())?;
                 }
@@ -287,11 +325,13 @@ mod tests {
                 name: "hi".into(),
                 kind: AggKind::Max,
                 field: "n".into(),
+                precision_threshold: None,
             },
             AggRequest {
                 name: "c".into(),
                 kind: AggKind::ValueCount,
                 field: "tag".into(),
+                precision_threshold: None,
             },
         ];
         let wire = bytes(&aggs);

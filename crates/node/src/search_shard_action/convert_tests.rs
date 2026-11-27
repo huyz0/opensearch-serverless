@@ -79,11 +79,13 @@ fn the_aggregations_of_a_request_reach_the_source() {
             name: "hi".to_owned(),
             kind: AggKind::Max,
             field: "n".to_owned(),
+            precision_threshold: None,
         },
         AggRequest {
             name: "c".to_owned(),
             kind: AggKind::ValueCount,
             field: "tag".to_owned(),
+            precision_threshold: None,
         },
     ];
     let s = search_source(&with).expect("a search source");
@@ -93,4 +95,18 @@ fn the_aggregations_of_a_request_reach_the_source() {
         .map(|a| (a.name.as_str(), a.field.as_str()))
         .collect();
     assert_eq!(names, [("hi", "n"), ("c", "tag")]);
+}
+
+#[test]
+fn a_precision_threshold_reaches_the_source() {
+    use oss_transport::actions::search_shard::{AggKind, AggRequest};
+    let mut with = read("request.match_all");
+    with.aggregations = vec![AggRequest {
+        name: "u".to_owned(),
+        kind: AggKind::Cardinality,
+        field: "tag".to_owned(),
+        precision_threshold: Some(100),
+    }];
+    let s = search_source(&with).expect("a search source");
+    assert_eq!(s.aggs[0].cardinality.precision_threshold, Some(100));
 }
