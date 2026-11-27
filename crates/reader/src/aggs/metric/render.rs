@@ -72,7 +72,7 @@ fn write_parts(
         if i > 0 {
             out.write_all(b",")?;
         }
-        write_key(out, &part.name, &part.value)?;
+        write_key(out, &part.name, &part.value, part.format)?;
         out.write_all(b":{")?;
         match &part.value {
             Value::TopHits(top) => hits(out, &part.name, top)?,

@@ -14,4 +14,4 @@
 - AC-12: `the_fields_api_reads_a_double_and_a_float_from_the_source`, `a_double_and_a_float_read_from_the_source_as_the_mapper_parses_them`
 - AC-13: `a_histogram_of_a_double_keys_each_bucket_by_its_floor`, `a_histogram_of_a_float_reads_each_value_as_its_float`, `a_range_of_a_double_counts_the_documents_in_each_range`
 - AC-14: `terms_of_a_double_key_each_bucket_by_its_value_and_write_the_double`, `terms_of_a_float_key_by_the_widened_double`
-- AC-15: `a_terms_over_a_double_field_is_refused_rather_than_sent_as_long_terms`
+- AC-15: `a_terms_over_a_double_field_is_answered_as_double_terms_with_the_decoded_key`, `a_double_terms_answer_is_the_long_terms_bytes_with_a_double_key`, `a_terms_over_a_double_is_a_double_terms`

@@ -24,7 +24,7 @@ pub fn write_terms(out: &mut dyn Write, format: Format, result: &TermsResult) ->
         }
         if format == Format::Double {
             out.write_all(b"{\"key\":")?;
-            let d = lucene_util::numeric_utils::sortable_long_to_double(*key);
+            let d = crate::aggs::bucket::terms_collect::double_of_key(*key);
             out.write_all(crate::template::java_double(d).as_bytes())?;
         } else {
             write!(out, "{{\"key\":{key}")?;

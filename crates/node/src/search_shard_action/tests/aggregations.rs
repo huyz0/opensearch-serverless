@@ -448,17 +448,26 @@ fn a_date_histogram_in_a_time_zone_is_refused() {
 }
 
 #[test]
-fn a_terms_over_a_double_field_is_refused_rather_than_sent_as_long_terms() {
+fn a_terms_over_a_double_field_is_answered_as_double_terms_with_the_decoded_key() {
+    use oss_reader::aggs::bucket::terms::TermsResult;
     use oss_reader::aggs::partial::{Format, Partial, Value as Part};
     use oss_transport::actions::search_shard::Order;
+    let key = oss_reader::aggs::bucket::terms_collect::key_of_double(2.5);
     let part = Partial {
         name: "u".to_owned(),
         format: Format::Double,
-        value: Part::Terms(Box::default()),
+        value: Part::Terms(Box::new(TermsResult {
+            buckets: vec![(key, 3)],
+            ..Default::default()
+        })),
     };
-    let error = ask_with(vec![terms_request("u", Order::KeyAsc)], vec![part]).unwrap_err();
+    let answer = ask_with(vec![terms_request("u", Order::KeyAsc)], vec![part]).unwrap();
+    let mut name = vec![1, 6];
+    name.extend_from_slice(b"dterms");
     assert!(
-        format!("{error:?}").contains("not served to another node yet"),
-        "{error:?}"
+        answer.windows(name.len()).any(|w| w == &name[..]),
+        "{answer:?}"
     );
+    let key = 2.5f64.to_be_bytes();
+    assert!(answer.windows(8).any(|w| w == key), "{answer:?}");
 }
