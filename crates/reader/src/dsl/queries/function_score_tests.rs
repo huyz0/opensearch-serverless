@@ -427,3 +427,57 @@ fn a_min_score_is_read_and_defaults_to_none() {
         Some(0.5)
     );
 }
+
+fn script_of(body: &str) -> super::function_score_script::ScriptScore {
+    match parsed(body)
+        .0
+        .functions
+        .into_iter()
+        .next()
+        .and_then(|e| e.function)
+    {
+        Some(Function::Script(s)) => s,
+        other => panic!("parsed {other:?}"),
+    }
+}
+
+// docs/specs/painless-script-score AC-1: one test, because the switch is
+// process-wide and tests of the library run in parallel.
+#[test]
+fn painless_is_served_only_while_the_switch_is_on() {
+    use super::function_score_script::{Lang, Param};
+    let painless = r#"{"functions":[{"script_score":{"script":{"source":"params.a + params.s.length()","params":{"a":2,"b":3000000000,"c":1.5,"s":"x","t":true}}}}]}"#;
+    let refusal = "[script_score] runs only lang [expression] on this node";
+    assert!(!crate::painless_switch::native_compile());
+    assert_eq!(reason(painless), refusal);
+    assert_eq!(
+        reason(r#"{"functions":[{"script_score":{"script":{"lang":"painless","source":"1"}}}]}"#),
+        refusal
+    );
+    // An expression takes numbers alone, on or off.
+    let text = r#"{"functions":[{"script_score":{"script":{"lang":"expression","source":"1","params":{"s":"x"}}}}]}"#;
+    assert!(reason(text).contains("a param that is not a number"));
+    crate::painless_switch::set_native_compile(true);
+    let s = script_of(painless);
+    assert_eq!(s.lang, Lang::Painless);
+    assert_eq!(
+        s.params,
+        [
+            ("a".to_owned(), Param::Int(2)),
+            ("b".to_owned(), Param::Long(3_000_000_000)),
+            ("c".to_owned(), Param::Double(1.5)),
+            ("s".to_owned(), Param::Str("x".to_owned())),
+            ("t".to_owned(), Param::Bool(true)),
+        ]
+    );
+    let s = script_of(
+        r#"{"functions":[{"script_score":{"script":{"lang":"expression","source":"1","params":{"n":4}}}}]}"#,
+    );
+    assert_eq!(s.lang, Lang::Expression);
+    assert_eq!(
+        reason(r#"{"functions":[{"script_score":{"script":{"lang":"groovy","source":"1"}}}]}"#),
+        refusal
+    );
+    crate::painless_switch::set_native_compile(false);
+    assert!(!crate::painless_switch::native_compile());
+}
