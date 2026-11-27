@@ -25,6 +25,9 @@ pub struct Hit<'a> {
     pub primary_term: i64,
     /// The stored `_source` as written.
     pub source: &'a [u8],
+    /// The named queries the hit matches, in order, each with its score
+    /// (`NaN` for a name without one).
+    pub matched: &'a [(String, f32)],
 }
 
 /// One shard's answer.
@@ -54,8 +57,23 @@ fn optional_bool(out: &mut Output<'_>, value: Option<bool>) -> Result<(), WireEr
     })
 }
 
+/// A hit's matched queries as Java writes them: the count, then for a
+/// non-empty set a map of name to score.
+fn matched(out: &mut Output<'_>, names: &[(String, f32)]) -> Result<(), WireError> {
+    out.count(names.len())?;
+    if names.is_empty() {
+        return Ok(());
+    }
+    out.count(names.len())?;
+    for (name, score) in names {
+        out.string(name)?;
+        float(out, *score)?;
+    }
+    Ok(())
+}
+
 /// `SearchHit.writeTo`, with no nested identity, explanation, fields,
-/// highlights, sort values, matched queries, shard target or inner hits.
+/// highlights, sort values, shard target or inner hits.
 fn hit(out: &mut Output<'_>, hit: &Hit<'_>) -> Result<(), WireError> {
     float(out, hit.score)?;
     // `writeOptionalText`: an int length, then UTF-8.
@@ -77,7 +95,7 @@ fn hit(out: &mut Output<'_>, hit: &Hit<'_>) -> Result<(), WireError> {
     out.vint(0)?; // highlight fields
     out.vint(0)?; // sort values: formatted
     out.vint(0)?; // sort values: raw
-    out.vint(0)?; // matched queries
+    matched(out, hit.matched)?;
     out.bool(false)?; // shard target
     out.vint(0) // inner hits
 }

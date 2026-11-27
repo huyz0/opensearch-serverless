@@ -15,6 +15,7 @@ Ported from `AbstractQueryBuilder.queryName`, `QueryShardContext.addNamedQuery`,
 - A search with no named query makes no extra work and writes the hit as before.
 - Names in the search's `post_filter` and in its `rescore` queries are collected with the query's, as OpenSearch copies them into the search context.
 - Not here: names inside aggregation filters and inner hits (read, not matched); `_name` on queries inside `nested` is read and matched on the parent hit only when the nested query itself is named.
+- A forwarded shard search (`internal:serverless/search/shard`) takes `_name` and answers each hit with its matched names, written as stock writes them: the count, then for a non-empty set a map of name to score, `NaN` for a name without one (a request asking for `include_named_queries_score` is still refused).
 
 ## Acceptance criteria
 
@@ -25,6 +26,7 @@ Ported from `AbstractQueryBuilder.queryName`, `QueryShardContext.addNamedQuery`,
 - AC-5: more than 64 named queries is 400.
 - AC-6: a search with no named query makes the same object-store requests as before, and pays nothing per hit.
 - AC-7: naming a query does not change which hits match, their scores or their order.
+- AC-9: a forwarded shard answer writes a hit's matched names as the bytes stock writes, with and without scores, and the request's `_name` reaches the search.
 - AC-8: a named query in `post_filter` or `rescore` is listed on the hits it matches.
 
 ## S3 request budget

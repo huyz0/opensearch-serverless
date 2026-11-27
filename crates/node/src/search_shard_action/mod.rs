@@ -291,6 +291,7 @@ fn write_answer(
             seq_no: row.seq_no.unwrap_or(-2),
             primary_term: row.primary_term.unwrap_or(0),
             source: &row.source,
+            matched: &row.matched,
         })
         .collect();
     let aggregations = answers(&found.aggregations, asked)?;

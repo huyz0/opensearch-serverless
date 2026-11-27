@@ -14,9 +14,6 @@ use serde_json::{Map, Number, Value as Json, json};
 pub enum ConvertError {
     /// A number JSON cannot hold (not finite).
     Number(&'static str),
-    /// A named query: the answer would have to carry `matched_queries`,
-    /// which the forwarded answer does not.
-    Named,
     /// The reader's parser refused what was built.
     Parse(DslError),
 }
@@ -25,7 +22,6 @@ impl std::fmt::Display for ConvertError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Number(what) => write!(f, "{what} is not a finite number"),
-            Self::Named => write!(f, "a named query is not supported by this node"),
             Self::Parse(e) => write!(f, "{}", e.clone().into_failure().reason),
         }
     }
@@ -172,13 +168,13 @@ fn node(n: &Node) -> Result<Json, ConvertError> {
     } else {
         Some(&mut body)
     };
-    if let Some(holder) = holder
-        && (n.boost - 1.0).abs() > f32::EPSILON
-    {
-        holder.insert("boost".to_owned(), boost(n.boost)?);
-    }
-    if n.name.is_some() {
-        return Err(ConvertError::Named);
+    if let Some(holder) = holder {
+        if (n.boost - 1.0).abs() > f32::EPSILON {
+            holder.insert("boost".to_owned(), boost(n.boost)?);
+        }
+        if let Some(name) = &n.name {
+            holder.insert("_name".to_owned(), json!(name));
+        }
     }
     Ok(json!({ kind: Json::Object(body) }))
 }

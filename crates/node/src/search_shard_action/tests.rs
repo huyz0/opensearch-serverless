@@ -27,6 +27,7 @@ struct Fake {
     fail: Option<u16>,
     now: std::sync::Mutex<Vec<Option<i64>>>,
     aggs: Vec<oss_reader::aggs::partial::Partial>,
+    named: bool,
 }
 
 impl Fake {
@@ -39,7 +40,33 @@ impl Fake {
             fail: None,
             now: std::sync::Mutex::default(),
             aggs: Vec::new(),
+            named: false,
         }
+    }
+}
+
+impl Fake {
+    fn rows(&self) -> Vec<Row> {
+        vec![
+            Row {
+                id_json: b"\"a\"".to_vec(),
+                score: Some(1.5),
+                version: Some(3),
+                seq_no: Some(7),
+                primary_term: Some(2),
+                source: b"{\"n\":1}".to_vec(),
+                matched: Vec::new(),
+            },
+            Row {
+                id_json: b"\"b\"".to_vec(),
+                score: Some(0.25),
+                version: Some(3),
+                seq_no: Some(8),
+                primary_term: Some(2),
+                source: b"{\"n\":2}".to_vec(),
+                matched: Vec::new(),
+            },
+        ]
     }
 }
 
@@ -74,30 +101,18 @@ impl Shards for Fake {
                 oss_reader::failure::Failure::plain("x", e.to_string()),
             ))
         })?;
+        let mut rows = self.rows();
+        if self.named {
+            rows.truncate(1);
+            rows[0].matched = vec![("q".to_owned(), f32::NAN)];
+        }
         Ok(Found {
-            total: 42,
+            total: if self.named { 1 } else { 42 },
             exact: true,
             max_score: None,
             terminated_early: None,
             aggregations: self.aggs.clone(),
-            rows: vec![
-                Row {
-                    id_json: b"\"a\"".to_vec(),
-                    score: Some(1.5),
-                    version: Some(3),
-                    seq_no: Some(7),
-                    primary_term: Some(2),
-                    source: b"{\"n\":1}".to_vec(),
-                },
-                Row {
-                    id_json: b"\"b\"".to_vec(),
-                    score: Some(0.25),
-                    version: Some(3),
-                    seq_no: Some(8),
-                    primary_term: Some(2),
-                    source: b"{\"n\":2}".to_vec(),
-                },
-            ],
+            rows,
         })
     }
 }
@@ -155,6 +170,15 @@ fn a_held_shard_with_a_fresh_lease_answers_in_the_java_layout() {
     // The bytes the Java shell writes for the same answer.
     let expected = fixture("response.two_hits");
     assert_eq!(&answer[..], &expected[..]);
+}
+
+#[test]
+fn a_hit_that_matched_a_named_query_is_answered_in_the_java_layout() {
+    let mut fake = Fake::held();
+    fake.named = true;
+    let h = handler(fake, &fresh(), 10_000);
+    let answer = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap();
+    assert_eq!(&answer[..], &fixture("response.matched_queries")[..]);
 }
 
 #[test]
