@@ -219,3 +219,15 @@ fn keys_with_reserved_characters_round_trip() {
     }
     assert_eq!(f.client.meter().errors(), 0);
 }
+
+/// The age over HTTP is the response's `Date` less its `Last-Modified`, both
+/// the store's, in whole seconds, from one HEAD.
+#[test]
+fn an_objects_age_is_the_date_less_the_last_modified_of_one_head() {
+    let f = fixture();
+    put(&f.client, "seg/0", b"x");
+    f.server.store().advance_clock(901_000);
+    assert_eq!(f.client.age_millis("seg/0"), Ok(Some(901_000)));
+    assert_eq!(f.client.age_millis("seg/missing"), Ok(None));
+    assert_counts(f.client.meter(), &[(S3Op::Put, 1), (S3Op::Head, 2)]);
+}

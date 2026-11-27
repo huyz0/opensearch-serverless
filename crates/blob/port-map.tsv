@@ -44,3 +44,5 @@ src/cost.rs	new		the counters and thread scope of one request's store requests (
 src/read_only.rs	new		a store that answers every write, delete and listing with an error: the source of a stock snapshot restore; the shell reads a stock repository through its own BlobStoreRepository
 src/source_roots.rs	new		the operator allow-lists of directories and bucket/prefix roots a stock restore may read, and the refusal of this deployment's own bucket; no Java counterpart
 src/export_store.rs	new		a store that creates blobs under one prefix without overwriting, puts only index.latest, and refuses every delete, listing and register call: the target of a stock snapshot export; the shell writes a repository through its own BlobStoreRepository
+src/http_date.rs	new		reads and writes the IMF-fixdate of a HEAD's Date and Last-Modified so an object's age is the store's own; the Java's S3 client does the same through the AWS SDK
+src/emulator/clock.rs	new		the emulator's store clock, which a test advances, and the HEAD stamps that age an object from it; no Java counterpart

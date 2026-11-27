@@ -32,6 +32,7 @@ mod register;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use crate::chunk::{ChunkSink, ChunkSource};
 use crate::error::{BlobError, BlobResult};
@@ -333,6 +334,24 @@ impl BlobStore for FsStore {
         let path = resolve(&self.root, key);
         self.attempt(S3Op::Head, || match fs::metadata(&path) {
             Ok(meta) if meta.is_file() => Ok(Some(ObjectMeta { len: meta.len() })),
+            Ok(_) => Ok(None),
+            Err(e) if is_missing(&e) => Ok(None),
+            Err(e) => Err(io_error(&e)),
+        })
+    }
+
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        check_fs_key(key)?;
+        let path = resolve(&self.root, key);
+        self.attempt(S3Op::Head, || match fs::metadata(&path) {
+            Ok(meta) if meta.is_file() => {
+                let modified = meta.modified().map_err(|e| io_error(&e))?;
+                // A file stamped in the future is as young as it can be.
+                let age = SystemTime::now()
+                    .duration_since(modified)
+                    .unwrap_or_default();
+                Ok(Some(u64::try_from(age.as_millis()).unwrap_or(u64::MAX)))
+            }
             Ok(_) => Ok(None),
             Err(e) if is_missing(&e) => Ok(None),
             Err(e) => Err(io_error(&e)),

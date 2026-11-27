@@ -142,6 +142,15 @@ pub trait BlobStore: Send + Sync {
     /// The object's metadata, or `None` if `key` does not exist.
     fn head(&self, key: &str) -> BlobResult<Option<ObjectMeta>>;
 
+    /// How old the object is, in milliseconds, by the store's own clock, or
+    /// `None` if `key` does not exist: one HEAD. On S3 it is the response's
+    /// `Date` less its `Last-Modified`, both stamped by the store, so no
+    /// node's clock enters it. A store that cannot tell answers 0, which no
+    /// caller treats as old enough to act on.
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        Ok(self.head(key)?.map(|_| 0))
+    }
+
     /// Deletes `key`. Deleting a missing key succeeds, as on S3.
     fn delete(&self, key: &str) -> BlobResult<()>;
 

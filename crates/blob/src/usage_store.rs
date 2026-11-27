@@ -81,6 +81,11 @@ impl<S: BlobStore> BlobStore for UsageStore<S> {
         self.inner.head(key)
     }
 
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        let _owner = self.ledger.enter(self.classifier.index_of(key));
+        self.inner.age_millis(key)
+    }
+
     fn delete(&self, key: &str) -> BlobResult<()> {
         let _owner = self.ledger.enter(self.classifier.index_of(key));
         self.inner.delete(key)

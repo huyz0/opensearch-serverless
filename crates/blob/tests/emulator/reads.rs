@@ -142,3 +142,29 @@ fn any_range_of_an_empty_object_is_invalid() {
         Err(BlobError::InvalidRange)
     );
 }
+
+/// An object's age is read by one HEAD, on the store's own clock: advancing
+/// that clock ages every object, and an object written later is younger.
+#[test]
+fn an_objects_age_is_one_head_on_the_stores_clock() {
+    let e = emulator();
+    put(&e, "old", b"x");
+    e.advance_clock(600_000);
+    put(&e, "new", b"y");
+    e.advance_clock(1_000);
+    assert_eq!(e.age_millis("old"), Ok(Some(601_000)));
+    assert_eq!(e.age_millis("new"), Ok(Some(1_000)));
+    assert_eq!(e.age_millis("missing"), Ok(None));
+    assert_counts(e.meter(), &[(S3Op::Put, 2), (S3Op::Head, 3)]);
+}
+
+/// A key written again is as young as its newest write.
+#[test]
+fn a_rewritten_key_is_as_young_as_its_newest_write() {
+    let e = emulator();
+    put(&e, "a", b"x");
+    e.advance_clock(5_000);
+    put(&e, "a", b"y");
+    e.advance_clock(10);
+    assert_eq!(e.age_millis("a"), Ok(Some(10)));
+}

@@ -326,6 +326,11 @@ impl BlobStore for S3Store {
         })
     }
 
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        check_key(key)?;
+        self.run(|_| Some((self.age_once(key), true)))
+    }
+
     fn delete(&self, key: &str) -> BlobResult<()> {
         check_key(key)?;
         self.run(|_| Some((self.delete_once(key, None).map(|_| ()), true)))

@@ -12,6 +12,7 @@
 //! kind from a seed ([`faults`]).
 
 mod body;
+mod clock;
 mod delete;
 pub mod faults;
 pub mod hold;
@@ -67,6 +68,10 @@ struct Objects {
     /// Each object's version: every write takes the next one, so two
     /// versions of a key never share an ETag.
     tags: BTreeMap<String, u64>,
+    /// The store's clock, in milliseconds, when each object was last written.
+    born: BTreeMap<String, u64>,
+    /// The store's clock: it moves only when [`Emulator::advance_clock`] says.
+    clock: u64,
     next_tag: u64,
     stored: u64,
     reserved: u64,
@@ -228,26 +233,6 @@ impl Emulator {
         Ok(written)
     }
 
-    /// [`BlobStore::head`], with the object's version and its writer token
-    /// if it has one.
-    pub(crate) fn head_with_writer(
-        &self,
-        key: &str,
-    ) -> BlobResult<Option<(ObjectMeta, u64, Option<String>)>> {
-        check_key(key)?;
-        self.attempt(S3Op::Head, || {
-            let objects = lock(&self.objects);
-            Ok(objects.map.get(key).map(|o| {
-                let meta = ObjectMeta {
-                    len: u64::try_from(o.len()).unwrap_or(u64::MAX),
-                };
-                let tag = objects.tags.get(key).copied().unwrap_or(0);
-                // ALLOC: one token, bounded by the header line it came in.
-                (meta, tag, objects.writers.get(key).cloned())
-            }))
-        })
-    }
-
     pub(crate) fn get_framed(
         &self,
         key: &str,
@@ -361,6 +346,9 @@ impl Emulator {
         let tag = objects.next_tag;
         // ALLOC: one key per object, at most MAX_KEY_BYTES.
         objects.tags.insert(key.to_owned(), tag);
+        let born = objects.clock;
+        // ALLOC: one key per object, at most MAX_KEY_BYTES.
+        objects.born.insert(key.to_owned(), born);
         match writer {
             // ALLOC: one key and one token per object, the token bounded by
             // the front end's header line.
@@ -434,7 +422,11 @@ impl BlobStore for Emulator {
     }
 
     fn head(&self, key: &str) -> BlobResult<Option<ObjectMeta>> {
-        Ok(self.head_with_writer(key)?.map(|(meta, _, _)| meta))
+        Ok(self.head_with_writer(key)?.map(|(meta, ..)| meta))
+    }
+
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        self.age_of(key)
     }
 
     fn delete(&self, key: &str) -> BlobResult<()> {

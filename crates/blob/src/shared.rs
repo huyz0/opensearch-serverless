@@ -58,6 +58,10 @@ impl BlobStore for Shared {
         self.0.head(key)
     }
 
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        self.0.age_millis(key)
+    }
+
     fn delete(&self, key: &str) -> BlobResult<()> {
         self.0.delete(key)
     }
