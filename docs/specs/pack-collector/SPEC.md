@@ -35,7 +35,7 @@ Not built: a recheck at a fixed interval (a referenced pack is rechecked on a do
 
 ## S3 request budget
 
-Steady state, all provisional and as in the ADR: 144 inventory LISTs a day per cluster plus paging; at most 144 sidecar PUTs a day per node that collected; 16 index GETs per pass; one sidecar GET a pass per node with a live pack; a ledger swap every 8 packs (about 12% more PUTs); seeding one LIST and one ledger GET for each node id ever seen, once; at most one LIST per retired Java node. Nothing scales with documents, indexes or time per index; each LIST carries `// LIST:`; no LIST on a read, write or startup path.
+Steady state, all provisional and as in the ADR: 144 inventory LISTs a day per cluster plus paging; at most 144 sidecar PUTs a day per node that collected; 16 index GETs per pass; one ledger GET and one sidecar GET a pass per node with a live pack; a ledger swap every 8 packs (about 12% more PUTs); seeding one LIST and one ledger GET for each node id ever seen, once; at most one LIST per retired Java node. Nothing scales with documents, indexes or time per index; each LIST carries `// LIST:`; no LIST on a read, write or startup path.
 
 ## Switch
 

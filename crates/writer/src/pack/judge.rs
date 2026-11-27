@@ -13,7 +13,7 @@ use std::sync::Arc;
 use oss_blob::BlobStore;
 use oss_format::node_pack_key;
 
-use super::{PackError, PackSidecarStore};
+use super::{PackError, PackSidecarStore, SidecarState};
 
 /// How old a pack must be, by the store's clock, before it is judged.
 pub const JUDGE_AGE_MILLIS: u64 = 15 * 60_000;
@@ -131,6 +131,23 @@ impl PackJudge {
         now: u64,
     ) -> Result<Judged, PackError> {
         let state = sidecar.read()?;
+        self.pass_with(sidecar, state, refs, now)
+            .map(|(out, _)| out)
+    }
+
+    /// As [`PackJudge::pass`] from a sidecar the caller has already read,
+    /// returning the sidecar as it stands after the marks.
+    ///
+    /// # Errors
+    ///
+    /// As [`PackJudge::pass`].
+    pub fn pass_with(
+        &mut self,
+        sidecar: &PackSidecarStore,
+        state: SidecarState,
+        refs: &dyn PackReferences,
+        now: u64,
+    ) -> Result<(Judged, SidecarState), PackError> {
         let mut out = Judged::default();
         // ALLOC: the packs collected in one pass, at most the tracked cap
         // plus the packs found missing, each sixteen bytes.
@@ -149,7 +166,9 @@ impl PackJudge {
                 }
             }
         }
-        if !collected.is_empty() {
+        let state = if collected.is_empty() {
+            state
+        } else {
             for id in &collected {
                 self.tracked.remove(id);
             }
@@ -163,11 +182,11 @@ impl PackJudge {
                     }
                 }
                 next
-            })?;
-        }
+            })?
+        };
         match failure {
             Some(e) => Err(e),
-            None => Ok(out),
+            None => Ok((out, state)),
         }
     }
 
