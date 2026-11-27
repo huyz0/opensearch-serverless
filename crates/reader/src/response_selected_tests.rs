@@ -303,3 +303,28 @@ fn the_meta_a_row_carries_is_read_from_what_write_meta_writes() {
     assert_eq!(meta_value(r#","_version":3"#, "_seq_no"), None);
     assert_eq!(meta_value("", "_version"), None);
 }
+
+#[test]
+fn a_row_carries_the_names_its_hit_matched_with_scores_only_when_asked() {
+    let shard = shard();
+    let plain = rows(
+        &shard,
+        r#"{"size":2,"query":{"match_all":{"_name":"all"}}}"#,
+        &mut |_| Ok(()),
+    )
+    .expect("rows");
+    for row in &plain {
+        assert_eq!(row.matched.len(), 1);
+        assert_eq!(row.matched[0].0, "all");
+        assert!(row.matched[0].1.is_nan());
+    }
+    let scored = rows(
+        &shard,
+        r#"{"size":2,"include_named_queries_score":true,"query":{"match_all":{"_name":"all"}}}"#,
+        &mut |_| Ok(()),
+    )
+    .expect("rows");
+    assert!(scored[0].matched[0].1 > 0.0);
+    let unnamed = rows(&shard, r#"{"size":2}"#, &mut |_| Ok(())).expect("rows");
+    assert!(unnamed.iter().all(|r| r.matched.is_empty()));
+}

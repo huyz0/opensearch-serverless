@@ -295,6 +295,7 @@ fn an_answer_with_hits_is_what_the_java_shell_writes_byte_for_byte() {
             seq_no: 7,
             primary_term: 2,
             source: b"{\"n\":1}",
+            matched: &[],
         },
         Hit {
             id: "b",
@@ -303,9 +304,39 @@ fn an_answer_with_hits_is_what_the_java_shell_writes_byte_for_byte() {
             seq_no: 8,
             primary_term: 2,
             source: b"{\"n\":2}",
+            matched: &[],
         },
     ];
     assert_eq!(written(&hits, 42), bytes("response.two_hits"));
+}
+
+#[test]
+fn a_hit_naming_its_matched_queries_is_what_the_java_shell_writes_byte_for_byte() {
+    let names = [("q".to_owned(), f32::NAN)];
+    let named = Hit {
+        id: "a",
+        score: 1.5,
+        version: 3,
+        seq_no: 7,
+        primary_term: 2,
+        source: b"{\"n\":1}",
+        matched: &names,
+    };
+    assert_eq!(written(&[named], 1), bytes("response.matched_queries"));
+    let scores = [("first".to_owned(), 1.25_f32), ("second".to_owned(), 0.5)];
+    let scored = Hit {
+        id: "b",
+        score: 0.25,
+        version: 3,
+        seq_no: 8,
+        primary_term: 2,
+        source: b"{\"n\":2}",
+        matched: &scores,
+    };
+    assert_eq!(
+        written(&[scored], 1),
+        bytes("response.matched_queries_scored")
+    );
 }
 
 #[test]
@@ -319,6 +350,7 @@ fn an_answer_past_the_limit_is_refused_whole() {
         seq_no: 0,
         primary_term: 1,
         source: &[b'x'; 64],
+        matched: &[],
     };
     let answer = Response {
         total: 1,

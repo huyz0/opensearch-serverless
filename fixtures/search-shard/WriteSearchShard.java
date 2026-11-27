@@ -71,6 +71,16 @@ public final class WriteSearchShard {
         response("two_hits", new ForwardedSearchResponse(42, List.of(
             hit(0, "a", 1.5f, "{\"n\":1}", 7), hit(1, "b", 0.25f, "{\"n\":2}", 8))));
 
+        final SearchHit named = hit(0, "a", 1.5f, "{\"n\":1}", 7);
+        named.matchedQueries(new String[] { "q" });
+        response("matched_queries", new ForwardedSearchResponse(1, List.of(named)));
+        final SearchHit scored = hit(1, "b", 0.25f, "{\"n\":2}", 8);
+        final LinkedHashMap<String, Float> scores = new LinkedHashMap<>();
+        scores.put("first", 1.25f);
+        scores.put("second", 0.5f);
+        scored.matchedQueriesWithScores(scores);
+        response("matched_queries_scored", new ForwardedSearchResponse(1, List.of(scored)));
+
         final HexFormat hex = HexFormat.of();
         for (Map.Entry<String, byte[]> e : OUT.entrySet()) {
             System.out.println(e.getKey() + " " + hex.formatHex(e.getValue()));
