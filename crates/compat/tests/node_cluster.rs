@@ -259,8 +259,8 @@ fn an_assembled_node_answers_every_breadth_fixture_as_stock_opensearch_did() {
         .collect();
     assert_eq!(
         fixtures.len(),
-        2,
-        "a query and a bucket aggregation fixture"
+        3,
+        "a query, a bucket aggregation and a size 0 aggregation fixture"
     );
     let failed: Vec<String> = fixtures.into_iter().flat_map(replay).collect();
     assert!(

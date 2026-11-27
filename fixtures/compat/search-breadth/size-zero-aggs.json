@@ -1,0 +1,1172 @@
+{
+  "name": "size 0 aggregations",
+  "description": "When stock marks a size 0 search terminated_early: size 0 with an aggregation (a pipeline aggregation alone included), no post_filter, and a query stock can count from the index (none or a term); not with a range or a two word match query, which stock cannot count from the index (a one word match is a term and is marked), a post_filter, no aggregation or size 1. Stock also answers size 0 with terminate_after and with min_score beside aggregations, which this node refuses today.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-breadth-aggs",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-breadth-aggs",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "price": {
+                "type": "double"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-breadth-aggs"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "price": 10.5,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "price": 20.0,
+            "published": "2002-07-01T10:15:30Z"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "Quick start guide",
+            "tag": "manual",
+            "year": 2010,
+            "price": 5.25,
+            "published": "2010-01-01"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "Brown sugar and brown bread",
+            "tag": "food",
+            "year": 2002,
+            "price": 3.0,
+            "published": "2002-12-31T23:59:59.999Z"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "A fox in the snow",
+            "tag": "animal",
+            "year": 1999,
+            "price": 15.75,
+            "published": "1999-12-31"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "6"
+            }
+          },
+          {
+            "title": "Quick brown foxes jump",
+            "tag": "animal",
+            "year": 2010,
+            "price": 8.0,
+            "published": "2010-06-15"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "7"
+            }
+          },
+          {
+            "title": "Bread and butter",
+            "year": 2005,
+            "price": 2.5,
+            "published": "2005-05-05"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "8"
+            }
+          },
+          {
+            "title": "Snow dogs",
+            "tag": [
+              "animal",
+              "sport"
+            ],
+            "year": 2010,
+            "price": 30.0,
+            "published": "2010-11-30"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/items/*/index/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 15,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "7",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 6,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "8",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 7,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "size 0 with an aggregation is terminated_early",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 with a metric under a term query",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "query": {
+            "term": {
+              "tag": "manual"
+            }
+          },
+          "aggs": {
+            "m": {
+              "max": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "m": {
+              "value": 2010.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 with a query that matches nothing",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "query": {
+            "term": {
+              "tag": "zzz"
+            }
+          },
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 with a pipeline aggregation only",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            },
+            "m": {
+              "max_bucket": {
+                "buckets_path": "t>_count"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            },
+            "m": {
+              "value": 5.0,
+              "keys": [
+                "animal"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 with track_total_hits false",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "track_total_hits": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 with a sort",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "sort": [
+            {
+              "year": "asc"
+            }
+          ],
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 given in the url",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        },
+        "query": {
+          "size": "0"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 with a post_filter is not terminated_early",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "post_filter": {
+            "term": {
+              "tag": "manual"
+            }
+          },
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 without an aggregation is not terminated_early",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "size 1 with an aggregation is not terminated_early",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 with a range query is not terminated_early",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "query": {
+            "range": {
+              "year": {
+                "gt": 1990
+              }
+            }
+          },
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "size 0 with a two word match query is not terminated_early",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 0,
+          "query": {
+            "match": {
+              "title": "quick fox"
+            }
+          },
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 41,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 3
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}
