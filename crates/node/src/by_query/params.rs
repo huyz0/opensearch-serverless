@@ -138,7 +138,7 @@ impl Params {
             None => return Err(bad("query is missing")),
         };
         let script = match (update, value.get("script")) {
-            (true, Some(def)) => Some(script(def, scripts)?),
+            (true, Some(def)) => Some(script(def, scripts).map_err(failed)?),
             (true, None) => return Err(bad("[script] is required by this node's update by query")),
             (false, _) => None,
         };
@@ -203,7 +203,7 @@ impl Params {
             .map_or_else(|| String::from(r#"{"match_all":{}}"#), Json::to_json);
         let script = value
             .get("script")
-            .map(|def| script(def, scripts))
+            .map(|def| script(def, scripts).map_err(failed))
             .transpose()?;
         Ok(Self {
             query,
@@ -244,4 +244,9 @@ fn read_body(req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
         return Err(bad("request body is required"));
     }
     Ok(out)
+}
+
+/// A script failure of the update body as the REST error it answers.
+fn failed(f: oss_writer::bulk::UpdateFailure) -> RestError {
+    RestError::exception(f.status, f.error)
 }

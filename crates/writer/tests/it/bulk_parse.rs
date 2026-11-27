@@ -75,6 +75,7 @@ fn run(body: &str, defaults: &Defaults) -> Result<Vec<u16>, String> {
             .iter()
             .map(|i| match &i.result {
                 ItemResult::Written { .. } => 201,
+                ItemResult::Noop { .. } => 200,
                 ItemResult::Failed { status, .. } => *status,
             })
             .collect()),

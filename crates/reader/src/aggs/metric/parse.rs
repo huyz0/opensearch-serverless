@@ -331,6 +331,7 @@ fn parse_definition(
                     field: String::new(),
                     cardinality: CardinalityOptions::default(),
                     percentiles: PercentilesOptions::default(),
+                    sigma: crate::aggs::metric::DEFAULT_SIGMA,
                     top_hits: None,
                     terms: None,
                     histogram: None,
@@ -362,8 +363,10 @@ fn parse_definition(
                             agg.scripted = Some(Box::new(scripted_metric::parse_body(p, name)?));
                         }
                         _ => {
-                            let (field, options, script) = parse_metric_body(p, metric, name)?;
-                            (agg.field, agg.cardinality, agg.script) = (field, options, script);
+                            let (field, options, script, sigma) =
+                                parse_metric_body(p, metric, name)?;
+                            (agg.field, agg.cardinality, agg.script, agg.sigma) =
+                                (field, options, script, sigma);
                         }
                     }
                 }
@@ -374,21 +377,8 @@ fn parse_definition(
     Ok(definition)
 }
 
-/// The keys every metric here but `cardinality` declares
-/// (`declareFields(PARSER, true, true, false)`: scriptable and formattable).
-const VALUES_SOURCE_KEYS: &[&str] = &["field", "missing", "value_type", "format", "script"];
-
-/// `CardinalityAggregationBuilder`'s keys: `declareFields(PARSER, true,
-/// false, false)`, not formattable, and its own three.
-const CARDINALITY_KEYS: &[&str] = &[
-    "field",
-    "missing",
-    "value_type",
-    "script",
-    "precision_threshold",
-    "execution_hint",
-    "rehash",
-];
+/// A metric body's field, `cardinality` options, script and `sigma`.
+type MetricBody = (String, CardinalityOptions, Option<Box<ScriptScore>>, f64);
 
 /// The `ObjectParser` of `metric`'s builder over its object, the parser on
 /// its start: the field it names, and a `cardinality`'s options.
@@ -396,12 +386,15 @@ fn parse_metric_body(
     p: &mut Parser<'_>,
     metric: Metric,
     name: &str,
-) -> Result<(String, CardinalityOptions, Option<Box<ScriptScore>>), DslError> {
+) -> Result<MetricBody, DslError> {
     let ty = metric.name();
+    let mut sigma = crate::aggs::metric::DEFAULT_SIGMA;
     let keys = if metric == Metric::Cardinality {
-        CARDINALITY_KEYS
+        super::body_keys::CARDINALITY_KEYS
+    } else if metric == Metric::ExtendedStats {
+        super::body_keys::KEYS
     } else {
-        VALUES_SOURCE_KEYS
+        super::body_keys::VALUES_SOURCE_KEYS
     };
     let mut field: Option<String> = None;
     let mut script: Option<Box<ScriptScore>> = None;
@@ -434,7 +427,9 @@ fn parse_metric_body(
         }
         let accepted = match key {
             "field" | "execution_hint" => kind == Kind::String,
-            "precision_threshold" | "rehash" => matches!(kind, Kind::Number | Kind::String),
+            "precision_threshold" | "rehash" | "sigma" => {
+                matches!(kind, Kind::Number | Kind::String)
+            }
             _ => {
                 // ALLOC: error path; one message.
                 return Err(DslError::unsupported(&format!(
@@ -458,6 +453,7 @@ fn parse_metric_body(
             "field" => field = Some(p.text().to_owned()),
             // ALLOC: one hint an aggregation, bounded by the body's recording.
             "execution_hint" => options.execution_hint = Some(p.text().to_owned()),
+            "sigma" => sigma = super::body_keys::sigma(p, kind, name)?,
             _ => {
                 let failed = |cause: DslError| {
                     DslError::xcontent(
@@ -491,10 +487,10 @@ fn parse_metric_body(
             )));
         }
         // ALLOC: empty; a scripted aggregation reads no field.
-        return Ok((String::new(), options, script));
+        return Ok((String::new(), options, script, sigma));
     }
     let field = field.ok_or_else(|| {
         DslError::illegal("Required one of fields [field, script], but none were specified. ")
     })?;
-    Ok((field, options, None))
+    Ok((field, options, None, sigma))
 }

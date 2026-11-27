@@ -392,6 +392,23 @@ pub fn search_with<S: BlobStore + 'static>(
         &mut top,
         source.track_scores,
     )?;
+    // Stock answers a size 0 search with an aggregation from the shard's document
+    // count and says it ended early (a pipeline aggregation alone counts), but only
+    // when the query can be counted from the index: no query or a `term`, and no
+    // nested mapping, which would wrap the query in a non-nested filter. A shard
+    // with no segment never starts collecting.
+    let countable = match &source.query {
+        None | Some(crate::dsl::Query::MatchAll { .. }) => !meta.mapping.has_nested(),
+        Some(crate::dsl::Query::Term { .. }) => true,
+        Some(_) => false,
+    };
+    let size_zero_early = (source.size == 0
+        && (!source.aggs.is_empty() || !source.pipelines.is_empty())
+        && source.post_filter.is_none()
+        && source.min_score.is_none()
+        && countable
+        && !segments.is_empty())
+    .then_some(true);
     let mut hits = Hits {
         total: top.total,
         exact: top.exact,
@@ -418,9 +435,10 @@ pub fn search_with<S: BlobStore + 'static>(
         },
         // ALLOC: empty; filled below when a nested query asks for inner hits.
         inner: Vec::new(),
-        terminated_early: top.terminated,
+        terminated_early: top.terminated.or(size_zero_early),
     };
-    hits.inner = crate::search_inner_hits::fill(&inner_plans, shard, &segments, &hits.hits)?;
+    hits.inner =
+        crate::search_inner_hits::fill(&inner_plans, shard, &segments, &hits.hits, &cx, index)?;
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() {
         hits.fields = crate::fetch::script_fields::all(source, &meta.mapping)?;
@@ -435,13 +453,14 @@ pub fn search_with<S: BlobStore + 'static>(
             explain::explain_hits(&searcher, &query, &hits.hits).map_err(ShardError::engine)?;
     }
     if !hits.hits.is_empty() {
-        let queries: Vec<&crate::dsl::Query> = source
+        let mut queries: Vec<&crate::dsl::Query> = source
             .query
             .iter()
             .chain(&source.post_filter)
             .chain(source.rescore.iter().map(|r| &r.query))
             // ALLOC: one reference a query of the search: the query, post filter and rescores.
             .collect();
+        crate::search_named::aggregation_filters(&source.aggs, &mut queries);
         let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
         hits.matched = crate::search_named::matched(&searcher, &queries, &cx, &hits.hits)
             .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;

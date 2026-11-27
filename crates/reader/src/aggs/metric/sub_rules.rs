@@ -63,6 +63,12 @@ pub(super) fn nests_under(sub: Metric, parent: Metric) -> bool {
 pub(super) fn is_scalar(metric: Metric) -> bool {
     matches!(
         metric,
-        Metric::Min | Metric::Max | Metric::Sum | Metric::Avg | Metric::Stats | Metric::ValueCount
+        Metric::Min
+            | Metric::Max
+            | Metric::Sum
+            | Metric::Avg
+            | Metric::Stats
+            | Metric::ExtendedStats
+            | Metric::ValueCount
     )
 }

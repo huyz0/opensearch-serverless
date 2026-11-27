@@ -40,6 +40,7 @@ impl CompensatedSum {
 pub(crate) fn reduce_scalar(parts: &[Value]) -> Option<Value> {
     let first = parts.first()?;
     let mut sum = CompensatedSum::default();
+    let mut squares = CompensatedSum::default();
     let mut count = 0u64;
     let mut low = f64::INFINITY;
     let mut high = f64::NEG_INFINITY;
@@ -66,6 +67,23 @@ pub(crate) fn reduce_scalar(parts: &[Value]) -> Option<Value> {
                 high = java_max(high, *max);
                 sum.add(*s);
             }
+            (
+                Value::ExtendedStats { .. },
+                Value::ExtendedStats {
+                    count: c,
+                    sum: s,
+                    min,
+                    max,
+                    sum_of_squares,
+                    ..
+                },
+            ) => {
+                count = count.saturating_add(*c);
+                low = java_min(low, *min);
+                high = java_max(high, *max);
+                sum.add(*s);
+                squares.add(*sum_of_squares);
+            }
             (Value::ValueCount(_), Value::ValueCount(c)) => count = count.saturating_add(*c),
             _ => return None,
         }
@@ -83,6 +101,14 @@ pub(crate) fn reduce_scalar(parts: &[Value]) -> Option<Value> {
             sum: sum.value,
             min: low,
             max: high,
+        },
+        Value::ExtendedStats { sigma, .. } => Value::ExtendedStats {
+            count,
+            sum: sum.value,
+            min: low,
+            max: high,
+            sum_of_squares: squares.value,
+            sigma: *sigma,
         },
         Value::ValueCount(_) => Value::ValueCount(count),
         // Reduced above.

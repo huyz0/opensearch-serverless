@@ -1,0 +1,3041 @@
+{
+  "name": "terms ordered by a sub-aggregation path through a single-bucket aggregation",
+  "description": "Recorded stock answers for a terms ordered by a path that passes through a filter, missing, nested or reverse_nested; not replayed until served.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-terms-sub-order",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-terms-sub-order",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "keyword"
+              },
+              "price": {
+                "type": "long"
+              },
+              "k": {
+                "type": "keyword"
+              },
+              "tier": {
+                "type": "long"
+              },
+              "comments": {
+                "type": "nested",
+                "properties": {
+                  "who": {
+                    "type": "keyword"
+                  },
+                  "n": {
+                    "type": "long"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-terms-sub-order"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "a",
+            "price": 10,
+            "k": "x",
+            "tier": 1,
+            "comments": [
+              {
+                "who": "ann",
+                "n": 1
+              },
+              {
+                "who": "bob",
+                "n": 5
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "b",
+            "price": 20,
+            "k": "y",
+            "tier": 2,
+            "comments": [
+              {
+                "who": "bob",
+                "n": 3
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "c",
+            "price": 30,
+            "k": "x",
+            "tier": 1,
+            "comments": [
+              {
+                "who": "ann",
+                "n": 4
+              },
+              {
+                "who": "cat",
+                "n": 2
+              },
+              {
+                "who": "ann",
+                "n": 6
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "d",
+            "price": 40,
+            "k": "z"
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "e",
+            "price": 50,
+            "k": "y",
+            "tier": 2,
+            "comments": [
+              {
+                "who": "dan",
+                "n": 9
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "6"
+            }
+          },
+          {
+            "title": "f",
+            "price": 60,
+            "k": "w",
+            "tier": 3
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 20,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "numeric terms by a filter's sum, descending",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "f>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "s": {
+                      "value": 20.0
+                    }
+                  }
+                },
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "numeric terms by a filter's doc count, ascending",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "f": "asc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "s": {
+                      "value": 20.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "numeric terms by a filter's sum, a bigger filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "f>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "range": {
+                      "price": {
+                        "gte": 20
+                      }
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    },
+                    "st": {
+                      "stats": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "st": {
+                      "count": 2,
+                      "min": 20.0,
+                      "max": 50.0,
+                      "avg": 35.0,
+                      "sum": 70.0
+                    },
+                    "s": {
+                      "value": 70.0
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 60.0,
+                      "max": 60.0,
+                      "avg": 60.0,
+                      "sum": 60.0
+                    },
+                    "s": {
+                      "value": 60.0
+                    }
+                  }
+                },
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 30.0,
+                      "max": 30.0,
+                      "avg": 30.0,
+                      "sum": 30.0
+                    },
+                    "s": {
+                      "value": 30.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "numeric terms by a filter's stats key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "f>st.max": "asc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "range": {
+                      "price": {
+                        "gte": 20
+                      }
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    },
+                    "st": {
+                      "stats": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 30.0,
+                      "max": 30.0,
+                      "avg": 30.0,
+                      "sum": 30.0
+                    },
+                    "s": {
+                      "value": 30.0
+                    }
+                  }
+                },
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "st": {
+                      "count": 2,
+                      "min": 20.0,
+                      "max": 50.0,
+                      "avg": 35.0,
+                      "sum": 70.0
+                    },
+                    "s": {
+                      "value": 70.0
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 60.0,
+                      "max": 60.0,
+                      "avg": 60.0,
+                      "sum": 60.0
+                    },
+                    "s": {
+                      "value": 60.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "keyword terms by a nested max",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "c>m": "desc"
+                }
+              },
+              "aggs": {
+                "c": {
+                  "nested": {
+                    "path": "comments"
+                  },
+                  "aggs": {
+                    "m": {
+                      "max": {
+                        "field": "comments.n"
+                      }
+                    },
+                    "a": {
+                      "avg": {
+                        "field": "comments.n"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 2,
+                    "a": {
+                      "value": 6.0
+                    },
+                    "m": {
+                      "value": 9.0
+                    }
+                  }
+                },
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 5,
+                    "a": {
+                      "value": 3.6
+                    },
+                    "m": {
+                      "value": 6.0
+                    }
+                  }
+                },
+                {
+                  "key": "w",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "a": {
+                      "value": null
+                    },
+                    "m": {
+                      "value": null
+                    }
+                  }
+                },
+                {
+                  "key": "z",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "a": {
+                      "value": null
+                    },
+                    "m": {
+                      "value": null
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "keyword terms by a nested avg, with size 2",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "c>a": "asc"
+                },
+                "size": 2
+              },
+              "aggs": {
+                "c": {
+                  "nested": {
+                    "path": "comments"
+                  },
+                  "aggs": {
+                    "m": {
+                      "max": {
+                        "field": "comments.n"
+                      }
+                    },
+                    "a": {
+                      "avg": {
+                        "field": "comments.n"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 2,
+              "buckets": [
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 5,
+                    "a": {
+                      "value": 3.6
+                    },
+                    "m": {
+                      "value": 6.0
+                    }
+                  }
+                },
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 2,
+                    "a": {
+                      "value": 6.0
+                    },
+                    "m": {
+                      "value": 9.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "keyword terms by a nested doc count",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "c": "desc"
+                }
+              },
+              "aggs": {
+                "c": {
+                  "nested": {
+                    "path": "comments"
+                  },
+                  "aggs": {
+                    "m": {
+                      "max": {
+                        "field": "comments.n"
+                      }
+                    },
+                    "a": {
+                      "avg": {
+                        "field": "comments.n"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 5,
+                    "a": {
+                      "value": 3.6
+                    },
+                    "m": {
+                      "value": 6.0
+                    }
+                  }
+                },
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 2,
+                    "a": {
+                      "value": 6.0
+                    },
+                    "m": {
+                      "value": 9.0
+                    }
+                  }
+                },
+                {
+                  "key": "w",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "a": {
+                      "value": null
+                    },
+                    "m": {
+                      "value": null
+                    }
+                  }
+                },
+                {
+                  "key": "z",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "a": {
+                      "value": null
+                    },
+                    "m": {
+                      "value": null
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "numeric terms by a missing's sum",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "mi>s": "desc"
+                }
+              },
+              "aggs": {
+                "mi": {
+                  "missing": {
+                    "field": "tier"
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "mi": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "mi": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "mi": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "numeric terms by a filter in a filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "f>g>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "match_all": {}
+                  },
+                  "aggs": {
+                    "g": {
+                      "filter": {
+                        "range": {
+                          "price": {
+                            "gte": 30
+                          }
+                        }
+                      },
+                      "aggs": {
+                        "s": {
+                          "sum": {
+                            "field": "price"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 60.0
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 50.0
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 30.0
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "numeric terms by a bigger filter, again",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "f>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "range": {
+                      "price": {
+                        "gte": 20
+                      }
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    },
+                    "st": {
+                      "stats": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "st": {
+                      "count": 2,
+                      "min": 20.0,
+                      "max": 50.0,
+                      "avg": 35.0,
+                      "sum": 70.0
+                    },
+                    "s": {
+                      "value": 70.0
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 60.0,
+                      "max": 60.0,
+                      "avg": 60.0,
+                      "sum": 60.0
+                    },
+                    "s": {
+                      "value": 60.0
+                    }
+                  }
+                },
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 30.0,
+                      "max": 30.0,
+                      "avg": 30.0,
+                      "sum": 30.0
+                    },
+                    "s": {
+                      "value": 30.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "numeric terms by a nested max",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "c>m": "asc"
+                }
+              },
+              "aggs": {
+                "c": {
+                  "nested": {
+                    "path": "comments"
+                  },
+                  "aggs": {
+                    "m": {
+                      "max": {
+                        "field": "comments.n"
+                      }
+                    },
+                    "a": {
+                      "avg": {
+                        "field": "comments.n"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "a": {
+                      "value": null
+                    },
+                    "m": {
+                      "value": null
+                    }
+                  }
+                },
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 5,
+                    "a": {
+                      "value": 3.6
+                    },
+                    "m": {
+                      "value": 6.0
+                    }
+                  }
+                },
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 2,
+                    "a": {
+                      "value": 6.0
+                    },
+                    "m": {
+                      "value": 9.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms under nested by a reverse_nested sum",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "t": {
+                  "terms": {
+                    "field": "comments.who",
+                    "order": {
+                      "back>s": "desc"
+                    }
+                  },
+                  "aggs": {
+                    "back": {
+                      "reverse_nested": {},
+                      "aggs": {
+                        "s": {
+                          "sum": {
+                            "field": "price"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 7,
+              "t": {
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0,
+                "buckets": [
+                  {
+                    "key": "dan",
+                    "doc_count": 1,
+                    "back": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 50.0
+                      }
+                    }
+                  },
+                  {
+                    "key": "ann",
+                    "doc_count": 3,
+                    "back": {
+                      "doc_count": 2,
+                      "s": {
+                        "value": 40.0
+                      }
+                    }
+                  },
+                  {
+                    "key": "bob",
+                    "doc_count": 2,
+                    "back": {
+                      "doc_count": 2,
+                      "s": {
+                        "value": 30.0
+                      }
+                    }
+                  },
+                  {
+                    "key": "cat",
+                    "doc_count": 1,
+                    "back": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 30.0
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms under nested by a reverse_nested doc count",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "t": {
+                  "terms": {
+                    "field": "comments.who",
+                    "order": {
+                      "back": "asc"
+                    }
+                  },
+                  "aggs": {
+                    "back": {
+                      "reverse_nested": {},
+                      "aggs": {
+                        "s": {
+                          "sum": {
+                            "field": "price"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 7,
+              "t": {
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0,
+                "buckets": [
+                  {
+                    "key": "cat",
+                    "doc_count": 1,
+                    "back": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 30.0
+                      }
+                    }
+                  },
+                  {
+                    "key": "dan",
+                    "doc_count": 1,
+                    "back": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 50.0
+                      }
+                    }
+                  },
+                  {
+                    "key": "ann",
+                    "doc_count": 3,
+                    "back": {
+                      "doc_count": 2,
+                      "s": {
+                        "value": 40.0
+                      }
+                    }
+                  },
+                  {
+                    "key": "bob",
+                    "doc_count": 2,
+                    "back": {
+                      "doc_count": 2,
+                      "s": {
+                        "value": 30.0
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "a key on a path element that is not last",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f.x>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [f.x>s]. The provided aggregation [f.x] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [f.x>s]. The provided aggregation [f.x] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "The provided aggregation [f.x] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [f.x>s]. The provided aggregation [f.x] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "The provided aggregation [f.x] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a path through a terms",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "t2>s": "desc"
+                }
+              },
+              "aggs": {
+                "t2": {
+                  "terms": {
+                    "field": "tier"
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [t2>s]. Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [t2] is not single-bucket."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [t2>s]. Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [t2] is not single-bucket.",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [t2] is not single-bucket."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [t2>s]. Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [t2] is not single-bucket.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [t2] is not single-bucket."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a path to a missing sub-aggregation under a filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f>zz": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [f>zz]. The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [f>zz]. The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [f>zz]. The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a path to a metric under a filter without a key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f>st": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "range": {
+                      "price": {
+                        "gte": 20
+                      }
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    },
+                    "st": {
+                      "stats": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [f>st]. When ordering on a multi-value metrics aggregation a metric name must be specified."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [f>st]. When ordering on a multi-value metrics aggregation a metric name must be specified.",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "When ordering on a multi-value metrics aggregation a metric name must be specified."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [f>st]. When ordering on a multi-value metrics aggregation a metric name must be specified.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "When ordering on a multi-value metrics aggregation a metric name must be specified."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a path to an unknown name",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "zz>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [zz>s]. The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [zz>s]. The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [zz>s]. The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "The provided aggregation [zz] either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a path with a bad key under a filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f>s.x": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [f>s.x]. Ordering on a single-value metrics aggregation can only be done on its value. Either drop the key (a la \"s\") or change it to \"value\" (a la \"s.value\")"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [f>s.x]. Ordering on a single-value metrics aggregation can only be done on its value. Either drop the key (a la \"s\") or change it to \"value\" (a la \"s.value\")",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Ordering on a single-value metrics aggregation can only be done on its value. Either drop the key (a la \"s\") or change it to \"value\" (a la \"s.value\")"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [f>s.x]. Ordering on a single-value metrics aggregation can only be done on its value. Either drop the key (a la \"s\") or change it to \"value\" (a la \"s.value\")",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Ordering on a single-value metrics aggregation can only be done on its value. Either drop the key (a la \"s\") or change it to \"value\" (a la \"s.value\")"
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a filter's doc_count key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "f.doc_count": "asc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "s": {
+                      "value": 20.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "a filter's _count key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f._count": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "range": {
+                      "price": {
+                        "gte": 20
+                      }
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    },
+                    "st": {
+                      "stats": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [f._count]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\"."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [f._count]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\".",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\"."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [f._count]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\".",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\"."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a filter in a filter, by its doc count",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": {
+                  "f>g": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "match_all": {}
+                  },
+                  "aggs": {
+                    "g": {
+                      "filter": {
+                        "range": {
+                          "price": {
+                            "gte": 30
+                          }
+                        }
+                      },
+                      "aggs": {
+                        "s": {
+                          "sum": {
+                            "field": "price"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 30.0
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 50.0
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 60.0
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "a key on a filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f.x": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [f.x]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\"."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [f.x]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\".",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\"."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [f.x]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\".",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"f\") or change it to \"doc_count\" (a la \"f.doc_count\") or \"key\"."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a key on a filter at the end of a path",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f>g.x": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "match_all": {}
+                  },
+                  "aggs": {
+                    "g": {
+                      "filter": {
+                        "range": {
+                          "price": {
+                            "gte": 30
+                          }
+                        }
+                      },
+                      "aggs": {
+                        "s": {
+                          "sum": {
+                            "field": "price"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [f>g.x]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"g\") or change it to \"doc_count\" (a la \"g.doc_count\") or \"key\"."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [f>g.x]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"g\") or change it to \"doc_count\" (a la \"g.doc_count\") or \"key\".",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"g\") or change it to \"doc_count\" (a la \"g.doc_count\") or \"key\"."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [f>g.x]. Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"g\") or change it to \"doc_count\" (a la \"g.doc_count\") or \"key\".",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Ordering on a single-bucket aggregation can only be done on its doc_count. Either drop the key (a la \"g\") or change it to \"doc_count\" (a la \"g.doc_count\") or \"key\"."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a bracket key on a path element that is not last",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f[x]>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [f[x]>s]. Key only allowed on last aggregation path element but got [f[x]]"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [f[x]>s]. Key only allowed on last aggregation path element but got [f[x]]",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Key only allowed on last aggregation path element but got [f[x]]"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [f[x]>s]. Key only allowed on last aggregation path element but got [f[x]]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Key only allowed on last aggregation path element but got [f[x]]"
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "a path through a metric",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "s>f": "desc"
+                }
+              },
+              "aggs": {
+                "s": {
+                  "sum": {
+                    "field": "price"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "Invalid aggregation order path [s>f]. Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [s] is not single-bucket."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-terms-sub-order",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "Invalid aggregation order path [s>f]. Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [s] is not single-bucket.",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [s] is not single-bucket."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "Invalid aggregation order path [s>f]. Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [s] is not single-bucket.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Buckets can only be sorted on a sub-aggregator path that is built out of zero or more single-bucket aggregations within the path and a final single-bucket or a metrics aggregation at the path end. [s] is not single-bucket."
+              }
+            }
+          },
+          "status": 500
+        }
+      }
+    }
+  ]
+}

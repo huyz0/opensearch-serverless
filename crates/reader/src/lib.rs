@@ -31,6 +31,7 @@ pub mod numbers;
 pub mod numbers_decimal;
 pub mod open_cost;
 pub mod overlay;
+pub mod painless_cache;
 pub mod painless_switch;
 pub mod pin_settings;
 pub mod pinned;

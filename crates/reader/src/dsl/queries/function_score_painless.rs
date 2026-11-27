@@ -86,7 +86,7 @@ pub(crate) fn encode(
     script: &ScriptScore,
     kind: u8,
 ) -> Result<Vec<u8>, Failure> {
-    let names = fields_of(&script.source, kind).map_err(source_failure)?;
+    let names = field_names(&script.source, kind)?;
     // ALLOC: one entry a field the script reads, bounded by the source.
     let fields: Vec<(String, String, FieldKind)> = names
         .into_iter()
@@ -103,18 +103,66 @@ pub(crate) fn encode(
         entries.push((Constant::Str(k.clone()), v.constant()));
     }
     let params = Constant::Map(entries);
+    let params_bytes = encode_constant(&params);
+    // ALLOC: the key, one copy of the source, params and a byte a field.
+    let mut key = vec![b'b', kind];
+    put_bytes(&mut key, script.source.as_bytes());
+    put_bytes(&mut key, &params_bytes);
+    key.extend(fields.iter().map(|(_, _, k)| kind_byte(*k)));
+    let blob = crate::painless_cache::cached(&key, || {
+        build_blob(script, kind, &params, &params_bytes, &fields)
+    })?;
+    // ALLOC: one copy of a cached blob, bounded by the source and its fields.
+    Ok(blob.to_vec())
+}
+
+/// The fields `source` reads as a script of engine kind `kind`, from the
+/// cache when this source was seen.
+fn field_names(source: &str, kind: u8) -> Result<Vec<String>, Failure> {
+    // ALLOC: the key, one copy of the source.
+    let mut key = vec![b'n', kind];
+    key.extend_from_slice(source.as_bytes());
+    let packed = crate::painless_cache::cached(&key, || {
+        let names = fields_of(source, kind).map_err(source_failure)?;
+        // ALLOC: one packed copy of the names, bounded by the source.
+        let mut out = Vec::new();
+        for n in &names {
+            put_bytes(&mut out, n.as_bytes());
+        }
+        Ok::<_, Failure>(out)
+    })?;
+    // ALLOC: one name a field the script reads, bounded by the source.
+    let mut names = Vec::new();
+    let mut rest: &[u8] = &packed;
+    while let Some((len, tail)) = rest.split_first_chunk::<4>() {
+        let n = usize::try_from(i32::from_le_bytes(*len)).unwrap_or(0);
+        let (name, after) = tail.split_at(n.min(tail.len()));
+        // ALLOC: one name a field the script reads, bounded by the source.
+        names.push(String::from_utf8_lossy(name).into_owned());
+        rest = after;
+    }
+    Ok(names)
+}
+
+fn build_blob(
+    script: &ScriptScore,
+    kind: u8,
+    params: &Constant,
+    params_bytes: &[u8],
+    fields: &[(String, String, FieldKind)],
+) -> Result<Vec<u8>, Failure> {
     // ALLOC: one copy of the params and of the fields, bounded by the request body.
-    source_spec(kind, &script.source, params.clone(), "", 0, fields.clone())
+    source_spec(kind, &script.source, params.clone(), "", 0, fields.to_vec())
         .map_err(source_failure)?;
     // ALLOC: one blob a script, bounded by the source and its fields.
     let mut blob = vec![SOURCE_SCRIPT | kind];
     put_bytes(&mut blob, script.source.as_bytes());
-    put_bytes(&mut blob, &encode_constant(&params));
+    put_bytes(&mut blob, params_bytes);
     put_bytes(&mut blob, b"");
     blob.extend_from_slice(&0i32.to_le_bytes());
     blob.extend_from_slice(&0i32.to_le_bytes());
     blob.extend_from_slice(&i32::try_from(fields.len()).unwrap_or(0).to_le_bytes());
-    for (name, read, k) in &fields {
+    for (name, read, k) in fields {
         put_bytes(&mut blob, name.as_bytes());
         put_bytes(&mut blob, read.as_bytes());
         blob.push(kind_byte(*k));

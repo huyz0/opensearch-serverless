@@ -20,7 +20,7 @@ mod writer;
 
 pub use collector::{Collected, PackCollector};
 pub use commit_refs::{CommitReferences, IndexHolds};
-pub use election::{WINDOW_MILLIS, collector_for, window_of};
+pub use election::{TERM_WINDOWS, WINDOW_MILLIS, collector_for, term_of, window_of};
 pub use error::PackError;
 pub use index::{IndexState, PackIndexStore, Removal};
 pub use judge::{JUDGE_AGE_MILLIS, Judged, PackId, PackJudge, PackReferences, SIGHTING_GAP_MILLIS};

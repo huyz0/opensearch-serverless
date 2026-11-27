@@ -375,7 +375,7 @@ fn write_hit_list<S: BlobStore + 'static>(
                 out,
                 p,
                 (index, &stored.id, &stored.source),
-                scratch,
+                (scratch, view.named_scores),
                 &mut *stored.reserve,
             )?;
         }

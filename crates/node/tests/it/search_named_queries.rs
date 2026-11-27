@@ -3,13 +3,12 @@
 use crate::support::{request, start};
 
 fn post(body: &str) -> (u16, String) {
+    post_to("/compat-paging-sort/_search", body)
+}
+
+fn post_to(path: &str, body: &str) -> (u16, String) {
     let node = start();
-    let r = request(
-        node.addr(),
-        "POST",
-        "/compat-paging-sort/_search",
-        Some(body.as_bytes()),
-    );
+    let r = request(node.addr(), "POST", path, Some(body.as_bytes()));
     (r.status, r.text())
 }
 
@@ -73,22 +72,31 @@ fn a_hit_lists_the_named_queries_that_match_it() {
 
 #[test]
 fn include_named_queries_score_writes_an_object_of_scores() {
-    let body = BODY.replacen(
+    // Only the URL parameter asks for them; the body key is read and has no effect.
+    for path in [
+        "/compat-paging-sort/_search?include_named_queries_score=true",
+        "/compat-paging-sort/_search?include_named_queries_score",
+    ] {
+        let (status, text) = post_to(path, BODY);
+        assert_eq!(status, 200, "{text}");
+        for (id, names) in matched(&text) {
+            let object = names
+                .as_object()
+                .unwrap_or_else(|| panic!("{id}: {names} is not an object"));
+            assert!(
+                object["all"].as_f64().expect("score") > 0.0,
+                "{id}: {names}"
+            );
+        }
+    }
+    let in_body = BODY.replacen(
         "\"size\"",
         "\"include_named_queries_score\":true,\"size\"",
         1,
     );
-    let (status, text) = post(&body);
+    let (status, text) = post(&in_body);
     assert_eq!(status, 200, "{text}");
-    for (id, names) in matched(&text) {
-        let object = names
-            .as_object()
-            .unwrap_or_else(|| panic!("{id}: {names} is not an object"));
-        assert!(
-            object["all"].as_f64().expect("score") > 0.0,
-            "{id}: {names}"
-        );
-    }
+    assert!(matched(&text).iter().all(|(_, n)| n.is_array()), "{text}");
 }
 
 #[test]
@@ -183,4 +191,23 @@ fn names_in_the_post_filter_and_the_rescore_count_too() {
         .filter(|(_, n)| n.to_string().contains("rescored"))
         .count();
     assert!(late > 0 && late < hits.len(), "{text}");
+}
+
+#[test]
+fn names_in_an_aggregation_filter_are_listed_on_the_hits_they_match() {
+    let body = r#"{"query":{"match_all":{}},
+        "aggs":{"f":{"filter":{"term":{"tag":{"value":"animal","_name":"in_agg"}}},
+            "aggs":{"g":{"filters":{"filters":{"late":{"range":{"year":{"gte":2002,"_name":"deep"}}}}}}}}},
+        "size":10}"#;
+    let (status, text) = post(body);
+    assert_eq!(status, 200, "{text}");
+    let hits = matched(&text);
+    assert!(!hits.is_empty(), "{text}");
+    let with = |name: &str| {
+        hits.iter()
+            .filter(|(_, n)| n.to_string().contains(name))
+            .count()
+    };
+    assert!(with("in_agg") > 0 && with("in_agg") < hits.len(), "{text}");
+    assert!(with("deep") > 0, "{text}");
 }

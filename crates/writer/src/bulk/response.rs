@@ -5,7 +5,9 @@ use std::io::{self, Write};
 
 use oss_rest::{Exception, Meta, write_json_str};
 
-use crate::index::{Outcome, Written};
+use crate::index::{Outcome, Refused, Written};
+
+use super::run::IndexInfo;
 use crate::mapping::MappingError;
 
 /// What became of one item.
@@ -17,6 +19,15 @@ pub enum ItemResult {
         written: Written,
         /// Whether the request refreshed its shard (`?refresh=true`).
         forced_refresh: bool,
+    },
+    /// An update that changed nothing.
+    Noop {
+        /// The document's `_version`.
+        version: i64,
+        /// Its `_seq_no`.
+        seq_no: i64,
+        /// Its `_primary_term`.
+        primary_term: i64,
     },
     /// It failed, alone: the rest of the request went on.
     Failed {
@@ -84,6 +95,30 @@ pub fn mapping_status(e: &MappingError) -> u16 {
     }
 }
 
+/// The engine's answer for one item as its result.
+pub fn item_result(result: Result<Written, Refused>, info: &IndexInfo, shard: u32) -> ItemResult {
+    match result {
+        Ok(written) => ItemResult::Written {
+            written,
+            forced_refresh: false,
+        },
+        Err(Refused::Conflict(reason)) => ItemResult::Failed {
+            status: 409,
+            error: shard_failure(
+                "version_conflict_engine_exception",
+                reason,
+                &info.name,
+                shard,
+                &info.uuid,
+            ),
+        },
+        Err(Refused::Mapping(e)) => ItemResult::Failed {
+            status: mapping_status(&e),
+            error: mapping_failure(&e),
+        },
+    }
+}
+
 fn result_name(outcome: Outcome) -> &'static str {
     outcome.name()
 }
@@ -118,6 +153,7 @@ pub fn write(out: &mut dyn Write, took: u64, items: &[Item]) -> io::Result<()> {
 pub fn doc_status(item: &Item) -> u16 {
     match &item.result {
         ItemResult::Written { written, .. } => status_of(written.outcome),
+        ItemResult::Noop { .. } => 200,
         ItemResult::Failed { status, .. } => *status,
     }
 }
@@ -148,6 +184,20 @@ pub fn write_doc(out: &mut dyn Write, item: &Item) -> io::Result<()> {
                 out,
                 ",\"_shards\":{{\"total\":1,\"successful\":1,\"failed\":0}},\"_seq_no\":{},\"_primary_term\":{}}}",
                 written.seq_no, written.primary_term
+            )
+        }
+        ItemResult::Noop {
+            version,
+            seq_no,
+            primary_term,
+        } => {
+            out.write_all(b"{\"_index\":")?;
+            write_json_str(out, &item.index)?;
+            out.write_all(b",\"_id\":")?;
+            write_json_str(out, &item.id)?;
+            write!(
+                out,
+                ",\"_version\":{version},\"result\":\"noop\",\"_shards\":{{\"total\":0,\"successful\":0,\"failed\":0}},\"_seq_no\":{seq_no},\"_primary_term\":{primary_term}}}"
             )
         }
         ItemResult::Failed { status, error } => {
@@ -183,6 +233,14 @@ fn write_item(out: &mut dyn Write, item: &Item) -> io::Result<()> {
                 status_of(written.outcome)
             )?;
         }
+        ItemResult::Noop {
+            version,
+            seq_no,
+            primary_term,
+        } => write!(
+            out,
+            ",\"_version\":{version},\"result\":\"noop\",\"_shards\":{{\"total\":0,\"successful\":0,\"failed\":0}},\"_seq_no\":{seq_no},\"_primary_term\":{primary_term},\"status\":200"
+        )?,
         ItemResult::Failed { status, error } => {
             write!(out, ",\"status\":{status},\"error\":{{")?;
             error.write_members(out, true)?;

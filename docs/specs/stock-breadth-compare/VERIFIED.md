@@ -8,7 +8,7 @@ Run on 2026-11-27 (Linux cloud container, provisional). Stock OpenSearch 3.10.0 
 
 Findings:
 
-- Stock puts `"terminated_early": true` in a `size: 0` search with aggregations and no `terminate_after`; this node does not. The aggregation fixtures send `size: 1` so the comparison covers the aggregations; the `size: 0` field is a difference left open.
+- Stock puts `"terminated_early": true` in a `size: 0` search with aggregations and no `terminate_after`. The aggregation fixtures here send `size: 1`; the `size: 0` answer is served and replayed from `size-zero-aggs.json` ([size-zero-terminated-early](../size-zero-terminated-early/SPEC.md)).
 - Three error steps normalise a column or node id (the replay sends keys sorted; the node id differs).
 
 Not run: the `min` fixture (recording refused by the sandbox), nested-aggregation `terms` ordering, a multi-shard or multi-segment comparison.

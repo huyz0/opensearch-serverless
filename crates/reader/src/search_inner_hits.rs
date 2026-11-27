@@ -40,6 +40,8 @@ pub(crate) struct InnerPlan {
     sort: Sort,
     child: Clause,
     parents: Arc<QueryBitSetProducer>,
+    /// The nested query's own query, kept when it names queries: the names a child lists.
+    named: Option<Query>,
 }
 
 /// One `inner_hits` of one parent hit.
@@ -59,6 +61,10 @@ pub struct InnerResult {
     pub offsets: Vec<usize>,
     /// Whether the children carry no `_source`.
     pub source_skip: bool,
+    /// The names of the queries inside the nested query that each child
+    /// matches, in order (the score is `NaN`, as OpenSearch leaves it for an
+    /// inner hit); empty when the nested query's own query names none.
+    pub matched: Vec<Vec<(String, f32)>>,
 }
 
 /// The inner hits of one parent hit, by its document.
@@ -211,6 +217,8 @@ pub(crate) fn plan<S: BlobStore + 'static>(
             parents: Arc::new(QueryBitSetProducer::new(
                 crate::dsl::queries::nested_build::non_nested(),
             )),
+            // ALLOC: one copy of a query that names queries, bounded by the request body.
+            named: (!crate::search_named::collect(&n.query).is_empty()).then(|| n.query.clone()),
         });
     }
     Ok(plans)
@@ -236,6 +244,8 @@ pub(crate) fn fill<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     segments: &[OpenSegment<'_>],
     hits: &[Hit],
+    cx: &QueryContext<'_>,
+    index: &str,
 ) -> Result<Vec<ParentInner>, ShardError> {
     if plans.is_empty() || hits.is_empty() {
         // ALLOC: empty.
@@ -247,7 +257,7 @@ pub(crate) fn fill<S: BlobStore + 'static>(
         .map_err(ShardError::engine)?;
     // ALLOC: one entry a segment.
     let norms: Vec<_> = owned.iter().map(Some).collect();
-    collect(plans, shard, segments, &norms, hits)
+    collect(plans, shard, segments, &norms, hits, (cx, index))
 }
 
 /// The inner hits of each of `hits`, over `segments`.
@@ -257,6 +267,7 @@ fn collect<S: BlobStore + 'static>(
     segments: &[OpenSegment<'_>],
     norms: &[Option<&HashMap<String, FieldNorms<'_>>>],
     hits: &[Hit],
+    (cx, index): (&QueryContext<'_>, &str),
 ) -> Result<Vec<ParentInner>, ShardError> {
     // ALLOC: one entry a hit, bounded by the request's window.
     let mut out = Vec::with_capacity(hits.len());
@@ -294,6 +305,7 @@ fn collect<S: BlobStore + 'static>(
             let mut before = top.hits;
             let hits = before.split_off(plan.from.min(before.len()));
             let offsets = offsets(plan, shard, segments, norms, hit.doc, &hits)?;
+            let matched = child_names(plan, segments, norms, &hits, cx, (index, &shard.meta.uuid))?;
             results.push(InnerResult {
                 name: plan.name.clone(),
                 path: plan.path.clone(),
@@ -302,6 +314,7 @@ fn collect<S: BlobStore + 'static>(
                 hits,
                 offsets,
                 source_skip: plan.source_skip,
+                matched,
             });
         }
         out.push(ParentInner {
@@ -310,6 +323,36 @@ fn collect<S: BlobStore + 'static>(
         });
     }
     Ok(out)
+}
+
+/// The names of the queries inside `plan`'s nested query that each of the
+/// `hits` (its children) matches; empty when none is named.
+fn child_names(
+    plan: &InnerPlan,
+    segments: &[OpenSegment<'_>],
+    norms: &[Option<&HashMap<String, FieldNorms<'_>>>],
+    hits: &[Hit],
+    cx: &QueryContext<'_>,
+    (index, uuid): (&str, &str),
+) -> Result<Vec<Vec<(String, f32)>>, ShardError> {
+    let Some(query) = &plan.named else {
+        // ALLOC: empty.
+        return Ok(Vec::new());
+    };
+    if hits.is_empty() {
+        // ALLOC: empty.
+        return Ok(Vec::new());
+    }
+    let searcher = lucene_search::index_searcher::IndexSearcher::new(segments, norms)
+        .map_err(ShardError::engine)?;
+    let mut names = crate::search_named::matched(&searcher, &[query], cx, hits)
+        .map_err(|f| ShardError::of_query(crate::lucene_query::shard_failure(f, index, uuid)))?;
+    for list in &mut names {
+        for (_, score) in list.iter_mut() {
+            *score = f32::NAN;
+        }
+    }
+    Ok(names)
 }
 
 /// The most nested documents one document holds (`index.mapping.nested_objects.limit`).

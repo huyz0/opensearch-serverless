@@ -38,7 +38,7 @@ Unchanged: the source compiles in memory; doc values are read as for any scored 
 
 ## Switch
 
-`serverless.scripting.painless.native_compile`, default off, until the bounds of ADR 0069 (AC-4 to AC-7 of painless-front-end) hold on the node. The registry entry for the setting follows in its own change.
+`serverless.scripting.painless.native_compile` (registered as a node setting, `crates/node/src/painless_setting.rs`, covered by `the_nodes_settings_form_a_valid_registry`), default off, until the bounds of ADR 0069 (AC-4 to AC-7 of painless-front-end) hold on the node.
 
 ## Risks
 

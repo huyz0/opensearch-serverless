@@ -243,6 +243,7 @@ pub fn assemble(
         closing.close_view(id);
     }));
     let ingest = crate::admin_assemble::ingest_pipelines(config, &store)?;
+    let script_source = crate::admin_assemble::script_source(&store, config, budget)?;
     let bulk = Arc::new(
         BulkService::new(
             Arc::clone(&role),
@@ -250,7 +251,8 @@ pub fn assemble(
             config.bulk,
             config.address,
         )
-        .with_ingest(ingest.clone()),
+        .with_ingest(ingest.clone())
+        .with_scripts(Arc::clone(&script_source) as _),
     );
     let docs = Arc::new(DocService::new(Arc::clone(&role), config.address).with_ingest(ingest));
     let router =
@@ -259,7 +261,6 @@ pub fn assemble(
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = get_route::routes(router, Arc::new(GetService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
-    let script_source = crate::admin_assemble::script_source(&store, config, budget)?;
     let router = update_route::routes(
         router,
         Arc::new(

@@ -151,8 +151,13 @@ fn host_body(part: &Partial, all: &[PipelineAgg], typed: bool) -> io::Result<Vec
 /// `"key":` then `value` as a double, or `null` when `present` is false.
 fn number(out: &mut dyn Write, key: &str, value: f64, present: bool) -> io::Result<()> {
     write!(out, "\"{key}\":")?;
-    if present {
+    if present && value.is_finite() {
         write_java_double(out, value)
+    } else if present {
+        // The JSON writer quotes a NaN or an infinity (`QUOTE_NON_NUMERIC_NUMBERS`).
+        out.write_all(b"\"")?;
+        write_java_double(out, value)?;
+        out.write_all(b"\"")
     } else {
         out.write_all(b"null")
     }
@@ -161,6 +166,13 @@ fn number(out: &mut dyn Write, key: &str, value: f64, present: bool) -> io::Resu
 /// `,"key":"<date>"` for a date-formatted value.
 fn as_string(out: &mut dyn Write, key: &str, value: f64) -> io::Result<()> {
     write!(out, ",\"{key}\":\"")?;
+    write_date_of_double(out, value)?;
+    out.write_all(b"\"")
+}
+
+/// `,"<key>_as_string":"<date>"` for a date-formatted value.
+fn text_of(out: &mut dyn Write, key: &str, value: f64) -> io::Result<()> {
+    write!(out, ",\"{key}_as_string\":\"")?;
     write_date_of_double(out, value)?;
     out.write_all(b"\"")
 }
@@ -227,6 +239,14 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
             }
             Ok(())
         }
+        Value::ExtendedStats {
+            count,
+            sum,
+            min,
+            max,
+            sum_of_squares,
+            sigma,
+        } => write_extended(out, dated, count, sum, min, max, sum_of_squares, sigma),
         Value::ValueCount(n) => write!(out, "\"value\":{n}"),
         Value::Percentiles {
             ranks,
@@ -265,4 +285,107 @@ fn avg(sum: f64, count: u64) -> f64 {
     #[allow(clippy::cast_precision_loss)]
     let count = count as f64;
     sum / count
+}
+
+/// The variance of the population: `(sumOfSqrs - sum * sum / count) / count`,
+/// not below 0 (`InternalExtendedStats.variancePopulation`).
+fn variance_population(count: f64, sum: f64, squares: f64) -> f64 {
+    let variance = (squares - ((sum * sum) / count)) / count;
+    if variance < 0.0 { 0.0 } else { variance }
+}
+
+/// The variance of a sample: over `count - 1` (`varianceSampling`).
+fn variance_sampling(count: f64, sum: f64, squares: f64) -> f64 {
+    let variance = (squares - ((sum * sum) / count)) / (count - 1.0);
+    if variance < 0.0 { 0.0 } else { variance }
+}
+
+/// `InternalExtendedStats.doXContentBody`.
+#[allow(clippy::too_many_arguments)]
+fn write_extended(
+    out: &mut dyn Write,
+    dated: bool,
+    count: u64,
+    sum: f64,
+    min: f64,
+    max: f64,
+    squares: f64,
+    sigma: f64,
+) -> io::Result<()> {
+    write!(out, "\"count\":{count},")?;
+    if count == 0 {
+        out.write_all(
+            b"\"min\":null,\"max\":null,\"avg\":null,\"sum\":0.0,\"sum_of_squares\":null,\
+              \"variance\":null,\"variance_population\":null,\"variance_sampling\":null,\
+              \"std_deviation\":null,\"std_deviation_population\":null,\
+              \"std_deviation_sampling\":null,\"std_deviation_bounds\":{\"upper\":null,\
+              \"lower\":null,\"upper_population\":null,\"lower_population\":null,\
+              \"upper_sampling\":null,\"lower_sampling\":null}",
+        )?;
+        return Ok(());
+    }
+    // ARITH: none; a count is far below 2^53, so the conversion is exact.
+    #[allow(clippy::cast_precision_loss)]
+    let n = count as f64;
+    let avg = sum / n;
+    let population = variance_population(n, sum, squares);
+    let sampling = variance_sampling(n, sum, squares);
+    let (deviation, deviation_sampling) = (population.sqrt(), sampling.sqrt());
+    let bounds = [
+        ("upper", avg + deviation * sigma),
+        ("lower", avg - deviation * sigma),
+        ("upper_population", avg + deviation * sigma),
+        ("lower_population", avg - deviation * sigma),
+        ("upper_sampling", avg + deviation_sampling * sigma),
+        ("lower_sampling", avg - deviation_sampling * sigma),
+    ];
+    let fields = [
+        ("min", min),
+        ("max", max),
+        ("avg", avg),
+        ("sum", sum),
+        ("sum_of_squares", squares),
+        ("variance", population),
+        ("variance_population", population),
+        ("variance_sampling", sampling),
+        ("std_deviation", deviation),
+        ("std_deviation_population", deviation),
+        ("std_deviation_sampling", deviation_sampling),
+    ];
+    for (i, (key, value)) in fields.iter().enumerate() {
+        if i > 0 {
+            out.write_all(b",")?;
+        }
+        number(out, key, *value, true)?;
+        // The text of min, max, avg and sum follows the sum, before the rest.
+        if *key == "sum" && dated {
+            for (name, v) in [("min", min), ("max", max), ("avg", avg), ("sum", sum)] {
+                text_of(out, name, v)?;
+            }
+        }
+    }
+    out.write_all(b",\"std_deviation_bounds\":{")?;
+    for (i, (key, value)) in bounds.iter().enumerate() {
+        if i > 0 {
+            out.write_all(b",")?;
+        }
+        number(out, key, *value, true)?;
+    }
+    out.write_all(b"}")?;
+    if dated {
+        for (key, value) in &fields[4..] {
+            text_of(out, key, *value)?;
+        }
+        out.write_all(b",\"std_deviation_bounds_as_string\":{")?;
+        for (i, (key, value)) in bounds.iter().enumerate() {
+            if i > 0 {
+                out.write_all(b",")?;
+            }
+            write!(out, "\"{key}\":\"")?;
+            write_date_of_double(out, *value)?;
+            out.write_all(b"\"")?;
+        }
+        out.write_all(b"}")?;
+    }
+    Ok(())
 }

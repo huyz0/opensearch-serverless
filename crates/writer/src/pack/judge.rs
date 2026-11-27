@@ -115,6 +115,16 @@ impl PackJudge {
         })
     }
 
+    /// How many packs this judge tracks now.
+    pub(super) fn tracked(&self) -> usize {
+        self.tracked.len()
+    }
+
+    /// Lowers or raises the most this judge will track, from the next pass.
+    pub(super) fn limit(&mut self, max_tracked: usize) {
+        self.max_tracked = max_tracked;
+    }
+
     /// One pass at judge-clock time `now` (milliseconds on a clock that only
     /// moves forward): judges every live pack of the sidecar that is due,
     /// deletes those past their second sighting, and records them as
