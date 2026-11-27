@@ -413,3 +413,9 @@ fn stored_fields_names_keep_the_id_and_drop_the_source_unless_asked_for() {
         SourceFilter::default()
     );
 }
+
+#[test]
+fn an_empty_ext_is_read_and_a_section_is_refused() {
+    assert_eq!(source(r#"{"ext":{}}"#).ok(), Some(SearchSource::default()));
+    assert!(reason(r#"{"ext":{"rerank":{"a":1}}}"#).contains("is not supported by this node yet"));
+}

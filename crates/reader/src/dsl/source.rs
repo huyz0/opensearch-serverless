@@ -373,6 +373,8 @@ impl SearchSource {
             "script_fields" => self.script_fields = crate::fetch::script_fields::parse(p)?,
             "rescore" => self.rescore = crate::dsl::rescore::parse_object(p)?,
             "collapse" => self.collapse = Some(crate::dsl::collapse::parse(p)?),
+            // No search extension is registered here, so only the empty object reads.
+            "ext" if p.next_token() == Some(Kind::EndObject) => {}
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }
