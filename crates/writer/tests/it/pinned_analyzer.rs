@@ -348,3 +348,113 @@ fn a_document_with_many_slow_calls_is_refused_and_the_next_is_not() {
     let mut second = shard(&dir, Arc::new(free));
     assert!(second.index("1", many, false, &Expect::default()).is_ok());
 }
+
+/// What the built-in `standard` analyzer makes of ordinary words: runs of
+/// letters and digits, lower-cased, with offsets in UTF-16 units.
+struct Golden;
+
+impl Analyze for Golden {
+    fn analyze(&self, text: &str) -> Result<Vec<Token>, CallError> {
+        let mut out = Vec::new();
+        let mut word = String::new();
+        let mut start = 0_u32;
+        let mut at = 0_u32;
+        let flush = |word: &mut String, start: u32, at: u32, out: &mut Vec<Token>| {
+            if !word.is_empty() {
+                out.push(Token {
+                    term: word.to_lowercase(),
+                    start,
+                    end: at,
+                    increment: 1,
+                });
+                word.clear();
+            }
+        };
+        for c in text.chars() {
+            let units = u32::try_from(c.len_utf16()).expect("one or two");
+            if c.is_alphanumeric() {
+                if word.is_empty() {
+                    start = at;
+                }
+                word.push(c);
+            } else {
+                flush(&mut word, start, at, &mut out);
+            }
+            at = at.saturating_add(units);
+        }
+        flush(&mut word, start, at, &mut out);
+        Ok(out)
+    }
+}
+
+// docs/specs/extension-analyzer AC-10: a module that reimplements `standard` writes what it writes
+#[test]
+fn a_golden_module_writes_the_files_the_built_in_analyzer_writes() {
+    use lucene_store::Directory;
+    let builtin: &[u8] = br#"{"properties":{"t":{"type":"text","index_options":"offsets"}}}"#;
+    let pinned: &[u8] =
+        br#"{"properties":{"t":{"type":"text","analyzer":"ext_shout","index_options":"offsets"}}}"#;
+    // Over 64 values, with astral letters before later words, so the offsets
+    // after them differ between UTF-8 bytes and UTF-16 units, and a value
+    // with no word at all, which still takes a position gap.
+    let values: Vec<String> = (0..70)
+        .map(|n| match n % 5 {
+            0 => format!("Quick brown {n}"),
+            1 => format!("\u{1D4B3}\u{1D4B4} Fox, jumps-over {n}"),
+            2 => "!!! ...".to_owned(),
+            3 => format!("The  LAZY dog\u{1D4B3} {n}"),
+            _ => "caf\u{e9} \u{e9}t\u{e9}".to_owned(),
+        })
+        .collect();
+    let doc = |values: &[String]| serde_json::json!({ "t": values, "u": "x" }).to_string();
+    let source = doc(&values);
+    let single = serde_json::json!({ "t": "Single value text" }).to_string();
+
+    let built_dir = ByteBuffersDirectory::new();
+    let mut built = shard_over_plain(&built_dir, builtin);
+    let pinned_dir = ByteBuffersDirectory::new();
+    let mut module = shard_over(&pinned_dir, Arc::new(Golden), pinned);
+    for (n, s) in [&source, &single, &source, &single].into_iter().enumerate() {
+        let id = format!("d{n}");
+        built
+            .index(&id, s.as_bytes(), false, &Expect::default())
+            .expect("indexed");
+        module
+            .index(&id, s.as_bytes(), false, &Expect::default())
+            .expect("indexed");
+    }
+    built.refresh().expect("refresh");
+    module.refresh().expect("refresh");
+
+    let find = |dir: &ByteBuffersDirectory, ext: &str| {
+        let name = dir
+            .list_all()
+            .expect("lists")
+            .into_iter()
+            .find(|f| f.ends_with(ext))
+            .unwrap_or_else(|| panic!("a {ext} file"));
+        dir.open(&name).expect("opens").as_ref().to_vec()
+    };
+    // Terms, positions, offsets, and the norms (the field length per document).
+    for ext in [".doc", ".pos", ".tim", ".tip", ".nvd"] {
+        let (a, b) = (find(&built_dir, ext), find(&pinned_dir, ext));
+        assert!(!body(&a).is_empty(), "{ext} has content");
+        assert_eq!(
+            body(&a),
+            body(&b),
+            "{ext}: the module wrote what the built-in did"
+        );
+    }
+    // A spot check that the offsets are UTF-16 units: the first "fox" follows
+    // the 13 units of the first value, the offset gap of 1, and two astral
+    // letters and a space (5 units, 9 bytes), so it starts at 19 and not 23.
+    assert_eq!(postings_of(&pinned_dir, "fox")[0].2, 19);
+}
+
+fn shard_over_plain<'d>(dir: &'d ByteBuffersDirectory, mapping: &[u8]) -> Shard<'d> {
+    let mapping = Mapping::parse_pinned(mapping, ParseOptions::default()).expect("mapping");
+    let (writer, derived) = open_writer(dir, &mapping).expect("writer");
+    Shard::new(dir, writer, mapping, 1, Box::new(|| 0))
+        .expect("shard")
+        .with_derived_source(derived)
+}
