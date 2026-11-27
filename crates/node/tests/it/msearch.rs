@@ -184,7 +184,7 @@ fn an_item_over_two_shards_is_the_coordinators_response() {
 fn an_unknown_parameter_is_refused_and_a_warm_run_makes_no_request() {
     let node = start();
     let body = format!("{{\"index\":\"compat-term\"}}\n{ALL}\n");
-    let (status, answer) = msearch(&node, "/_msearch?max_concurrent_searches=2", &body);
+    let (status, answer) = msearch(&node, "/_msearch?typed_keys=true", &body);
     assert_eq!(status, 400, "{answer}");
     assert_eq!(msearch(&node, "/_msearch", &body).0, 200);
     let warm = counts(&node.store);

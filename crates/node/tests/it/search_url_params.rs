@@ -184,3 +184,61 @@ fn the_total_of_a_search_over_several_indexes_is_a_number_too() {
     );
     assert!(r.text().contains(r#""hits":{"total":0,"#), "{}", r.text());
 }
+
+fn msearch(query: &str, header: &str) -> (u16, String) {
+    let node = start();
+    let body = format!("{header}\n{{}}\n");
+    let r = request(
+        node.addr(),
+        "POST",
+        &format!("/compat-paging-sort/_msearch{query}"),
+        Some(body.as_bytes()),
+    );
+    (r.status, r.text())
+}
+
+#[test]
+fn msearch_header_keys_that_tune_a_search_are_accepted_without_effect() {
+    for header in [
+        r#"{"search_type":"query_then_fetch"}"#,
+        r#"{"request_cache":true}"#,
+        r#"{"ccs_minimize_roundtrips":"true"}"#,
+        r#"{"allow_no_indices":true}"#,
+        r#"{"expand_wildcards":"open"}"#,
+        r#"{"max_concurrent_shard_requests":5}"#,
+        r#"{"pre_filter_shard_size":1}"#,
+    ] {
+        let (status, text) = msearch("", header);
+        assert_eq!(status, 200, "{header}: {text}");
+        assert!(text.contains(r#""status":200"#), "{header}: {text}");
+        assert!(text.contains(r#""total":{"value":5"#), "{header}: {text}");
+    }
+    let (_, text) = msearch("", r#"{"search_type":"dfs_query_then_fetch"}"#);
+    assert!(text.contains("not supported by this node yet"), "{text}");
+    let (_, text) = msearch("", r#"{"search_type":"nonsense"}"#);
+    assert!(text.contains("No search type for [nonsense]"), "{text}");
+    let (_, text) = msearch("", r#"{"expand_wildcards":"closed"}"#);
+    assert!(text.contains("not supported by this node yet"), "{text}");
+}
+
+#[test]
+fn msearch_url_parameters_that_tune_are_accepted_and_the_total_can_be_a_number() {
+    for query in [
+        "?max_concurrent_searches=2",
+        "?max_concurrent_shard_requests=5",
+        "?pre_filter_shard_size=1",
+        "?search_type=query_then_fetch",
+        "?ccs_minimize_roundtrips=true",
+    ] {
+        let (status, text) = msearch(query, "{}");
+        assert_eq!(status, 200, "{query}: {text}");
+        assert!(text.contains(r#""status":200"#), "{query}: {text}");
+        assert!(text.contains(r#""total":{"value":5"#), "{query}: {text}");
+    }
+    let (status, text) = msearch("?rest_total_hits_as_int=true", "{}");
+    assert_eq!(status, 200, "{text}");
+    assert!(text.contains(r#""hits":{"total":5,"#), "{text}");
+    let (status, text) = msearch("?search_type=dfs_query_then_fetch", "{}");
+    assert_eq!(status, 400, "{text}");
+    assert_eq!(msearch("?typed_keys=true", "{}").0, 400);
+}
