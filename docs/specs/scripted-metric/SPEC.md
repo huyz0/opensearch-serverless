@@ -26,7 +26,11 @@ None of its own: it reads the doc values the search already reads.
 
 ## Acceptance criteria
 
-To be filled in as each piece lands (front end contexts; engine node; reader parse and shard result; coordinator reduce and render).
+- AC-1: the front end compiles `init_script`, `map_script`, `combine_script` and `reduce_script` as their contexts (`params`, `state`, `doc`, `states`), and the runners return the state, the shard value and the reduced value.
+- AC-2: the map script runs once per matched document over one `state` shared by every segment of the shard, and the state it leaves is handed back whole; a state that is not a plain value, or over the state bound, fails the aggregation.
+- AC-3: the reader parses the four scripts and `params`, and refuses `params._agg`, stored scripts, a `lang` other than painless and a `scripted_metric` under a bucket aggregation, each with a stated reason; with the switch off the aggregation is refused as before.
+- AC-4: a shard answers its combined value, and the coordinator runs `reduce_script` over every shard's value in shard order and renders it as the aggregation's `value`; without a `reduce_script` the `value` is the list of combined values.
+- AC-5: a script that does not compile, is refused by the runtime's check, or throws fails with a 400 `script_exception`.
 
 ## Risks
 
