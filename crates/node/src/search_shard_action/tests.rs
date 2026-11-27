@@ -261,5 +261,6 @@ fn the_search_runs_at_the_instant_the_request_carries() {
 }
 
 mod aggregations;
+mod pipelines;
 mod ranges;
 mod rare_multi;

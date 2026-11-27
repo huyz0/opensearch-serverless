@@ -283,3 +283,4 @@ src/by_query/tasks_route.rs	new		GET /_tasks, GET /_tasks/{id} and cancel
 src/by_query/tasks/tests.rs	new		the registry bounds, with the clock passed in
 src/by_query/task_forward.rs	new		forwards a task read or cancel to the node that runs the task
 src/boot/tasks.rs	new		the forwarded task call's handler slot and its wiring once the node is assembled
+src/search_shard_action/tests/pipelines.rs	new		tests that a forwarded search with pipeline aggregations is answered as without them
