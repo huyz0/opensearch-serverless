@@ -96,7 +96,7 @@ pub(crate) fn module() -> Vec<u8> {
     .expect("valid module")
 }
 
-fn descriptor(hash: &str, fuel: u64, deadline_ms: u64) -> String {
+pub(crate) fn descriptor(hash: &str, fuel: u64, deadline_ms: u64) -> String {
     let pin = Pin {
         name: "ext_a".into(),
         module: hash.into(),

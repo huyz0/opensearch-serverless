@@ -8,6 +8,11 @@ use oss_node::boot::{Node, NodeConfig, start};
 use oss_testkit::TempDir;
 
 fn boot(root: &std::path::Path, usage: Option<&str>) -> Node {
+    boot_with(root, usage, None)
+}
+
+/// A node over `root`, with `extensions` percent of the page cache for modules when given.
+fn boot_with(root: &std::path::Path, usage: Option<&str>, extensions: Option<&str>) -> Node {
     let root = root.display().to_string();
     let lookup = |key: &str| match key {
         "OSS_NODE_ID" => Some("n1".to_owned()),
@@ -16,6 +21,7 @@ fn boot(root: &std::path::Path, usage: Option<&str>) -> Node {
         "OSS_HTTP_ADDR" | "OSS_TRANSPORT_ADDR" => Some("127.0.0.1:0".to_owned()),
         "OSS_STORE_USAGE" => usage.map(str::to_owned),
         "OSS_TENANT_TICK_MS" => Some("20".to_owned()),
+        "OSS_EXTENSIONS_PERCENT" => extensions.map(str::to_owned),
         _ => None,
     };
     start(&NodeConfig::from_lookup(lookup).expect("valid")).expect("starts")
@@ -317,4 +323,43 @@ fn a_node_with_store_usage_off_sends_no_cost_header() {
     let (status, head) = with_headers(&node, "POST", "/costs/_search", ASK, "{}");
     assert_eq!(status, 200, "{head}");
     assert!(cost_of(&head).is_none(), "{head}");
+}
+
+// docs/specs/extension-refusal-metric: the count a booted node's writer makes
+#[cfg(feature = "extensions")]
+#[test]
+fn a_write_to_an_index_pinning_a_module_the_store_lacks_moves_the_refusal_metric() {
+    use oss_blob::{BlobStore, FsStore};
+
+    let dir = TempDir::new("boot-refusal-metric");
+    let absent = "f".repeat(64);
+    FsStore::new(dir.path())
+        .expect("store")
+        .create_register(
+            "indices/logs",
+            super::pinned_read::descriptor(&absent, 10_000_000, 10_000).as_bytes(),
+        )
+        .expect("descriptor");
+    let node = boot_with(dir.path(), Some("true"), Some("5"));
+    let sample = |node: &Node| {
+        let body = call(node, "GET", "/_prometheus/metrics", None).text();
+        let line = body
+            .lines()
+            .find(|l| l.starts_with(r#"oss_extension_open_refused_total{reason="unavailable"}"#))
+            .unwrap_or_else(|| panic!("the family is served: {body}"));
+        line.rsplit(' ')
+            .next()
+            .expect("value")
+            .parse::<u64>()
+            .expect("a count")
+    };
+    let before = sample(&node);
+    let wrote = call(&node, "PUT", "/logs/_doc/1", Some(r#"{"t":"hello"}"#));
+    assert_ne!(wrote.status, 200, "{}", wrote.text());
+    assert!(
+        wrote.text().contains("extension_unavailable"),
+        "{}",
+        wrote.text()
+    );
+    assert!(sample(&node) > before, "the refusal was counted");
 }
