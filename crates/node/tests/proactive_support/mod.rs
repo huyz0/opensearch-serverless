@@ -29,8 +29,11 @@ use oss_writer::log::{
 use oss_writer::publish::lazy::Policy;
 use oss_writer::takeover::{HeadWriters, Predecessors};
 
+mod packed;
 mod rustfs;
 mod sweep;
+#[allow(unused_imports)]
+pub use packed::node_with_packs;
 #[allow(unused_imports)]
 pub use rustfs::{RustFs, cluster_rustfs, cluster_rustfs_rounds};
 #[allow(unused_imports)]
@@ -177,87 +180,7 @@ pub fn node_checked(
     wrap: impl FnOnce(DescriptorRoutes) -> Arc<dyn oss_node::writer::Routes>,
     incarnation: (Arc<dyn oss_node::writer::Incarnation>, Duration),
 ) -> Node {
-    let clock: Arc<dyn LeaseClock> = if later {
-        Arc::new(Later)
-    } else {
-        Arc::new(SystemClock)
-    };
-    let membership = Arc::new(
-        Membership::new(
-            c.io(),
-            "",
-            Arc::clone(&clock),
-            LeaseConfig {
-                ttl_millis: 30_000,
-                max_members: 16,
-                conditional_deletes: false,
-            },
-        )
-        .expect("membership"),
-    );
-    let dynstore: Arc<dyn BlobStore> = c.io();
-    let eph = format!("e{}", &id[5..]);
-    let heads = Arc::new(
-        ShardHeadStore::new(
-            Arc::clone(&dynstore),
-            "",
-            clock,
-            30_000,
-            Arc::new(LivenessOracle::new(Arc::clone(&membership))),
-        )
-        .expect("heads"),
-    );
-    let log = NodeLogStore::new(Arc::clone(&dynstore), "", id).expect("names");
-    let names = Arc::new(ShardNames::default());
-    let mut lease = NodeLease::new(id, &eph, "a1", 0);
-    lease.set_roles(["ingest".to_owned()]);
-    let keeper = Arc::new(LeaseKeeper::new(
-        Box::new(MembershipLeaseWrite::new(membership, lease)),
-        log.clone(),
-        Vec::new(),
-    ));
-    let committer = Arc::new(NodeLogCommitter::new(
-        log.clone(),
-        term,
-        Box::new(Arc::clone(&keeper)),
-        Box::new(HeadAdmission::new(
-            Arc::clone(&heads),
-            Arc::clone(&names),
-            id,
-            &eph,
-        )),
-        CommitterConfig {
-            window: Duration::ZERO,
-            ..CommitterConfig::default()
-        },
-    ));
-    let routes = wrap(DescriptorRoutes::new(
-        DescriptorStore::new(Arc::clone(&dynstore), "", DeleteMode::Tombstone).expect("names"),
-        1 << 16,
-    ));
-    let mut opener = HeadOpener::new(
-        heads,
-        Arc::clone(&c.descriptors),
-        Arc::clone(&dynstore),
-        "",
-        id,
-        &eph,
-        1 << 16,
-    );
-    if let Some(takeover) = takeover {
-        opener = opener.with_takeover(takeover);
-    }
-    let publishing = Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), Box::new(|| 1_000));
-    let role = WriterRole::new(Arc::clone(&committer), routes)
-        .with_names(names)
-        .with_incarnation(incarnation.0, incarnation.1)
-        .with_publishing(publishing)
-        .with_opener(Arc::new(opener));
-    Node {
-        role: Arc::new(role),
-        committer,
-        log,
-    }
+    node_with_packs(c, id, term, later, takeover, wrap, incarnation, None)
 }
 
 pub fn create(c: &Cluster, name: &str, uuid: &str) {
