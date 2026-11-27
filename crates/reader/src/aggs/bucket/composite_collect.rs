@@ -126,6 +126,8 @@ pub fn check_limit(agg: &MetricAgg) -> Result<(), ShardError> {
 enum Reads {
     Keyword,
     Long,
+    /// A `double` or `float` field, read as this kind.
+    Decimal(ValueKind),
 }
 
 /// How `source`'s field is read, `None` when it is unmapped; the errors of
@@ -154,8 +156,16 @@ fn reads<S: BlobStore + 'static>(
                 source.field
             )));
         }
-        (ty @ (FieldType::Float | FieldType::Double | FieldType::Unsupported(_)), _) => {
-            let what = ty.refusal_name();
+        (FieldType::Float | FieldType::Double, SourceKind::DateHistogram { .. }) => {
+            // ALLOC: error path; one message.
+            return Err(bad_request(format!(
+                "Field [{}] of type [{ty}] is not supported for aggregation [date_histogram]",
+                source.field
+            )));
+        }
+        (FieldType::Double, _) => Reads::Decimal(ValueKind::Double),
+        (FieldType::Float, _) => Reads::Decimal(ValueKind::Float),
+        (FieldType::Unsupported(what), _) => {
             // ALLOC: error path; one message.
             return Err(bad_request(format!(
                 "aggregating {what} [{}] is not supported by this node yet",
@@ -258,11 +268,13 @@ fn after_of(
                         .map_err(|_| number_format(text))?,
                 )
             }
-            (Reads::Long, SourceKind::Histogram { .. }) => CompositeAfter::Value(sortable(
-                text.trim()
-                    .parse::<f64>()
-                    .map_err(|_| number_format(text))?,
-            )),
+            (Reads::Long, SourceKind::Histogram { .. }) | (Reads::Decimal(_), _) => {
+                CompositeAfter::Value(sortable(
+                    text.trim()
+                        .parse::<f64>()
+                        .map_err(|_| number_format(text))?,
+                ))
+            }
         });
     }
     Ok(Some(out))
@@ -313,6 +325,13 @@ pub fn node<S: BlobStore + 'static>(
                 kind: ValueKind::Long,
                 interval,
             },
+            (Reads::Decimal(kind), SourceKind::Histogram { interval }) => {
+                CompositeValues::Histogram {
+                    kind: *kind,
+                    interval,
+                }
+            }
+            (Reads::Decimal(kind), _) => CompositeValues::Double(*kind),
         };
         sources.push(CompositeSource {
             // ALLOC: one field name a source, bounded by the request's.

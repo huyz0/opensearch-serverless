@@ -11,6 +11,7 @@ use oss_testkit::index::Spec;
 
 use super::tests::{DOCS, run, shard_of, source, values};
 use crate::OpenShard;
+use crate::aggs::bucket::composite::KeyPart;
 use crate::aggs::metric::Value;
 use crate::aggs::partial::Format;
 use crate::search::search;
@@ -109,21 +110,6 @@ fn a_decimal_field_aggregates_the_query_matches_only() {
 }
 
 #[test]
-fn a_composite_over_a_decimal_field_is_refused_for_now() {
-    let shard = decimals_shard("aggs-double-composite");
-    let err = run(
-        &shard,
-        r#"{"aggs":{"c":{"composite":{"sources":[{"s":{"terms":{"field":"d"}}}]}}}}"#,
-    )
-    .expect_err("refused");
-    assert_eq!(err.status, 400);
-    assert_eq!(
-        err.failure.reason,
-        "aggregating a [double] field [d] is not supported by this node yet"
-    );
-}
-
-#[test]
 fn terms_of_a_double_key_each_bucket_by_its_value_and_write_the_double() {
     let shard = decimals_shard("aggs-double-terms");
     let source = source(
@@ -218,5 +204,88 @@ fn a_date_aggregation_of_a_double_fails_as_opensearch_fails_it() {
     assert_eq!(
         err.failure.reason,
         "Field [d] of type [double] is not supported for aggregation [date_histogram]"
+    );
+}
+
+fn composite_keys(shard: &OpenShard<Emulator>, composite: &str) -> Vec<(KeyPart, u64)> {
+    let body = format!(r#"{{"size":0,"aggs":{{"c":{{"composite":{composite}}}}}}}"#);
+    match values(shard, &body).into_iter().next() {
+        Some(Value::Composite(c)) => c
+            .buckets
+            .into_iter()
+            .map(|(k, n)| (k[0].clone(), n))
+            .collect(),
+        other => panic!("not a composite: {other:?}"),
+    }
+}
+
+#[test]
+fn a_composite_terms_source_on_a_double_keys_by_the_value_and_pages_with_after() {
+    let shard = decimals_shard("aggs-double-composite");
+    let sources = r#""sources":[{"s":{"terms":{"field":"d"}}}]"#;
+    let first = composite_keys(&shard, &format!(r#"{{"size":3,{sources}}}"#));
+    let want = |keys: &[f64]| -> Vec<(KeyPart, u64)> {
+        keys.iter().map(|k| (KeyPart::Double(*k), 1)).collect()
+    };
+    assert_eq!(first, want(&[-5.0, -4.75, -4.5]));
+    let next = composite_keys(
+        &shard,
+        &format!(r#"{{"size":2,{sources},"after":{{"s":-4.5}}}}"#),
+    );
+    assert_eq!(next, want(&[-4.25, -4.0]));
+    let float = composite_keys(
+        &shard,
+        r#"{"size":1,"sources":[{"s":{"terms":{"field":"f","order":"desc"}}}]}"#,
+    );
+    let top = f64::from(oss_testkit::index::doc_float(DOCS - 1));
+    assert_eq!(float, [(KeyPart::Double(top), 1)]);
+}
+
+#[test]
+fn a_composite_histogram_source_on_a_double_keys_by_the_floor() {
+    let shard = decimals_shard("aggs-double-composite-histogram");
+    let got = composite_keys(
+        &shard,
+        r#"{"size":2,"sources":[{"h":{"histogram":{"field":"d","interval":1}}}]}"#,
+    );
+    assert_eq!(
+        got,
+        [(KeyPart::Double(-5.0), 4), (KeyPart::Double(-4.0), 4)]
+    );
+}
+
+#[test]
+fn a_composite_date_histogram_source_on_a_double_fails_as_opensearch_fails_it() {
+    let shard = decimals_shard("aggs-double-composite-date");
+    let err = run(
+        &shard,
+        r#"{"aggs":{"c":{"composite":{"sources":[{"s":{"date_histogram":{"field":"d","calendar_interval":"day"}}}]}}}}"#,
+    )
+    .expect_err("refused");
+    assert_eq!(
+        err.failure.reason,
+        "Field [d] of type [double] is not supported for aggregation [date_histogram]"
+    );
+}
+
+#[test]
+fn multi_terms_over_a_double_and_a_float_keys_by_both_values() {
+    let shard = decimals_shard("aggs-double-multi");
+    let got = values(
+        &shard,
+        r#"{"size":0,"aggs":{"m":{"multi_terms":{"terms":[{"field":"d"},{"field":"f"}],"size":2}}}}"#,
+    );
+    let Some(Value::Multi(result)) = got.into_iter().next() else {
+        panic!("not a multi_terms");
+    };
+    let mut out = Vec::new();
+    crate::aggs::bucket::multi::write_multi(&mut out, &result).expect("writes");
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        concat!(
+            r#""doc_count_error_upper_bound":0,"sum_other_doc_count":198,"buckets":["#,
+            r#"{"key":[-5.0,0.0],"key_as_string":"-5.0|0.0","doc_count":1},"#,
+            r#"{"key":[-4.75,0.10000000149011612],"key_as_string":"-4.75|0.10000000149011612","doc_count":1}]"#
+        )
     );
 }

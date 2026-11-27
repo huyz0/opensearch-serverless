@@ -237,6 +237,32 @@ fn multi_answer(keys: Vec<Vec<MultiTerm>>, counts: Vec<i64>, other: i64) -> Mult
     }
 }
 
+/// A `Double` key is a `Long` one with the generic type byte 4 and `writeDouble`'s
+/// bytes. Derived from the recorded answer, not recorded from Java itself.
+#[test]
+fn a_double_key_is_the_long_keys_bytes_with_the_double_type_byte() {
+    let key = |t: &str, n: f64| vec![MultiTerm::Text(t.to_owned()), MultiTerm::Double(n)];
+    let got = multi_written(multi_answer(
+        vec![key("a", 1.0), key("b", 2.0)],
+        vec![3, 1],
+        4,
+    ));
+    let mut want = recorded("response.multi_terms");
+    for n in [1i64, 2] {
+        let mut long = vec![2u8];
+        long.extend_from_slice(&n.to_be_bytes());
+        let at = want
+            .windows(long.len())
+            .position(|w| w == long)
+            .expect("the long key");
+        want[at] = 4;
+        #[allow(clippy::cast_precision_loss)]
+        let double = (n as f64).to_be_bytes();
+        want[at + 1..at + 9].copy_from_slice(&double);
+    }
+    assert_eq!(got, want);
+}
+
 #[test]
 fn a_multi_terms_answer_is_the_bytes_java_wrote() {
     let key = |t: &str, n: i64| vec![MultiTerm::Text(t.to_owned()), MultiTerm::Long(n)];

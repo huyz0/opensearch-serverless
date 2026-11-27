@@ -18,6 +18,9 @@ const GENERIC_BYTES_REF: u8 = 21;
 /// `StreamOutput.writeGenericValue`'s type byte of a `Long`.
 const GENERIC_LONG: u8 = 2;
 
+/// `StreamOutput.writeGenericValue`'s type byte of a `Double`.
+const GENERIC_DOUBLE: u8 = 4;
+
 /// What a `multi_terms` asks: its terms' fields and its options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MultiRequest {
@@ -113,12 +116,14 @@ pub fn write(r: &MultiRequest, out: &mut Output<'_>) -> Result<(), WireError> {
 }
 
 /// One term of a bucket's key.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MultiTerm {
     /// A keyword's term (a `BytesRef`).
     Text(String),
     /// A number (a `Long`).
     Long(i64),
+    /// A `double` or `float`'s value (a `Double`).
+    Double(f64),
 }
 
 /// A shard's `InternalMultiTerms`.
@@ -180,6 +185,10 @@ impl MultiAnswer {
                     MultiTerm::Long(n) => {
                         out.byte(GENERIC_LONG)?;
                         out.bytes(&n.to_be_bytes())?;
+                    }
+                    MultiTerm::Double(d) => {
+                        out.byte(GENERIC_DOUBLE)?;
+                        out.bytes(&d.to_be_bytes())?;
                     }
                 }
             }

@@ -42,6 +42,9 @@ pub fn answer(r: &MultiResult, req: &AggRequest) -> Result<MultiAnswer, RemoteEx
                     .map(|part| match part {
                         MultiPart::Text(t) => MultiTerm::Text(t.clone()),
                         MultiPart::Long(n) => MultiTerm::Long(*n),
+                        MultiPart::Double(n) => MultiTerm::Double(
+                            oss_reader::aggs::bucket::terms_collect::double_of_key(*n),
+                        ),
                     })
                     .collect()
             })
