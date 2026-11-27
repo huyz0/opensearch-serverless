@@ -4,7 +4,8 @@
 
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
 use oss_transport::actions::search_shard::{
-    AggKind, AggRequest, DateHistogramRequest, IntervalType, Node, OrderSpec, Query, Source, Value,
+    AggKind, AggRequest, DateHistogramRequest, IntervalType, Node, OrderSpec, Query, RangesRequest,
+    Source, Value,
 };
 use serde_json::{Map, Number, Value as Json, json};
 
@@ -249,6 +250,29 @@ fn order_json(order: &OrderSpec) -> Result<String, ConvertError> {
     Ok(format!(",\"order\":{value}"))
 }
 
+/// A `range`'s or `date_range`'s options as the body's keys, each after a
+/// comma: an unbounded end has no key, and a bound given as text is text.
+fn range_options(r: &RangesRequest) -> Result<String, ConvertError> {
+    let mut ranges = Vec::new();
+    for a in &r.ranges {
+        let mut one = Map::new();
+        if let Some(key) = &a.key {
+            one.insert("key".to_owned(), json!(key));
+        }
+        for (name, number, text) in [("from", a.from, &a.from_text), ("to", a.to, &a.to_text)] {
+            if let Some(text) = text {
+                one.insert(name.to_owned(), json!(text));
+            } else if number.is_finite() {
+                let n = Number::from_f64(number).ok_or(ConvertError::Number("a range bound"))?;
+                one.insert(name.to_owned(), Json::Number(n));
+            }
+        }
+        ranges.push(Json::Object(one));
+    }
+    let ranges = serde_json::to_string(&ranges).map_err(|_| ConvertError::Number("the ranges"))?;
+    Ok(format!(",\"keyed\":{},\"ranges\":{ranges}", r.keyed))
+}
+
 /// A `date_histogram`'s options as the body's keys, each after a comma.
 fn histogram_options(h: &DateHistogramRequest) -> Result<String, ConvertError> {
     let key = match h.interval_type {
@@ -303,6 +327,9 @@ fn write_aggs(aggs: &[AggRequest], text: &mut Vec<u8>) -> Result<(), ConvertErro
         }
         if let Some(h) = &a.histogram {
             text.extend_from_slice(histogram_options(h)?.as_bytes());
+        }
+        if let Some(r) = &a.ranges {
+            text.extend_from_slice(range_options(r)?.as_bytes());
         }
         if let Some(p) = &a.percentiles {
             let keys = serde_json::to_string(&p.keys)

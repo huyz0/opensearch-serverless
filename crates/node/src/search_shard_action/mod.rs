@@ -12,6 +12,7 @@ mod answer_value;
 mod convert;
 mod histogram;
 mod local;
+mod range;
 mod terms;
 
 pub use local::{Local, run};
@@ -256,7 +257,7 @@ fn answers<'a>(
     let mut out = Vec::with_capacity(parts.len());
     for p in parts {
         let date = p.format == Format::Date;
-        let value = answer_value::value(&p.name, &p.value, asked)?;
+        let value = answer_value::value(&p.name, &p.value, p.format, asked)?;
         out.push(AggAnswer {
             name: &p.name,
             value,

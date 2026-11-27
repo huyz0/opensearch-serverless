@@ -22,7 +22,7 @@ fn write_bound(out: &mut dyn Write, format: Format, value: f64) -> io::Result<()
 
 /// The key of `bucket`: the one asked for, else `from-to` with `*` for an
 /// unbounded end (`InternalRange.Bucket.generateKey`).
-fn key_of(format: Format, bucket: &RangeBucket) -> io::Result<Vec<u8>> {
+pub fn key_of(format: Format, bucket: &RangeBucket) -> io::Result<Vec<u8>> {
     // ALLOC: one key a bucket, bounded by the request's ranges.
     let mut key = Vec::new();
     if let Some(asked) = &bucket.key {

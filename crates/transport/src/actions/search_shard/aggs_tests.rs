@@ -20,6 +20,7 @@ fn a_written_request_reads_back() {
             percentiles: None,
             terms: None,
             histogram: None,
+            ranges: None,
             subs: Vec::new(),
         },
         AggRequest {
@@ -30,6 +31,7 @@ fn a_written_request_reads_back() {
             percentiles: None,
             terms: None,
             histogram: None,
+            ranges: None,
             subs: Vec::new(),
         },
     ];
@@ -44,7 +46,7 @@ fn another_type_and_a_sub_aggregation_are_refused() {
     let mut wire = Vec::new();
     let mut out = Output::new(&mut wire, 1 << 20);
     out.vint(1).expect("count");
-    out.string("range").expect("type");
+    out.string("geohash_grid").expect("type");
     assert!(matches!(
         read(&mut Input::new(&wire)),
         Err(Refusal::Unsupported("an aggregation of another type"))
@@ -58,6 +60,7 @@ fn another_type_and_a_sub_aggregation_are_refused() {
         percentiles: None,
         terms: None,
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     };
     let outer = AggRequest {
@@ -68,6 +71,7 @@ fn another_type_and_a_sub_aggregation_are_refused() {
         percentiles: None,
         terms: None,
         histogram: None,
+        ranges: None,
         subs: vec![inner],
     };
     let wire = bytes(&[outer]);

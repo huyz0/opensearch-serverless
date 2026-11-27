@@ -48,7 +48,7 @@ fn answer(req: &AggRequest, shape: &Shape<'_>, keys: Keys) -> Result<TermsAnswer
             for ((name, format), v) in shape.meta.iter().zip(list) {
                 one.push(SubAnswer {
                     name: name.clone(),
-                    value: value(name, v, &req.subs)?,
+                    value: value(name, v, *format, &req.subs)?,
                     date: *format == Format::Date,
                 });
             }

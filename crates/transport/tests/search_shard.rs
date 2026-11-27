@@ -181,7 +181,7 @@ fn the_first_unsupported_item_is_named_and_nothing_after_it_is_read() {
     // `from` after it is read.
     let ok = read("aggs_then_from").expect("reads");
     assert_eq!((ok.source.from, ok.source.aggregations.len()), (4, 1));
-    // The same bytes with the type renamed to `range`, five letters as well:
+    // The same bytes with the type renamed to `other`, five letters as well:
     // an aggregation this node does not run comes first, and the `from` after
     // it is never reached.
     let mut wire = bytes("request.aggs_then_from");
@@ -189,7 +189,7 @@ fn the_first_unsupported_item_is_named_and_nothing_after_it_is_read() {
         .windows(5)
         .position(|w| w == b"terms")
         .expect("the type");
-    wire[at..at + 5].copy_from_slice(b"range");
+    wire[at..at + 5].copy_from_slice(b"other");
     assert_eq!(
         Request::read(&wire, &Bounds::DEFAULT),
         Err(Refusal::Unsupported("an aggregation of another type"))

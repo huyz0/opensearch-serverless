@@ -33,3 +33,6 @@ src/actions/search_shard/aggs_tests.rs	new		tests of aggs.rs
 src/actions/search_shard/aggs_terms.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalTerms.java@429b4cbc	TermsAggregationBuilder.innerWriteTo, InternalOrder's writeTo, and InternalTerms.doWriteTo with StringTerms and LongTerms buckets
 src/actions/search_shard/aggs_percentiles.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/AbstractPercentilesAggregationBuilder.java@429b4cbc	the percentiles builders' innerWriteTo
 src/actions/search_shard/aggs_histogram.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalDateHistogram.java@429b4cbc	DateHistogramAggregationBuilder.innerWriteTo, DateIntervalWrapper.writeTo, and InternalDateHistogram.doWriteTo with EmptyBucketInfo and Rounding.writeTo
+src/actions/search_shard/aggs_range.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/InternalRange.java@429b4cbc	AbstractRangeBuilder.innerWriteTo, RangeAggregator.Range.writeTo, and InternalRange.doWriteTo with its buckets
+src/actions/search_shard/aggs_kind.rs	new		the aggregation kinds and their writeable names, split from aggs.rs
+tests/search_shard_range.rs	new		the range builders and answers against the recorded Java bytes
