@@ -86,6 +86,24 @@ pub struct AggAnswer<'a> {
     pub name: &'a str,
     /// Its value.
     pub value: AggValue,
+    /// Whether the field is a date, which the answer's format says
+    /// (`DocValueFormat.DateTime` of the default date format) in place of
+    /// `raw`.
+    pub date: bool,
+}
+
+/// `out.writeNamedWriteable(format)` of `DocValueFormat.RAW`, or of the
+/// `DocValueFormat.DateTime` a date field of the default format, in UTC and
+/// in milliseconds, has.
+fn write_format(out: &mut Output<'_>, date: bool) -> Result<(), WireError> {
+    if !date {
+        return out.string("raw"); // writes nothing more
+    }
+    out.string("date_time")?;
+    out.string("strict_date_time_no_millis||strict_date_optional_time||epoch_millis")?;
+    out.optional_string(Some("strict_date_optional_time"))?;
+    out.string("Z")?; // UTC
+    out.vint(0) // `Resolution.MILLISECONDS`
 }
 
 /// A generic value that is null (`writeGenericValue(null)` is the byte -1).
@@ -203,11 +221,11 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
         out.byte(0xFF)?; // metadata: null
         match a.value {
             AggValue::Min(v) | AggValue::Max(v) | AggValue::Sum(v) => {
-                out.string("raw")?; // DocValueFormat.RAW, which writes nothing more
+                write_format(out, a.date)?;
                 out.bytes(&v.to_bits().to_be_bytes())?;
             }
             AggValue::Avg { sum, count } => {
-                out.string("raw")?;
+                write_format(out, a.date)?;
                 out.bytes(&sum.to_bits().to_be_bytes())?;
                 out.vlong(count)?;
             }
@@ -279,10 +297,12 @@ mod tests {
             AggAnswer {
                 name: "m",
                 value: AggValue::Max(2.0),
+                date: false,
             },
             AggAnswer {
                 name: "c",
                 value: AggValue::ValueCount(7),
+                date: false,
             },
         ];
         write_answers(&answers, &mut out).expect("writes");
@@ -291,6 +311,29 @@ mod tests {
         expected.extend_from_slice(&[11]);
         expected.extend_from_slice(b"value_count");
         expected.extend_from_slice(&[1, b'c', 0xFF, 7]);
+        assert_eq!(buf, expected);
+    }
+
+    #[test]
+    fn a_date_field_is_answered_with_the_date_time_format() {
+        let mut buf = Vec::new();
+        let mut out = Output::new(&mut buf, 1 << 20);
+        let answers = [AggAnswer {
+            name: "t",
+            value: AggValue::Max(1.0),
+            date: true,
+        }];
+        write_answers(&answers, &mut out).expect("writes");
+        let mut expected = vec![1, 3, b'm', b'a', b'x', 1, b't', 0xFF, 9];
+        expected.extend_from_slice(b"date_time");
+        let pattern = "strict_date_time_no_millis||strict_date_optional_time||epoch_millis";
+        expected.push(u8::try_from(pattern.len()).unwrap());
+        expected.extend_from_slice(pattern.as_bytes());
+        expected.push(1);
+        expected.push(25);
+        expected.extend_from_slice(b"strict_date_optional_time");
+        expected.extend_from_slice(&[1, b'Z', 0]);
+        expected.extend_from_slice(&1.0f64.to_bits().to_be_bytes());
         assert_eq!(buf, expected);
     }
 }

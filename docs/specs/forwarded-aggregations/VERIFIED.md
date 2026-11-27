@@ -5,4 +5,5 @@ Run on 2026-11-27 (Linux cloud container). The expected bytes are read from the 
 - AC-1: `a_written_request_reads_back` (`oss-transport`, `search_shard/aggs.rs`)
 - AC-2: `another_type_and_a_sub_aggregation_are_refused`, `the_first_unsupported_item_is_named_and_nothing_after_it_is_read` (`crates/transport/tests/search_shard.rs`)
 - AC-3: `a_reply_is_a_list_of_named_writeables`
-- AC-4: `aggregations_asked_for_come_back_as_internal_aggregations`, `an_aggregation_over_a_date_or_of_another_kind_is_refused`, `the_aggregations_of_a_request_reach_the_source`
+- AC-4: `aggregations_asked_for_come_back_as_internal_aggregations`, `the_aggregations_of_a_request_reach_the_source`
+- AC-5: `a_date_field_is_answered_with_the_date_time_format`, `a_date_aggregation_carries_the_date_format_and_another_kind_is_refused`

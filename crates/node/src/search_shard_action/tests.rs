@@ -311,32 +311,32 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
 }
 
 #[test]
-fn an_aggregation_over_a_date_or_of_another_kind_is_refused() {
+fn a_date_aggregation_carries_the_date_format_and_another_kind_is_refused() {
     use oss_reader::aggs::partial::{Format, Partial, Value as Part};
-    for partial in [
-        Partial {
-            name: "d".to_owned(),
-            format: Format::Date,
-            value: Part::Max(1.0),
+    let mut fake = Fake::held();
+    fake.aggs = vec![Partial {
+        name: "d".to_owned(),
+        format: Format::Date,
+        value: Part::Max(1.0),
+    }];
+    let h = handler(fake, &fresh(), 10_000);
+    let answer = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap();
+    assert!(answer.windows(9).any(|w| w == b"date_time"), "{answer:?}");
+    let mut fake = Fake::held();
+    fake.aggs = vec![Partial {
+        name: "t".to_owned(),
+        format: Format::Raw,
+        value: Part::Stats {
+            count: 1,
+            sum: 1.0,
+            min: 1.0,
+            max: 1.0,
         },
-        Partial {
-            name: "t".to_owned(),
-            format: Format::Raw,
-            value: Part::Stats {
-                count: 1,
-                sum: 1.0,
-                min: 1.0,
-                max: 1.0,
-            },
-        },
-    ] {
-        let mut fake = Fake::held();
-        fake.aggs = vec![partial];
-        let h = handler(fake, &fresh(), 10_000);
-        let e = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap_err();
-        assert!(
-            format!("{e:?}").contains("not supported by this node"),
-            "{e:?}"
-        );
-    }
+    }];
+    let h = handler(fake, &fresh(), 10_000);
+    let e = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap_err();
+    assert!(
+        format!("{e:?}").contains("not supported by this node"),
+        "{e:?}"
+    );
 }
