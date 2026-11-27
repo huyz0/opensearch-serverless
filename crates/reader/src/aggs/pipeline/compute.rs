@@ -28,9 +28,8 @@ pub fn write_result(out: &mut dyn Write, pipeline: &PipelineAgg, target: &[u8]) 
     // ALLOC: error path or one name a pipeline aggregation, bounded by the request.
     let mut values: Vec<f64> = Vec::new();
     for (key, bucket) in &buckets {
-        let value = match bucket_value(bucket, &pipeline.value) {
+        let value = match resolve(bucket, &pipeline.value, pipeline.insert_zeros) {
             v if !v.is_nan() => v,
-            _ if pipeline.insert_zeros => 0.0,
             _ => continue,
         };
         // ALLOC: one entry a bucket of the input, at most the 65,535-bucket limit.
@@ -78,6 +77,11 @@ pub fn write_result(out: &mut dyn Write, pipeline: &PipelineAgg, target: &[u8]) 
                 write_json_str(out, key)?;
             }
             out.write_all(b"]")
+        }
+        PipelineKind::Derivative | PipelineKind::CumulativeSum | PipelineKind::BucketSort => {
+            Err(io::Error::other(
+                "a parent pipeline aggregation is not computed beside its bucket aggregation",
+            ))
         }
         PipelineKind::Stats => {
             let count = values.len();
@@ -134,11 +138,41 @@ fn key_text(bucket: &Json) -> String {
     }
 }
 
-/// What `bucket` contributes, NaN for none.
-fn bucket_value(bucket: &Json, value: &BucketValue) -> f64 {
+/// What `bucket` contributes (`BucketHelpers.resolveBucketValue`): its value,
+/// or for a gap (no value, an infinite one, or a bucket with no document read
+/// by anything but `_count`) 0 under `insert_zeros` and NaN, to be skipped,
+/// otherwise.
+pub fn resolve(bucket: &Json, value: &BucketValue, insert_zeros: bool) -> f64 {
+    let raw = read(bucket, value);
+    let empty = !matches!(value, BucketValue::Count)
+        && matches!(bucket.get("doc_count"), Some(Json::Num(n)) if n == "0");
+    if raw.is_finite() && !empty {
+        raw
+    } else if insert_zeros {
+        0.0
+    } else {
+        f64::NAN
+    }
+}
+
+/// The member `name` of a bucket: written as `name`, or as `type#name` when
+/// the keys are typed.
+pub fn member<'a>(bucket: &'a Json, name: &str) -> Option<&'a Json> {
+    let Json::Obj(members) = bucket else {
+        return None;
+    };
+    members
+        .iter()
+        .find(|(k, _)| k == name || k.split_once('#').is_some_and(|(_, n)| n == name))
+        .map(|(_, v)| v)
+}
+
+/// What `bucket` holds for `value`, NaN for none.
+fn read(bucket: &Json, value: &BucketValue) -> f64 {
     let found = match value {
         BucketValue::Count => bucket.get("doc_count"),
-        BucketValue::Sub { name, metric } => bucket.get(name).and_then(|sub| sub.get(metric)),
+        BucketValue::Sub { name, metric } => member(bucket, name).and_then(|sub| sub.get(metric)),
+        BucketValue::Key => bucket.get("key"),
         BucketValue::Other { .. } => None,
     };
     match found {

@@ -15,6 +15,7 @@ pub use crate::aggs::metric::registered::REGISTERED_AGGREGATIONS;
 use crate::aggs::metric::sub_rules::{holds_subs, is_scalar, nests_under};
 use crate::aggs::metric::top_hits::parse_top_hits_body;
 use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg, PercentilesOptions};
+use crate::aggs::pipeline::parent_parse;
 use crate::aggs::pipeline::parse as pipeline_parse;
 use crate::aggs::pipeline::{PipelineAgg, PipelineKind};
 use crate::dsl::error::{DslError, parsing_failure};
@@ -54,6 +55,8 @@ struct Definition {
     subs: Vec<MetricAgg>,
     /// The definition was a sibling pipeline aggregation, pushed to the sink.
     piped: bool,
+    /// The parent pipeline aggregations among its `aggs`.
+    parents: Vec<PipelineAgg>,
 }
 
 fn parse_level(
@@ -160,6 +163,14 @@ fn parse_level(
             }
             agg.subs = definition.subs;
         }
+        if !definition.parents.is_empty() {
+            if !holds_subs(agg.metric) {
+                return Err(sub_refusal(&agg, name));
+            }
+            let mut parents = definition.parents;
+            parent_parse::validate_parents(&agg, &mut parents)?;
+            pipes.extend(parents);
+        }
         if aggs.iter().any(|a| a.name == agg.name) {
             return Err(DslError::illegal(
                 // ALLOC: error path; one message.
@@ -207,6 +218,8 @@ fn parse_definition(
         // ALLOC: empty; the definition's `aggs` fill it.
         subs: Vec::new(),
         piped: false,
+        // ALLOC: empty; the definition's `aggs` fill it.
+        parents: Vec::new(),
     };
     let mut subs_seen = false;
     loop {
@@ -249,8 +262,7 @@ fn parse_definition(
                 }
                 subs_seen = true;
                 // `parseAggregators` gives no factories for an empty object.
-                // ALLOC: empty; a pipeline aggregation under another is refused.
-                definition.subs = parse_level(p, level.saturating_add(1), &mut Vec::new())?;
+                definition.subs = parse_level(p, level.saturating_add(1), &mut definition.parents)?;
             }
             ty => {
                 if let Some(agg) = &definition.agg {
@@ -264,13 +276,22 @@ fn parse_definition(
                     ));
                 }
                 if let Some(kind) = PipelineKind::from_name(ty) {
-                    if level > 0 {
+                    // A parent pipeline sits in a top-level aggregation (level 1).
+                    if level > 0 && !(kind.is_parent() && level == 1) {
                         // ALLOC: error path; one message.
                         return Err(DslError::unsupported(&format!(
                             "a [{ty}] aggregation under another aggregation"
                         )));
                     }
-                    pipes.push(pipeline_parse::parse_body(p, name, kind)?);
+                    if kind.is_parent() {
+                        let pipe = parent_parse::parse_body(p, name, kind)?;
+                        if level == 0 {
+                            return Err(parent_parse::at_top_level(&pipe));
+                        }
+                        pipes.push(pipe);
+                    } else {
+                        pipes.push(pipeline_parse::parse_body(p, name, kind)?);
+                    }
                     definition.piped = true;
                     continue;
                 }

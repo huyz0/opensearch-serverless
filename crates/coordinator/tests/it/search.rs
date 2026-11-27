@@ -325,6 +325,8 @@ fn a_sibling_pipeline_aggregation_is_computed_over_the_reduced_buckets() {
         agg: "t".to_owned(),
         value: BucketValue::Count,
         insert_zeros: false,
+        host: None,
+        sort: None,
     };
     let f = fake(vec![
         Ok(hits(1, &[1.0], vec![terms(&[(1, 5), (2, 3)])])),

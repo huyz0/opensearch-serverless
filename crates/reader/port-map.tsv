@@ -327,3 +327,8 @@ src/search_half_tests.rs	new		tests of queries, sorts and search_after over a ha
 src/aggs/metric/collect_scaled_tests.rs	new		tests of the aggregations over a scaled_float field
 src/search_scaled_tests.rs	new		tests of queries, sorts and search_after over a scaled_float field
 src/aggs/metric/scripted_metric.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/ScriptedMetricAggregationBuilder.java@3.10.0	the parser (init, map, combine, reduce scripts and params), the required-script checks of doBuild, and InternalScriptedMetric.reduce running the reduce script over every shard value in order
+src/aggs/pipeline/parent.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/DerivativePipelineAggregator.java@429b4cbc	derivative, cumulative_sum and bucket_sort reduce over a rendered bucket body
+src/aggs/pipeline/parent_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketSortPipelineAggregationBuilder.java@429b4cbc	the three parent builders' body parsers and the validation of a parent pipeline in its host
+src/aggs/pipeline/parent_tests.rs	new		tests of the parent pipelines against the recorded Java
+src/aggs/pipeline/sort_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketSortPipelineAggregationBuilder.java@429b4cbc	the bucket_sort body parser and its error chains
+src/aggs/pipeline/parent_parse_tests.rs	new		tests of the parent pipelines bodies and validation against the recorded Java
