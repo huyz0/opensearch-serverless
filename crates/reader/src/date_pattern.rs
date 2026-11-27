@@ -7,7 +7,7 @@
 //! unpadded, two padded), `S` (a fraction of that many digits) and quoted or
 //! punctuation literals; a letter outside them, a zone letter included, is
 //! not served. The names are `epoch_millis` and the date and time names in
-//! [`named`]. The text is of the local time in the zone's offset.
+//! `named`. The text is of the local time in the zone's offset.
 
 use std::io::{self, Write};
 

@@ -89,6 +89,13 @@ pub(crate) fn range_in(
             None => Ok(match_none()),
         },
         FieldType::Date => date_range(cx, field, from, to, (include_lower, include_upper), spec),
+        FieldType::Float | FieldType::Double => {
+            // ALLOC: error path; one message.
+            Err(unsupported(&format!(
+                "a range query on the {} [{field}]",
+                ty.refusal_name()
+            )))
+        }
         FieldType::Text | FieldType::Keyword | FieldType::Unsupported(_) => {
             // ALLOC: error path; one message.
             Err(unsupported(&format!(

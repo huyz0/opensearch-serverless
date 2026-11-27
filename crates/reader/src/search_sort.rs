@@ -141,7 +141,9 @@ pub(crate) fn field_sort<S: BlobStore + 'static>(
         FieldType::Int { .. } => (SortType::Int, i64::from(i32::MIN), i64::from(i32::MAX)),
         FieldType::Long | FieldType::Date => (SortType::Long, i64::MIN, i64::MAX),
         // ALLOC: error path; one message.
-        FieldType::Unsupported(what) => return Err(unsupported(&format!("{what} [{name}]"))),
+        ty @ (FieldType::Float | FieldType::Double | FieldType::Unsupported(_)) => {
+            return Err(unsupported(&format!("{} [{name}]", ty.refusal_name())));
+        }
         FieldType::Text => return Err(unsupported("a text field")),
     };
     let mut f = SortField::numeric(name, ty, reverse);

@@ -152,7 +152,8 @@ fn reads<S: BlobStore + 'static>(
                 source.field
             )));
         }
-        (FieldType::Unsupported(what), _) => {
+        (ty @ (FieldType::Float | FieldType::Double | FieldType::Unsupported(_)), _) => {
+            let what = ty.refusal_name();
             // ALLOC: error path; one message.
             return Err(bad_request(format!(
                 "aggregating {what} [{}] is not supported by this node yet",

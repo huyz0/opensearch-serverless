@@ -26,6 +26,7 @@ pub mod ltr;
 pub mod lucene_query;
 mod lucene_range;
 pub mod mapping;
+mod mapping_types;
 pub mod numbers;
 pub mod open_cost;
 pub mod overlay;
