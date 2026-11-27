@@ -3,6 +3,7 @@
 //! setters' checks and `DoubleBounds`, at OpenSearch 3.10.0.
 
 use crate::aggs::bucket::histogram::{HistogramOrder, HistogramSpec};
+use crate::aggs::bucket::sub_order::{EMPTY_PATH, SubOrder, parse_path};
 use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
@@ -198,7 +199,7 @@ pub fn parse_histogram_body(
                 spec.extended_bounds = Some(parse_bounds(p).map_err(|e| failed(p, e))?);
             }
             "hard_bounds" => spec.hard_bounds = parse_bounds(p).map_err(|e| failed(p, e))?,
-            _ => spec.order = parse_order(p, kind, "histogram")?,
+            _ => (spec.order, spec.sub_order) = parse_order(p, kind, "histogram")?,
         }
     }
     let field = field.ok_or_else(|| {
@@ -236,17 +237,18 @@ fn check_bounds(spec: &HistogramSpec) -> Result<(), DslError> {
 }
 
 /// `InternalOrder.Parser.parseOrderParam` over one object, or an array of
-/// one, the parser on its start (`kind`): `_count` or `_key`, `asc` or
-/// `desc`. A sub-aggregation's path and several criteria are not served.
+/// one, the parser on its start (`kind`): `_count`, `_key` or the path of a
+/// sub-aggregation (the second of the answer, its target checked when the
+/// shard runs), `asc` or `desc`. Several criteria are not served.
 pub(super) fn parse_order(
     p: &mut Parser<'_>,
     kind: Kind,
     agg: &str,
-) -> Result<HistogramOrder, DslError> {
+) -> Result<(HistogramOrder, Option<SubOrder>), DslError> {
     // ALLOC: error path; one message.
     let several = format!("an [order] of several criteria in a [{agg}] aggregation");
     let array = kind == Kind::StartArray;
-    let mut order: Option<HistogramOrder> = None;
+    let mut order: Option<(HistogramOrder, Option<SubOrder>)> = None;
     if array {
         loop {
             match p.next_token() {
@@ -261,8 +263,11 @@ pub(super) fn parse_order(
 }
 
 /// One criterion's object, the parser on its start.
-fn parse_one(p: &mut Parser<'_>, agg: &str) -> Result<HistogramOrder, DslError> {
-    let mut by: Option<&'static str> = None;
+fn parse_one(
+    p: &mut Parser<'_>,
+    agg: &str,
+) -> Result<(HistogramOrder, Option<SubOrder>), DslError> {
+    let mut by: Option<String> = None;
     let mut ascending = false;
     loop {
         match p.next_token() {
@@ -274,16 +279,8 @@ fn parse_one(p: &mut Parser<'_>, agg: &str) -> Result<HistogramOrder, DslError> 
                         "an [order] of several criteria in a [{agg}] aggregation"
                     )));
                 }
-                by = match p.text() {
-                    "_count" => Some("_count"),
-                    "_key" | "_term" => Some("_key"),
-                    _ => {
-                        // ALLOC: error path; one message.
-                        return Err(DslError::unsupported(&format!(
-                            "an [order] by a sub-aggregation in a [{agg}] aggregation"
-                        )));
-                    }
-                };
+                // ALLOC: one path an order, bounded by the body's recording.
+                by = Some(p.text().to_owned());
             }
             Some(Kind::String) => {
                 ascending = match p.text() {
@@ -308,10 +305,38 @@ fn parse_one(p: &mut Parser<'_>, agg: &str) -> Result<HistogramOrder, DslError> 
             }
         }
     }
-    Ok(match (by, ascending) {
-        (Some("_key"), true) => HistogramOrder::KeyAsc,
-        (Some("_key"), false) => HistogramOrder::KeyDesc,
-        (_, true) => HistogramOrder::CountAsc,
-        (_, false) => HistogramOrder::CountDesc,
+    Ok(match (by.as_deref(), ascending) {
+        (Some("_key" | "_term"), true) => (HistogramOrder::KeyAsc, None),
+        (Some("_key" | "_term"), false) => (HistogramOrder::KeyDesc, None),
+        (Some("_count") | None, true) => (HistogramOrder::CountAsc, None),
+        (Some("_count") | None, false) => (HistogramOrder::CountDesc, None),
+        (Some(path), _) => {
+            sub_path(path)?;
+            // The reduce reads the order from the spec's `sub_order`; the
+            // key order stands in for it where the spec's `order` is read.
+            (
+                HistogramOrder::KeyAsc,
+                Some(SubOrder {
+                    // ALLOC: one path an order, as above.
+                    path: path.to_owned(),
+                    ascending,
+                }),
+            )
+        }
+    })
+}
+
+/// `AggregationPath.parse`'s refusal of `path`: no element at all is its own
+/// `IllegalArgumentException`, a bad element the exception of the
+/// aggregation's execution.
+fn sub_path(path: &str) -> Result<(), DslError> {
+    parse_path(path).map(|_| ()).map_err(|message| {
+        if message == EMPTY_PATH {
+            return DslError::illegal(message);
+        }
+        DslError::Failure(crate::failure::Failure::opensearch(
+            "aggregation_execution_exception",
+            message,
+        ))
     })
 }

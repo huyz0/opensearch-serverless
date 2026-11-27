@@ -331,11 +331,21 @@ fn order_by_sub(r: &mut KeywordTermsResult) {
     r.subs = kept_subs;
 }
 
-/// Checks the order of the keyword `terms` `agg` by a sub-aggregation, if it
-/// has one, as the shard does when it builds the aggregator, whatever its
+/// Checks the order of the `terms`, `histogram` or `date_histogram` `agg` by a
+/// sub-aggregation, if it has one, as the shard does when it builds the aggregator, whatever its
 /// field: an `AggregationExecutionException`.
 pub fn check_order(agg: &MetricAgg) -> Result<(), ShardError> {
-    let Some(order) = agg.terms.as_deref().and_then(|t| t.sub_order.as_ref()) else {
+    let order = agg
+        .terms
+        .as_deref()
+        .and_then(|t| t.sub_order.as_ref())
+        .or_else(|| agg.histogram.as_deref().and_then(|h| h.sub_order.as_ref()))
+        .or_else(|| {
+            agg.date_histogram
+                .as_deref()
+                .and_then(|h| h.sub_order.as_ref())
+        });
+    let Some(order) = order else {
         return Ok(());
     };
     sub_order::validate(order, &agg.subs).map_err(|message| ShardError {

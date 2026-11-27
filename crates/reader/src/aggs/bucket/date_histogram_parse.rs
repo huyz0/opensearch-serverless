@@ -199,6 +199,7 @@ pub fn parse_date_histogram_body(
     let mut keyed = false;
     let mut min_doc_count = 0u64;
     let mut order = HistogramOrder::KeyAsc;
+    let mut sub_order = None;
     let mut extended: Option<(Option<Bound>, Option<Bound>)> = None;
     let mut hard: Option<(Option<Bound>, Option<Bound>)> = None;
     let mut key = "";
@@ -345,7 +346,7 @@ pub fn parse_date_histogram_body(
             }
             "extended_bounds" => extended = Some(parse_bounds(p).map_err(|e| failed(p, e))?),
             "hard_bounds" => hard = Some(parse_bounds(p).map_err(|e| failed(p, e))?),
-            _ => order = parse_order(p, token, "date_histogram")?,
+            _ => (order, sub_order) = parse_order(p, token, "date_histogram")?,
         }
     }
     let field = field.ok_or_else(|| {
@@ -396,6 +397,7 @@ pub fn parse_date_histogram_body(
             keyed,
             min_doc_count,
             order,
+            sub_order,
             extended_bounds,
             hard_bounds: hard_bounds.unwrap_or((None, None)),
         },
