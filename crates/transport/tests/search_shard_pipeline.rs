@@ -231,3 +231,18 @@ fn more_than_sixty_four_pipelines_are_refused_before_any_is_read() {
         64
     );
 }
+
+#[test]
+fn a_serial_diff_reads_from_java_bytes() {
+    let place = only("serial_diff");
+    assert_eq!(place.hosts, ["h"]);
+    let p = place.pipeline;
+    assert_eq!(
+        (p.kind, p.paths.as_slice()),
+        (PipelineKind::SerialDiff, &["s".into()][..])
+    );
+    assert_eq!((p.format, p.gap_policy, p.lag), (None, Some(1), 1));
+    let p = only("serial_diff.options").pipeline;
+    assert_eq!(p.format.as_deref(), Some("0.0"));
+    assert_eq!((p.gap_policy, p.lag), (Some(0), 3));
+}

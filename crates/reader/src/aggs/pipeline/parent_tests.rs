@@ -14,7 +14,7 @@ const ORDER: &str = include_str!("../../../../../fixtures/pipeline-aggs/java-ord
 /// The rendered body of the recorder's `histogram` of four buckets. `gap`
 /// gives the third bucket's `avg` no value; `empty` gives that bucket no
 /// documents.
-fn histogram(gap: bool, empty: bool) -> String {
+pub(super) fn histogram(gap: bool, empty: bool) -> String {
     let docs = |n: u32| {
         if empty && n == 2 {
             0
@@ -81,7 +81,7 @@ fn value(path: &str) -> BucketValue {
     }
 }
 
-fn parent(name: &str, kind: PipelineKind, path: &str, zeros: bool) -> PipelineAgg {
+pub(super) fn parent(name: &str, kind: PipelineKind, path: &str, zeros: bool) -> PipelineAgg {
     PipelineAgg {
         name: name.to_owned(),
         kind,
@@ -90,6 +90,7 @@ fn parent(name: &str, kind: PipelineKind, path: &str, zeros: bool) -> PipelineAg
         value: value(path),
         insert_zeros: zeros,
         host: Some("h".to_owned()),
+        lag: 1,
         sort: None,
     }
 }
@@ -105,7 +106,7 @@ fn sorting(zeros: bool, from: usize, size: Option<usize>, fields: &[(&str, bool)
     }
 }
 
-fn applied(pipes: &[&PipelineAgg], body: &str, typed: bool) -> String {
+pub(super) fn applied(pipes: &[&PipelineAgg], body: &str, typed: bool) -> String {
     String::from_utf8(apply(body.as_bytes(), pipes, typed).expect("applies")).expect("utf-8")
 }
 
@@ -165,6 +166,7 @@ fn a_bucket_with_no_document_is_a_gap_unless_the_path_is_count() {
                 kind,
                 agg: "h".to_owned(),
                 host: None,
+                lag: 1,
                 ..parent("p", kind, path, zeros)
             };
             let mut out = Vec::new();
@@ -185,6 +187,7 @@ fn a_bucket_with_no_document_is_a_gap_unless_the_path_is_count() {
     let avg = PipelineAgg {
         kind: PipelineKind::Avg,
         host: None,
+        lag: 1,
         ..parent("p", PipelineKind::Avg, "s", false)
     };
     let mut out = Vec::new();
@@ -397,10 +400,12 @@ fn sibling_results_are_listed_after_the_aggregations_a_reduce_lists() {
     let pipes = [
         PipelineAgg {
             host: None,
+            lag: 1,
             ..sibling("p", PipelineKind::Sum)
         },
         PipelineAgg {
             host: None,
+            lag: 1,
             ..sibling("q", PipelineKind::Avg)
         },
     ];

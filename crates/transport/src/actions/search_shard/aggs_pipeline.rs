@@ -29,6 +29,8 @@ pub enum PipelineKind {
     CumulativeSum,
     /// `bucket_sort`.
     BucketSort,
+    /// `serial_diff`.
+    SerialDiff,
 }
 
 impl PipelineKind {
@@ -42,6 +44,7 @@ impl PipelineKind {
             "derivative" => Self::Derivative,
             "cumulative_sum" => Self::CumulativeSum,
             "bucket_sort" => Self::BucketSort,
+            "serial_diff" => Self::SerialDiff,
             _ => return None,
         })
     }
@@ -57,6 +60,7 @@ impl PipelineKind {
             Self::Derivative => "derivative",
             Self::CumulativeSum => "cumulative_sum",
             Self::BucketSort => "bucket_sort",
+            Self::SerialDiff => "serial_diff",
         }
     }
 }
@@ -93,6 +97,8 @@ pub struct PipelineRequest {
     pub from: i32,
     /// A `bucket_sort`'s `size`.
     pub size: Option<i32>,
+    /// A `serial_diff`'s `lag`.
+    pub lag: i32,
 }
 
 /// A pipeline aggregation and where it sits.
@@ -166,6 +172,7 @@ fn read_one(input: &mut Input<'_>, kind: PipelineKind) -> Result<PipelineRequest
         sorts: Vec::new(),
         from: 0,
         size: None,
+        lag: 1,
     };
     match kind {
         PipelineKind::AvgBucket
@@ -185,6 +192,11 @@ fn read_one(input: &mut Input<'_>, kind: PipelineKind) -> Result<PipelineRequest
         }
         PipelineKind::CumulativeSum => {
             p.format = input.optional_string("a pipeline format")?;
+        }
+        PipelineKind::SerialDiff => {
+            p.format = input.optional_string("a pipeline format")?;
+            p.gap_policy = Some(gap(input)?);
+            p.lag = input.vint("a serial_diff lag")?;
         }
         PipelineKind::BucketSort => {
             let count = usize::try_from(input.vint("sorts")?)
@@ -277,6 +289,11 @@ fn write_one(p: &PipelineRequest, out: &mut Output<'_>) -> Result<(), WireError>
             out.optional_string(p.unit.as_deref())
         }
         PipelineKind::CumulativeSum => out.optional_string(p.format.as_deref()),
+        PipelineKind::SerialDiff => {
+            out.optional_string(p.format.as_deref())?;
+            out.byte(gap)?;
+            out.vint(p.lag)
+        }
         PipelineKind::BucketSort => {
             out.count(p.sorts.len())?;
             for s in &p.sorts {

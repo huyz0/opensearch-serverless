@@ -1,5 +1,5 @@
 //! Parent pipeline aggregations over the rendered body of the bucket
-//! aggregation they sit in: `derivative` and `cumulative_sum` add a result to
+//! aggregation they sit in: `derivative`, `cumulative_sum` and `serial_diff` add a result to
 //! each bucket (listed after the bucket's sub-aggregations, in the order the
 //! pipelines run), `bucket_sort` sorts and trims the buckets, each as
 //! OpenSearch 3.10.0's `PipelineAggregator.reduce` does after the final reduce.
@@ -52,6 +52,7 @@ pub fn apply(body: &[u8], pipelines: &[&PipelineAgg], typed: bool) -> io::Result
         match pipe.kind {
             PipelineKind::Derivative => derive(&mut entries, pipe, typed),
             PipelineKind::CumulativeSum => accumulate(&mut entries, pipe, typed),
+            PipelineKind::SerialDiff => serial_diff(&mut entries, pipe, typed),
             _ => sort(&mut entries, pipe),
         }
     }
@@ -161,6 +162,26 @@ fn accumulate(entries: &mut [Entry], pipe: &PipelineAgg, typed: bool) {
             sum += value;
         }
         put(bucket, pipe, typed, sum);
+    }
+}
+
+/// `SerialDiffPipelineAggregator.reduce`: the difference from the bucket
+/// `lag` buckets before, for a bucket and that one both having a value; a
+/// gap adds no result there, and counts as a position all the same.
+fn serial_diff(entries: &mut [Entry], pipe: &PipelineAgg, typed: bool) {
+    let values: Vec<f64> = entries
+        .iter()
+        .map(|(_, bucket)| resolve(bucket, &pipe.value, pipe.insert_zeros))
+        // ALLOC: one number a bucket of the host, at most the 65,535-bucket limit.
+        .collect();
+    for (at, (_, bucket)) in entries.iter_mut().enumerate() {
+        let Some(back) = at.checked_sub(pipe.lag) else {
+            continue;
+        };
+        let (this, lagged) = (values[at], values[back]);
+        if !this.is_nan() && !lagged.is_nan() {
+            put(bucket, pipe, typed, this - lagged);
+        }
     }
 }
 

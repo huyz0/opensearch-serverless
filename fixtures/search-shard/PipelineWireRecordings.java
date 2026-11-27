@@ -47,6 +47,8 @@ public final class PipelineWireRecordings {
         line("cumulative_sum.format", inside(PipelineAggregatorBuilders.cumulativeSum("c", "s").format("0.00")));
         line("bucket_sort", inside(new BucketSortPipelineAggregationBuilder("b", List.of(new FieldSortBuilder("s").order(SortOrder.DESC), new FieldSortBuilder("_key"))).from(1).size(2)));
         line("bucket_sort.window", inside(new BucketSortPipelineAggregationBuilder("b", null).size(3).gapPolicy(GapPolicy.INSERT_ZEROS)));
+        line("serial_diff", inside(PipelineAggregatorBuilders.diff("sd", "s")));
+        line("serial_diff.options", inside(PipelineAggregatorBuilders.diff("sd", "s").lag(3).gapPolicy(GapPolicy.INSERT_ZEROS).format("0.0")));
         line("two", new AggregatorFactories.Builder().addAggregator(AggregationBuilders.terms("t").field("tag").subAggregation(AggregationBuilders.sum("s").field("n")))
             .addPipelineAggregator(PipelineAggregatorBuilders.maxBucket("m", "t>s")).addPipelineAggregator(PipelineAggregatorBuilders.avgBucket("a", "t>s")));
     }

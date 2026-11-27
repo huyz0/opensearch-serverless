@@ -69,3 +69,29 @@ fn a_parent_pipeline_aggregation_works_on_the_buckets_that_hold_it() {
         "{text}"
     );
 }
+
+const SERIAL: &str = r#"{"size":0,"aggs":{"h":{"histogram":{"field":"year","interval":10},"aggs":{"s":{"sum":{"field":"year"}},"sd":{"serial_diff":{"buckets_path":"s","lag":1}}}}}}"#;
+
+/// docs/specs/pipeline-aggs-serial-diff AC-6: a `serial_diff` inside a
+/// histogram over a REST search, typed or not, and its refusals.
+#[test]
+fn a_serial_diff_works_on_the_buckets_that_hold_it() {
+    let (status, plain) = post("", SERIAL);
+    assert_eq!(status, 200, "{plain}");
+    assert!(plain.contains(r#""sd":{"value":"#), "{plain}");
+    let (status, typed) = post("typed_keys=true", SERIAL);
+    assert_eq!(status, 200, "{typed}");
+    assert!(typed.contains(r#""simple_value#sd":{"value":"#), "{typed}");
+    let (status, text) = post("", &SERIAL.replace(r#""lag":1"#, r#""lag":0"#));
+    assert_eq!(status, 400, "{text}");
+    assert!(
+        text.contains("Lag must be a positive, non-zero integer."),
+        "{text}"
+    );
+    let (status, text) = post(
+        "",
+        &SERIAL.replace(r#""lag":1"#, r#""lag":1,"format":"0.0""#),
+    );
+    assert_eq!(status, 400, "{text}");
+    assert!(text.contains("not supported by this node yet"), "{text}");
+}

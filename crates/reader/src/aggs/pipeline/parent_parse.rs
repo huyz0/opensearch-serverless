@@ -23,6 +23,7 @@ pub fn parse_body(
     match kind {
         PipelineKind::Derivative => derivative(p, name),
         PipelineKind::CumulativeSum => cumulative_sum(p, name),
+        PipelineKind::SerialDiff => super::serial_parse::serial_diff(p, name),
         _ => super::sort_parse::bucket_sort(p, name),
     }
 }
@@ -43,6 +44,7 @@ pub(super) fn pipeline(
         value: BucketValue::Count,
         insert_zeros,
         host: None,
+        lag: 1,
         sort: None,
     }
 }
@@ -274,7 +276,7 @@ pub fn validate_parents(host: &MetricAgg, parents: &mut [PipelineAgg]) -> Result
         }
         let derived = matches!(
             pipe.kind,
-            PipelineKind::Derivative | PipelineKind::CumulativeSum
+            PipelineKind::Derivative | PipelineKind::CumulativeSum | PipelineKind::SerialDiff
         );
         if derived && !matches!(host.metric, Metric::Histogram | Metric::DateHistogram) {
             // ALLOC: one entry or message bounded by the request's pipelines and names.
