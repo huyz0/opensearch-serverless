@@ -394,7 +394,7 @@ pub fn value<S: BlobStore + 'static>(
         return super::significant_collect::value(agg, shard, result);
     }
     if agg.metric == Metric::RareTerms {
-        return super::rare_collect::value(agg, result);
+        return super::rare_collect::value(agg, shard, result);
     }
     if agg.subs.is_empty() {
         return keyword_collect::value(&spec_of(agg), result);
