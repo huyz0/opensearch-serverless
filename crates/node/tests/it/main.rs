@@ -36,6 +36,7 @@ mod search_case_insensitive;
 mod search_fields;
 mod search_hits;
 mod search_match_bool_prefix;
+mod search_match_phrase_prefix;
 mod search_now;
 mod search_pipeline;
 mod search_range_zone;

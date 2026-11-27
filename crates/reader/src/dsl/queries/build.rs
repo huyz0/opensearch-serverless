@@ -122,6 +122,7 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             ..
         } => full_text_build::phrase(cx, field, query, *slop, *zero_terms_all),
         More::MatchBoolPrefix(m, _) => super::bool_prefix::build(cx, m),
+        More::MatchPhrasePrefix(m, _) => super::phrase_prefix::build(cx, m),
         More::FuzzyMatch(m, _) => full_text_build::fuzzy_match(cx, m),
         More::MultiMatch(m, _) => full_text_build::multi_match(cx, m),
         More::SimpleQueryString(s, _) => super::simple_string_build::simple_query_string(cx, s),
@@ -154,7 +155,7 @@ fn constant(inner: Clause) -> Clause {
 }
 
 /// The type name OpenSearch's messages give a field type.
-fn type_name(ty: &FieldType) -> &str {
+pub(super) fn type_name(ty: &FieldType) -> &str {
     match ty {
         FieldType::Text => "text",
         FieldType::Keyword => "keyword",
