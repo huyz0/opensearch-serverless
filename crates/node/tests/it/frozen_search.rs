@@ -289,6 +289,32 @@ fn what_cannot_be_served_is_refused_before_any_read() {
 }
 
 #[test]
+fn routing_and_preference_do_not_go_with_a_view() {
+    let rig = rig(1, u64::MAX / 2);
+    let before = counts(&rig.node.store);
+    let pit_before = pit_ops(&rig);
+    let body = format!(r#"{{"pit":{{"id":"{ID}"}}}}"#);
+    for param in ["routing=a", "preference=_local"] {
+        let r = request(
+            rig.node.addr(),
+            "POST",
+            &format!("/_search?{param}"),
+            Some(body.as_bytes()),
+        );
+        assert_eq!(r.status, 400, "{param}: {}", r.text());
+        let name = param.split('=').next().expect("a name");
+        assert!(
+            r.text()
+                .contains(&format!("[{name}] cannot be used with point in time")),
+            "{param}: {}",
+            r.text()
+        );
+    }
+    assert_eq!(counts(&rig.node.store), before);
+    assert_eq!(pit_ops(&rig), pit_before);
+}
+
+#[test]
 fn a_pool_without_room_for_the_view_buffer_answers_429_first() {
     let node = start();
     let pits = Arc::new(Emulator::new(64 << 20, 1));

@@ -101,11 +101,6 @@ impl PitService {
                 "routing a PIT to a subset of shards is not supported",
             ));
         }
-        if req.param("preference").is_some_and(|v| !v.is_empty()) {
-            return Err(unsupported(
-                "PIT preferences are not supported: capture covers every shard of one concrete index",
-            ));
-        }
         if keep_alive > MAX_KEEP_ALIVE_MILLIS {
             return Err(refuse(
                 400,

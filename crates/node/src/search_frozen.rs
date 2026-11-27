@@ -72,6 +72,14 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 "a search without an index must name a point in time",
             )));
         };
+        // The view holds its shards, so there is nothing to route or prefer.
+        for name in ["routing", "preference"] {
+            if req.param(name).is_some() {
+                return Err(Answer::Rest(RestError::illegal_argument(format!(
+                    "[{name}] cannot be used with point in time"
+                ))));
+            }
+        }
         let Some(access) = self.pits.get() else {
             return Err(Answer::Rest(RestError::illegal_argument(
                 "points in time are not supported by this node",
