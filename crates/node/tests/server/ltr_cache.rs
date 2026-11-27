@@ -103,6 +103,27 @@ fn a_cold_resolve_reads_the_store_a_warm_one_does_not_and_an_old_one_reads_the_m
     assert_eq!(r.store.meter().count(S3Op::List), 0);
 }
 
+// AC-10
+#[test]
+fn a_thousand_searches_cost_one_load_and_a_marker_read_a_ttl() {
+    let r = rig(8 << 20);
+    seed(&r);
+    let before = gets(&r);
+    let start = std::time::Instant::now();
+    for _ in 0..1_000 {
+        r.models.resolve(None, "m").expect("resolves");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let windows = start.elapsed().as_millis() / TTL.as_millis() + 1;
+    let spent = u128::from(gets(&r) - before);
+    assert!(
+        spent <= 3 + windows,
+        "{spent} GETs over {windows} TTL windows, want a load and one marker read each"
+    );
+    assert!(spent >= 4, "the run must outlast a TTL: {spent}");
+    assert_eq!(r.store.meter().count(S3Op::List), 0);
+}
+
 // AC-11
 #[test]
 fn a_feature_set_is_read_cached_and_kept_apart_from_a_model_of_its_name() {
