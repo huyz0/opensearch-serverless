@@ -103,6 +103,9 @@ pub enum Value {
     Composite(Box<CompositeResult>),
     /// `InternalMultiTerms`: a `multi_terms`' buckets.
     Multi(Box<crate::aggs::bucket::multi::MultiResult>),
+    /// `InternalScriptedMetric`: the combined value of each shard, kept until
+    /// the reduce script runs.
+    Scripted(Box<crate::aggs::metric::scripted_metric::ScriptedMetricResult>),
 }
 
 /// One aggregation's shard-level result.
@@ -147,6 +150,7 @@ fn reduce_one(parts: &[Value]) -> Option<Value> {
         Value::Filters(_) => filters::reduce(parts),
         Value::Composite(_) => composite::reduce(parts),
         Value::Multi(_) => super::bucket::multi::reduce(parts),
+        Value::Scripted(_) => crate::aggs::metric::scripted_metric::reduce(parts),
         // A `top_hits` has no reduce here: merging hits needs them fetched
         // and their shard known, so `reduce_scalar` answers `None` for it.
         _ => reduce_scalar(parts),

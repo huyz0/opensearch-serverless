@@ -224,6 +224,7 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
         Value::TopHits(_) | Value::TopHitsParts(_) => Ok(()),
         // Written already: the hits were fetched when it was made.
         Value::Rendered(ref body) => out.write_all(body),
+        Value::Scripted(ref result) => super::scripted_metric::write(out, result),
     }
 }
 

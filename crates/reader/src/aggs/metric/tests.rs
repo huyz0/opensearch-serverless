@@ -34,6 +34,7 @@ fn agg(name: &str, metric: Metric, field: &str) -> MetricAgg {
         composite: None,
         significant: None,
         rare: None,
+        scripted: None,
         script: None,
         name: name.to_owned(),
         metric,

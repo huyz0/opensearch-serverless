@@ -195,6 +195,7 @@ fn a_cardinality_reserves_its_sketch_only_once_it_can_have_one() {
         composite: None,
         significant: None,
         rare: None,
+        scripted: None,
         script: None,
     };
     let plain = state_bytes(&[MetricAgg {

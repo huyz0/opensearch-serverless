@@ -55,7 +55,7 @@ impl Param {
         }
     }
 
-    pub(super) fn constant(&self) -> Constant {
+    pub(crate) fn constant(&self) -> Constant {
         match self {
             Param::Int(v) => Constant::Int(*v),
             Param::Long(v) => Constant::Long(*v),
@@ -130,6 +130,29 @@ pub fn parse(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
     script.ok_or_else(|| DslError::illegal("[script_score] requires a [script]"))
 }
 
+/// A script's `params` object, the parser on its start: numbers, strings
+/// and booleans.
+pub(crate) fn parse_params(p: &mut Parser<'_>) -> Result<Vec<(String, Param)>, DslError> {
+    // ALLOC: one entry a param, bounded by the request body.
+    let mut params = Vec::new();
+    while p.next_token() == Some(Kind::FieldName) {
+        // ALLOC: bounded by the script's source, at most 65,535 bytes.
+        let key = p.text().to_owned();
+        match p.next_token() {
+            Some(Kind::Number) => {
+                let v = Param::of_number(p.text())
+                    .ok_or_else(|| DslError::illegal("[script_score] a param is not a number"))?;
+                params.push((key, v));
+            }
+            // ALLOC: bounded by the script's source, at most 65,535 bytes.
+            Some(Kind::String) => params.push((key, Param::Str(p.text().to_owned()))),
+            Some(Kind::Bool) => params.push((key, Param::Bool(p.text() == "true"))),
+            _ => return Err(refuse("a param that is not a number")),
+        }
+    }
+    Ok(params)
+}
+
 /// A script object, on its start; `painless` says whether `lang: painless`
 /// (the default when `lang` is absent) is served.
 pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, DslError> {
@@ -143,24 +166,7 @@ pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, Ds
             ("source" | "inline", Some(Kind::String)) => source = Some(p.text().to_owned()),
             // ALLOC: bounded by the script's source, at most 65,535 bytes.
             ("lang", Some(Kind::String)) => lang = Some(p.text().to_owned()),
-            ("params", Some(Kind::StartObject)) => {
-                while p.next_token() == Some(Kind::FieldName) {
-                    // ALLOC: bounded by the script's source, at most 65,535 bytes.
-                    let key = p.text().to_owned();
-                    match p.next_token() {
-                        Some(Kind::Number) => {
-                            let v = Param::of_number(p.text()).ok_or_else(|| {
-                                DslError::illegal("[script_score] a param is not a number")
-                            })?;
-                            params.push((key, v));
-                        }
-                        // ALLOC: bounded by the script's source, at most 65,535 bytes.
-                        Some(Kind::String) => params.push((key, Param::Str(p.text().to_owned()))),
-                        Some(Kind::Bool) => params.push((key, Param::Bool(p.text() == "true"))),
-                        _ => return Err(refuse("a param that is not a number")),
-                    }
-                }
-            }
+            ("params", Some(Kind::StartObject)) => params = parse_params(p)?,
             ("id", _) => return Err(refuse("a stored script [id]")),
             ("options", _) => return Err(refuse("script [options]")),
             _ => {
