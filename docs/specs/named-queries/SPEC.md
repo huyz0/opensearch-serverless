@@ -8,8 +8,8 @@ The `_name` refusal of [compatibility](../../compatibility.md): a query that car
 
 Ported from `AbstractQueryBuilder.queryName`, `QueryShardContext.addNamedQuery`, `MatchedQueriesPhase` (`FetchSubPhase`) and `SearchHit.toInnerXContent` at OpenSearch 3.10.0.
 
-- Every query this reader parses takes `_name` (a string; an empty string is a name, null is none, as Java). The parser carries the name out of the query's own parse and wraps the query; building the Lucene query ignores the wrapper.
-- A search whose query tree holds named queries writes `matched_queries` on each hit: the names of the named queries that match that hit's document, in the order the names appear in the request. With `include_named_queries_score: true` it is an object of name to that query's score for the hit. A name used twice is listed once.
+- `match_all`, `term`, `terms`, `match`, `range`, `bool`, `prefix`, `wildcard`, `regexp`, `fuzzy`, `exists` and `ids` take `_name`; every other query keeps refusing it as not supported yet, and is the next slice (a string; an empty string is a name, null is none, as Java). A name read before the query's own clauses stays the query's. The parser carries the name out of the query's own parse and wraps the query; building the Lucene query ignores the wrapper.
+- A search whose query tree holds named queries writes `matched_queries` on each hit: the names of the named queries that match that hit's document, in the order the names appear in the request (OpenSearch lists them in the order of a hash map, which a client cannot rely on). With `include_named_queries_score: true` it is an object of name to that query's score for the hit. A name used twice is listed once.
 - A query is checked against a hit by explaining the named query alone on the hit's document (the engine's `explain`), at fetch time over the page of hits only.
 - At most 64 named queries a search; a request with more is 400 "too many named queries [n]; the limit is 64".
 - A search with no named query makes no extra work and writes the hit as before.
@@ -17,7 +17,7 @@ Ported from `AbstractQueryBuilder.queryName`, `QueryShardContext.addNamedQuery`,
 
 ## Acceptance criteria
 
-- AC-1: each query kind parses `_name`; a non-string value is 400 as Java ("[_name] ... expected a string").
+- AC-1: the query kinds above parse `_name`; a non-string value is 400 as Java ("[_name] ... expected a string").
 - AC-2: `bool` with named `must`, `should` and `filter` clauses writes the names of those that match each hit, and not those that do not.
 - AC-3: a named clause under `must_not` is never listed (its hits do not match it).
 - AC-4: `include_named_queries_score` writes an object of name to score.

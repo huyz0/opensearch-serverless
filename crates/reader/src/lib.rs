@@ -47,6 +47,7 @@ mod search_inner_hits;
 mod search_inner_hits_tests;
 mod search_ltr;
 pub mod search_ltr_log;
+mod search_named;
 mod search_nested_bytes;
 mod search_options;
 pub mod search_pipeline;

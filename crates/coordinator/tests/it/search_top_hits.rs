@@ -53,6 +53,8 @@ fn shard(scores: &[f32]) -> Hits {
         source: SourceFilter::default(),
         fields: Vec::new(),
         explanations: Vec::new(),
+        matched: Vec::new(),
+        named_scores: false,
         highlight: None,
         meta: oss_reader::fetch::hit_meta::HitMeta::default(),
         inner: Vec::new(),

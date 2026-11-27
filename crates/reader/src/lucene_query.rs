@@ -179,6 +179,7 @@ pub(crate) fn build(query: &Query, cx: &QueryContext<'_>) -> Result<Clause, Fail
         ),
         Query::Bool(b) => (bool_query(cx, b)?, b.boost),
         Query::More(m) => (crate::dsl::queries::build::to_clause(m, cx)?, m.boost()),
+        Query::Named(n) => return build(&n.query, cx),
     };
     if boost == 1.0 || matches!(clause, Clause::MatchNoDocs(_)) {
         return Ok(clause);

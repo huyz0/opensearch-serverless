@@ -236,6 +236,10 @@ pub(crate) struct HitView<'a> {
     pub source: &'a SourceFilter,
     pub fields: &'a [HitField],
     pub explanations: &'a [Explanation],
+    /// The named queries each hit matches, when the query names any.
+    pub matched: &'a [Vec<(String, f32)>],
+    /// Whether `matched` is written as an object of name to score.
+    pub named_scores: bool,
     pub highlight: Option<&'a Plan>,
     pub meta: HitMeta,
     /// The nested inner hits of the hits, by parent document.
@@ -250,6 +254,8 @@ impl Hits {
             source: &self.source,
             fields: &self.fields,
             explanations: &self.explanations,
+            matched: &self.matched,
+            named_scores: self.named_scores,
             highlight: self.highlight.as_ref(),
             meta: self.meta,
             inner: &self.inner,
@@ -358,6 +364,9 @@ fn write_hit_list<S: BlobStore + 'static>(
             h.write(out, &stored.source)?;
         }
         write_sort(out, &hit.sort)?;
+        if let Some(m) = view.matched.get(i).filter(|m| !m.is_empty()) {
+            values::write_matched(out, m, view.named_scores)?;
+        }
         if let Some(e) = view.explanations.get(i) {
             explain::write_explanation(out, e)?;
         }

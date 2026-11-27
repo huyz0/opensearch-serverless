@@ -68,6 +68,7 @@ fn named<'q>(q: &'q Query, name: &str) -> Option<&'q Sltr> {
             More::Sltr(s) if s.name.as_deref() == Some(name) => Some(s),
             _ => None,
         },
+        Query::Named(n) => named(&n.query, name),
         Query::Bool(b) => b
             .must
             .iter()

@@ -17,6 +17,7 @@ use crate::dsl::sort::SortKey;
 /// The nested joins `q` holds.
 fn query_joins(q: &Query) -> usize {
     match q {
+        Query::Named(n) => query_joins(&n.query),
         Query::Bool(b) => b
             .must
             .iter()
