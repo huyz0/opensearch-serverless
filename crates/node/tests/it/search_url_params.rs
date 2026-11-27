@@ -242,3 +242,31 @@ fn msearch_url_parameters_that_tune_are_accepted_and_the_total_can_be_a_number()
     assert_eq!(status, 400, "{text}");
     assert_eq!(msearch("?typed_keys=true", "{}").0, 400);
 }
+
+#[test]
+fn wildcard_options_are_accepted_when_they_change_nothing() {
+    let plain = ok("size=2");
+    for query in [
+        "allow_no_indices=true",
+        "ignore_throttled=false",
+        "expand_wildcards=open",
+    ] {
+        assert_eq!(ok(&format!("size=2&{query}")), plain, "{query}");
+    }
+    for query in ["expand_wildcards=closed", "expand_wildcards=all"] {
+        let (status, text) = get(query);
+        assert_eq!(status, 400, "{query}: {text}");
+        assert!(text.contains("not supported by this node yet"), "{text}");
+    }
+    let node = start();
+    let path = "/compat-paging-sort/_count?allow_no_indices=true&ignore_throttled=false&expand_wildcards=open";
+    let r = request(node.addr(), "GET", path, None);
+    assert_eq!(r.status, 200, "{path}: {}", r.text());
+    let r = request(
+        node.addr(),
+        "GET",
+        "/compat-paging-sort/_count?expand_wildcards=closed",
+        None,
+    );
+    assert_eq!(r.status, 400, "{}", r.text());
+}

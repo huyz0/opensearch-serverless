@@ -48,6 +48,15 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// Resolves the `index` path parameter: a single index is written back
     /// to the parameter, and several are returned.
     pub(super) fn resolve_targets(&self, req: &mut Request<'_>) -> Result<Targets, RestError> {
+        // Patterns are refused, so no wildcard option has anything to change but the one that names
+        // what a pattern would expand to.
+        if let Some(kind) = req.param("expand_wildcards").as_deref()
+            && kind != "open"
+        {
+            return Err(RestError::illegal_argument(
+                "an [expand_wildcards] other than open is not supported by this node yet",
+            ));
+        }
         let Some(path) = req.path_param("index") else {
             return Ok(Targets::One);
         };

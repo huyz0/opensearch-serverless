@@ -422,3 +422,24 @@ fn a_search_of_a_view_takes_a_search_pipeline() {
         cut.text()
     );
 }
+
+#[test]
+fn the_url_parameters_of_a_search_apply_to_a_view_too() {
+    let rig = rig(1, u64::MAX / 2);
+    let body = format!(r#"{{"pit":{{"id":"{ID}"}},"query":{{"term":{{"title":"brown"}}}}}}"#);
+    let search = |query: &str| {
+        let r = request(
+            rig.node.addr(),
+            "POST",
+            &format!("/_search?{query}"),
+            Some(body.as_bytes()),
+        );
+        assert_eq!(r.status, 200, "{query}: {}", r.text());
+        r.text()
+    };
+    assert!(search("rest_total_hits_as_int=true").contains(r#""hits":{"total":2,"#));
+    assert!(!search("track_total_hits=false").contains(r#""hits":{"total""#));
+    assert!(search("size=1&_source=false").contains(r#""hits":[{"_index""#));
+    assert!(!search("_source=false").contains(r#""_source""#));
+    assert!(search("timeout=5s&search_type=query_then_fetch").contains(r#""pit_id""#));
+}

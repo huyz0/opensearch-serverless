@@ -77,6 +77,9 @@ pub(super) const SEARCH_PARAMS: &[&str] = &[
     "allow_partial_search_results",
     "ccs_minimize_roundtrips",
     "max_concurrent_shard_requests",
+    "allow_no_indices",
+    "ignore_throttled",
+    "expand_wildcards",
 ];
 
 /// The body and URL parameters of a `_search`, a `q` replacing the body's query.
