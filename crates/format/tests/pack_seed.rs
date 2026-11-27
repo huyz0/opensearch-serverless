@@ -63,3 +63,24 @@ fn what_is_not_a_state_is_refused() {
     assert!(PackSeed::after(&long).encode().is_err());
     assert!(PackSeed::after(&"k".repeat(1024)).encode().is_ok());
 }
+
+/// A cursor of exactly the bound parses and one a byte past it is refused,
+/// even when its length field says so and the bytes are all there.
+#[test]
+fn the_cursor_bound_is_exact_on_parse() {
+    let value = |len: usize| {
+        let mut bytes = vec![1, 0];
+        bytes.extend_from_slice(&u16::try_from(len).unwrap().to_be_bytes());
+        bytes.extend(std::iter::repeat_n(b'k', len));
+        bytes
+    };
+    assert_eq!(
+        PackSeed::parse(&value(1024))
+            .expect("at the bound")
+            .cursor()
+            .map(str::len),
+        Some(1024)
+    );
+    assert!(PackSeed::parse(&value(1025)).is_err());
+    assert!(PackSeed::parse(&value(1023)).is_ok());
+}

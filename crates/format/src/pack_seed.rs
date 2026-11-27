@@ -109,12 +109,14 @@ impl PackSeed {
             return Err(corrupt(WHAT, "the cursor does not fill the value"));
         }
         let cursor = std::str::from_utf8(rest).map_err(|_| corrupt(WHAT, "a cursor not UTF-8"))?;
-        match state {
-            0 if cursor.is_empty() => Ok(Self::begun()),
-            0 => Ok(Self::after(cursor)),
-            1 if cursor.is_empty() => Ok(Self::finished()),
-            1 => Err(corrupt(WHAT, "a finished walk with a cursor")),
-            _ => Err(corrupt(WHAT, "an unknown state")),
+        match (state, cursor.is_empty()) {
+            (0, true) => Ok(Self::begun()),
+            (0, false) => Ok(Self::after(cursor)),
+            (1, true) => Ok(Self::finished()),
+            _ => Err(corrupt(
+                WHAT,
+                "an unknown state, or a finished walk with a cursor",
+            )),
         }
     }
 }
