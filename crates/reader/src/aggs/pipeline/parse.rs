@@ -96,6 +96,7 @@ pub fn parse_body(
         host: None,
         lag: 1,
         sort: None,
+        script: None,
     })
 }
 

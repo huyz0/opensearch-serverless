@@ -11,10 +11,11 @@ use oss_doc::mapping::json::{Json, java_cmp, parse};
 
 use crate::aggs::metric::double::write_java_double;
 use crate::aggs::pipeline::compute::resolve;
+use crate::aggs::pipeline::script;
 use crate::aggs::pipeline::{BucketValue, PipelineAgg, PipelineKind};
 
 /// One bucket with its key when the buckets are keyed.
-type Entry = (Option<String>, Json);
+pub(super) type Entry = (Option<String>, Json);
 
 /// `body`, the rendered body of a bucket aggregation (braces included), with
 /// `pipelines` (the parent pipelines inside it) applied in the order their
@@ -53,6 +54,8 @@ pub fn apply(body: &[u8], pipelines: &[&PipelineAgg], typed: bool) -> io::Result
             PipelineKind::Derivative => derive(&mut entries, pipe, typed),
             PipelineKind::CumulativeSum => accumulate(&mut entries, pipe, typed),
             PipelineKind::SerialDiff => serial_diff(&mut entries, pipe, typed),
+            PipelineKind::BucketScript => script::script(&mut entries, pipe, typed)?,
+            PipelineKind::BucketSelector => script::select(&mut entries, pipe)?,
             _ => sort(&mut entries, pipe),
         }
     }
@@ -102,6 +105,11 @@ fn reads(pipe: &PipelineAgg) -> Vec<&String> {
     pipe.sort
         .iter()
         .flat_map(|s| s.fields.iter().map(|(value, _)| value))
+        .chain(
+            pipe.script
+                .iter()
+                .flat_map(|s| s.vars.iter().map(|(_, v)| v)),
+        )
         .chain(std::iter::once(&pipe.value))
         .filter_map(|value| match value {
             BucketValue::Sub { name, .. } => Some(name),
@@ -126,7 +134,7 @@ fn simple_value(value: f64) -> Json {
 }
 
 /// Adds the result `value` of `pipe` to `bucket`.
-fn put(bucket: &mut Json, pipe: &PipelineAgg, typed: bool, value: f64) {
+pub(super) fn put(bucket: &mut Json, pipe: &PipelineAgg, typed: bool, value: f64) {
     if let Json::Obj(members) = bucket {
         let key = if typed {
             // ALLOC: one key a bucket.

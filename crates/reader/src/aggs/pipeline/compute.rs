@@ -81,7 +81,9 @@ pub fn write_result(out: &mut dyn Write, pipeline: &PipelineAgg, target: &[u8]) 
         PipelineKind::Derivative
         | PipelineKind::CumulativeSum
         | PipelineKind::BucketSort
-        | PipelineKind::SerialDiff => Err(io::Error::other(
+        | PipelineKind::SerialDiff
+        | PipelineKind::BucketScript
+        | PipelineKind::BucketSelector => Err(io::Error::other(
             "a parent pipeline aggregation is not computed beside its bucket aggregation",
         )),
         PipelineKind::Stats => {

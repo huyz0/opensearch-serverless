@@ -275,7 +275,7 @@ fn parse_definition(
                         ),
                     ));
                 }
-                if let Some(kind) = PipelineKind::from_name(ty) {
+                if let Some(kind) = PipelineKind::served(ty) {
                     // A parent pipeline sits in a top-level aggregation (level 1).
                     if level > 0 && !(kind.is_parent() && level == 1) {
                         // ALLOC: error path; one message.

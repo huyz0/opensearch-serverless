@@ -10,6 +10,8 @@ pub mod compute;
 pub mod parent;
 pub mod parent_parse;
 pub mod parse;
+pub mod script;
+mod script_parse;
 mod serial_parse;
 mod sort_parse;
 
@@ -17,6 +19,8 @@ mod sort_parse;
 mod parent_parse_tests;
 #[cfg(test)]
 mod parent_tests;
+#[cfg(test)]
+mod script_tests;
 #[cfg(test)]
 mod serial_tests;
 
@@ -44,6 +48,10 @@ pub enum PipelineKind {
     BucketSort,
     /// `serial_diff`, a parent pipeline.
     SerialDiff,
+    /// `bucket_script`, a parent pipeline that runs Painless.
+    BucketScript,
+    /// `bucket_selector`, a parent pipeline that runs Painless.
+    BucketSelector,
 }
 
 impl PipelineKind {
@@ -59,8 +67,17 @@ impl PipelineKind {
             "cumulative_sum" => Self::CumulativeSum,
             "bucket_sort" => Self::BucketSort,
             "serial_diff" => Self::SerialDiff,
+            "bucket_script" => Self::BucketScript,
+            "bucket_selector" => Self::BucketSelector,
             _ => return None,
         })
+    }
+
+    /// [`Self::from_name`], less the pipelines that run a script while the
+    /// node does not compile Painless.
+    pub fn served(name: &str) -> Option<Self> {
+        Self::from_name(name)
+            .filter(|k| !k.runs_script() || crate::painless_switch::native_compile())
     }
 
     /// The name in a request.
@@ -75,6 +92,8 @@ impl PipelineKind {
             Self::CumulativeSum => "cumulative_sum",
             Self::BucketSort => "bucket_sort",
             Self::SerialDiff => "serial_diff",
+            Self::BucketScript => "bucket_script",
+            Self::BucketSelector => "bucket_selector",
         }
     }
 
@@ -83,7 +102,12 @@ impl PipelineKind {
     pub fn is_parent(self) -> bool {
         matches!(
             self,
-            Self::Derivative | Self::CumulativeSum | Self::BucketSort | Self::SerialDiff
+            Self::Derivative
+                | Self::CumulativeSum
+                | Self::BucketSort
+                | Self::SerialDiff
+                | Self::BucketScript
+                | Self::BucketSelector
         )
     }
 
@@ -96,7 +120,15 @@ impl PipelineKind {
             Self::Stats => "stats_bucket",
             Self::Derivative | Self::CumulativeSum | Self::SerialDiff => "simple_value",
             Self::BucketSort => "bucket_sort",
+            Self::BucketScript => "simple_value",
+            Self::BucketSelector => "bucket_selector",
         }
+    }
+
+    /// Whether the pipeline runs a script, which only a node that compiles
+    /// Painless serves.
+    pub fn runs_script(self) -> bool {
+        matches!(self, Self::BucketScript | Self::BucketSelector)
     }
 }
 
@@ -125,7 +157,7 @@ pub enum BucketValue {
 }
 
 /// One pipeline aggregation of a request.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PipelineAgg {
     /// The aggregation's name, its key in the response.
     pub name: String,
@@ -148,6 +180,9 @@ pub struct PipelineAgg {
     pub lag: usize,
     /// A `bucket_sort`'s sorts and window; `None` for every other pipeline.
     pub sort: Option<SortSpec>,
+    /// A `bucket_script`'s or `bucket_selector`'s script and variables;
+    /// `None` for every other pipeline.
+    pub script: Option<Box<script::ScriptPipe>>,
 }
 
 /// A `bucket_sort`'s sorts and window over its buckets.

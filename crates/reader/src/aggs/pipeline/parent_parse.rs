@@ -24,6 +24,9 @@ pub fn parse_body(
         PipelineKind::Derivative => derivative(p, name),
         PipelineKind::CumulativeSum => cumulative_sum(p, name),
         PipelineKind::SerialDiff => super::serial_parse::serial_diff(p, name),
+        PipelineKind::BucketScript | PipelineKind::BucketSelector => {
+            super::script_parse::parse(p, name, kind)
+        }
         _ => super::sort_parse::bucket_sort(p, name),
     }
 }
@@ -46,6 +49,7 @@ pub(super) fn pipeline(
         host: None,
         lag: 1,
         sort: None,
+        script: None,
     }
 }
 
@@ -419,6 +423,14 @@ fn check_sub(
 /// than inside a bucket aggregation: what validation says of the path it
 /// reads, there being nothing to read it from.
 pub fn at_top_level(pipe: &PipelineAgg) -> DslError {
+    if pipe.kind.runs_script() {
+        // ALLOC: error path; one message.
+        return validation(format!(
+            "{} aggregation [{}] must be declared inside of another aggregation",
+            pipe.kind.name(),
+            pipe.name
+        ));
+    }
     let path = match (&pipe.sort, pipe.kind) {
         (Some(sort), _) => match sort.fields.iter().find_map(|(v, _)| match v {
             BucketValue::Sub { name, metric } if metric == "value" => Some(name.clone()),
