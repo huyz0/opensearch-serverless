@@ -163,6 +163,8 @@ pub(super) fn type_name(ty: &FieldType) -> &str {
         FieldType::Int { name, .. } => name,
         FieldType::Long => "long",
         FieldType::Date => "date",
+        FieldType::Float => "float",
+        FieldType::Double => "double",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -312,7 +314,9 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
             // ALLOC: one box a bool of a date field's terms.
             Ok(constant(Clause::Boolean(Box::new(q))))
         }
-        FieldType::Unsupported(_) => Err(unsupported("this field type")),
+        FieldType::Float | FieldType::Double | FieldType::Unsupported(_) => {
+            Err(unsupported("this field type"))
+        }
     }
 }
 

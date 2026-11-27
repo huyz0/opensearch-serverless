@@ -299,3 +299,5 @@ src/aggs/bucket/rare.rs	port	server/src/main/java/org/opensearch/search/aggregat
 src/aggs/bucket/rare_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/RareTermsAggregationBuilder.java@3.10.0	the parser and the setters checks of max_doc_count and precision
 src/aggs/bucket/rare_collect.rs	new		runs a rare_terms on the engine SignificantTerms node and splits the terms at max_doc_count
 src/aggs/bucket/rare_tests.rs	new		tests of rare_terms
+src/mapping_types.rs	new		the name a refusal gives a field type, and the knn_vector space, split out of mapping.rs
+src/aggs/metric/collect_decimal_tests.rs	new		tests of the metric aggregations over float and double fields

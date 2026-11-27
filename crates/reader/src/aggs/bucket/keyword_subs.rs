@@ -132,7 +132,11 @@ pub fn sub_nodes<S: BlobStore + 'static>(
     for (sub, r) in agg.subs.iter().zip(resolved(agg, shard, keyword_parent)?) {
         match r {
             Resolved::Numeric(_) => {
-                let mut made = metric_node(sub, DEFAULT_PRECISION);
+                let mut made = metric_node(
+                    sub,
+                    DEFAULT_PRECISION,
+                    crate::aggs::metric::collect::value_kind(sub, shard),
+                );
                 // A bucket aggregation carries its own sub-aggregations.
                 with_subs::attach(&mut made, sub, shard, ords, queries)?;
                 subs.push(made);

@@ -151,7 +151,8 @@ fn source_type(
         ))
     };
     let ty = match &field.ty {
-        FieldType::Unsupported(what) => {
+        ty @ (FieldType::Float | FieldType::Double | FieldType::Unsupported(_)) => {
+            let what = ty.refusal_name();
             // ALLOC: error path; one message.
             return Err(unsupported(&format!("[fields] of the {what} [{name}]")));
         }

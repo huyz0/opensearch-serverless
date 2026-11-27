@@ -48,7 +48,9 @@ fn kind_of(mapping: &Mapping, field: &str) -> FieldKind {
         FieldType::Int { .. } | FieldType::Long => FieldKind::Long,
         FieldType::Date => FieldKind::Date,
         FieldType::Keyword => FieldKind::Keyword,
-        FieldType::Text | FieldType::Unsupported(_) => FieldKind::Unsupported,
+        FieldType::Text | FieldType::Float | FieldType::Double | FieldType::Unsupported(_) => {
+            FieldKind::Unsupported
+        }
     }
 }
 
