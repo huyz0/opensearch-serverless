@@ -8,7 +8,7 @@ Parity plan R10: the stock search-adjacent REST APIs. `GET|POST /{index}/_count`
 
 `oss-node` (feature `reader`) gains `count_route`: the two routes of `/{index}/_count`, registered by one line each in `search::routes`, and `SearchService::handle_count`. The request body is `{"query": ...}` or empty; it runs as the search of that query with `size` 0 and an exact total, on a one-shard index through the shard search and on a sharded one through the coordinator's merge, and answers `{"count": N, "_shards": {...}}` with the search's own `_shards` object. A failed search answers its own error body.
 
-Not here: `/_count` without an index (as `/_search` without one), the URL parameters `terminate_after`, `routing`, `preference`, `ignore_unavailable` and the rest (refused as unknown parameters), and a body key other than `query` (refused).
+Not here: `/_count` without an index (as `/_search` without one), the URL parameters `terminate_after`, `ignore_unavailable` and the rest (refused as unknown parameters; `routing` and `preference` are taken, see [count-routing](../count-routing/SPEC.md)), and a body key other than `query` (refused).
 
 ## Acceptance criteria
 

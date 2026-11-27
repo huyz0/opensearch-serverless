@@ -30,6 +30,8 @@ const COUNT_PARAMS: &[&str] = &[
     "analyzer",
     "analyze_wildcard",
     "lenient",
+    "routing",
+    "preference",
 ];
 
 /// The routes of `_count` on one index, by GET and POST.
@@ -116,12 +118,15 @@ impl<S: BlobStore + 'static> SearchService<S> {
         source.size = 0;
         source.track_total_hits = Some(u64::from(i32::MAX.cast_unsigned()));
         #[cfg(feature = "coordinator")]
-        match self.shard_count(&index) {
-            Ok(shards) if shards > 1 => {
+        match self.shard_plan(&index, req.param("routing").as_deref()) {
+            Ok((shards, only)) if shards > 1 || only.is_some() => {
                 return self.handle_sharded_with(
                     resp,
                     &index,
-                    super::coordinate::Visit { shards, only: None },
+                    super::coordinate::Visit {
+                        shards,
+                        only: only.as_deref(),
+                    },
                     &source,
                     started,
                     &|bytes| count_of_search(&bytes),
