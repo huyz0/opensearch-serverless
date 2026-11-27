@@ -322,3 +322,5 @@ src/aggs/pipeline/compute.rs	port	server/src/main/java/org/opensearch/search/agg
 src/aggs/pipeline/pipeline_tests.rs	new		tests of the pipeline module against the recorded Java
 src/aggs/metric/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@429b4cbc	the registered aggregation names
 src/search_query_fields.rs	new		what a query reads: point clauses and scored fields
+src/aggs/metric/collect_half_tests.rs	new		tests of the aggregations over a half_float field
+src/search_half_tests.rs	new		tests of queries, sorts and search_after over a half_float field

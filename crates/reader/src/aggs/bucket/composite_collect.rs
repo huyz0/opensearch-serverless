@@ -156,7 +156,10 @@ fn reads<S: BlobStore + 'static>(
                 source.field
             )));
         }
-        (FieldType::Float | FieldType::Double, SourceKind::DateHistogram { .. }) => {
+        (
+            FieldType::Float | FieldType::Double | FieldType::HalfFloat,
+            SourceKind::DateHistogram { .. },
+        ) => {
             // ALLOC: error path; one message.
             return Err(bad_request(format!(
                 "Field [{}] of type [{ty}] is not supported for aggregation [date_histogram]",
@@ -165,6 +168,7 @@ fn reads<S: BlobStore + 'static>(
         }
         (FieldType::Double, _) => Reads::Decimal(ValueKind::Double),
         (FieldType::Float, _) => Reads::Decimal(ValueKind::Float),
+        (FieldType::HalfFloat, _) => Reads::Decimal(ValueKind::HalfFloat),
         (FieldType::Unsupported(what), _) => {
             // ALLOC: error path; one message.
             return Err(bad_request(format!(

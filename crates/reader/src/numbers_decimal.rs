@@ -9,6 +9,7 @@
 
 use lucene_search::Result as SearchResult;
 use lucene_search::extended_query::{PointInSetQuery, PointRangeQuery, int_bytes, long_bytes};
+use lucene_util::half_float::{half_float_to_sortable_short, sortable_short_to_half_float};
 use lucene_util::numeric_utils::{double_to_sortable_long, float_to_sortable_int};
 
 use crate::dsl::Value;
@@ -47,6 +48,22 @@ pub fn parse_float(value: &Value) -> Result<f32, Failure> {
     // Writing to a vector cannot fail.
     let _ = crate::response::write_java_float(&mut shown, f);
     Err(not_finite("float", &String::from_utf8_lossy(&shown)))
+}
+
+/// `HALF_FLOAT.parse(value, false)`: a float that is finite as a half.
+pub fn parse_half(value: &Value) -> Result<f32, Failure> {
+    let d = java_double(value.text())?;
+    // Java's `floatValue` rounds to the nearest float, as `as` does.
+    #[allow(clippy::cast_possible_truncation)]
+    let f = d as f32;
+    if sortable_short_to_half_float(half_float_to_sortable_short(f)).is_finite() {
+        return Ok(f);
+    }
+    // ALLOC: error path; one float's text.
+    let mut shown = Vec::new();
+    // Writing to a vector cannot fail.
+    let _ = crate::response::write_java_float(&mut shown, f);
+    Err(not_finite("half_float", &String::from_utf8_lossy(&shown)))
 }
 
 /// `DoublePoint.nextUp`: `-0.0` steps to `+0.0`.
@@ -131,6 +148,57 @@ pub fn float_range(
         }
     }
     Ok((float_to_sortable_int(l) <= float_to_sortable_int(u)).then_some((l, u)))
+}
+
+/// `HALF_FLOAT.rangeQuery`'s bounds as sortable shorts: a bound is rounded to
+/// a half, and an excluded one steps one half in (`HalfFloatPoint.nextUp` and
+/// `nextDown`, which are one step of the sortable short, `-0.0` and `+0.0`
+/// included).
+pub fn half_range(
+    from: Option<&Value>,
+    to: Option<&Value>,
+    include_lower: bool,
+    include_upper: bool,
+) -> Result<Bounds<i16>, Failure> {
+    let mut l = half_float_to_sortable_short(f32::NEG_INFINITY);
+    let mut u = half_float_to_sortable_short(f32::INFINITY);
+    if let Some(v) = from {
+        l = half_float_to_sortable_short(parse_half(v)?);
+        if !include_lower {
+            l = l.saturating_add(1);
+        }
+    }
+    if let Some(v) = to {
+        u = half_float_to_sortable_short(parse_half(v)?);
+        if !include_upper {
+            u = u.saturating_sub(1);
+        }
+    }
+    Ok((l <= u).then_some((l, u)))
+}
+
+/// `HalfFloatPoint.newRangeQuery` over sortable shorts.
+pub fn half_points(field: &str, lower: i16, upper: i16) -> SearchResult<PointRangeQuery> {
+    PointRangeQuery::new(field, 1, short_bytes(lower), short_bytes(upper))
+}
+
+/// `HalfFloatPoint.newSetQuery`.
+pub fn half_set(field: &str, values: &[f32]) -> SearchResult<PointInSetQuery> {
+    PointInSetQuery::new(
+        field,
+        1,
+        2,
+        // ALLOC: one packed point a value, bounded by the body's recording.
+        values
+            .iter()
+            .map(|&v| short_bytes(half_float_to_sortable_short(v))),
+    )
+}
+
+/// `NumericUtils.shortToSortableBytes`.
+fn short_bytes(v: i16) -> Vec<u8> {
+    // ALLOC: one packed point of 2 bytes.
+    (v ^ i16::MIN).to_be_bytes().to_vec()
 }
 
 /// `DoublePoint.newRangeQuery`.

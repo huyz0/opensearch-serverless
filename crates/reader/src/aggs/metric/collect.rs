@@ -425,3 +425,7 @@ mod tests;
 #[cfg(test)]
 #[path = "collect_decimal_tests.rs"]
 mod decimal_tests;
+
+#[cfg(test)]
+#[path = "collect_half_tests.rs"]
+mod half_tests;

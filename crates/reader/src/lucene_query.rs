@@ -267,6 +267,11 @@ pub(crate) fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<
             let v = decimal::parse_float(value)?;
             point(decimal::float_points(field, v, v))?
         }
+        FieldType::HalfFloat => {
+            let v = decimal::parse_half(value)?;
+            let s = lucene_util::half_float::half_float_to_sortable_short(v);
+            point(decimal::half_points(field, s, s))?
+        }
         FieldType::Unsupported(_) => return Err(unsupported("this field type")),
     })
 }

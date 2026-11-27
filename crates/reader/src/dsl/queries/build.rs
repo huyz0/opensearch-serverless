@@ -177,6 +177,7 @@ pub(super) fn type_name(ty: &FieldType) -> &str {
         FieldType::Date => "date",
         FieldType::Float => "float",
         FieldType::Double => "double",
+        FieldType::HalfFloat => "half_float",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -341,6 +342,14 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
                 floats.push(decimal::parse_float(v)?);
             }
             set(decimal::float_set(field, &floats))
+        }
+        FieldType::HalfFloat => {
+            // ALLOC: one entry a value, bounded by the body's recording.
+            let mut halves = Vec::with_capacity(values.len());
+            for v in values {
+                halves.push(decimal::parse_half(v)?);
+            }
+            set(decimal::half_set(field, &halves))
         }
         FieldType::Unsupported(_) => Err(unsupported("this field type")),
     }
