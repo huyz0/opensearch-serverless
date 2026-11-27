@@ -5,6 +5,7 @@ use crate::aggs::bucket::composite_parse::parse_composite_body;
 use crate::aggs::bucket::date_histogram_parse::parse_date_histogram_body;
 use crate::aggs::bucket::filters_parse::{parse_filter_body, parse_filters_body};
 use crate::aggs::bucket::histogram_parse::parse_histogram_body;
+use crate::aggs::bucket::missing::parse_missing_body;
 use crate::aggs::bucket::nested_agg::parse_nested_body;
 use crate::aggs::bucket::range_parse::parse_range_body;
 use crate::aggs::bucket::terms_parse::parse_terms_body;
@@ -45,6 +46,11 @@ pub fn parse_bucket(p: &mut Parser<'_>, agg: &mut MetricAgg) -> Result<bool, Dsl
         Metric::Filter => {
             // ALLOC: one box a `filter`, bounded by the body's recording.
             agg.filters = Some(Box::new(parse_filter_body(p)?));
+        }
+        Metric::Missing => {
+            let (field, spec) = parse_missing_body(p)?;
+            // ALLOC: one box a `missing`, bounded by the body's recording.
+            (agg.field, agg.filters) = (field, Some(Box::new(spec)));
         }
         Metric::Nested | Metric::ReverseNested => {
             let reverse = agg.metric == Metric::ReverseNested;

@@ -363,4 +363,5 @@ fn nothing_named_is_reached_and_a_fraction_is_taken_of_what_is() {
     assert!(progress.reached(0.9));
 }
 
+mod applies;
 mod two_peers;

@@ -37,6 +37,8 @@ pub struct UrlParams<'a> {
     pub search_type: Option<&'a str>,
     /// `rest_total_hits_as_int`.
     pub rest_total_hits_as_int: Option<&'a str>,
+    /// `typed_keys`.
+    pub typed_keys: Option<&'a str>,
 }
 
 impl SearchSource {
@@ -79,6 +81,7 @@ impl SearchSource {
                 .map_err(|_| DslError::illegal("terminateAfter must be > 0".to_owned()))?;
         }
         self.apply_total_as_int(params.rest_total_hits_as_int)?;
+        self.apply_typed_keys(params.typed_keys)?;
         flag(params.explain, &mut self.explain)?;
         flag(params.version, &mut self.version)?;
         flag(params.seq_no_primary_term, &mut self.seq_no_primary_term)?;
@@ -93,6 +96,11 @@ impl SearchSource {
             self.sort = keys;
         }
         Ok(())
+    }
+
+    /// `typed_keys`: each aggregation's key carries its type.
+    fn apply_typed_keys(&mut self, text: Option<&str>) -> Result<(), DslError> {
+        flag(text, &mut self.typed_keys)
     }
 
     /// `rest_total_hits_as_int`: the total is a number and counted exactly, which a `track_total_hits`
@@ -346,6 +354,26 @@ mod tests {
             })
             .unwrap_err();
         assert!(format!("{said:?}").contains("got -1"));
+    }
+
+    #[test]
+    fn typed_keys_is_a_flag() {
+        let typed = |source: &mut SearchSource| {
+            source.apply_url(&UrlParams {
+                typed_keys: Some("true"),
+                ..UrlParams::default()
+            })
+        };
+        let mut none = SearchSource::default();
+        typed(&mut none).unwrap();
+        assert!(none.typed_keys);
+        let mut off = SearchSource::default();
+        off.apply_url(&UrlParams {
+            typed_keys: Some("false"),
+            ..UrlParams::default()
+        })
+        .unwrap();
+        assert!(!off.typed_keys);
     }
 
     #[test]

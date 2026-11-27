@@ -33,12 +33,12 @@ fn node_with(aliases: &[(&str, &[&str])]) -> Node {
     node
 }
 
-fn post(node: &Node, path: &str, body: &str) -> (u16, String) {
+pub(crate) fn post(node: &Node, path: &str, body: &str) -> (u16, String) {
     let r = request(node.addr(), "POST", path, Some(body.as_bytes()));
     (r.status, r.text())
 }
 
-const ALL: &str = r#"{"query":{"match_all":{}},"size":100}"#;
+pub(crate) const ALL: &str = r#"{"query":{"match_all":{}},"size":100}"#;
 
 /// The number after `key` in `text`.
 fn number(text: &str, key: &str) -> u64 {
@@ -174,7 +174,7 @@ fn one_name_answers_as_before() {
     }
 }
 
-fn total(text: &str) -> u64 {
+pub(crate) fn total(text: &str) -> u64 {
     number(text, r#""total":{"value":"#)
 }
 

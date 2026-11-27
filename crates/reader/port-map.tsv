@@ -178,6 +178,7 @@ src/aggs/bucket/nested_agg.rs	port	server/src/main/java/org/opensearch/search/ag
 src/aggs/bucket/nested_agg_tests.rs	new		tests of nested and reverse_nested parsing
 src/aggs/bucket/nested_agg_collect_tests.rs	new		tests of nested and reverse_nested on an index of blocks
 src/aggs/metric/top_hits_sub.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/TopHitsAggregator.java@3.10.0	a top_hits as the sub-aggregation of a bucket: a collector for each owning bucket, and each bucket's result from it
+src/aggs/metric/typed.rs	port	server/src/main/java/org/opensearch/search/aggregations/Aggregations.java@3.10.0	typed_keys: an aggregation's key as type#name, with the type each result class names
 src/aggs/bucket/top_hits_sub_tests.rs	new		tests of a top_hits under a keyword terms, a histogram, a range and a filters on a four-segment index
 src/aggs/bucket/walk.rs	new		a walk over the sub-aggregation values of a result's buckets, at any depth
 src/aggs/metric/keyword_cardinality.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/CardinalityAggregator.java@3.10.0	OrdinalsCollector: the global ordinals of a keyword field hashed into the sketch, and their reserved memory
@@ -250,3 +251,6 @@ src/dsl/collapse.rs	port	server/src/main/java/org/opensearch/search/collapse/Col
 src/dsl/collapse_tests.rs	new		tests of collapse.rs
 src/search_collapse_tests.rs	new		tests of the collapse window
 src/aggs/bucket/nested_soak_tests.rs	new		a hand-run soak of nested searches over 10,000 documents
+src/aggs/bucket/missing.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/missing/MissingAggregationBuilder.java@3.10.0	MissingAggregationBuilder.parse; counted as a filter of the documents without the field
+src/aggs/bucket/missing_collect_tests.rs	new		tests of missing on a real index
+src/aggs/bucket/missing_tests.rs	new		tests of missing parsing

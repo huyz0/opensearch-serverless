@@ -27,12 +27,13 @@ pub mod sub_rules;
 pub mod tdigest;
 pub mod top_hits;
 pub mod top_hits_sub;
+pub mod typed;
 
 pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;
 pub use parse::parse_aggregations;
 pub use percentiles::PercentilesOptions;
-pub use render::{write_aggregations, write_aggregations_with};
+pub use render::{write_aggregations, write_aggregations_typed, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
 use crate::aggs::bucket::composite::CompositeSpec;
@@ -92,11 +93,13 @@ pub enum Metric {
     /// `reverse_nested`: the parents of the nested documents collected,
     /// counted and aggregated in one bucket.
     ReverseNested,
+    /// `missing`: the documents counted that have no value for a field.
+    Missing,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 19] = [
+    pub const ALL: [Metric; 20] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -116,6 +119,7 @@ impl Metric {
         Metric::Composite,
         Metric::Nested,
         Metric::ReverseNested,
+        Metric::Missing,
     ];
 
     /// The aggregation type name.
@@ -140,6 +144,7 @@ impl Metric {
             Metric::Composite => "composite",
             Metric::Nested => "nested",
             Metric::ReverseNested => "reverse_nested",
+            Metric::Missing => "missing",
         }
     }
 
@@ -254,7 +259,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             Metric::Composite => agg.composite.as_deref().map_or(0, |spec| {
                 crate::aggs::bucket::composite_collect::state_bytes(spec, agg.subs.len())
             }),
-            Metric::Filters | Metric::Filter => agg
+            Metric::Filters | Metric::Filter | Metric::Missing => agg
                 .filters
                 .as_deref()
                 .map_or(0, crate::aggs::bucket::filters_collect::state_bytes),

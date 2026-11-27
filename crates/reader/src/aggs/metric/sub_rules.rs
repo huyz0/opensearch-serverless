@@ -12,6 +12,7 @@ pub(super) fn holds_subs(metric: Metric) -> bool {
             | Metric::Range
             | Metric::Filters
             | Metric::Filter
+            | Metric::Missing
             | Metric::Histogram
             | Metric::DateHistogram
             | Metric::Composite
@@ -36,6 +37,7 @@ pub(super) fn nests_under(sub: Metric, parent: Metric) -> bool {
         Metric::Range
             | Metric::Filters
             | Metric::Filter
+            | Metric::Missing
             | Metric::Histogram
             | Metric::DateHistogram
     ) && (in_nested
@@ -44,6 +46,7 @@ pub(super) fn nests_under(sub: Metric, parent: Metric) -> bool {
             Metric::Range
                 | Metric::Filters
                 | Metric::Filter
+                | Metric::Missing
                 | Metric::Histogram
                 | Metric::DateHistogram
                 | Metric::Terms

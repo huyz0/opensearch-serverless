@@ -34,6 +34,7 @@ mod search_hits;
 mod search_pipeline;
 mod search_routing;
 mod search_several;
+mod search_several_budget;
 mod search_template;
 mod search_template_stored;
 mod search_url_params;

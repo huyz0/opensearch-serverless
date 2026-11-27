@@ -26,6 +26,7 @@ crates/reader/src/shard_files.rs	source
 crates/writer/src/bucket/assign.rs	source	
 crates/writer/src/bucket/commits.rs	source	
 crates/writer/src/bucket/store.rs	source	
+crates/writer/src/pack/commit_refs.rs	source	
 crates/writer/src/pack/store.rs	source	
 crates/writer/src/publish/adopt.rs	source	
 crates/writer/src/publish/register.rs	source	

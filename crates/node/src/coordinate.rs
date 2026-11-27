@@ -280,6 +280,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 .map(|n| i64::try_from(n).unwrap_or(i64::MAX)),
             show_total: source.track_total_hits.is_some(),
             total_as_int: source.total_as_int,
+            typed_keys: source.typed_keys,
             concurrency: shards.min(8),
             took_ms,
         };

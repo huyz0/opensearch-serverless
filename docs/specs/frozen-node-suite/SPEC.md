@@ -10,7 +10,7 @@ Tests and rig only; no product code. A killed node is the easy fault: its reques
 
 The rig (`tests/suite_rig`) gains a `Freezer`, a TCP proxy a node's object-store traffic goes through. Frozen, it holds every byte in both directions without closing a connection, so the node sees a stall, not an error; thawed, it releases them in order. A node is started behind one with `Cluster::add_behind`, and `Cluster::freeze` and `thaw` act on its slot.
 
-What the proxy does not do: the node's own threads and timers keep running while frozen (a stopped process would stop them too), so a frozen node still notices time passing, its requests simply do not complete. The suite holds a node's store traffic for longer than the lease TTL and less than the S3 client's I/O timeout (30 s), so the stall is never turned into an error. A real-process SIGSTOP case is not here: add one only if it is cheap.
+What the proxy does not do: the node's own threads and timers keep running while frozen (a stopped process would stop them too), so a frozen node still notices time passing, its requests simply do not complete. The suite holds a node's store traffic for longer than the lease TTL and less than the S3 client's I/O timeout (30 s), so the stall is never turned into an error. The real-process case is `tests/frozen_process.rs`: the node under test is the `oss-node` binary as its own process, stopped with `kill -STOP` and resumed with `kill -CONT`, so its threads and timers stop too.
 
 A survivor does not forward a write to the frozen owner until the owner is out of its lease view: a write forwarded to a node whose store traffic is held waits the 30 s forward timeout. The suite therefore writes through a survivor two TTLs after the freeze.
 
@@ -20,11 +20,13 @@ A survivor does not forward a write to the frozen owner until the owner is out o
 - AC-2: with the shard's owner frozen past the lease TTL, the other nodes see it go and a write through a survivor takes the shard and is acknowledged.
 - AC-3: a write sent to the frozen owner while it is frozen is not acknowledged before the thaw, and after the thaw is refused (its append finds the slot fenced) and counted by no node.
 - AC-4: after the thaw every document acknowledged before and during the freeze is counted exactly once by every node (no loss, no double), and the thawed node serves a write for the shard by passing it to the owner, which writes it once.
-- AC-5: the thawed owner's late log append does not land in a slot the successor fenced: no document appears that no client was told was written, and the shard's head is held by one node.
+- AC-5: the thawed owner's late log append does not land in a slot the successor fenced: no document appears that no client was told was written. The head is asserted on its own: while the owner is frozen and after its thaw (and after a write through it) the head names the same survivor, never the thawed node.
+- AC-6: a node that is a real process stopped with SIGSTOP past the lease TTL is dropped from the survivors' view and a survivor takes the shard (head owner is a survivor); a write sent to it while stopped is held in its socket and, after SIGCONT, is counted by every node exactly once if the reply acknowledged it and by none if the reply refused it; every document acknowledged before and during the stop is counted exactly once by every node; the head still names the survivor after the resume.
 
 ## Test plan
 
 - AC-1: a unit test of the freezer against a plain TCP echo server (`tests/suite_rig/freeze.rs`'s own tests, run by `tests/frozen_node.rs`).
+- AC-6: `tests/frozen_process.rs`, one `oss-node` process (the owner) and two in-process nodes on one emulated store, 3 s lease TTL.
 - AC-2 to AC-5: `tests/frozen_node.rs` over a three-node cluster with a 3 s lease TTL and the owner of the shard behind a freezer, the same shape as `overlay_takeover.rs`.
 
 ## S3 request budget

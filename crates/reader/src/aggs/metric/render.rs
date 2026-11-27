@@ -8,8 +8,6 @@
 
 use std::io::{self, Write};
 
-use oss_rest::write_json_str;
-
 use crate::aggs::bucket::composite_render::write_composite;
 use crate::aggs::bucket::date_histogram_render::write_date_histogram;
 use crate::aggs::bucket::filters_render::write_filters;
@@ -22,6 +20,7 @@ use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::hash_order::hash_map_order;
 use crate::aggs::metric::percentiles::write_percentiles;
 use crate::aggs::metric::top_hits::TopHitsResult;
+use crate::aggs::metric::typed::{scoped, write_key};
 use crate::aggs::partial::{Format, Partial, Value};
 
 /// Writes a `top_hits` result's body: `"hits":{..}`, with its hits fetched.
@@ -44,6 +43,24 @@ pub fn write_aggregations_with(
     parts: &[Partial],
     hits: &mut HitsWriter<'_>,
 ) -> io::Result<()> {
+    write_aggregations_typed(out, parts, false, hits)
+}
+
+/// [`write_aggregations_with`], each key written as `type#name` when `typed` is set.
+pub fn write_aggregations_typed(
+    out: &mut dyn Write,
+    parts: &[Partial],
+    typed: bool,
+    hits: &mut HitsWriter<'_>,
+) -> io::Result<()> {
+    scoped(typed, || write_parts(out, parts, hits))
+}
+
+fn write_parts(
+    out: &mut dyn Write,
+    parts: &[Partial],
+    hits: &mut HitsWriter<'_>,
+) -> io::Result<()> {
     if parts.is_empty() {
         return Ok(());
     }
@@ -55,7 +72,7 @@ pub fn write_aggregations_with(
         if i > 0 {
             out.write_all(b",")?;
         }
-        write_json_str(out, &part.name)?;
+        write_key(out, &part.name, &part.value)?;
         out.write_all(b":{")?;
         match &part.value {
             Value::TopHits(top) => hits(out, &part.name, top)?,

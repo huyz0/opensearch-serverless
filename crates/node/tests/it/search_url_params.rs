@@ -126,7 +126,6 @@ fn what_is_not_served_is_still_refused() {
     let (status, text) = get("search_type=dfs_query_then_fetch");
     assert_eq!(status, 400, "{text}");
     assert!(text.contains("not supported by this node yet"), "{text}");
-    assert_eq!(get("typed_keys=true").0, 400);
 }
 
 #[test]
@@ -240,7 +239,33 @@ fn msearch_url_parameters_that_tune_are_accepted_and_the_total_can_be_a_number()
     assert!(text.contains(r#""hits":{"total":5,"#), "{text}");
     let (status, text) = msearch("?search_type=dfs_query_then_fetch", "{}");
     assert_eq!(status, 400, "{text}");
-    assert_eq!(msearch("?typed_keys=true", "{}").0, 400);
+    assert_eq!(msearch("?no_such_parameter=true", "{}").0, 400);
+}
+
+#[test]
+fn msearch_typed_keys_types_the_aggregations_of_every_item() {
+    let node = start();
+    let aggs =
+        r#"{"size":0,"aggs":{"lo":{"min":{"field":"year"}},"by":{"terms":{"field":"year"}}}}"#;
+    let body = format!("{{}}\n{aggs}\n{{}}\n{aggs}\n");
+    let run = |query: &str| {
+        let r = request(
+            node.addr(),
+            "POST",
+            &format!("/compat-paging-sort/_msearch{query}"),
+            Some(body.as_bytes()),
+        );
+        (r.status, r.text())
+    };
+    let (status, typed) = run("?typed_keys=true");
+    assert_eq!(status, 200, "{typed}");
+    assert_eq!(typed.matches(r#""min#lo":{"#).count(), 2, "{typed}");
+    assert_eq!(typed.matches("#by\":{").count(), 2, "{typed}");
+    let (_, plain) = run("");
+    assert!(!plain.contains('#'), "{plain}");
+    let (_, off) = run("?typed_keys=false");
+    assert!(!off.contains('#'), "{off}");
+    assert_eq!(run("?typed_keys=maybe").0, 400);
 }
 
 #[test]
@@ -269,4 +294,158 @@ fn wildcard_options_are_accepted_when_they_change_nothing() {
         None,
     );
     assert_eq!(r.status, 400, "{}", r.text());
+}
+
+const METRICS: &str = r#"{"size":0,"aggs":{"lo":{"min":{"field":"year"}},"hi":{"max":{"field":"year"}},"n":{"value_count":{"field":"year"}},"avg_y":{"avg":{"field":"year"}},"s":{"stats":{"field":"year"}},"u":{"cardinality":{"field":"year"}},"p":{"percentiles":{"field":"year","percents":[50]}},"r":{"percentile_ranks":{"field":"year","values":[2000]}},"sm":{"sum":{"field":"year"}},"top":{"top_hits":{"size":1}}}}"#;
+
+#[test]
+fn typed_keys_prefixes_a_metric_aggregation_with_its_type() {
+    let (status, plain) = post("", METRICS);
+    assert_eq!(status, 200, "{plain}");
+    let (status, typed) = post("typed_keys=true", METRICS);
+    assert_eq!(status, 200, "{typed}");
+    for (name, prefix) in [
+        ("lo", "min"),
+        ("hi", "max"),
+        ("n", "value_count"),
+        ("avg_y", "avg"),
+        ("s", "stats"),
+        ("u", "cardinality"),
+        ("p", "tdigest_percentiles"),
+        ("r", "tdigest_percentile_ranks"),
+        ("sm", "sum"),
+        ("top", "top_hits"),
+    ] {
+        assert!(
+            typed.contains(&format!(r#""{prefix}#{name}":{{"#)),
+            "{prefix}#{name}: {typed}"
+        );
+        assert!(
+            plain.contains(&format!(r#""{name}":{{"#)),
+            "{name}: {plain}"
+        );
+    }
+    // The values and their order are the plain answer's.
+    let untyped = typed
+        .replace("tdigest_percentile_ranks#", "")
+        .replace("tdigest_percentiles#", "")
+        .replace("value_count#", "")
+        .replace("cardinality#", "")
+        .replace("top_hits#", "")
+        .replace("stats#", "")
+        .replace("min#", "")
+        .replace("max#", "")
+        .replace("avg#", "")
+        .replace("sum#", "");
+    assert_eq!(
+        untyped.split_once(r#""aggregations""#).map(|p| p.1),
+        plain.split_once(r#""aggregations""#).map(|p| p.1)
+    );
+    let (_, off) = post("typed_keys=false", METRICS);
+    assert_eq!(
+        off.split_once(r#""aggregations""#).map(|p| p.1),
+        plain.split_once(r#""aggregations""#).map(|p| p.1)
+    );
+}
+
+#[test]
+fn typed_keys_without_aggregations_changes_nothing_and_a_non_boolean_is_refused() {
+    assert_eq!(ok("typed_keys=true"), ok(""));
+    let (status, text) = get("typed_keys=maybe");
+    assert_eq!(status, 400, "{text}");
+}
+
+#[test]
+fn typed_keys_over_several_indexes_prefixes_the_merged_aggregations() {
+    let node = start();
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term,compat-paging-sort/_search?typed_keys=true",
+        Some(br#"{"size":0,"aggs":{"hi":{"max":{"field":"year"}},"n":{"value_count":{"field":"year"}}}}"#),
+    );
+    let text = r.text();
+    assert_eq!(r.status, 200, "{text}");
+    assert!(text.contains(r#""max#hi":{"#), "{text}");
+    assert!(text.contains(r#""value_count#n":{"#), "{text}");
+}
+
+const BUCKETS: &str = r#"{"size":0,"aggs":{
+  "t":{"terms":{"field":"year"},"aggs":{"m":{"max":{"field":"year"}},"inner":{"terms":{"field":"tag"}}}},
+  "k":{"terms":{"field":"tag"},"aggs":{"c":{"value_count":{"field":"year"}}}},
+  "h":{"histogram":{"field":"year","interval":5},"aggs":{"s":{"sum":{"field":"year"}}}},
+  "d":{"date_histogram":{"field":"published","calendar_interval":"year"}},
+  "r":{"range":{"field":"year","ranges":[{"to":2000},{"from":2000}]}},
+  "fs":{"filters":{"filters":{"a":{"term":{"tag":"animal"}}}},"aggs":{"lo":{"min":{"field":"year"}}}},
+  "f":{"filter":{"term":{"tag":"animal"}},"aggs":{"hi":{"max":{"field":"year"}}}},
+  "cp":{"composite":{"sources":[{"y":{"terms":{"field":"year"}}}]}}}}"#;
+
+#[test]
+fn typed_keys_prefixes_a_bucket_aggregation_and_its_sub_aggregations() {
+    let (status, typed) = post("typed_keys=true", BUCKETS);
+    assert_eq!(status, 200, "{typed}");
+    for key in [
+        "lterms#t",
+        "max#m",
+        "sterms#inner",
+        "sterms#k",
+        "value_count#c",
+        "histogram#h",
+        "sum#s",
+        "date_histogram#d",
+        "range#r",
+        "filters#fs",
+        "min#lo",
+        "filter#f",
+        "max#hi",
+        "composite#cp",
+    ] {
+        assert!(typed.contains(&format!(r#""{key}":"#)), "{key}: {typed}");
+    }
+    let (_, plain) = post("", BUCKETS);
+    for key in [
+        "t", "m", "inner", "k", "c", "h", "s", "d", "r", "fs", "lo", "f", "hi", "cp",
+    ] {
+        assert!(plain.contains(&format!(r#""{key}":"#)), "{key}: {plain}");
+    }
+    assert!(!plain.contains('#'), "{plain}");
+}
+
+#[test]
+fn typed_keys_over_several_indexes_prefixes_a_merged_bucket_aggregation() {
+    let node = start();
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term,compat-paging-sort/_search?typed_keys=true",
+        Some(br#"{"size":0,"aggs":{"t":{"terms":{"field":"year"},"aggs":{"m":{"max":{"field":"year"}}}}}}"#),
+    );
+    let text = r.text();
+    assert_eq!(r.status, 200, "{text}");
+    assert!(
+        text.contains(r#""lterms#t":{"#) && text.contains(r#""max#m":{"#),
+        "{text}"
+    );
+}
+
+#[test]
+fn typed_keys_tells_missing_nested_and_reverse_nested_from_filter() {
+    let body = r#"{"size":0,"aggs":{
+      "ms":{"missing":{"field":"tag"}},
+      "f":{"filter":{"term":{"tag":"animal"}}},
+      "n":{"nested":{"path":"nowhere"},"aggs":{"back":{"reverse_nested":{}},"m":{"max":{"field":"nowhere.x"}}}}}}"#;
+    let (status, typed) = post("typed_keys=true", body);
+    assert_eq!(status, 200, "{typed}");
+    for key in [
+        "missing#ms",
+        "filter#f",
+        "nested#n",
+        "reverse_nested#back",
+        "max#m",
+    ] {
+        assert!(typed.contains(&format!(r#""{key}":"#)), "{key}: {typed}");
+    }
+    let (status, plain) = post("", body);
+    assert_eq!(status, 200, "{plain}");
+    assert!(!plain.contains('#'), "{plain}");
 }

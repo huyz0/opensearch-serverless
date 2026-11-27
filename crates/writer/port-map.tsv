@@ -94,3 +94,5 @@ src/takeover/logged.rs	port	serverless/shell/src/main/java/org/opensearch/server
 src/pack/sidecar.rs	new		the collector's sidecar register of collected ordinals, read and swapped by generation (Rust only)
 src/pack/index.rs	new		the 16 pack index registers: an always-writing add and a compare-and-swap removal, retried at most 16 times with jitter (Rust only)
 src/pack/election.rs	new		the collection window and its collector, chosen by an FNV-1a hash of the window over the sorted live membership (ADR 0025); Rust only
+src/pack/commit_refs.rs	new		the reference source over commits: the pack header names its shards, each shard's latest commit (shard register or bucket member) is read, and an unreadable source is an error; the Java NodePackCollector scans the same commits
+src/pack/judge.rs	new		the collector's judgement of one node's packs: store age past 15 minutes, two unreferenced sightings a minute apart, a doubling recheck of a named pack, deletion and sidecar marks (ADR 0025); the Java NodePackCollector keeps this state in memory per pack
