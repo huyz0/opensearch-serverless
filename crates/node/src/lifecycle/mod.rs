@@ -9,7 +9,7 @@
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod routes;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, Ordering};
 
 use oss_cluster::placement::ROLE_SEARCH;
 use oss_format::NodeLease;
@@ -26,10 +26,25 @@ use std::time::Duration;
 use crate::assemble::{AssembleError, Assembled};
 
 /// A node's readiness, shared by its endpoints and its lease writer.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Readiness {
     draining: AtomicBool,
     warming: AtomicBool,
+    /// When the lease first said `search`, epoch milliseconds; 0 until then.
+    search_since: AtomicI64,
+    /// The joiner's own ramp, 0 to 1000; -1 until it says one.
+    ramp: AtomicI32,
+}
+
+impl Default for Readiness {
+    fn default() -> Self {
+        Self {
+            draining: AtomicBool::new(false),
+            warming: AtomicBool::new(false),
+            search_since: AtomicI64::new(0),
+            ramp: AtomicI32::new(-1),
+        }
+    }
 }
 
 impl Readiness {
@@ -43,8 +58,8 @@ impl Readiness {
     #[must_use]
     pub fn warming() -> Self {
         Self {
-            draining: AtomicBool::new(false),
             warming: AtomicBool::new(true),
+            ..Self::default()
         }
     }
 
@@ -77,8 +92,26 @@ impl Readiness {
         !self.draining.swap(true, Ordering::AcqRel)
     }
 
-    /// Takes the `search` role out of `lease` once the node drains.
+    /// Sets the ramp the lease publishes (the slow start's own judgement of
+    /// how warm the node is, 0 to 1000).
+    pub fn set_ramp(&self, permille: i32) {
+        self.ramp.store(permille.clamp(0, 1000), Ordering::Release);
+    }
+
+    /// Takes the `search` role out of `lease` once the node drains, and
+    /// says since when a node that keeps it has held it, and its ramp.
     pub fn stamp(&self, lease: &mut NodeLease) {
+        if self.ready() && lease.roles().iter().any(|r| r == ROLE_SEARCH) {
+            let _ = self.search_since.compare_exchange(
+                0,
+                oss_cluster::placement::now_millis().max(1),
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+            lease.search_since = Some(self.search_since.load(Ordering::Acquire));
+            let ramp = self.ramp.load(Ordering::Acquire);
+            lease.set_ramp_permille((ramp >= 0).then_some(ramp));
+        }
         if self.ready() || !lease.roles().iter().any(|r| r == ROLE_SEARCH) {
             return;
         }

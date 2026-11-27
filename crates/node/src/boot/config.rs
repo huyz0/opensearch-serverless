@@ -127,6 +127,10 @@ pub struct NodeConfig {
     pub nested: bool,
     /// `serverless.reader.vector_warm.at_open`.
     pub vector_warm_at_open: bool,
+    /// `OSS_READER_RAMP_MAX_SECS`: seconds by which a joining reader is fully ramped; 0 is off.
+    pub reader_ramp_max_secs: i64,
+    /// `OSS_READER_RAMP_MIN_SECS`: the soonest a joining reader may be fully ramped.
+    pub reader_ramp_min_secs: i64,
     /// `OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE`: compile Painless source here.
     pub painless_native_compile: bool,
     /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
@@ -258,6 +262,25 @@ impl NodeConfig {
             .map_err(|e| format!("OSS_LEASE_TTL_MS: {e}"))?;
         if lease_ttl_millis < 3 {
             return Err(format!("OSS_LEASE_TTL_MS [{lease_ttl_millis}] is below 3"));
+        }
+        let ramp_secs = |key: &str, default: &str| -> Result<i64, String> {
+            or(key, default)
+                .parse::<i64>()
+                .map_err(|e| format!("{key}: {e}"))
+                .and_then(|n| {
+                    if (0..=86_400).contains(&n) {
+                        Ok(n)
+                    } else {
+                        Err(format!("{key} [{n}] is outside 0 to 86400"))
+                    }
+                })
+        };
+        let reader_ramp_max_secs = ramp_secs("OSS_READER_RAMP_MAX_SECS", "0")?;
+        let reader_ramp_min_secs = ramp_secs("OSS_READER_RAMP_MIN_SECS", "30")?;
+        if reader_ramp_max_secs > 0 && reader_ramp_min_secs > reader_ramp_max_secs {
+            return Err(format!(
+                "OSS_READER_RAMP_MIN_SECS [{reader_ramp_min_secs}] is above OSS_READER_RAMP_MAX_SECS [{reader_ramp_max_secs}]"
+            ));
         }
         let lease_refresh_millis = match get("OSS_LEASE_REFRESH_MS").filter(|v| !v.is_empty()) {
             None => None,
@@ -467,6 +490,8 @@ impl NodeConfig {
             knn,
             nested,
             vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
+            reader_ramp_max_secs,
+            reader_ramp_min_secs,
             painless_native_compile: flag("OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE", "false")?,
             extensions_percent,
             extensions_replay_factor,

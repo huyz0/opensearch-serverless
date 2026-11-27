@@ -24,7 +24,10 @@ pub use fleet::{
     HAND_OFF_DOWN_TO_MEAN, Holding, MEAN_MATTERS_FROM, ROOM_AT_OR_BELOW, TARGET_UTILISATION,
 };
 pub use hash::{ShardKey, java_hash_code, murmur3};
-pub use ramp::{RampConfig, admission, admitted, ramp_permille};
+pub use ramp::{
+    ControllerConfig, RampConfig, RampController, Totals, admission, admitted, count_search,
+    ramp_permille, searches_total,
+};
 pub use rendezvous::{owner, readers_for, readers_for_at, reapers_for};
 pub use spread::{
     DEFAULT_MAX_READERS, DEFAULT_TARGET_PER_SECOND, HotShardSpread, MAX_TRACKED, Nanos, Running,
@@ -56,7 +59,7 @@ pub fn ramp_config() -> RampConfig {
 }
 
 /// The wall clock, epoch milliseconds, as the leases' expiry is.
-pub(crate) fn now_millis() -> i64 {
+pub fn now_millis() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))

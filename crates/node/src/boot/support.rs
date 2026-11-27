@@ -264,6 +264,27 @@ pub(super) struct FleetTick {
     clock: Arc<dyn LeaseClock>,
     ttl_millis: i64,
     node_id: String,
+    ramp: Option<RampFeed>,
+}
+
+/// What the joiner's slow start reads at each renewal.
+struct RampFeed {
+    readiness: Arc<crate::lifecycle::Readiness>,
+    ledger: Arc<oss_blob::usage::Ledger>,
+    controller: std::sync::Mutex<oss_cluster::placement::RampController>,
+}
+
+impl RampFeed {
+    fn totals(&self) -> oss_cluster::placement::Totals {
+        use oss_blob::S3Op;
+        oss_cluster::placement::Totals {
+            searches: oss_cluster::placement::searches_total(),
+            gets_milli: self
+                .ledger
+                .total_requests(S3Op::Get)
+                .saturating_add(self.ledger.total_requests(S3Op::GetRange)),
+        }
+    }
 }
 
 impl FleetTick {
@@ -280,13 +301,46 @@ impl FleetTick {
             ttl_millis: config.lease_ttl_millis,
             // ALLOC: one id, once a node.
             node_id: config.node_id.clone(),
+            ramp: None,
         }
+    }
+
+    /// Lets the node judge its own slow start from the searches it answers
+    /// and the store GETs they cost, when the ramp is on and the store's
+    /// usage is counted; otherwise the ramp is bounded by time alone.
+    pub(super) fn with_ramp(
+        mut self,
+        readiness: &Arc<crate::lifecycle::Readiness>,
+        ledger: Option<&Arc<oss_blob::usage::Ledger>>,
+    ) -> Self {
+        if let (true, Some(ledger)) = (oss_cluster::placement::ramp_config().is_on(), ledger) {
+            let feed = RampFeed {
+                readiness: Arc::clone(readiness),
+                ledger: Arc::clone(ledger),
+                controller: std::sync::Mutex::new(oss_cluster::placement::RampController::new(
+                    oss_cluster::placement::ControllerConfig::default(),
+                    oss_cluster::placement::Totals {
+                        searches: 0,
+                        gets_milli: 0,
+                    },
+                )),
+            };
+            self.ramp = Some(feed);
+        }
+        self
     }
 
     /// Before a renewal: the load the lease is about to say.
     pub(super) fn renewing(&self) {
         let stats = self.role.shard_cap_stats();
         self.load.set(stats.held, stats.max);
+        if let Some(feed) = &self.ramp {
+            let mut controller = feed
+                .controller
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            feed.readiness.set_ramp(controller.observe(feed.totals()));
+        }
     }
 
     /// After a refresh: hands idle shards to a member with room, when set.

@@ -56,3 +56,41 @@ fn painless_source_is_refused_unless_its_variable_turns_the_compiler_on() {
         .is_err()
     );
 }
+
+// docs/specs/reader-slow-start, Switch
+#[test]
+fn the_reader_ramp_is_off_unless_set_and_its_bounds_are_checked() {
+    let c = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
+    assert_eq!((c.reader_ramp_max_secs, c.reader_ramp_min_secs), (0, 30));
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_READER_RAMP_MAX_SECS", "300")])))
+        .expect("valid");
+    assert_eq!(c.reader_ramp_max_secs, 300);
+    for bad in [
+        ("OSS_READER_RAMP_MAX_SECS", "-1"),
+        ("OSS_READER_RAMP_MAX_SECS", "x"),
+    ] {
+        assert!(
+            NodeConfig::from_lookup(lookup(&with(&[bad]))).is_err(),
+            "{bad:?}"
+        );
+    }
+    let min_above = [
+        ("OSS_READER_RAMP_MAX_SECS", "20"),
+        ("OSS_READER_RAMP_MIN_SECS", "40"),
+    ];
+    assert!(NodeConfig::from_lookup(lookup(&with(&min_above))).is_err());
+}
+
+// docs/specs/reader-slow-start, Switch
+#[test]
+fn the_ramp_variables_reach_placement() {
+    let mut node = crate::assemble::Config::new("", "n1", [0; 6]);
+    let on = NodeConfig::from_lookup(lookup(&with(&[("OSS_READER_RAMP_MAX_SECS", "300")])))
+        .expect("valid");
+    super::super::apply::apply(&on, &mut node);
+    let set = oss_cluster::placement::ramp_config();
+    assert_eq!((set.min_ms, set.max_ms), (30_000, 300_000));
+    let off = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
+    super::super::apply::apply(&off, &mut node);
+    assert!(!oss_cluster::placement::ramp_config().is_on());
+}

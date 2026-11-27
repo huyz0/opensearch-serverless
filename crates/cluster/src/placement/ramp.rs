@@ -80,6 +80,94 @@ pub fn admitted(node_id: &str, key: ShardKey<'_>, ramp: i64) -> bool {
     ramp >= FULL || admission(node_id, key) < ramp
 }
 
+/// What the joiner's controller reads: searches served and store GETs made
+/// by this node so far (GETs in thousandths of a request, as the ledger counts).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Totals {
+    /// Searches this node has answered.
+    pub searches: u64,
+    /// Store GET-class requests it has made, in thousandths.
+    pub gets_milli: u64,
+}
+
+/// How the joiner's controller steps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ControllerConfig {
+    /// How far a qualifying window raises the ramp.
+    pub step: i32,
+    /// The most store GETs a search may average, in thousandths, for the window to qualify.
+    pub warm_gets_per_search_milli: u64,
+    /// The fewest searches a window needs to say anything.
+    pub min_searches: u64,
+}
+
+impl Default for ControllerConfig {
+    fn default() -> Self {
+        Self {
+            step: 100,
+            warm_gets_per_search_milli: 2_000,
+            min_searches: 20,
+        }
+    }
+}
+
+/// The joiner's own judgement of how warm it is: a window of searches that
+/// each needed about no store read raises its ramp a step; a window with too
+/// few searches, or a cold one, holds it. Time bounds the answer elsewhere
+/// ([`ramp_permille`]), so a node with no traffic is still fully ramped.
+#[derive(Debug, Clone)]
+pub struct RampController {
+    config: ControllerConfig,
+    ramp: i32,
+    seen: Totals,
+}
+
+impl RampController {
+    /// A controller at ramp 0 that counts from `start`.
+    pub fn new(config: ControllerConfig, start: Totals) -> Self {
+        Self {
+            config,
+            ramp: 0,
+            seen: start,
+        }
+    }
+
+    /// The ramp it publishes.
+    pub fn ramp(&self) -> i32 {
+        self.ramp
+    }
+
+    /// Reads the totals at a lease renewal and returns the ramp to publish.
+    pub fn observe(&mut self, now: Totals) -> i32 {
+        let searches = now.searches.saturating_sub(self.seen.searches);
+        if searches < self.config.min_searches.max(1) {
+            return self.ramp;
+        }
+        let gets = now.gets_milli.saturating_sub(self.seen.gets_milli);
+        self.seen = now;
+        let per_search = gets.checked_div(searches).unwrap_or(u64::MAX);
+        if per_search <= self.config.warm_gets_per_search_milli {
+            self.ramp = self
+                .ramp
+                .saturating_add(self.config.step)
+                .clamp(0, i32::try_from(FULL).unwrap_or(1000));
+        }
+        self.ramp
+    }
+}
+
+static SEARCHES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Counts one search this node answered, for the joiner's controller.
+pub fn count_search() {
+    SEARCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Searches this node has answered.
+pub fn searches_total() -> u64 {
+    SEARCHES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +233,41 @@ mod tests {
         assert!((400..600).contains(&low), "{low}");
         assert!(admitted("n1", key, FULL));
         assert!(!admitted("n1", key, 0));
+    }
+
+    fn totals(searches: u64, gets: u64) -> Totals {
+        Totals {
+            searches,
+            gets_milli: gets.saturating_mul(1000),
+        }
+    }
+
+    #[test]
+    fn controller_steps_up_on_warm_windows_and_holds_otherwise() {
+        let mut c = RampController::new(ControllerConfig::default(), totals(0, 0));
+        assert_eq!(c.observe(totals(19, 0)), 0, "too few searches say nothing");
+        assert_eq!(c.observe(totals(20, 0)), 100);
+        // 30 searches, 90 GETs: 3 per search, cold: hold.
+        assert_eq!(c.observe(totals(50, 90)), 100);
+        // The cold window was consumed; the next window is judged on its own.
+        assert_eq!(c.observe(totals(70, 90 + 20)), 200);
+        for i in 0..20u64 {
+            c.observe(totals(90 + i * 20, 110));
+        }
+        assert_eq!(c.ramp(), 1000);
+    }
+
+    #[test]
+    fn a_window_short_of_searches_keeps_collecting() {
+        let mut c = RampController::new(ControllerConfig::default(), totals(0, 0));
+        assert_eq!(c.observe(totals(10, 0)), 0);
+        assert_eq!(c.observe(totals(20, 0)), 100, "the first ten still count");
+    }
+
+    #[test]
+    fn the_counter_counts() {
+        let before = searches_total();
+        count_search();
+        assert!(searches_total() > before);
     }
 }
