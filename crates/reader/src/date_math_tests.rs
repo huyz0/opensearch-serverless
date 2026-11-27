@@ -236,7 +236,7 @@ fn a_zone_is_a_fixed_one_this_node_reads() {
         ("-05:30", Some(-19_800)),
         ("+0200", Some(7_200)),
         ("+09", Some(32_400)),
-        ("Asia/Kolkata", None),
+        ("Asia/Kolkata", None), // a region is read by `parse_time_zone`
         ("+25:00", None),
         ("+01:00:00", None),
         ("", None),
