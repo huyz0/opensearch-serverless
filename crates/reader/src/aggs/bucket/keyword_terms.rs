@@ -131,11 +131,7 @@ pub fn reduce_results(parts: &[&KeywordTermsResult]) -> KeywordTermsResult {
             .map(|(_, _, lists)| {
                 target
                     .as_ref()
-                    .and_then(|(at, key)| {
-                        lists
-                            .get(*at)
-                            .map(|l| sub_order::sort_value(&reduce_sub(l), key.as_deref()))
-                    })
+                    .and_then(|t| lists.get(t.index()).map(|l| t.sort_of(&reduce_sub(l))))
                     .unwrap_or(f64::NAN)
             })
             // ALLOC: as above.

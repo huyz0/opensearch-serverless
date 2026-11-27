@@ -173,6 +173,8 @@ mod running_tests;
 #[cfg(test)]
 mod significant_tests;
 #[cfg(test)]
+mod sub_order_path_tests;
+#[cfg(test)]
 mod sub_order_tests;
 #[cfg(test)]
 mod terms_error_tests;

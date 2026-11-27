@@ -354,3 +354,4 @@ src/search_finish.rs	new		a search's hits capped, and its script pipelines run o
 src/aggs/pipeline/moving.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/MovFnPipelineAggregator.java@429b4cbc	moving_fn compute over the rendered buckets
 src/aggs/pipeline/moving_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/MovFnPipelineAggregationBuilder.java@429b4cbc	the moving_fn parser
 src/aggs/pipeline/moving_tests.rs	new		moving_fn computed and parsed against the bytes Java wrote
+src/aggs/bucket/sub_order_path_tests.rs	new		tests of a terms ordered by a path through single-bucket aggregations

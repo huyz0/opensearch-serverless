@@ -17,13 +17,8 @@ pub fn rank(order: &SubOrder, subs: &BucketSubs, keys: &[i64]) -> Vec<usize> {
         .map(|at| {
             target
                 .as_ref()
-                .and_then(|(sub, key)| {
-                    subs.lists
-                        .get(at)
-                        .and_then(|list| list.get(*sub))
-                        .map(|v| sub_order::sort_value(v, key.as_deref()))
-                })
-                .unwrap_or(f64::NAN)
+                .zip(subs.lists.get(at))
+                .map_or(f64::NAN, |(t, list)| t.sort(list))
         })
         // ALLOC: as above.
         .collect();

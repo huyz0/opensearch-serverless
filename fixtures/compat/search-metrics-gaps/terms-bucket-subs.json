@@ -1,0 +1,1072 @@
+{
+  "name": "terms with a bucket sub-aggregation under a keyword field, and an order of several criteria",
+  "description": "Recorded stock answers this node refuses today: a filter or missing under a keyword terms, and an order of several criteria; not replayed.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-terms-sub-order",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-terms-sub-order",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "keyword"
+              },
+              "price": {
+                "type": "long"
+              },
+              "k": {
+                "type": "keyword"
+              },
+              "tier": {
+                "type": "long"
+              },
+              "comments": {
+                "type": "nested",
+                "properties": {
+                  "who": {
+                    "type": "keyword"
+                  },
+                  "n": {
+                    "type": "long"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-terms-sub-order"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "a",
+            "price": 10,
+            "k": "x",
+            "tier": 1,
+            "comments": [
+              {
+                "who": "ann",
+                "n": 1
+              },
+              {
+                "who": "bob",
+                "n": 5
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "b",
+            "price": 20,
+            "k": "y",
+            "tier": 2,
+            "comments": [
+              {
+                "who": "bob",
+                "n": 3
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "c",
+            "price": 30,
+            "k": "x",
+            "tier": 1,
+            "comments": [
+              {
+                "who": "ann",
+                "n": 4
+              },
+              {
+                "who": "cat",
+                "n": 2
+              },
+              {
+                "who": "ann",
+                "n": 6
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "d",
+            "price": 40,
+            "k": "z"
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "e",
+            "price": 50,
+            "k": "y",
+            "tier": 2,
+            "comments": [
+              {
+                "who": "dan",
+                "n": 9
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-terms-sub-order",
+              "_id": "6"
+            }
+          },
+          {
+            "title": "f",
+            "price": 60,
+            "k": "w",
+            "tier": 3
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 11,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-terms-sub-order",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "keyword terms by a filter's sum, descending",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "s": {
+                      "value": 20.0
+                    }
+                  }
+                },
+                {
+                  "key": "w",
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": "z",
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "keyword terms by a filter's doc count, ascending",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f": "asc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "term": {
+                      "title": "b"
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "w",
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": "z",
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "s": {
+                      "value": 20.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "keyword terms by a bigger filter's stats key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f>st.max": "asc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "range": {
+                      "price": {
+                        "gte": 20
+                      }
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    },
+                    "st": {
+                      "stats": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 30.0,
+                      "max": 30.0,
+                      "avg": 30.0,
+                      "sum": 30.0
+                    },
+                    "s": {
+                      "value": 30.0
+                    }
+                  }
+                },
+                {
+                  "key": "z",
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 40.0,
+                      "max": 40.0,
+                      "avg": 40.0,
+                      "sum": 40.0
+                    },
+                    "s": {
+                      "value": 40.0
+                    }
+                  }
+                },
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "st": {
+                      "count": 2,
+                      "min": 20.0,
+                      "max": 50.0,
+                      "avg": 35.0,
+                      "sum": 70.0
+                    },
+                    "s": {
+                      "value": 70.0
+                    }
+                  }
+                },
+                {
+                  "key": "w",
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 60.0,
+                      "max": 60.0,
+                      "avg": 60.0,
+                      "sum": 60.0
+                    },
+                    "s": {
+                      "value": 60.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "keyword terms by a missing's sum",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "mi>s": "desc"
+                }
+              },
+              "aggs": {
+                "mi": {
+                  "missing": {
+                    "field": "tier"
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "z",
+                  "doc_count": 1,
+                  "mi": {
+                    "doc_count": 1,
+                    "s": {
+                      "value": 40.0
+                    }
+                  }
+                },
+                {
+                  "key": "w",
+                  "doc_count": 1,
+                  "mi": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "mi": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "mi": {
+                    "doc_count": 0,
+                    "s": {
+                      "value": 0.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "keyword terms by a filter in a filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "k",
+                "order": {
+                  "f>g>s": "desc"
+                }
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "match_all": {}
+                  },
+                  "aggs": {
+                    "g": {
+                      "filter": {
+                        "range": {
+                          "price": {
+                            "gte": 30
+                          }
+                        }
+                      },
+                      "aggs": {
+                        "s": {
+                          "sum": {
+                            "field": "price"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "w",
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 60.0
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 50.0
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": "z",
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 40.0
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "g": {
+                      "doc_count": 1,
+                      "s": {
+                        "value": 30.0
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms ordered by two sub-aggregation paths",
+      "request": {
+        "method": "POST",
+        "path": "/compat-terms-sub-order/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tier",
+                "order": [
+                  {
+                    "f>s": "desc"
+                  },
+                  {
+                    "_key": "asc"
+                  }
+                ]
+              },
+              "aggs": {
+                "f": {
+                  "filter": {
+                    "range": {
+                      "price": {
+                        "gte": 20
+                      }
+                    }
+                  },
+                  "aggs": {
+                    "s": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    },
+                    "st": {
+                      "stats": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 2,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 2,
+                    "st": {
+                      "count": 2,
+                      "min": 20.0,
+                      "max": 50.0,
+                      "avg": 35.0,
+                      "sum": 70.0
+                    },
+                    "s": {
+                      "value": 70.0
+                    }
+                  }
+                },
+                {
+                  "key": 3,
+                  "doc_count": 1,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 60.0,
+                      "max": 60.0,
+                      "avg": 60.0,
+                      "sum": 60.0
+                    },
+                    "s": {
+                      "value": 60.0
+                    }
+                  }
+                },
+                {
+                  "key": 1,
+                  "doc_count": 2,
+                  "f": {
+                    "doc_count": 1,
+                    "st": {
+                      "count": 1,
+                      "min": 30.0,
+                      "max": 30.0,
+                      "avg": 30.0,
+                      "sum": 30.0
+                    },
+                    "s": {
+                      "value": 30.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}
