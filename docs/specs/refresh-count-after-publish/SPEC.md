@@ -13,6 +13,8 @@ A refreshed write the wait confirmed is in the writer's tail, not in a commit. A
 
 - Root cause of the CI flake (a 503 after all `REOPENS` on round 3): the writer keeps at most 16 MiB of unpublished records a shard. Once a shard's unpublished tail outgrows that, the oldest are dropped for room, and a reader whose commit is older than a dropped record is given no grant and no records, so it refuses; reopening cannot help because no commit holds the dropped records until a publish. A refresh confirmed by the readers' acks returned without publishing, leaving the shard in that state until the next lazy publish. Reopens are instantaneous, so they never outwait it. `await_visible` now answers false while a dropped record is not in a commit, so the refresh publishes (bytes-proportional, only past the bound), and the refresh's own register write lets the tail go (`published`) so the next refresh is not made to publish again.
 
+- Second cause, found when CI failed AC-2 (about one run in seven): a search that applies the tail builds the shard's overlay itself while the overlay worker builds the same one. Each reserves the build's estimate from the `open_indexes` pool; the second is refused, the shard is marked skipped (it holds no grant), and every reopen meets the same pair. The builds of one shard now run one at a time, and the second finds the first's overlay covering the records and builds nothing, so the pool holds one estimate, not two.
+
 Not changed: the refusal itself, the wire, any default.
 
 ## Acceptance criteria
@@ -20,6 +22,8 @@ Not changed: the refusal itself, the wire, any default.
 - AC-1: three bulks of five 3 MiB documents, each followed by a refresh and a count, every count answers 200 with all documents so far.
 
 - AC-2: three bulks of five 3 MiB documents on an index whose lazy publish is not due (`refresh_interval` 1h), each followed by a refresh and a count: every count answers 200 with all documents so far.
+
+- AC-3: a search that builds an overlay for itself while the worker holds a queued build of the same shard leaves the worker nothing to build (one build, not two).
 
 ## Test plan
 
