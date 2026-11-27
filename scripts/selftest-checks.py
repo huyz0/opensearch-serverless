@@ -44,10 +44,12 @@ CLEAN = {
     "scripts/risk-paths.txt": "crates/blob/src/**  S3 request pattern\n",
     "scripts/size-baseline.txt": "",
     "crates/types/port-map.tsv": "rust_path\tkind\tjava_source\tnote\nsrc/lib.rs\tnew\t\tcrate root\n",
-    "crates/reader/port-map.tsv": "rust_path\tkind\tjava_source\tnote\nsrc/lib.rs\tport\tserverless/Reader.java@abc\tquery phase\n",
+    "crates/reader/port-map.tsv": "rust_path\tkind\tjava_source\tnote\nsrc/lib.rs\tport\tserverless/Reader.java@abc\tquery phase\nsrc/shard_files.rs\tnew\t\tfiles\n",
     "body.md": CLEAN_BODY,
     "changed.txt": "crates/reader/src/lib.rs\n",
     "added.txt": "",
+    "docs/pack-reference-sources.tsv": "# a list\ncrates/reader/src/shard_files.rs\tsource\t\n",
+    "crates/reader/src/shard_files.rs": "//! Files.\nuse oss_format::FileLocation;\n",
 }
 
 MSG = ["check-commit-msg.sh", "msg.txt"]
@@ -116,6 +118,12 @@ CASES = [
      {"crates/node/src/writer/slot.rs": "//! S.\nfn f(s: &S) -> i64 { s.max_seq_no() }\n"}),
     (["check-arith-allows.py"], "allow without proof",
      {"crates/reader/src/lib.rs": "//! S.\n#[allow(clippy::arithmetic_side_effects)]\nfn f(a: u8) -> u8 { a + 1 }\n"}),
+    (["check-pack-references.py"], "a new persister of a manifest not in the list",
+     {"crates/writer/src/clone.rs": "//! Clone.\nuse oss_format::CommitManifest;\n"}),
+    (["check-pack-references.py"], "a listed file that no longer names a manifest or location",
+     {"crates/reader/src/shard_files.rs": "//! Files.\n"}),
+    (["check-pack-references.py"], "a malformed list row",
+     {"docs/pack-reference-sources.tsv": "crates/reader/src/shard_files.rs\tmaybe\t\n"}),
     (["check-dev-notes.py"], "milestone id in a comment", {"crates/reader/src/lib.rs": "//! S.\n// added in M3\n"}),
     (["check-links.py"], "broken relative link", {"README.md": "See [gone](missing.md).\n"}),
     (["check-unsafe.py"], "crate-wide allow(unsafe_code)", {"crates/reader/src/lib.rs": "//! S.\n#![allow(unsafe_code)]\n"}),

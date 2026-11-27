@@ -8,5 +8,7 @@ Slices 1 and 2 (ledger rotation and the sidecar; the index registers), and the e
 - AC-10: `collection_is_off_by_default_and_read_with_packs_on` in crates/node/src/boot/config/pack_tests.rs; `the_settings_default_off_with_the_documented_sizes_and_bounds` in crates/node/src/writer/packs.rs. The collector's memory reservation is the collector pass (slice 3).
 - AC-4: `crates/format/tests/pack_index.rs`; in crates/writer/tests/pack_index.rs an add always moves the generation, a stale removal loses, the retry stops at 16 attempts and 24 contending adds all land; in crates/writer/tests/pack_collect.rs the node is indexed before its first pack and again at a rotation, and no pack is written when the add fails; `with_collection_on_a_first_publish_indexes_the_node_and_reserves_ahead` in crates/node/tests/roles/writer_packs.rs
 - AC-5 (part): `members_that_agree_pick_the_same_one_collector`, `an_empty_membership_has_no_collector_and_one_member_is_always_it` and the pinned choice in crates/writer/tests/pack_election.rs. Two disagreeing nodes both running safely needs the pass itself.
+- AC-7: `scripts/check-pack-references.py` over `docs/pack-reference-sources.tsv`, with three planted violations in `scripts/selftest-checks.py` (a new persister not listed, a stale entry, a malformed row) and a row in `docs/mechanical-gates.md`; it passes on the tree's 29 files.
+- Slice 3 part 2: `BlobStore::age_millis` (`crates/blob/tests/emulator/reads.rs`, `s3/reads.rs`, `fs/writes.rs`, the date reader's unit tests); the judging that uses it is the collector pass.
 
-Not yet verified (later slices): the rest of AC-5, AC-6 to AC-9.
+Not yet verified (later slices): the rest of AC-5, AC-6, AC-8, AC-9.
