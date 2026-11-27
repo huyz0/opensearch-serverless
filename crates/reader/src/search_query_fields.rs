@@ -32,6 +32,7 @@ pub(crate) fn scored_fields(query: &BooleanQuery) -> Vec<String> {
             Clause::Term(lucene_search::TermQuery { field, .. })
             | Clause::Fuzzy(lucene_search::FuzzyQuery { field, .. })
             | Clause::Phrase(lucene_search::PhraseQuery { field, .. })
+            | Clause::MultiPhrase(lucene_search::query::MultiPhraseQuery { field, .. })
                 if !out.contains(field) =>
             {
                 // ALLOC: one name a scored field, at most the query's terms.
@@ -42,6 +43,11 @@ pub(crate) fn scored_fields(query: &BooleanQuery) -> Vec<String> {
             Clause::Extended(e) => {
                 match &**e {
                     ExtendedQuery::FunctionScore(q) => walk(q.wrapped_query(), out),
+                    // Its expansion is a multi-phrase over the same field.
+                    ExtendedQuery::MultiPhrasePrefix(q) if !out.contains(&q.field) => {
+                        // ALLOC: one name a scored field, at most the query's terms.
+                        out.push(q.field.clone());
+                    }
                     // The child query's fields score the parents.
                     ExtendedQuery::ToParentBlockJoin(q) => walk(&q.child, out),
                     _ => {}
