@@ -488,3 +488,6 @@ mod residency;
 
 #[path = "extension_modules/refusals.rs"]
 mod refusals;
+
+#[path = "extension_modules/open_cost.rs"]
+mod open_cost;
