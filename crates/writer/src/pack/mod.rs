@@ -15,7 +15,7 @@ mod sidecar;
 mod store;
 mod writer;
 
-pub use commit_refs::CommitReferences;
+pub use commit_refs::{CommitReferences, IndexHolds};
 pub use election::{WINDOW_MILLIS, collector_for, window_of};
 pub use error::PackError;
 pub use index::{IndexState, PackIndexStore, Removal};

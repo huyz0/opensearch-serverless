@@ -19,10 +19,28 @@ use super::{PackError, PackId, PackReferences};
 /// The most a register is read as, as the reader's bound.
 const MAX_REGISTER_BYTES: usize = 4 << 20;
 
-/// Whether any shard's latest commit names a pack.
+/// Whether a frozen view holds an index incarnation whole: a live point in
+/// time or a snapshot of it. There is no implementation that answers "no"
+/// without looking: a record that cannot be read is an error, and the pass
+/// stops. The answer must come from records read after the pass began, so
+/// that a view made after a pack was first seen unreferenced is in it.
+pub trait IndexHolds {
+    /// Whether a point in time or a snapshot holds incarnation `uuid` of
+    /// `index`.
+    ///
+    /// # Errors
+    ///
+    /// A record that could not be read, or more records than the caps allow.
+    fn holds(&self, index: &str, uuid: &str) -> Result<bool, PackError>;
+}
+
+/// Whether any shard's latest commit, or any frozen view of one, names a
+/// pack. A view holds its incarnation's packs whole, as the janitor holds
+/// its blobs: coarser than the files it names, and never finer.
 pub struct CommitReferences {
     store: Arc<dyn BlobStore>,
     base: String,
+    holds: Arc<dyn IndexHolds>,
 }
 
 impl CommitReferences {
@@ -32,12 +50,17 @@ impl CommitReferences {
     ///
     /// [`PackError::Format`] for a base that is not empty and does not end
     /// in `/`.
-    pub fn new(store: Arc<dyn BlobStore>, base: &str) -> Result<Self, PackError> {
+    pub fn new(
+        store: Arc<dyn BlobStore>,
+        base: &str,
+        holds: Arc<dyn IndexHolds>,
+    ) -> Result<Self, PackError> {
         descriptor_key(base, "probe")?;
         Ok(Self {
             store,
             // ALLOC: the base path, once a source.
             base: base.to_owned(),
+            holds,
         })
     }
 
@@ -136,6 +159,9 @@ impl PackReferences for CommitReferences {
                 continue;
             }
             seen.push(shard);
+            if self.holds.holds(shard.0, shard.1)? {
+                return Ok(true);
+            }
             let Some(commit) = self.commit(shard.0, shard.1, shard.2)? else {
                 continue;
             };

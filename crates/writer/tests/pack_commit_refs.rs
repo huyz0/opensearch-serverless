@@ -9,7 +9,7 @@ use oss_format::{
     BucketManifest, BucketMember, FileLocation, ManifestEntry, PlannedBlock, ShardRef,
     bucket_manifest_key, descriptor_key, encode_manifest, encode_node_pack, node_pack_key,
 };
-use oss_writer::pack::{CommitReferences, PackError, PackId, PackReferences};
+use oss_writer::pack::{CommitReferences, IndexHolds, PackError, PackId, PackReferences};
 
 const NODE: &str = "node-1";
 const EPOCH: u64 = 3;
@@ -94,8 +94,28 @@ fn shard_register(e: &Emulator, commit: &[u8]) {
     register(e, &key, commit);
 }
 
+/// Holds the incarnations in its list; fails when `broken`.
+#[derive(Default)]
+struct Holds {
+    held: Vec<(&'static str, &'static str)>,
+    broken: bool,
+}
+
+impl IndexHolds for Holds {
+    fn holds(&self, index: &str, uuid: &str) -> Result<bool, PackError> {
+        if self.broken {
+            return Err(PackError::Blob(oss_blob::BlobError::Unavailable));
+        }
+        Ok(self.held.contains(&(index, uuid)))
+    }
+}
+
+fn source_with(e: &Arc<Emulator>, holds: Holds) -> CommitReferences {
+    CommitReferences::new(Arc::clone(e) as Arc<dyn BlobStore>, "", Arc::new(holds)).expect("source")
+}
+
 fn source(e: &Arc<Emulator>) -> CommitReferences {
-    CommitReferences::new(Arc::clone(e) as Arc<dyn BlobStore>, "").expect("source")
+    source_with(e, Holds::default())
 }
 
 fn asks(source: &CommitReferences) -> Result<bool, PackError> {
@@ -218,4 +238,40 @@ fn a_question_costs_two_reads_of_the_pack_and_two_of_registers() {
     assert_eq!(e.meter().count(S3Op::Get) - whole, 2);
     assert_eq!(e.meter().count(S3Op::GetRange) - ranged, 2);
     assert_eq!(e.meter().count(S3Op::List), 0);
+}
+
+/// A point in time or a snapshot of the incarnation holds its packs whole,
+/// before any commit is read.
+#[test]
+fn a_held_incarnation_names_the_pack_without_reading_a_commit() {
+    let e = emulator();
+    pack(&e);
+    let held = Holds {
+        held: vec![("logs", "u1")],
+        broken: false,
+    };
+    let (whole, ranged) = (e.meter().count(S3Op::Get), e.meter().count(S3Op::GetRange));
+    assert!(asks(&source_with(&e, held)).expect("names"));
+    assert_eq!(e.meter().count(S3Op::Get), whole, "no register read");
+    assert_eq!(e.meter().count(S3Op::GetRange) - ranged, 2);
+
+    // Another incarnation of the name is not held.
+    let other = Holds {
+        held: vec![("logs", "u2")],
+        broken: false,
+    };
+    assert!(!asks(&source_with(&e, other)).expect("names"));
+}
+
+#[test]
+fn a_view_that_cannot_be_read_is_an_error() {
+    let e = emulator();
+    pack(&e);
+    descriptor(&e, "u1", None);
+    shard_register(&e, &commit(ORDINAL));
+    let broken = Holds {
+        held: Vec::new(),
+        broken: true,
+    };
+    assert!(asks(&source_with(&e, broken)).is_err());
 }
