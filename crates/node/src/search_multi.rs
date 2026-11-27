@@ -17,6 +17,7 @@ use super::{Answer, SearchService, send, uri_query};
 pub(super) const MAX_INDEXES: usize = 64;
 
 /// The most shards, over all its indexes, one search may visit.
+#[cfg(feature = "coordinator")]
 pub(super) const MAX_SHARDS: usize = 1_024;
 
 fn too_many(what: &str, limit: usize) -> RestError {
@@ -44,24 +45,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if path.contains(['*', '?']) || path == "_all" {
             return Ok(Targets::One);
         }
-        // ALLOC: one name per entry of the path, bounded by its length.
-        let mut resolved: Vec<String> = Vec::new();
-        for name in path.split(',').filter(|n| !n.is_empty()) {
-            if resolved.len() >= MAX_INDEXES {
-                return Err(too_many("indexes", MAX_INDEXES));
-            }
-            let members = self.alias_members(name)?;
-            // ALLOC: one name per member or entry.
-            let names = members.unwrap_or_else(|| vec![name.to_owned()]);
-            for index in names {
-                if !resolved.contains(&index) {
-                    if resolved.len() >= MAX_INDEXES {
-                        return Err(too_many("indexes", MAX_INDEXES));
-                    }
-                    resolved.push(index);
-                }
-            }
-        }
+        let mut resolved = self.expand_names(path.split(','))?;
         match resolved.len() {
             0 => Ok(Targets::One),
             1 => {
@@ -71,6 +55,64 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 Ok(Targets::One)
             }
             _ => Ok(Targets::Many(resolved)),
+        }
+    }
+
+    /// The indexes `names` stand for: an alias is its members, an index is
+    /// itself, each once and in order. Empty names are skipped.
+    ///
+    /// # Errors
+    ///
+    /// A failed alias read, or more than [`MAX_INDEXES`] indexes.
+    pub(super) fn expand_names<'n>(
+        &self,
+        names: impl IntoIterator<Item = &'n str>,
+    ) -> Result<Vec<String>, RestError> {
+        // ALLOC: one name per entry or member, at most MAX_INDEXES.
+        let mut resolved: Vec<String> = Vec::new();
+        for name in names.into_iter().filter(|n| !n.is_empty()) {
+            if resolved.len() >= MAX_INDEXES {
+                return Err(too_many("indexes", MAX_INDEXES));
+            }
+            let members = self.alias_members(name)?;
+            // ALLOC: one name per member or entry.
+            let found = members.unwrap_or_else(|| vec![name.to_owned()]);
+            for index in found {
+                if !resolved.contains(&index) {
+                    if resolved.len() >= MAX_INDEXES {
+                        return Err(too_many("indexes", MAX_INDEXES));
+                    }
+                    resolved.push(index);
+                }
+            }
+        }
+        Ok(resolved)
+    }
+
+    /// The response bytes of searching `indexes` (several) for `source`.
+    pub(super) fn search_bytes_many(
+        &self,
+        indexes: &[String],
+        source: &oss_reader::dsl::SearchSource,
+        routing: Option<&str>,
+    ) -> Result<Vec<u8>, Answer> {
+        #[cfg(feature = "coordinator")]
+        {
+            let members = self.members_of(indexes, routing)?;
+            let visit = Visit {
+                shards: members.len(),
+                only: None,
+                members: Some(&members),
+            };
+            let first = indexes.first().map_or("", String::as_str);
+            self.coordinate_bytes(first, visit, source, Instant::now())
+        }
+        #[cfg(not(feature = "coordinator"))]
+        {
+            let _ = (indexes, source, routing);
+            Err(Answer::Rest(RestError::illegal_argument(
+                "a search over several indexes needs the coordinator role",
+            )))
         }
     }
 

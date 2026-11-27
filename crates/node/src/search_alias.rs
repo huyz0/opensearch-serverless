@@ -11,7 +11,7 @@ use std::sync::Arc;
 use oss_blob::BlobStore;
 use oss_mem::Pool;
 use oss_meta::{DescriptorStore, Target};
-use oss_rest::{Exception, Request, RestError};
+use oss_rest::{Exception, RestError};
 
 use super::{Answer, SearchService};
 
@@ -63,43 +63,6 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// installed already.
     pub fn set_aliases(&self, source: Arc<dyn AliasSource>) -> bool {
         self.aliases.set(source).is_ok()
-    }
-
-    /// Points the request's `index` at the concrete index when it names an
-    /// alias of one.
-    pub(super) fn resolve_alias(&self, req: &mut Request<'_>) -> Result<(), RestError> {
-        let Some(name) = req.path_param("index") else {
-            return Ok(());
-        };
-        match self.alias_target(&name)? {
-            Some(index) => {
-                req.rename_path_param("index", index);
-                Ok(())
-            }
-            None => Ok(()),
-        }
-    }
-
-    /// The one index `name` stands for when it is an alias of one; `None`
-    /// when it is an index, no alias, or no source is installed.
-    pub(super) fn alias_target(&self, name: &str) -> Result<Option<String>, RestError> {
-        let Some(mut members) = self.alias_members(name)? else {
-            return Ok(None);
-        };
-        if members.len() != 1 {
-            return Err(RestError::exception(
-                501,
-                Exception::new(
-                    "unsupported_alias_option",
-                    // ALLOC: error path; one message.
-                    format!(
-                        "a search of the alias [{name}] of {} indexes is not supported by this node yet",
-                        members.len()
-                    ),
-                ),
-            ));
-        }
-        Ok(members.pop())
     }
 
     /// The indexes `name` stands for when it is an alias; `None` when it is
