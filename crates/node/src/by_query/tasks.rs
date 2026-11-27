@@ -92,7 +92,7 @@ fn truncate(text: &str) -> String {
 impl Tasks {
     /// An empty registry for node `node`; ids count up from `now_millis`, so
     /// one never names a task of an earlier process. Each task holds
-    /// [`ENTRY_BYTES`] of `budget`'s request-body pool.
+    /// `ENTRY_BYTES` of `budget`'s request-body pool.
     pub fn new(node: &str, budget: &MemoryBudget, now_millis: u64) -> Self {
         Self {
             node: node.to_owned(), // ALLOC: one node id, once.
