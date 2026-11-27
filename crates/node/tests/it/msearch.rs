@@ -121,7 +121,6 @@ fn unsupported_headers_answer_a_refused_item() {
         r#"{"index":["compat-term"]}"#,
         r#"{"index":"comp*"}"#,
         r#"{"index":"_all"}"#,
-        r#"{"index":"compat-term,compat-bool"}"#,
         "{}",
     ] {
         let body = format!("{header}\n{ALL}\n");

@@ -119,10 +119,8 @@ fn header_index(
     let index = named
         .or_else(|| default.map(str::to_owned))
         .ok_or_else(|| not_supported("an _msearch item with no index"))?;
-    if index.is_empty() || index == "_all" || index.contains([',', '*']) {
-        return Err(not_supported(
-            "a pattern, _all or a list of indices in _msearch",
-        ));
+    if index.is_empty() || index == "_all" || index.contains('*') {
+        return Err(not_supported("a pattern or _all in _msearch"));
     }
     Ok((index, routing))
 }
@@ -232,13 +230,21 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
         }
     }
 
-    fn run(&self, index: &str, routing: Option<&str>, source: &mut SearchSource) -> Vec<u8> {
+    fn run(&self, targets: &[String], routing: Option<&str>, source: &mut SearchSource) -> Vec<u8> {
+        let [index] = targets else {
+            // No index's default pipeline runs over several indexes.
+            return Self::answered(self.service.search_bytes_many(targets, source, routing));
+        };
         // Held until the item is answered.
         let _pipeline = match self.service.run_item_pipeline(index, source) {
             Ok(held) => held,
             Err(answer) => return answer_item(answer),
         };
-        match self.service.search_bytes_routed(index, source, routing) {
+        Self::answered(self.service.search_bytes_routed(index, source, routing))
+    }
+
+    fn answered(result: Result<Vec<u8>, Answer>) -> Vec<u8> {
+        match result {
             // The response ends with `}`; the item's status goes before it.
             Ok(mut bytes) => {
                 bytes.pop();
@@ -297,14 +303,10 @@ impl<S: BlobStore + 'static> LineSink for Items<'_, '_, '_, S> {
         ) {
             (Err(item), _) => item,
             (Ok(_), Some(e)) => answer_item(bad_request(e)),
-            (Ok((index, routing)), None) => match self.service.alias_target(&index) {
+            (Ok((index, routing)), None) => match self.service.expand_names(index.split(',')) {
                 Err(e) => rest_item(&e),
-                Ok(target) => match self.item_source() {
-                    Ok(mut source) => self.run(
-                        target.as_deref().unwrap_or(&index),
-                        routing.as_deref(),
-                        &mut source,
-                    ),
+                Ok(targets) => match self.item_source() {
+                    Ok(mut source) => self.run(&targets, routing.as_deref(), &mut source),
                     Err(answer) => answer_item(answer),
                 },
             },
@@ -341,7 +343,6 @@ impl<S: BlobStore + 'static> SearchService<S> {
         resp: &mut Response<'_>,
         template: bool,
     ) -> Result<(), RestError> {
-        self.resolve_alias(req)?;
         let started = Instant::now();
         let default = req.path_param("index").map(std::borrow::Cow::into_owned);
         let mut items = Items::new(self, default, template, resp);

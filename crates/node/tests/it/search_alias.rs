@@ -94,15 +94,6 @@ fn an_alias_that_moved_or_was_removed_is_read_again() {
     assert!(body.contains("live"), "{body}");
 }
 
-// AC-4
-#[test]
-fn an_alias_of_two_indexes_is_refused() {
-    let (node, _) = node_with(&[("both", &["compat-term", "compat-other"])]);
-    let (status, body) = post(&node, "/both/_msearch", TERM);
-    assert_eq!(status, 501, "{body}");
-    assert!(body.contains("unsupported_alias_option"), "{body}");
-}
-
 // AC-5
 #[test]
 fn a_concrete_index_never_asks_the_source_and_adds_no_request() {
@@ -149,6 +140,7 @@ fn field_caps_of_an_alias_names_the_index_it_stands_for() {
         aliased.starts_with(r#"{"indices":["compat-term"]"#),
         "{aliased}"
     );
+    // An alias of several is read member by member: this one's second is no index.
     let (status, body) = get("/both/_field_caps?fields=*");
-    assert_eq!(status, 501, "{body}");
+    assert_eq!(status, 404, "{body}");
 }

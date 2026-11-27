@@ -299,3 +299,68 @@ fn a_count_over_a_list_with_a_missing_index_names_it_alone() {
         "{body}"
     );
 }
+
+fn totals(text: &str) -> Vec<u64> {
+    let key = r#""total":{"value":"#;
+    text.match_indices(key)
+        .map(|(at, _)| {
+            text[at + key.len()..]
+                .split(|c: char| !c.is_ascii_digit())
+                .next()
+                .and_then(|d| d.parse().ok())
+                .expect("a number")
+        })
+        .collect()
+}
+
+// _msearch
+#[test]
+fn an_msearch_item_over_a_list_or_an_alias_of_several_searches_them_all() {
+    let node = node_with(&[("both", &["compat-term", "compat-bool"])]);
+    let (_, a) = post(&node, "/compat-term/_search", ALL);
+    let (_, b) = post(&node, "/compat-bool/_search", ALL);
+    let sum = total(&a) + total(&b);
+    let item = |index: &str| format!("{{\"index\":\"{index}\"}}\n{ALL}\n");
+    let body = format!(
+        "{}{}{}",
+        item("compat-term,compat-bool"),
+        item("both"),
+        item("compat-term")
+    );
+    let (status, answer) = post(&node, "/_msearch", &body);
+    assert_eq!(status, 200, "{answer}");
+    assert_eq!(totals(&answer), vec![sum, sum, total(&a)], "{answer}");
+    let (status, answer) = post(
+        &node,
+        "/compat-term,compat-bool/_msearch",
+        &format!("{{}}\n{ALL}\n"),
+    );
+    assert_eq!(status, 200, "{answer}");
+    assert_eq!(totals(&answer), vec![sum], "{answer}");
+    let (status, answer) = post(&node, "/both/_msearch", &format!("{{}}\n{ALL}\n"));
+    assert_eq!(status, 200, "{answer}");
+    assert_eq!(totals(&answer), vec![sum], "{answer}");
+}
+
+// _field_caps
+#[test]
+fn field_caps_over_a_list_or_an_alias_of_several_names_the_indexes() {
+    let node = node_with(&[("both", &["compat-term", "compat-bool"])]);
+    let caps = |path: &str| {
+        let r = request(node.addr(), "GET", path, None);
+        assert_eq!(r.status, 200, "{path}: {}", r.text());
+        r.text()
+    };
+    let list = caps("/compat-term,compat-bool/_field_caps?fields=*");
+    assert_eq!(caps("/both/_field_caps?fields=*"), list);
+    assert!(
+        list.contains("compat-term") && list.contains("compat-bool")
+            || !list.contains(r#""indices""#),
+        "{list}"
+    );
+    assert_eq!(
+        caps("/both,compat-term/_field_caps?fields=*"),
+        list,
+        "an index twice is read once"
+    );
+}

@@ -13,7 +13,8 @@ The "alias of several indexes" gap of [search-on-alias](../search-on-alias/SPEC.
 - The search takes the admission permit of its first name, as a search of one index does ([search-slots](../search-slots/SPEC.md)). A search may name or resolve to at most 64 indexes and visit at most 1,024 shards; past either it is a 400 before any shard is read.
 - Nothing here lists anything: a name is a literal name. A pattern or `_all` stays as it was (a 404 for an index that does not exist). No default pipeline of a single-index list is exercised by a test here.
 - `_count` takes the same names the same way: it counts the shards of every index, `routing` narrows each, and no default pipeline runs.
-- Not here: `_msearch`, `_field_caps` and the other APIs over several indexes (an alias of several indexes is still 501 there), `collapse` (400, as over several shards), a point-in-time search (400), and `ignore_unavailable` / `allow_no_indices`.
+- An `_msearch` item whose `index` (or the URL's default) is a comma list or an alias of several searches them as `_search` does, and `_field_caps` over a list or an alias of several answers the merge of each index's fields. An alias of several is therefore served by every read API here.
+- Not here: the other APIs over several indexes (`_validate/query`, `_rank_eval`), `collapse` (400, as over several shards), a point-in-time search (400), and `ignore_unavailable` / `allow_no_indices`.
 
 ## Acceptance criteria
 
@@ -29,6 +30,8 @@ The "alias of several indexes" gap of [search-on-alias](../search-on-alias/SPEC.
 - AC-10: an alias with a member that is no index answers 404 naming that member alone.
 - AC-11: a list of one name, and a name that is an alias of one index, answer exactly as before.
 - AC-12: `/{a},{b}/_count` and `/{alias}/_count` of an alias of two indexes count the sum of the two indexes' counts, an index named twice once, and a missing index is a 404 naming it alone.
+- AC-13: an `_msearch` item naming a list, an alias of several or a URL default of either searches them all (the totals are the sums), beside an item of one index.
+- AC-14: `_field_caps` over a list, an alias of several, or both with an index twice answers the same body, each index read once; an alias with a missing member is a 404.
 
 ## S3 request budget
 
