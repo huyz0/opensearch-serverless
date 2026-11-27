@@ -62,3 +62,15 @@ fn a_body_profile_false_and_stats_change_nothing() {
         assert!(text.contains("is not supported by this node yet"), "{text}");
     }
 }
+
+#[test]
+fn an_empty_ext_changes_nothing() {
+    let (status, plain) = post(r#"{"query":{"match_all":{}}}"#);
+    assert_eq!(status, 200, "{plain}");
+    let (status, text) = post(r#"{"ext":{},"query":{"match_all":{}}}"#);
+    assert_eq!(status, 200, "{text}");
+    assert_eq!(untimed(&text), untimed(&plain));
+    let (status, text) = post(r#"{"ext":{"rerank":{"a":1}}}"#);
+    assert_eq!(status, 400, "{text}");
+    assert!(text.contains("is not supported by this node yet"), "{text}");
+}
