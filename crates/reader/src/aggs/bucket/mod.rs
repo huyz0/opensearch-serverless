@@ -92,6 +92,8 @@ mod composite_tests;
 #[cfg(test)]
 mod date_histogram_collect_tests;
 #[cfg(test)]
+mod date_histogram_format_tests;
+#[cfg(test)]
 mod date_histogram_region_tests;
 #[cfg(test)]
 mod date_histogram_tests;

@@ -292,3 +292,6 @@ src/ltr/ranklib.rs	new		model/ranklib of the plugin (MART, LambdaMART, Random Fo
 src/ltr/tests.rs	new		unit tests of the evaluators
 src/dsl/queries/script_query.rs	port	server/src/main/java/org/opensearch/index/query/ScriptQueryBuilder.java@3.10.0	fromXContent for Painless source only, and the engine filter built from it
 src/dsl/queries/script_switch_tests.rs	new		tests of the Painless switch on script_score and the script query; Java has no such switch
+src/date_pattern.rs	port	server/src/main/java/org/opensearch/common/time/DateFormatter.java@3.10.0	the printing of the names and java.time letters a date_histogram format may carry, held against fixtures/date-format/java-3.10.0.txt
+src/aggs/bucket/date_histogram_format_tests.rs	new		tests of the date_histogram format option
+src/date_pattern_tests.rs	new		tests of the date printer against the recorded Java prints

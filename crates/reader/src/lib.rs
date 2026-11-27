@@ -11,6 +11,7 @@ pub mod aggs;
 pub mod commit_push;
 pub mod date;
 pub mod date_math;
+pub mod date_pattern;
 pub mod date_zone;
 pub mod dsl;
 mod empty_commit;
