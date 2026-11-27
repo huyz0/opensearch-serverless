@@ -315,6 +315,12 @@ fn only_an_administrator_may_register_or_delete_a_repository() {
     ] {
         let reply = send(&r, USER, m, t, Some(body));
         assert_eq!(reply.0, 403, "{m} {t}: {reply:?}");
+        // The table's `all_access` row refuses it, not the management
+        // handler's own check, which answers a different body.
+        assert!(
+            reply.1.contains("no permissions for ["),
+            "{m} {t}: refused by the route's row: {reply:?}"
+        );
     }
     let listed = send(&r, ADMIN, "GET", "/_snapshot/r1", None);
     assert_eq!(
