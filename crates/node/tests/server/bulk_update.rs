@@ -68,6 +68,26 @@ impl Routes for Local {
     }
 }
 
+/// One stored script, `bump`, and one that is not Painless, `expr`.
+struct Stored;
+
+impl oss_types::stored_scripts::StoredScripts for Stored {
+    fn resolve(
+        &self,
+        id: &str,
+    ) -> Result<oss_types::stored_scripts::Stored, oss_types::stored_scripts::ResolveError> {
+        let (lang, source) = match id {
+            "bump" => ("painless", "ctx._source.n += params.by"),
+            "expr" => ("expression", "1"),
+            _ => return Err(oss_types::stored_scripts::ResolveError::Missing),
+        };
+        Ok(oss_types::stored_scripts::Stored {
+            lang: lang.to_owned(),
+            source: source.to_owned(),
+        })
+    }
+}
+
 struct Rig {
     server: Server,
 }
@@ -96,15 +116,18 @@ fn rig() -> Rig {
     .expect("opens");
     let service = Arc::new(DocService::new(Arc::clone(&role), [0; 6]));
     let router = routes(Router::new(), service).expect("routes");
-    let bulk = Arc::new(BulkService::new(
-        role,
-        BulkBudget::new(1 << 20, 2),
-        StreamConfig {
-            slice_bytes: 1 << 20,
-            max_wait: Duration::from_secs(5),
-        },
-        [0; 6],
-    ));
+    let bulk = Arc::new(
+        BulkService::new(
+            role,
+            BulkBudget::new(1 << 20, 2),
+            StreamConfig {
+                slice_bytes: 1 << 20,
+                max_wait: Duration::from_secs(5),
+            },
+            [0; 6],
+        )
+        .with_scripts(Arc::new(Stored)),
+    );
     let router = bulk_routes(router, bulk).expect("bulk routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let server = Server::start(
@@ -197,6 +220,7 @@ fn bulk_updates_merge_skip_upsert_and_refuse() {
 
 #[test]
 fn a_bulk_update_script_edits_deletes_or_is_refused_without_the_switch() {
+    let _switch = support::PAINLESS.lock().unwrap_or_else(|e| e.into_inner());
     let r = rig();
     put(&r, "1", r#"{"n":1}"#);
     put(&r, "2", r#"{"n":1}"#);
@@ -242,4 +266,38 @@ fn two_updates_of_one_document_in_one_bulk_conflict() {
     );
     assert!(t.contains(r#""result":"updated""#), "{t}");
     assert!(t.contains("an earlier item of this bulk"), "{t}");
+}
+
+// docs/specs/stored-script-ids AC-4, over a bulk item.
+#[test]
+fn a_bulk_update_runs_a_stored_script_by_id_and_refuses_what_an_id_may_not_be() {
+    let _switch = support::PAINLESS.lock().unwrap_or_else(|e| e.into_inner());
+    let r = rig();
+    put(&r, "1", r#"{"n":1}"#);
+    oss_reader::painless_switch::set_native_compile(true);
+    let ran = bulk(
+        &r,
+        &[
+            r#"{"update":{"_id":"1"}}"#,
+            r#"{"script":{"id":"bump","params":{"by":4}}}"#,
+        ],
+    );
+    assert!(ran.contains(r#""result":"updated""#), "{ran}");
+    let check = bulk(&r, &[r#"{"update":{"_id":"1"}}"#, r#"{"doc":{"n":5}}"#]);
+    assert!(check.contains(r#""result":"noop""#), "n is 5: {check}");
+    for (script, word) in [
+        (
+            r#"{"script":{"id":"missing"}}"#,
+            "unable to find script [missing]",
+        ),
+        (r#"{"script":{"id":"expr"}}"#, "lang [expression]"),
+        (
+            r#"{"script":{"id":"bump","source":"1"}}"#,
+            "takes no [source] or [lang]",
+        ),
+    ] {
+        let refused = bulk(&r, &[r#"{"update":{"_id":"1"}}"#, script]);
+        assert!(refused.contains(word), "{refused}");
+    }
+    oss_reader::painless_switch::set_native_compile(false);
 }
