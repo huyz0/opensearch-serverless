@@ -141,7 +141,14 @@ pub(super) fn write_matched(
         write_json_str(out, name)?;
         if scores {
             out.write_all(b":")?;
-            write_java_float(out, *score)?;
+            // A float that is not finite is a string in JSON, as OpenSearch's writer has it.
+            if score.is_finite() {
+                write_java_float(out, *score)?;
+            } else {
+                out.write_all(b"\"")?;
+                write_java_float(out, *score)?;
+                out.write_all(b"\"")?;
+            }
         }
     }
     out.write_all(if scores { b"}" } else { b"]" })

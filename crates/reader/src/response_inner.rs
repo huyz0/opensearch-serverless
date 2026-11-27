@@ -20,7 +20,7 @@ pub(super) fn write_inner_hits(
     out: &mut dyn Write,
     parent: &ParentInner,
     (index, id, source): (&str, &[u8], &[u8]),
-    scratch: &mut usize,
+    (scratch, scores): (&mut usize, bool),
     reserve: &mut dyn FnMut(usize) -> io::Result<()>,
 ) -> io::Result<()> {
     out.write_all(b",\"inner_hits\":{")?;
@@ -62,6 +62,9 @@ pub(super) fn write_inner_hits(
                 }
             }
             super::write_sort(out, &hit.sort)?;
+            if let Some(names) = r.matched.get(i).filter(|m| !m.is_empty()) {
+                super::values::write_matched(out, names, scores)?;
+            }
             out.write_all(b"}")?;
         }
         out.write_all(b"]}}")?;

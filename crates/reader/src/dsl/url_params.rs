@@ -39,6 +39,8 @@ pub struct UrlParams<'a> {
     pub rest_total_hits_as_int: Option<&'a str>,
     /// `typed_keys`.
     pub typed_keys: Option<&'a str>,
+    /// `include_named_queries_score`: only the URL sets it; the body key is read and has no effect.
+    pub include_named_queries_score: Option<&'a str>,
 }
 
 impl SearchSource {
@@ -82,6 +84,13 @@ impl SearchSource {
         }
         self.apply_total_as_int(params.rest_total_hits_as_int)?;
         self.apply_typed_keys(params.typed_keys)?;
+        // A bare parameter (no value) is `true`, as the REST layer reads it.
+        flag(
+            params
+                .include_named_queries_score
+                .map(|v| if v.is_empty() { "true" } else { v }),
+            &mut self.named_scores,
+        )?;
         flag(params.explain, &mut self.explain)?;
         flag(params.version, &mut self.version)?;
         flag(params.seq_no_primary_term, &mut self.seq_no_primary_term)?;

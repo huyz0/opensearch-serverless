@@ -3,13 +3,12 @@
 use crate::support::{request, start};
 
 fn post(body: &str) -> (u16, String) {
+    post_to("/compat-paging-sort/_search", body)
+}
+
+fn post_to(path: &str, body: &str) -> (u16, String) {
     let node = start();
-    let r = request(
-        node.addr(),
-        "POST",
-        "/compat-paging-sort/_search",
-        Some(body.as_bytes()),
-    );
+    let r = request(node.addr(), "POST", path, Some(body.as_bytes()));
     (r.status, r.text())
 }
 
@@ -73,22 +72,31 @@ fn a_hit_lists_the_named_queries_that_match_it() {
 
 #[test]
 fn include_named_queries_score_writes_an_object_of_scores() {
-    let body = BODY.replacen(
+    // Only the URL parameter asks for them; the body key is read and has no effect.
+    for path in [
+        "/compat-paging-sort/_search?include_named_queries_score=true",
+        "/compat-paging-sort/_search?include_named_queries_score",
+    ] {
+        let (status, text) = post_to(path, BODY);
+        assert_eq!(status, 200, "{text}");
+        for (id, names) in matched(&text) {
+            let object = names
+                .as_object()
+                .unwrap_or_else(|| panic!("{id}: {names} is not an object"));
+            assert!(
+                object["all"].as_f64().expect("score") > 0.0,
+                "{id}: {names}"
+            );
+        }
+    }
+    let in_body = BODY.replacen(
         "\"size\"",
         "\"include_named_queries_score\":true,\"size\"",
         1,
     );
-    let (status, text) = post(&body);
+    let (status, text) = post(&in_body);
     assert_eq!(status, 200, "{text}");
-    for (id, names) in matched(&text) {
-        let object = names
-            .as_object()
-            .unwrap_or_else(|| panic!("{id}: {names} is not an object"));
-        assert!(
-            object["all"].as_f64().expect("score") > 0.0,
-            "{id}: {names}"
-        );
-    }
+    assert!(matched(&text).iter().all(|(_, n)| n.is_array()), "{text}");
 }
 
 #[test]

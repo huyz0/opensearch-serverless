@@ -420,7 +420,8 @@ pub fn search_with<S: BlobStore + 'static>(
         inner: Vec::new(),
         terminated_early: top.terminated,
     };
-    hits.inner = crate::search_inner_hits::fill(&inner_plans, shard, &segments, &hits.hits)?;
+    hits.inner =
+        crate::search_inner_hits::fill(&inner_plans, shard, &segments, &hits.hits, &cx, index)?;
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() {
         hits.fields = crate::fetch::script_fields::all(source, &meta.mapping)?;
