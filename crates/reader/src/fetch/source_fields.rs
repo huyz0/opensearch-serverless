@@ -42,6 +42,8 @@ pub enum SourceType {
     Float,
     /// `half_float`: a float that is finite as a half.
     HalfFloat,
+    /// `scaled_float` with this scaling factor (its bits): the value rounded at the factor.
+    Scaled(u64),
     /// `date` in the default format.
     Date,
 }
@@ -174,6 +176,7 @@ fn source_type(
         FieldType::Double if format.is_some() => return Err(no_format("double")),
         FieldType::Float if format.is_some() => return Err(no_format("float")),
         FieldType::HalfFloat if format.is_some() => return Err(no_format("half_float")),
+        FieldType::Scaled(_) if format.is_some() => return Err(no_format("scaled_float")),
         FieldType::Date if format.is_some() => return Err(unsupported("a [fields] format")),
         FieldType::Text => SourceType::Text,
         FieldType::Keyword => SourceType::Keyword(field.fetch.ignore_above),
@@ -182,6 +185,7 @@ fn source_type(
         FieldType::Double => SourceType::Double,
         FieldType::Float => SourceType::Float,
         FieldType::HalfFloat => SourceType::HalfFloat,
+        FieldType::Scaled(bits) => SourceType::Scaled(*bits),
         FieldType::Date => SourceType::Date,
     };
     if let Some(option) = field.fetch.unserved {
@@ -374,7 +378,7 @@ fn parse(ty: &SourceType, v: &Value<'_>) -> io::Result<Option<Out>> {
             }
             Some(Out::Number(to_whole(v)?))
         }
-        SourceType::Double | SourceType::Float | SourceType::HalfFloat
+        SourceType::Double | SourceType::Float | SourceType::HalfFloat | SourceType::Scaled(_)
             if matches!(v, Value::Str("")) =>
         {
             return Ok(None);
@@ -382,6 +386,12 @@ fn parse(ty: &SourceType, v: &Value<'_>) -> io::Result<Option<Out>> {
         SourceType::Double => Some(Out::Double(finite(to_double(v)?, "double")?)),
         SourceType::Float => Some(Out::Float(to_float(v)?)),
         SourceType::HalfFloat => Some(Out::Float(to_half(v)?)),
+        SourceType::Scaled(bits) => {
+            let factor = f64::from_bits(*bits);
+            let d = finite(to_double(v)?, "scaled_float")?;
+            // `Math.round(value * factor) / factor`.
+            Some(Out::Double((d * factor + 0.5).floor() / factor))
+        }
         SourceType::Date => {
             let millis = parse_to_millis(&to_text(v)?, false)
                 .map_err(|_| io::Error::other("a [fields] value that is not a date"))?;

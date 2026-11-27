@@ -324,3 +324,5 @@ src/aggs/metric/registered.rs	port	server/src/main/java/org/opensearch/search/Se
 src/search_query_fields.rs	new		what a query reads: point clauses and scored fields
 src/aggs/metric/collect_half_tests.rs	new		tests of the aggregations over a half_float field
 src/search_half_tests.rs	new		tests of queries, sorts and search_after over a half_float field
+src/aggs/metric/collect_scaled_tests.rs	new		tests of the aggregations over a scaled_float field
+src/search_scaled_tests.rs	new		tests of queries, sorts and search_after over a scaled_float field

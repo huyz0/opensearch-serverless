@@ -267,6 +267,10 @@ pub(crate) fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<
             let v = decimal::parse_float(value)?;
             point(decimal::float_points(field, v, v))?
         }
+        FieldType::Scaled(bits) => {
+            let v = decimal::scaled_long(value, f64::from_bits(*bits))?;
+            point(PointRangeQuery::long_range(field, &[v], &[v]))?
+        }
         FieldType::HalfFloat => {
             let v = decimal::parse_half(value)?;
             let s = lucene_util::half_float::half_float_to_sortable_short(v);

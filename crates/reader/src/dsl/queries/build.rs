@@ -178,6 +178,7 @@ pub(super) fn type_name(ty: &FieldType) -> &str {
         FieldType::Float => "float",
         FieldType::Double => "double",
         FieldType::HalfFloat => "half_float",
+        FieldType::Scaled(_) => "scaled_float",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -327,25 +328,11 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
             // ALLOC: one box a bool of a date field's terms.
             Ok(constant(Clause::Boolean(Box::new(q))))
         }
-        FieldType::Double => set(decimal::double_set(
-            field,
-            &parsed(values, decimal::parse_double)?,
-        )),
-        FieldType::Float => set(decimal::float_set(
-            field,
-            &parsed(values, decimal::parse_float)?,
-        )),
-        FieldType::HalfFloat => set(decimal::half_set(
-            field,
-            &parsed(values, decimal::parse_half)?,
-        )),
+        FieldType::Double | FieldType::Float | FieldType::HalfFloat | FieldType::Scaled(_) => {
+            set(decimal::decimal_set(ty, field, values)?)
+        }
         FieldType::Unsupported(_) => Err(unsupported("this field type")),
     }
-}
-
-/// Each of `values` read as `parse` reads one.
-fn parsed<T>(values: &[Value], parse: fn(&Value) -> Result<T, Failure>) -> Result<Vec<T>, Failure> {
-    values.iter().map(parse).collect() // ALLOC: one entry a value, bounded by the body.
 }
 
 /// `StringFieldType.fuzzyQuery` and `FuzzyQuery`'s constructor checks.

@@ -136,7 +136,11 @@ pub fn build(
             // ALLOC: one name a random score.
             Ok(hashed(RandomField::Numeric(name.to_owned(), Numeric::Long)))
         }
-        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Unsupported(_) => {
+        FieldType::Float
+        | FieldType::Double
+        | FieldType::HalfFloat
+        | FieldType::Scaled(_)
+        | FieldType::Unsupported(_) => {
             // ALLOC: error path; one message.
             Err(unsupported(&format!(
                 "random_score on the field [{name}], which is not a keyword, number or date,"
