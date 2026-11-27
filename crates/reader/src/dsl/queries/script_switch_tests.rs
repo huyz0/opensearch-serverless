@@ -105,11 +105,7 @@ fn painless_is_served_only_while_the_switch_is_on() {
             .expect_err("refused")
             .contains("must be provided with a [script]")
     );
-    assert!(
-        query(r#"{"script":"true","_name":"a"}"#)
-            .expect_err("refused")
-            .contains("[_name]")
-    );
+    assert!(query(r#"{"script":"true","_name":"a"}"#).is_ok());
     assert!(
         query(r#"{"script":"true","x":1}"#)
             .expect_err("refused")
