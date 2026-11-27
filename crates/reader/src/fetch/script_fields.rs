@@ -41,7 +41,10 @@ pub fn parse(p: &mut Parser<'_>) -> Result<Vec<(String, ScriptScore)>, DslError>
             let key = p.text().to_owned();
             match (key.as_str(), p.next_token()) {
                 ("script", Some(Kind::StartObject)) => {
-                    script = Some(function_score_script::object(p)?);
+                    script = Some(function_score_script::object_with(
+                        p,
+                        crate::painless_switch::native_compile(),
+                    )?);
                 }
                 ("script", Some(Kind::String)) => {
                     return Err(DslError::illegal(

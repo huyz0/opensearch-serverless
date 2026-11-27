@@ -1,4 +1,4 @@
-# `function_score` script_score in Painless
+# `script_score`, `script_fields` and `_script` sort in Painless
 
 ## Serves
 
@@ -10,7 +10,8 @@
 - The source goes to the engine as written (`SOURCE_SCRIPT` blob). The engine compiles it, checks it runs exactly as Painless does, and refuses it with the reason when it does not: 400 `script_exception`, "compile error ..." for what Painless rejects, "does not serve" or "does not run ... as Painless does" otherwise.
 - `doc['f']` fields read by a constant name are mapped from the index mapping: `long`/`integer`/`short`/`byte` as longs, `date`, `keyword` with doc values; a text field, an unsupported type or a field without doc values is a refusal, an unmapped one is the script's own `No field found` failure.
 - Params are numbers (int, long, double), strings and booleans, as `params.name`.
-- `script_fields`, `_script` sort, script queries, aggregations, update and ingest scripts are unchanged: they still refuse `lang: painless` (later hooks).
+- `script_fields` and a `_script` sort of `type: number` take the same scripts, under the same switch: the script's number is the field's value or the sort key. A `script_fields` script that reads `_score` is refused as an expression is.
+- Script queries, aggregations, update and ingest scripts are unchanged: they still refuse `lang: painless` (later hooks).
 - The engine's bounds (source 65,535 bytes, loop counter, call depth, memory per invocation) apply as ADR 0069 states.
 
 ## Acceptance criteria
@@ -19,6 +20,8 @@
 - AC-2: a Painless script scores hit for hit like the same arithmetic in an expression.
 - AC-3: a script may declare variables and read `_score`.
 - AC-4: Painless-rejected source, an unmapped or text field, and a stored script are 400 with a stated reason.
+- AC-6: a Painless `script_fields` script writes its number for each hit.
+- AC-7: a Painless `_script` sort orders hits by its number.
 - AC-5: a Painless script costs the same object-store requests as the same search with an expression.
 
 ## Tests
