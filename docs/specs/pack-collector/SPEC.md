@@ -13,7 +13,7 @@ Everything is behind a new node setting `serverless.segments.node_pack.collect` 
 3. **The collector pass.** One collector per 10-minute window chosen by `hash(window) mod n` over the sorted live membership (no lease, CAS decides); a pack is judged only past 15 minutes of age (`HEAD` `LastModified` against `Date`) and only after `PackReferences` (an allow-list over files that persist a manifest, a bucket manifest or a file location) names nothing; the swap deadline is on the boot-time clock.
 4. **Java leftovers (ADR decision 1, option b).** The resumable seeding LIST under `packs/index/seeded`, Java members added to the index once per join, and one recorded LIST per retired Java node into `packs/index/retired/<node>`.
 
-Not built: a capped recheck, a repack, any collector on the request path, collection while a reference source cannot be read.
+Not built: a recheck at a fixed interval (a referenced pack is rechecked on a doubling backoff instead, ADR 0025 decision 2), a repack, any collector on the request path, collection while a reference source cannot be read.
 
 ## Acceptance criteria
 
@@ -26,6 +26,7 @@ Not built: a capped recheck, a repack, any collector on the request path, collec
 - AC-7 (slice 3): the persister allow-list check fails on a planted new persister (selftest) and has a row in `docs/mechanical-gates.md`.
 - AC-8 (slice 3): a pass with nothing due makes no request beyond one sidecar GET per node with a live epoch; N idle passes make no PUT and no LIST beyond the window's inventory LIST.
 - AC-9 (slice 4): a second collector and a restart after seeding issue zero seeding LISTs; two simultaneous first collectors seed at most one extra page; a crash mid-seed resumes from the cursor; a Java node that joins after seeding, leaves and is retired; a dead node with a live pack causes no second LIST across N passes; a retirement over the 10,000-key cap records `over-cap` and no second LIST follows; N passes with unchanged Java membership make zero register PUTs.
+- AC-11 (slice 3): a pack found referenced is rechecked at 15 minutes and then at doubling intervals, with no request between rechecks; a pack whose last referencing manifest has since dropped it is deleted after two unreferenced sightings at its next recheck; a restart starts every live pack's backoff again.
 - AC-10: the setting is in the node registry with default and bound, `OSS_NODE_PACK_COLLECT` is read like the other pack variables, and a collector's tracked bytes are reserved from the node's memory pool and stop at the cap with a log line.
 
 ## Test plan
