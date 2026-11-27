@@ -21,7 +21,12 @@ use crate::search::ShardError;
 pub fn is_fixed(agg: &MetricAgg) -> bool {
     matches!(
         agg.metric,
-        Metric::Range | Metric::Filters | Metric::Filter | Metric::Nested | Metric::ReverseNested
+        Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Missing
+            | Metric::Nested
+            | Metric::ReverseNested
     )
 }
 
