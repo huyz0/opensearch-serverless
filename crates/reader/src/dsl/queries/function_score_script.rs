@@ -130,12 +130,6 @@ pub fn parse(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
     script.ok_or_else(|| DslError::illegal("[script_score] requires a [script]"))
 }
 
-/// A script object `{"source","lang","params"}`, on its start, in the
-/// expression language alone.
-pub fn object(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
-    object_with(p, false)
-}
-
 /// A script object, on its start; `painless` says whether `lang: painless`
 /// (the default when `lang` is absent) is served.
 pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, DslError> {

@@ -118,3 +118,58 @@ fn a_painless_script_adds_no_store_request() {
         .collect();
     assert_eq!(painless, expression);
 }
+
+fn search_with(node: &Node, extra: &str) -> (u16, String) {
+    let body =
+        format!(r#"{{"size":10,"query":{{"match_all":{{}}}},"sort":[{{"year":"asc"}}],{extra}}}"#);
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_search",
+        Some(body.as_bytes()),
+    );
+    (r.status, r.text())
+}
+
+// AC-6
+#[test]
+fn a_painless_script_field_is_written_for_each_hit() {
+    on();
+    let node = start();
+    let fields = r#""script_fields":{"doubled":{"script":{"source":"doc['year'].value * params.k","params":{"k":2}}}}"#;
+    let (status, body) = search_with(&node, fields);
+    assert_eq!(status, 200, "{body}");
+    for want in ["3998.0", "4002.0", "4004.0", "4020.0"] {
+        assert!(
+            body.contains(&format!(r#""fields":{{"doubled":[{want}]}}"#)),
+            "{want}: {body}"
+        );
+    }
+    let reads_score = r#""script_fields":{"a":{"script":{"source":"_score"}}}"#;
+    let (status, body) = search_with(&node, reads_score);
+    assert_eq!(status, 400, "{body}");
+}
+
+// AC-7
+#[test]
+fn a_painless_script_sorts_hits() {
+    on();
+    let node = start();
+    let body = r#"{"size":10,"query":{"match_all":{}},"sort":[{"_script":{"type":"number","order":"desc","script":{"source":"doc['year'].value * params.k","params":{"k":2}}}}]}"#;
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_search",
+        Some(body.as_bytes()),
+    );
+    let text = r.text();
+    assert_eq!(r.status, 200, "{text}");
+    // Years 2010, 2002, 2002, 2001, 1999, doubled and written as doubles.
+    let want = ["4020.0", "4004.0", "4004.0", "4002.0", "3998.0"];
+    let mut rest = text.as_str();
+    for w in want {
+        let i = rest.find(r#""sort":["#).expect("sort") + 8;
+        assert!(rest[i..].starts_with(w), "{w}: {text}");
+        rest = &rest[i..];
+    }
+}
