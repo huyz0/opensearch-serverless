@@ -37,9 +37,8 @@ fn cold_requests(body: &str) -> u64 {
 
 #[test]
 fn inner_hits_and_a_nested_sort_add_no_request_to_a_cold_search() {
-    let plain = cold_requests(
-        r#"{"size":20,"query":{"nested":{"path":"c","query":{"match_all":{}}}}}"#,
-    );
+    let plain =
+        cold_requests(r#"{"size":20,"query":{"nested":{"path":"c","query":{"match_all":{}}}}}"#);
     let inner = cold_requests(
         r#"{"size":20,"query":{"nested":{"path":"c","query":{"match_all":{}},"inner_hits":{"size":5}}}}"#,
     );
