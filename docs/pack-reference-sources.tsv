@@ -1,0 +1,35 @@
+# Every source file that names a CommitManifest, a BucketManifest or a FileLocation, and so may
+# persist, copy or read a reference to a node pack. `PackReferences` (the collector's
+# reference check) answers over each `source`; scripts/check-pack-references.py fails a new
+# file until it is listed here, and a listed file that no longer names one of them.
+# Columns: path, role (`source`: persists, copies or reads a manifest or location of a shard;
+# `format`: defines or parses the types and touches no store), note.
+crates/format/src/bucket_manifest/compact.rs	format	
+crates/format/src/bucket_manifest/compact_write.rs	format	
+crates/format/src/bucket_manifest/doc.rs	format	
+crates/format/src/bucket_manifest/mod.rs	format	
+crates/format/src/keys.rs	format	
+crates/format/src/lib.rs	format	
+crates/format/src/location.rs	format	
+crates/format/src/manifest.rs	format	
+crates/format/src/snapshot_restore.rs	format	
+crates/janitor/src/gc/mod.rs	source	
+crates/janitor/src/gc/point_in_time.rs	source	
+crates/meta/src/pit/capture.rs	source	
+crates/meta/src/snapshot_capture.rs	source	
+crates/meta/src/snapshot_restore.rs	source	
+crates/meta/src/stock_export.rs	source	
+crates/meta/src/stock_restore.rs	source	
+crates/reader/src/commit_push/mod.rs	source	
+crates/reader/src/frozen.rs	source	
+crates/reader/src/shard_files.rs	source	
+crates/writer/src/bucket/assign.rs	source	
+crates/writer/src/bucket/commits.rs	source	
+crates/writer/src/bucket/store.rs	source	
+crates/writer/src/pack/store.rs	source	
+crates/writer/src/publish/adopt.rs	source	
+crates/writer/src/publish/register.rs	source	
+crates/writer/src/publish/upload.rs	source	
+crates/writer/src/takeover/checkpoint.rs	source	
+crates/writer/src/takeover/logged.rs	source	
+crates/writer/src/takeover/restore.rs	source	

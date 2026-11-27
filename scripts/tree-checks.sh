@@ -25,6 +25,7 @@ check-budgets.py
 check-extension-pins.py
 check-analyzer-sites.py
 check-arith-allows.py
+check-pack-references.py
 check-dev-notes.py
 check-port-map.py
 check-invariants.py
