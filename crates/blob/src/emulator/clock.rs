@@ -39,7 +39,7 @@ impl Emulator {
         })
     }
 
-    /// [`BlobStore::head`], with the object's version and its writer token
+    /// The store's HEAD, with the object's version and its writer token
     /// if it has one.
     pub(crate) fn head_with_writer(&self, key: &str) -> BlobResult<Option<Headed>> {
         check_key(key)?;
