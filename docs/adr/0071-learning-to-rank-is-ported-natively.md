@@ -1,6 +1,6 @@
 # 0071: Learning to rank is ported natively to the reader; it is no longer proxied
 
-**Status:** Proposed
+**Status:** Accepted (independent review, two rounds, 2026-11-27)
 
 ## Context
 
