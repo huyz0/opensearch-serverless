@@ -74,6 +74,37 @@ impl<S: BlobStore + 'static> SearchService<S> {
         }
     }
 
+    /// The (index, shard) pairs a search over `indexes` visits, `routing`
+    /// narrowing each index.
+    #[cfg(feature = "coordinator")]
+    pub(super) fn members_of(
+        &self,
+        indexes: &[String],
+        routing: Option<&str>,
+    ) -> Result<Vec<(String, u32)>, Answer> {
+        // ALLOC: one entry per shard of every index searched, at most MAX_SHARDS.
+        let mut members: Vec<(String, u32)> = Vec::new();
+        for index in indexes {
+            let (count, only) = self.shard_plan(index, routing)?;
+            if members
+                .len()
+                .saturating_add(only.as_ref().map_or(count, Vec::len))
+                > MAX_SHARDS
+            {
+                return Err(Answer::Rest(too_many("shards", MAX_SHARDS)));
+            }
+            match only {
+                // ALLOC: one name per shard.
+                Some(only) => members.extend(only.into_iter().map(|n| (index.clone(), n))),
+                None => members.extend((0..count).filter_map(|n| {
+                    // ALLOC: one name per shard.
+                    u32::try_from(n).ok().map(|n| (index.clone(), n))
+                })),
+            }
+        }
+        Ok(members)
+    }
+
     /// Answers a `_search` over `indexes` as one response.
     pub(super) fn handle_many(
         &self,
@@ -106,30 +137,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
         #[cfg(feature = "coordinator")]
         {
             let routing = req.param("routing");
-            // ALLOC: one entry per shard of every index searched.
-            let mut members: Vec<(String, u32)> = Vec::new();
-            for index in indexes {
-                let (count, only) = match self.shard_plan(index, routing.as_deref()) {
-                    Ok(plan) => plan,
-                    Err(Answer::Rest(e)) => return Err(e),
-                    Err(Answer::Search(e)) => return send(resp, &e),
-                };
-                if members
-                    .len()
-                    .saturating_add(only.as_ref().map_or(count, Vec::len))
-                    > MAX_SHARDS
-                {
-                    return Err(too_many("shards", MAX_SHARDS));
-                }
-                match only {
-                    // ALLOC: one name per shard.
-                    Some(only) => members.extend(only.into_iter().map(|n| (index.clone(), n))),
-                    None => members.extend((0..count).filter_map(|n| {
-                        // ALLOC: one name per shard.
-                        u32::try_from(n).ok().map(|n| (index.clone(), n))
-                    })),
-                }
-            }
+            let members = match self.members_of(indexes, routing.as_deref()) {
+                Ok(members) => members,
+                Err(Answer::Rest(e)) => return Err(e),
+                Err(Answer::Search(e)) => return send(resp, &e),
+            };
             let visit = Visit {
                 shards: members.len(),
                 only: None,

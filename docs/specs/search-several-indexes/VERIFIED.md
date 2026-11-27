@@ -13,3 +13,4 @@
 - AC-11: `one_name_answers_as_before` in crates/node/tests/it/search_several.rs
 
 Not tested: the 1,024-shard bound (it needs an index set of that many shards), and a single-index list's default pipeline.
+- AC-12: `a_count_over_a_list_or_an_alias_of_several_counts_them_all` and `a_count_over_a_list_with_a_missing_index_names_it_alone` in crates/node/tests/it/search_several.rs (seen red before a count took the names, green after)

@@ -268,3 +268,34 @@ fn a_list_search_takes_a_permit_like_any_search() {
     assert_eq!(gate.report().admitted, 1);
     assert_eq!(gate.report().in_use, 0, "the permit goes back");
 }
+
+// _count
+#[test]
+fn a_count_over_a_list_or_an_alias_of_several_counts_them_all() {
+    let node = node_with(&[("both", &["compat-term", "compat-bool"])]);
+    let count = |path: &str| {
+        let (status, body) = post(&node, path, r#"{"query":{"match_all":{}}}"#);
+        assert_eq!(status, 200, "{path}: {body}");
+        number(&body, r#""count":"#)
+    };
+    let a = count("/compat-term/_count");
+    let b = count("/compat-bool/_count");
+    assert_eq!(count("/compat-term,compat-bool/_count"), a + b);
+    assert_eq!(count("/both/_count"), a + b);
+    assert_eq!(
+        count("/both,compat-term/_count"),
+        a + b,
+        "an index twice is counted once"
+    );
+}
+
+#[test]
+fn a_count_over_a_list_with_a_missing_index_names_it_alone() {
+    let node = start();
+    let (status, body) = post(&node, "/compat-term,no-such-index/_count", "{}");
+    assert_eq!(status, 404, "{body}");
+    assert!(
+        body.contains("no-such-index") && !body.contains("compat-term"),
+        "{body}"
+    );
+}

@@ -19,6 +19,7 @@ use oss_reader::search::{hits_bytes, search_with};
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
 use std::sync::Arc;
 
+use super::multi::Targets;
 use super::{Answer, SearchService, read_source, send, uri_query};
 
 /// The URL parameters `_count` takes.
@@ -77,13 +78,40 @@ fn min_score_param(req: &Request<'_>) -> Result<Option<f32>, RestError> {
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
+    /// Counts `source` over the shards of `indexes`.
+    #[cfg(feature = "coordinator")]
+    fn count_many(
+        &self,
+        req: &Request<'_>,
+        resp: &mut Response<'_>,
+        indexes: &[String],
+        source: &SearchSource,
+        started: Instant,
+    ) -> Result<(), RestError> {
+        let routing = req.param("routing");
+        let members = match self.members_of(indexes, routing.as_deref()) {
+            Ok(members) => members,
+            Err(Answer::Rest(e)) => return Err(e),
+            Err(Answer::Search(e)) => return send(resp, &e),
+        };
+        let visit = super::coordinate::Visit {
+            shards: members.len(),
+            only: None,
+            members: Some(&members),
+        };
+        let first = indexes.first().map_or("", String::as_str);
+        self.handle_sharded_with(resp, first, visit, source, started, &|bytes| {
+            count_of_search(&bytes)
+        })
+    }
+
     /// Handles one `_count`.
     pub fn handle_count(
         &self,
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
-        self.resolve_alias(req)?;
+        let targets = self.resolve_targets(req)?;
         #[cfg(feature = "coordinator")]
         let started = Instant::now();
         let mut source = match read_source(req) {
@@ -108,15 +136,31 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if source != query_only {
             return Err(RestError::illegal_argument(NOT_SUPPORTED));
         }
-        // Held until the count is answered; a request processor may narrow it.
-        let _pipeline = match self.run_item_pipeline(&index, &mut source) {
-            Ok(held) => held,
-            Err(Answer::Rest(e)) => return Err(e),
-            Err(Answer::Search(e)) => return send(resp, &e),
+        // Held until the count is answered; a request processor may narrow
+        // it. No index's default pipeline runs over several indexes.
+        let _pipeline = if matches!(targets, Targets::One) {
+            match self.run_item_pipeline(&index, &mut source) {
+                Ok(held) => held,
+                Err(Answer::Rest(e)) => return Err(e),
+                Err(Answer::Search(e)) => return send(resp, &e),
+            }
+        } else {
+            None
         };
         source.min_score = min_score_param(req)?;
         source.size = 0;
         source.track_total_hits = Some(u64::from(i32::MAX.cast_unsigned()));
+        if let Targets::Many(indexes) = &targets {
+            #[cfg(feature = "coordinator")]
+            return self.count_many(req, resp, indexes, &source, started);
+            #[cfg(not(feature = "coordinator"))]
+            {
+                let _ = (resp, indexes);
+                return Err(RestError::illegal_argument(
+                    "a count over several indexes needs the coordinator role",
+                ));
+            }
+        }
         #[cfg(feature = "coordinator")]
         match self.shard_plan(&index, req.param("routing").as_deref()) {
             Ok((shards, only)) if shards > 1 || only.is_some() => {
