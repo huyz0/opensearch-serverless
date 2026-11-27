@@ -39,6 +39,7 @@ mod search_range_zone;
 mod search_routing;
 mod search_several;
 mod search_several_budget;
+mod search_stored_fields;
 mod search_template;
 mod search_template_stored;
 mod search_url_params;

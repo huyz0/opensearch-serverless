@@ -78,6 +78,8 @@ pub struct Fetch {
     pub ignore_above: Option<i64>,
     /// An option the `fields` API does not serve (`null_value`, `ignore_malformed`).
     pub unserved: Option<&'static str>,
+    /// `store: true`: the field's value is also kept as a stored field.
+    pub stored: bool,
 }
 
 /// The space a `knn_vector` field scores in.
@@ -119,6 +121,8 @@ pub struct Mapping {
     nested: BTreeSet<String>,
     /// The fields some `copy_to` names, whose source paths include the copying fields'.
     copy_targets: BTreeSet<String>,
+    /// The full paths of the object fields (those with sub-fields and no type), nested ones included.
+    objects: BTreeSet<String>,
 }
 
 /// Why a mapping could not be read.
@@ -221,6 +225,11 @@ impl Mapping {
     /// The field named `name`.
     pub fn get(&self, name: &str) -> Option<&Field> {
         self.fields.get(name)
+    }
+
+    /// Whether `path` is an object field, `nested` or not.
+    pub fn is_object(&self, path: &str) -> bool {
+        self.objects.contains(path)
     }
 
     /// Whether a `copy_to` names the field `name`.
@@ -365,6 +374,7 @@ impl Mapping {
                 }
                 "ignore_above" => fetch.ignore_above = text.parse().ok(),
                 "null_value" => fetch.unserved = Some("null_value"),
+                "store" if text == "true" => fetch.stored = true,
                 "ignore_malformed" if text == "true" => fetch.unserved = Some("ignore_malformed"),
                 "coerce" if text == "false" => fetch.unserved = Some("coerce"),
                 "index_prefixes" => {
@@ -393,10 +403,16 @@ impl Mapping {
             }
             // ALLOC: one path a nested object, at most MAX_FIELDS.
             self.nested.insert(name.to_owned());
+            // ALLOC: one path a nested object, at most MAX_FIELDS.
+            self.objects.insert(name.to_owned());
             return Ok(());
         }
         let Some(ty) = ty else {
             // An object field: its sub-fields are already in.
+            if self.objects.len() < MAX_FIELDS {
+                // ALLOC: one path an object, at most MAX_FIELDS.
+                self.objects.insert(name.to_owned());
+            }
             return Ok(());
         };
         // A pin the index holds, named by the analyzer and by no other
