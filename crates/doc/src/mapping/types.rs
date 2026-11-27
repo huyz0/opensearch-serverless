@@ -38,6 +38,8 @@ impl FieldType {
             "long" => FieldType::Number(NumType::Long),
             "float" => FieldType::Number(NumType::Float),
             "double" => FieldType::Number(NumType::Double),
+            "half_float" => FieldType::Number(NumType::HalfFloat),
+            "scaled_float" => FieldType::Number(NumType::ScaledFloat),
             "date" => FieldType::Date,
             "boolean" => FieldType::Boolean,
             "knn_vector" => FieldType::Knn,
@@ -62,6 +64,7 @@ impl FieldType {
         match self {
             FieldType::Text => TEXT,
             FieldType::Keyword => KEYWORD,
+            FieldType::Number(NumType::ScaledFloat) => SCALED,
             FieldType::Number(_) => NUMBER,
             FieldType::Date => DATE,
             FieldType::Boolean => BOOLEAN,
@@ -75,8 +78,6 @@ pub(crate) const OTHER_TYPES: &[&str] = &[
     "nested",
     "alias",
     "binary",
-    "half_float",
-    "scaled_float",
     "unsigned_long",
     "date_nanos",
     "ip",
@@ -245,6 +246,19 @@ const NUMBER: &[Def] = &[
     p("coerce", Kind::Explicit, Upd, D::Bool(true)),
     p("null_value", Kind::NullNumber, Fixed, D::Null),
     p("meta", Kind::Meta, Upd, D::Empty),
+];
+
+/// `ScaledFloatFieldMapper.Builder.getParameters`, in its order.
+const SCALED: &[Def] = &[
+    p("index", Kind::Bool, Fixed, D::Bool(true)),
+    p("doc_values", Kind::Bool, Fixed, D::Bool(true)),
+    p("store", Kind::Bool, Fixed, D::Bool(false)),
+    p("ignore_malformed", Kind::Explicit, Upd, D::Bool(false)),
+    p("meta", Kind::Meta, Upd, D::Empty),
+    p("scaling_factor", Kind::ScalingFactor, Fixed, D::Null),
+    p("coerce", Kind::Explicit, Upd, D::Bool(true)),
+    p("null_value", Kind::NullNumber, Fixed, D::Null),
+    only("skip_list", Kind::Bool, Fixed, D::Bool(false)),
 ];
 
 /// `DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER`'s pattern.

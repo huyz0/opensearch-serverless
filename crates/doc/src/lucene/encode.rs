@@ -135,6 +135,12 @@ pub fn int_point(v: i32) -> Vec<u8> {
     (v ^ i32::MIN).to_be_bytes().to_vec()
 }
 
+/// `NumericUtils.shortToSortableBytes`: a `HalfFloatPoint`'s bytes.
+pub fn short_point(v: i16) -> Vec<u8> {
+    // ALLOC: one point, 2 bytes.
+    (v ^ i16::MIN).to_be_bytes().to_vec()
+}
+
 /// `NumericUtils.longToSortableBytes`: a `LongPoint` or `DoublePoint`'s bytes.
 pub fn long_point(v: i64) -> Vec<u8> {
     // ALLOC: one point, 8 bytes.

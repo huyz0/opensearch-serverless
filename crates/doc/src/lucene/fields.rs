@@ -34,6 +34,10 @@ pub enum Shape {
     Long,
     /// A float, sortable as an int.
     Float,
+    /// A half-precision float, sortable as a short, in a 2-byte point.
+    HalfFloat,
+    /// A `scaled_float`: the scaled long, in an 8-byte point.
+    Scaled,
     /// A double, sortable as a long.
     Double,
     /// Milliseconds as a long.
@@ -183,6 +187,8 @@ impl Spec {
                     NumType::Long => Shape::Long,
                     NumType::Float => Shape::Float,
                     NumType::Double => Shape::Double,
+                    NumType::HalfFloat => Shape::HalfFloat,
+                    NumType::ScaledFloat => Shape::Scaled,
                 };
                 (shape, IndexOptions::None, index, false)
             }
@@ -246,6 +252,7 @@ impl Spec {
         }
         if self.points {
             let bytes = match self.shape {
+                Shape::HalfFloat => 2,
                 Shape::Int | Shape::Float => 4,
                 _ => 8,
             };

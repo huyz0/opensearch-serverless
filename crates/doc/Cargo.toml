@@ -16,6 +16,7 @@ lucene-analysis = { workspace = true }
 lucene-codecs = { workspace = true }
 lucene-engine = { workspace = true }
 lucene-index = { workspace = true }
+lucene-util = { workspace = true }
 
 [lints]
 workspace = true
