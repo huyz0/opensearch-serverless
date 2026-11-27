@@ -287,3 +287,4 @@ src/search_shard_action/tests/pipelines.rs	new		tests that a forwarded search wi
 src/stored_script_source.rs	new		the node's snapshot of the stored-script set, checked once a TTL, behind the reader's resolver
 src/stored_script_source/tests.rs	new		the cache's cost and freshness over a metered emulator
 src/extension_refusals.rs	new		the node-local count of refused opens of pinned indices, served by the metrics route; the Java shell has none
+src/painless_setting.rs	new		the switch that compiles Painless in Rust; Java compiles it in the script service and has no such setting
