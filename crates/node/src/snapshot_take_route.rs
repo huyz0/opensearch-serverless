@@ -283,6 +283,23 @@ impl SnapshotTakeService {
         match self.taker.remove(&repo, &name, &mut value) {
             Ok(true) => resp.send(200, JSON, DELETED.as_bytes()),
             Ok(false) => {
+                // A stock repository holds its snapshots in its own format,
+                // which this node does not delete from, whatever the name.
+                if let Some(record) = self
+                    .reader
+                    .repository(&repo, &mut value)
+                    .map_err(|e| read_failed(&e))?
+                    && record.is_stock()
+                {
+                    return Err(refuse(
+                        501,
+                        "unsupported_operation",
+                        // ALLOC: error path; one message.
+                        format!(
+                            "[{repo}] is a stock repository, whose snapshots this node does not delete"
+                        ),
+                    ));
+                }
                 // A snapshot only a legacy record holds is not ours to delete.
                 let legacy = self
                     .reader
