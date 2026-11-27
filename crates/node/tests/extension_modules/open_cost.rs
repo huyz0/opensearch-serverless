@@ -15,7 +15,6 @@ fn a_second_shard_of_a_pinned_index_opens_without_reading_the_module_again() {
             .map(|op| r.store.meter().count(*op))
             .sum::<u64>()
     };
-    let before = requests(&r);
     let reads = |r: &Rig| r.store.meter().count(S3Op::Get) + r.store.meter().count(S3Op::Head);
     let reads_before = reads(&r);
     let first = r.source.open(&pins, "t").expect("the first shard opens");
