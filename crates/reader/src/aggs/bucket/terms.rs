@@ -156,10 +156,13 @@ pub(super) fn shard_error<K>(spec: &TermsSpec, buckets: &[(K, u64)], reported: i
 
 /// The `doc_count_error_upper_bound` of each of `kept`'s buckets after a
 /// reduce (`InternalTerms.reduce` and `reduceBucket`): a part takes its own
-/// shard error off the error stored in each bucket it holds, and the sum of
-/// every part's error is added back, so a bucket's error is the sum of the
-/// errors of the parts without it. `parts` is each part's keys, stored
-/// errors (empty for 0) and shard error. Empty unless `show`.
+/// shard error off the error stored in each bucket it holds, the bucket adds
+/// those up in the order of the parts, and the sum of every part's error is
+/// added back. `reduceBucket` stops adding once its running sum is -1, the
+/// value it also uses for an unbounded error, so a sum that passes through
+/// -1 stays there (a key held by shards of errors 1 and 2 ends at 2, not 0).
+/// `parts` is each part's keys, stored errors (empty for 0) and shard error.
+/// Empty unless `show`.
 pub(super) fn bucket_errors<K: Ord + Copy>(
     show: bool,
     sum_error: i64,
@@ -176,17 +179,14 @@ pub(super) fn bucket_errors<K: Ord + Copy>(
         for (key, at) in keys.iter().zip(0..) {
             let held = stored.get(at).copied().unwrap_or(0);
             let slot = by_key.entry(*key).or_insert(0);
-            *slot = if *slot == -1 || held == -1 {
-                -1
-            } else {
-                slot.saturating_add(held).saturating_sub((*error).max(0))
-            };
+            if *slot != -1 {
+                *slot = slot.saturating_add(held.saturating_sub((*error).max(0)));
+            }
         }
     }
     kept.iter()
         .map(|key| match by_key.get(key) {
             _ if sum_error == -1 => -1,
-            Some(-1) => -1,
             Some(held) => held.saturating_add(sum_error),
             None => sum_error,
         })
