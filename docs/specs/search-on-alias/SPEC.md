@@ -18,12 +18,12 @@ The "alias in a search path" gap of [compatibility](../../compatibility.md): the
 - AC-2: `_count` and an `_msearch` item naming the alias count and search the same way.
 - AC-3: after the alias is removed from the index, the next request answers 404 `index_not_found_exception`; after it is added to another index, the next request searches that one.
 - AC-4: an alias of two indexes answers 501 `unsupported_alias_option`.
-- AC-5: a warm search of a concrete index makes no object-store request more than before; a search of an alias costs the alias register's one GET on top of the index's.
+- AC-5: a warm search of a concrete index makes no object-store request more than before; a search of an alias costs one GET for the failed open of its own name and the alias register's one GET, on top of the index's.
 - AC-6: a name that is neither an index nor an alias is 404 as today, with no alias read when no source is installed.
 
 ## S3 request budget
 
-An alias search adds one register GET to the search it resolves to; no LIST, nothing scaling with members or time. A concrete index adds none.
+An alias search adds two GETs to the search it resolves to (the failed open of the alias's own name, and the alias register); no LIST, nothing scaling with members or time. A concrete index adds none.
 
 ## Switch
 

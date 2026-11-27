@@ -247,3 +247,4 @@ src/usage_metrics.rs	new		the Prometheus text route over the usage ledger, the m
 src/snapshot_global_capture.rs	new		reads the global state a take records (ADR 0068); the Java shell makes the matching change on its own branch
 src/snapshot_restore_global.rs	new		the global-state step of a restore (ADR 0068); the Java shell makes the matching change on its own branch
 src/stored_template_source.rs	new		reads the mustache script a template request names out of the stored-script set; stock resolves it through ScriptService over the cluster state, the Java shell over its StoredScriptStore
+src/search_alias.rs	new		the alias source of a search and its registry-backed reader; stock resolves an alias to its indexes in the index-name expression resolver
