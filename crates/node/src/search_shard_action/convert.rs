@@ -252,6 +252,9 @@ pub fn search_source(source: &Source) -> Result<SearchSource, ConvertError> {
             text.extend_from_slice(&name);
             text.extend_from_slice(format!(":{{\"{}\":{{\"field\":", a.kind.name()).as_bytes());
             text.extend_from_slice(&field);
+            if let Some(t) = a.precision_threshold {
+                text.extend_from_slice(format!(",\"precision_threshold\":{t}").as_bytes());
+            }
             text.extend_from_slice(b"}}");
         }
         text.push(b'}');

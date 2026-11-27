@@ -252,13 +252,13 @@ fn answers(
     let mut out = Vec::with_capacity(parts.len());
     for p in parts {
         let date = p.format == Format::Date;
-        let value = match p.value {
-            Part::Min(v) => AggValue::Min(v),
-            Part::Max(v) => AggValue::Max(v),
-            Part::Sum(v) => AggValue::Sum(v),
+        let value = match &p.value {
+            Part::Min(v) => AggValue::Min(*v),
+            Part::Max(v) => AggValue::Max(*v),
+            Part::Sum(v) => AggValue::Sum(*v),
             Part::Avg { sum, count } => AggValue::Avg {
-                sum,
-                count: i64::try_from(count).unwrap_or(i64::MAX),
+                sum: *sum,
+                count: i64::try_from(*count).unwrap_or(i64::MAX),
             },
             Part::Stats {
                 count,
@@ -266,12 +266,17 @@ fn answers(
                 min,
                 max,
             } => AggValue::Stats {
-                count: i64::try_from(count).unwrap_or(i64::MAX),
-                min,
-                max,
-                sum,
+                count: i64::try_from(*count).unwrap_or(i64::MAX),
+                min: *min,
+                max: *max,
+                sum: *sum,
             },
-            Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(n).unwrap_or(i64::MAX)),
+            Part::Cardinality(sketch) => AggValue::Cardinality(
+                sketch
+                    .as_ref()
+                    .map(oss_reader::aggs::metric::hll::Hll::to_bytes),
+            ),
+            Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(*n).unwrap_or(i64::MAX)),
             _ => {
                 return Err(refuse(
                     "a forwarded aggregation of this kind is not supported by this node",

@@ -285,11 +285,13 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             name: "m".to_owned(),
             kind: AggKind::Max,
             field: "n".to_owned(),
+            precision_threshold: None,
         },
         AggRequest {
             name: "c".to_owned(),
             kind: AggKind::ValueCount,
             field: "tag".to_owned(),
+            precision_threshold: None,
         },
     ];
     let mut message = Vec::new();
@@ -326,7 +328,13 @@ fn a_date_aggregation_carries_the_date_format_and_another_kind_is_refused() {
     fake.aggs = vec![Partial {
         name: "t".to_owned(),
         format: Format::Raw,
-        value: Part::Cardinality(None),
+        value: Part::Percentiles {
+            ranks: false,
+            keys: vec![50.0],
+            keyed: true,
+            compression: 100.0,
+            digest: None,
+        },
     }];
     let h = handler(fake, &fresh(), 10_000);
     let e = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap_err();
@@ -357,6 +365,28 @@ fn a_stats_aggregation_is_answered_with_its_count_min_max_and_sum() {
     for v in [1.0f64, 4.0, 6.0] {
         expected.extend_from_slice(&v.to_bits().to_be_bytes());
     }
+    assert!(
+        answer.windows(expected.len()).any(|w| w == &expected[..]),
+        "{answer:?}"
+    );
+}
+
+#[test]
+fn a_cardinality_aggregation_is_answered_with_its_sketch() {
+    use oss_reader::aggs::metric::hll::Hll;
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    let sketch = Hll::read(&[4, 0, 0]).expect("an empty sketch");
+    let mut fake = Fake::held();
+    fake.aggs = vec![Partial {
+        name: "u".to_owned(),
+        format: Format::Raw,
+        value: Part::Cardinality(Some(sketch)),
+    }];
+    let h = handler(fake, &fresh(), 10_000);
+    let answer = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap();
+    let mut expected = vec![1, 11];
+    expected.extend_from_slice(b"cardinality");
+    expected.extend_from_slice(&[1, b'u', 0xFF, 3, b'r', b'a', b'w', 1, 4, 0, 0]);
     assert!(
         answer.windows(expected.len()).any(|w| w == &expected[..]),
         "{answer:?}"
