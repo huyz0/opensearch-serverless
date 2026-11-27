@@ -208,11 +208,11 @@ mod tests {
             (r#"{"script":{"id":3}}"#, 400),
         ] {
             let error = read(body.as_bytes(), scripts).err().expect(body);
-            assert_eq!(error.status(), status, "{body}");
+            assert_eq!(error.status, status, "{body}");
         }
         let none = read(br#"{"script":{"id":"p"}}"#, None)
             .err()
             .expect("no resolver");
-        assert_eq!(none.status(), 400);
+        assert_eq!(none.status, 400);
     }
 }
