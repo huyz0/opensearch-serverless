@@ -1,5 +1,6 @@
 //! Whether the node compiles Painless source itself.
 
+use oss_mem::MemoryBudget;
 use oss_types::settings::{BoolSetting, Scope, Setting};
 
 /// `serverless.scripting.painless.native_compile`
@@ -16,3 +17,20 @@ pub const NATIVE_COMPILE: BoolSetting = BoolSetting::new(
 
 /// Every setting this module defines, for the node's registry.
 pub static SETTINGS: &[&Setting] = &[NATIVE_COMPILE.setting()];
+
+/// With the Painless switch on, reserves the compile cache's bytes from the
+/// query-execution pool and turns the cache on; a pool that cannot hold them
+/// leaves it off (docs/specs/painless-compile-cache). Returns the budget.
+pub(crate) fn installing_compile_cache(budget: &MemoryBudget) -> MemoryBudget {
+    oss_reader::painless_cache::remove();
+    if !oss_reader::painless_switch::native_compile() {
+        return budget.clone();
+    }
+    if let Ok(reservation) = budget.try_reserve(
+        oss_mem::Pool::QueryExecution,
+        oss_reader::painless_cache::CACHE_BYTES,
+    ) {
+        oss_reader::painless_cache::install(Box::new(reservation));
+    }
+    budget.clone()
+}
