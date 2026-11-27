@@ -24,9 +24,12 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// with. A shard is listed while it is open, held by a search or not.
     #[must_use]
     pub fn held_shards(&self) -> Vec<HeldShard> {
-        let open = self.lock();
+        // The lock every search takes is held only to copy the open shards'
+        // handles; the names are built after it is released.
+        // ALLOC: one handle per open shard, which the open_indexes pool bounds.
+        let open: Vec<_> = self.lock().values().map(Arc::clone).collect();
         // ALLOC: one entry per open shard, which the open_indexes pool bounds.
-        open.values()
+        open.iter()
             .filter(|held| crate::warm_setting::index_wants_warm(&held.shard.meta.settings))
             .map(|held| HeldShard {
                 shard: ShardRef {
