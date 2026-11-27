@@ -195,6 +195,7 @@ fn range_bounds_and_their_errors() {
         include_lower: il,
         include_upper: iu,
         boost,
+        date: DateSpec::default(),
     };
     assert_eq!(
         query(r#"{"query":{"range":{"year":{"gte":1,"lte":2}}}}"#).ok(),
@@ -359,4 +360,38 @@ fn malformed_query_objects() {
         inner.reason,
         "[_na] query malformed, must start with start_object"
     );
+}
+
+#[test]
+fn a_range_reads_its_format_and_zone_and_refuses_what_it_cannot() {
+    use crate::date::DateFormat;
+    let date = |inner: &str| match query(&format!(
+        r#"{{"query":{{"range":{{"d":{{"gte":"2001",{inner}}}}}}}}}"#
+    ))
+    .expect("parses")
+    {
+        Query::Range { date, .. } => date,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(date(r#""time_zone":"+01:30""#).zone, 5_400);
+    assert!(date(r#""time_zone":"UTC""#).named);
+    assert_eq!(date(r#""format":"epoch_millis""#).format, DateFormat::Epoch);
+    assert_eq!(
+        date(r#""format":"strict_date_optional_time""#).format,
+        DateFormat::Iso
+    );
+    assert_eq!(date(r#""boost":2"#), DateSpec::default());
+    for bad in [
+        r#""time_zone":"Asia/Kolkata""#,
+        r#""time_zone":5"#,
+        r#""format":"yyyy-MM-dd""#,
+        r#""format":true"#,
+    ] {
+        let q = format!(r#"{{"query":{{"range":{{"d":{{"gte":"2001",{bad}}}}}}}}}"#);
+        let reason = query(&q).expect_err("refused").into_failure().reason;
+        assert!(
+            reason.ends_with("is not supported by this node yet"),
+            "{bad}: {reason}"
+        );
+    }
 }

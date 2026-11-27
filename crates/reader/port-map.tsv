@@ -254,3 +254,4 @@ src/aggs/bucket/missing.rs	port	server/src/main/java/org/opensearch/search/aggre
 src/aggs/bucket/missing_collect_tests.rs	new		tests of missing on a real index
 src/aggs/bucket/missing_tests.rs	new		tests of missing parsing
 src/hits_total.rs	port	server/src/main/java/org/opensearch/search/SearchHits.java@3.10.0	rest_total_hits_as_int: the total of a hits object as a number, for the response's, each top_hits and each inner_hits
+src/lucene_range.rs	port	server/src/main/java/org/opensearch/index/query/RangeQueryBuilder.java@3.10.0	a range on a numeric or date field, its bounds read in the format and zone the query names
