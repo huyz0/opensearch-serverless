@@ -150,3 +150,53 @@ fn a_stock_export_to_rustfs_writes_what_the_emulator_target_holds() {
     assert!(keys.iter().any(|k| k == "out/index.latest"), "{keys:?}");
     assert_eq!(keys.len(), dst.object_count(), "{keys:?}");
 }
+
+/// Registers an `s3` stock repository and takes into it; the answer's status.
+fn take_into(r: &Rig, name: &str, bucket: &str, base_path: &str) -> u16 {
+    let body = format!(
+        r#"{{"type":"s3","settings":{{"format":"stock","bucket":"{bucket}","base_path":"{base_path}"}}}}"#
+    );
+    assert_eq!(
+        send(r, "PUT", &format!("/_snapshot/{name}"), Some(&body)).status,
+        200
+    );
+    send(r, "PUT", &format!("/_snapshot/{name}/s1{WAIT}"), Some(TAKE)).status
+}
+
+#[test]
+fn an_s3_target_outside_the_allow_list_is_refused() {
+    let (dst, server) = target();
+    let r = rig(&server);
+    let before = all(&dst);
+    // Not under a listed root: another bucket, and a sibling prefix.
+    assert_eq!(take_into(&r, "other", "elsewhere", "out"), 400);
+    assert_eq!(take_into(&r, "sibling", "exportdst", "outside"), 400);
+    // Climbing out of the listed prefix.
+    assert_eq!(take_into(&r, "climb", "exportdst", "out/../x"), 400);
+    assert_eq!(all(&dst), before, "a refusal reaches no store");
+}
+
+#[test]
+fn an_s3_target_overlapping_the_nodes_own_prefix_is_refused() {
+    let settings = StockExportSettings {
+        enabled: true,
+        roots: SourceRoots::parse("", "own"),
+        s3: Some((
+            oss_node::stock_s3::SourceS3 {
+                endpoint: "http://127.0.0.1:1".to_owned(),
+                region: "us-east-1".to_owned(),
+                credentials: oss_blob::Credentials::new("a", "b"),
+                own_bucket: "own".to_owned(),
+            },
+            "data".to_owned(),
+        )),
+        chunk_bytes: 1 << 20,
+    };
+    let root = std::env::temp_dir().join(format!("oss-export-overlap-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let r = rig_with(settings, root, REPO);
+    // Inside, above and equal to the node's own prefix; each is listed, none may be taken into.
+    assert_eq!(take_into(&r, "inside", "own", "data/snaps"), 400);
+    assert_eq!(take_into(&r, "above", "own", ""), 400);
+    assert_eq!(take_into(&r, "equal", "own", "data"), 400);
+}
