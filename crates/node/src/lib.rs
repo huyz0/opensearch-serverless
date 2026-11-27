@@ -108,6 +108,8 @@ pub mod open_indexes;
 pub mod overlay_builder;
 #[cfg(feature = "reader")]
 mod overlay_parts;
+#[cfg(feature = "writer")]
+pub mod pack_holds;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod page_cache_disk;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
