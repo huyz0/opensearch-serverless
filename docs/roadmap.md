@@ -51,7 +51,7 @@ R7 is complete: every item of the plan's R7 table is on main. Carried beyond it:
 - Fixtures: the bucket aggregations' expected bodies are read from the Java and not yet recorded against a stock node (see compatibility.md).
 - The suite's RustFS run ([node-cluster-suite](specs/node-cluster-suite/SPEC.md) AC-5) has not been made with a binary.
 
-## Parity plan R3 to R15: status (2026-11-26)
+## Parity plan R3 to R15: status (2026-11-27)
 
 Counted by task from the plan "Rust serverless OpenSearch: plan to Java parity" (76 tasks), against `docs/specs/*/VERIFIED.md` and [compatibility](compatibility.md). **Done**: merged, with its acceptance evidence. **Built**: merged, but a named piece or proof is missing, or it is unwired or off by default pending evidence. **Left**: not built. Emulator and RustFS numbers are provisional.
 
@@ -62,17 +62,17 @@ Counted by task from the plan "Rust serverless OpenSearch: plan to Java parity" 
 | R5 node write log, fencing | 5 | 5 | 0 | 0 | |
 | R6 indexing, mappings, publish | 6 | 6 | 0 | 0 | |
 | R7 coordinator, usable cluster | 7 | 7 | 0 | 0 | |
-| R8 takeover, janitor, reconcile | 7 | 6 | 1 | 0 | R8.6: frozen-node suite done (a TCP freezer in the suite rig; real SIGSTOP not run), RustFS run only for takeover scale and the cluster suite |
+| R8 takeover, janitor, reconcile | 7 | 7 | 0 | 0 | R8.6 done: the frozen-node suite freezes a real node process with SIGSTOP and asserts the held head ([frozen-node-suite](specs/frozen-node-suite/SPEC.md)); a RustFS leg of that suite is NOT-RUN (RustFS ran only for takeover scale and the cluster suite) |
 | R9 freshness | 4 | 4 | 0 | 0 | |
-| R10 search breadth, prefetch | 8 | 6 | 2 | 0 | R10.1: the `nested` query is served, and a node with `serverless.nested.enabled` maps and writes nested objects (ADR 0067); R10.2: the `nested`, `reverse_nested` and `missing` aggregations are served |
+| R10 search breadth, prefetch | 8 | 6 | 2 | 0 | R10.1: the `nested` query is served, and a node with `serverless.nested.enabled` maps and writes nested objects (ADR 0067); R10.2: avg, min, max and value_count under `nested`, the pool refusing a nested search and a 10,000-document read-side soak are tested (provisional); not run: stock-OpenSearch answers, the write side of the soak, `terms` ordered by a nested sub-aggregation; the `nested`, `reverse_nested` and `missing` aggregations are served |
 | R11 packs, log commits, buckets, schemas | 5 | 1 | 2 | 2 | R11.4 done: mappings are shared in memory by content and schema blobs are deliberately not stored ([ADR 0054](adr/0054-parsed-mappings-are-shared-by-content.md)); R11.1 packs are wired into the node behind `serverless.segments.node_pack.enabled`, off, with no collector ([node-pack-wiring](specs/node-pack-wiring/SPEC.md)); R11.3 buckets are off by default; R11.2 log commits built and off by default (staging, logged commits, opening from them: [ADR 0064](adr/0064-commits-are-staged-and-checkpointed.md)); R11.5 cost soak measured, no default flipped ([commit-cost-soak](specs/commit-cost-soak/SPEC.md)); 1,000 shards publishing into packs make 1.02 requests a publish against the blob mode's 2.0, no LIST ([pack-cost-soak](specs/pack-cost-soak/SPEC.md)), a dead node's 844 packed shards are taken in 1.001 times the blob time with 1% fewer requests ([pack-takeover-scale](specs/pack-takeover-scale/SPEC.md)), first search of a packed node at 1,000 shards not run |
-| R12 warm scale-out, roles, zones | 5 | 3 | 2 | 0 | R12.1 and R12.2: warm copy is off by default, its headline checks are NOT-RUN |
+| R12 warm scale-out, roles, zones | 5 | 3 | 2 | 0 | R12.1 and R12.2: warm copy is off by default, AC-3 to AC-9 checks that run on the emulator now pass; NOT-RUN: a peer holding 1,000 shards, a Java joiner, RustFS, and the decision on the default |
 | R13 big writes, admission, guardrails | 5 | 5 | 0 | 0 | |
 | R14 snapshots and the rest of the API | 8 | 7 | 0 | 1 | R14.6 runs no script; R14.8 stock restore and export done; restore in the background (off by default) done (the export's 403 on registering as a non-admin and a RustFS leg are NOT-RUN) |
 | R15 k-NN, security, extensions, soak | 5 | 2 | 3 | 0 | R15.3 only the analyzer point; R15.4 proxy untried against live Java plugins; R15.5 no week-long soak; Prometheus metrics served at `/_prometheus/metrics` for S3 requests, memory pools and the search gate and queue ([prometheus-metrics](specs/prometheus-metrics/SPEC.md)) |
-| **Total** | **76** | **63** | **10** | **3** | |
+| **Total** | **76** | **64** | **9** | **3** | |
 
-63 of 76 tasks are done (83%); 73 of 76 are done or built (96%).
+64 of 76 tasks are done (84.2%); 73 of 76 are done or built (96.1%). The 9 built tasks wait on soaks, live Java plugins, stock-OpenSearch comparisons, a 1,000-shard peer, and default flips, not on code.
 
 ## Alongside
 
