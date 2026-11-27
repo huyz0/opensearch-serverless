@@ -9,8 +9,10 @@
 
 use super::Refusal;
 use super::aggs_histogram::{self, DateHistogramAnswer, DateHistogramRequest};
+use super::aggs_multi::{self, MultiAnswer, MultiRequest};
 use super::aggs_percentiles::{self, PercentilesRequest};
 use super::aggs_range::{self, RangeAnswer, RangesRequest};
+use super::aggs_rare::{self, RareAnswer, RareRequest};
 use super::aggs_terms::{self, TermsAnswer, TermsRequest};
 use crate::error::WireError;
 use crate::stream::{Input, Output};
@@ -39,6 +41,10 @@ pub struct AggRequest {
     pub histogram: Option<DateHistogramRequest>,
     /// A `range`'s or `date_range`'s ranges.
     pub ranges: Option<RangesRequest>,
+    /// A `rare_terms`' options.
+    pub rare: Option<RareRequest>,
+    /// A `multi_terms`' terms and options.
+    pub multi: Option<MultiRequest>,
     /// The sub-aggregations of a bucket aggregation, in request order.
     pub subs: Vec<AggRequest>,
 }
@@ -70,6 +76,10 @@ pub enum AggValue {
     DateHistogram(DateHistogramAnswer),
     /// `InternalRange` or `InternalDateRange`.
     Range(RangeAnswer),
+    /// `StringRareTerms` or `LongRareTerms`.
+    Rare(RareAnswer),
+    /// `InternalMultiTerms`.
+    Multi(MultiAnswer),
     /// `InternalTDigestPercentiles` or `InternalTDigestPercentileRanks`.
     Percentiles {
         /// Ranks rather than percentiles.
@@ -210,9 +220,26 @@ fn read_one(
         return Err(Refusal::Unsupported("sub-aggregations"));
     }
     null_generic(input, "aggregation metadata")?;
+    if kind == AggKind::MultiTerms {
+        let multi = aggs_multi::read(input)?;
+        return Ok(AggRequest {
+            name,
+            kind,
+            // ALLOC: one field name, bounded by the request's.
+            field: multi.fields.first().cloned().unwrap_or_default(),
+            precision_threshold: None,
+            percentiles: None,
+            terms: None,
+            histogram: None,
+            ranges: None,
+            rare: None,
+            multi: Some(multi),
+            subs,
+        });
+    }
     if matches!(
         kind,
-        AggKind::ValueCount | AggKind::Cardinality | AggKind::Terms
+        AggKind::ValueCount | AggKind::Cardinality | AggKind::Terms | AggKind::RareTerms
     ) {
         // `serializeTargetValueType`: a null writeable.
         none(input, "a value type target")?;
@@ -255,6 +282,11 @@ fn read_one(
     } else {
         None
     };
+    let rare = if kind == AggKind::RareTerms {
+        Some(aggs_rare::read(input)?)
+    } else {
+        None
+    };
     Ok(AggRequest {
         name,
         kind,
@@ -264,6 +296,8 @@ fn read_one(
         terms,
         histogram,
         ranges,
+        rare,
+        multi: None,
         subs,
     })
 }
@@ -280,9 +314,13 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         out.string(&agg.name)?;
         write(&agg.subs, out)?; // sub-aggregations and their pipelines
         out.byte(0xFF)?; // metadata: null
+        if let Some(m) = &agg.multi {
+            aggs_multi::write(m, out)?;
+            continue;
+        }
         if matches!(
             agg.kind,
-            AggKind::ValueCount | AggKind::Cardinality | AggKind::Terms
+            AggKind::ValueCount | AggKind::Cardinality | AggKind::Terms | AggKind::RareTerms
         ) {
             out.bool(false)?; // target value type
         }
@@ -308,6 +346,9 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         if let Some(r) = &agg.ranges {
             aggs_range::write(r, out)?;
         }
+        if let Some(r) = &agg.rare {
+            aggs_rare::write(r, out)?;
+        }
         if let Some(p) = &agg.percentiles {
             out.count(p.keys.len())?;
             for k in &p.keys {
@@ -330,6 +371,7 @@ fn answer_name(kind: AggKind, value: &AggValue) -> &'static str {
     match value {
         AggValue::Terms(t) => return t.name(),
         AggValue::Range(r) => return r.name(),
+        AggValue::Rare(r) => return r.name(),
         _ => {}
     }
     match kind {
@@ -373,6 +415,8 @@ pub(super) fn write_one(
             AggValue::Terms(_) => (AggKind::Terms, ()),
             AggValue::DateHistogram(_) => (AggKind::DateHistogram, ()),
             AggValue::Range(_) => (AggKind::Range, ()),
+            AggValue::Rare(_) => (AggKind::RareTerms, ()),
+            AggValue::Multi(_) => (AggKind::MultiTerms, ()),
             AggValue::Percentiles { ranks: false, .. } => (AggKind::Percentiles, ()),
             AggValue::Percentiles { ranks: true, .. } => (AggKind::PercentileRanks, ()),
         };
@@ -402,6 +446,8 @@ pub(super) fn write_one(
             AggValue::Terms(t) => t.write(date, out)?,
             AggValue::DateHistogram(h) => h.write(out)?,
             AggValue::Range(r) => r.write(date, out)?,
+            AggValue::Rare(r) => r.write(out)?,
+            AggValue::Multi(m) => m.write(out)?,
             AggValue::Cardinality(sketch) => {
                 write_format(out, date)?;
                 out.bool(sketch.is_some())?;

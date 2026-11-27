@@ -10,8 +10,10 @@
 pub mod aggs;
 pub mod aggs_histogram;
 mod aggs_kind;
+pub mod aggs_multi;
 pub mod aggs_percentiles;
 pub mod aggs_range;
+pub mod aggs_rare;
 pub mod aggs_terms;
 mod query;
 mod response;
@@ -19,8 +21,10 @@ mod write;
 
 pub use aggs::{AggAnswer, AggKind, AggRequest, AggValue};
 pub use aggs_histogram::{DateHistogramAnswer, DateHistogramRequest, IntervalType, RoundingWire};
+pub use aggs_multi::{MultiAnswer, MultiRequest, MultiTerm};
 pub use aggs_percentiles::PercentilesRequest;
 pub use aggs_range::{RangeAnswer, RangeAsk, RangeBucketAnswer, RangesRequest};
+pub use aggs_rare::{FILTER_THRESHOLD, RareAnswer, RareKeys, RareRequest};
 pub use aggs_terms::{Keys, Order, OrderSpec, SubAnswer, TermsAnswer, TermsRequest};
 pub use query::{Limits, Node, Query, Value};
 pub use response::{Hit, MAX_BYTES, Response};

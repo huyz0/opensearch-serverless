@@ -272,3 +272,6 @@ src/ltr_route/stores.rs	new		create, delete and list the stores
 src/ltr_route/routes.rs	new		the route table under /_ltr and /_plugins/_ltr
 src/ltr_route/models.rs	new		the node model cache: a TTL, marker version check and byte budget over the stored models
 src/boot/config/ltr.rs	new		the learning to rank bounds read from the environment
+src/search_shard_action/rare.rs	new		a rare_terms partial as the forwarded answer, with the hashes of its filter
+src/search_shard_action/multi.rs	new		a multi_terms partial as the forwarded answer
+src/search_shard_action/tests/rare_multi.rs	new		tests of rare.rs and multi.rs against the bytes Java wrote
