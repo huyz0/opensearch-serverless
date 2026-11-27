@@ -56,6 +56,21 @@ pub fn collect(q: &Query) -> Vec<(&str, &Query)> {
     out
 }
 
+/// The filters of `aggs` and of their sub-aggregations, in request order:
+/// OpenSearch collects the names of an aggregation's filters with the
+/// query's, so a hit lists them too.
+pub fn aggregation_filters<'q>(
+    aggs: &'q [crate::aggs::metric::MetricAgg],
+    out: &mut Vec<&'q Query>,
+) {
+    for agg in aggs {
+        if let Some(spec) = &agg.filters {
+            out.extend(spec.filters.iter().map(|(_, q)| q));
+        }
+        aggregation_filters(&agg.subs, out);
+    }
+}
+
 /// The named queries of every query of a search, the first of a name kept.
 pub fn collect_all<'q>(queries: &[&'q Query]) -> Vec<(&'q str, &'q Query)> {
     // ALLOC: one entry a named query, refused past `MAX_NAMED` by `matched`.

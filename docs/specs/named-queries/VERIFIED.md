@@ -13,6 +13,7 @@ Run 2026-11-27 in a Linux cloud sandbox (emulator store, so numbers are provisio
 - AC-7: `naming_a_query_changes_neither_hits_nor_scores` in crates/node/tests/it/search_named_queries.rs
 - AC-8: `names_in_the_post_filter_and_the_rescore_count_too` in crates/node/tests/it/search_named_queries.rs
 - AC-9: `a_hit_naming_its_matched_queries_is_what_the_java_shell_writes_byte_for_byte` in crates/transport/tests/search_shard.rs (rows recorded from stock 3.10.0 in fixtures/search-shard/java-3.10.0.txt), `a_hit_that_matched_a_named_query_is_answered_in_the_java_layout` in crates/node/src/search_shard_action/tests.rs, `a_row_carries_the_names_its_hit_matched_with_scores_only_when_asked` in crates/reader/src/response_selected_tests.rs, `a_named_query_reaches_the_source_with_its_name` in crates/node/src/search_shard_action/convert_tests.rs
+- AC-10: `names_in_an_aggregation_filter_are_listed_on_the_hits_they_match` in crates/node/tests/it/search_named_queries.rs (seen red with the collection removed)
 
 The engine call is covered in lucene-rust by `scores_at_agrees_with_a_whole_leaf_scan_and_visits_only_the_asked_documents` in crates/lucene-search/tests/rescore_fixtures.rs.
 

@@ -435,13 +435,14 @@ pub fn search_with<S: BlobStore + 'static>(
             explain::explain_hits(&searcher, &query, &hits.hits).map_err(ShardError::engine)?;
     }
     if !hits.hits.is_empty() {
-        let queries: Vec<&crate::dsl::Query> = source
+        let mut queries: Vec<&crate::dsl::Query> = source
             .query
             .iter()
             .chain(&source.post_filter)
             .chain(source.rescore.iter().map(|r| &r.query))
             // ALLOC: one reference a query of the search: the query, post filter and rescores.
             .collect();
+        crate::search_named::aggregation_filters(&source.aggs, &mut queries);
         let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
         hits.matched = crate::search_named::matched(&searcher, &queries, &cx, &hits.hits)
             .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;
