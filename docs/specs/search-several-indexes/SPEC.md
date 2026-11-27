@@ -35,6 +35,8 @@ The "alias of several indexes" gap of [search-on-alias](../search-on-alias/SPEC.
 - AC-14: `_field_caps` over a list, an alias of several, or both with an index twice answers the same body, each index read once; an alias with a missing member is a 404.
 - AC-15: with `ignore_unavailable`, a list or alias naming a missing index searches the rest and gives the rest's total; without it (or `=false`) a missing index is still a 404.
 - AC-16: with `ignore_unavailable` and no index left, `_search` answers 200 with total 0 and `_shards.total` 0, `_count` answers `count` 0, and a value that is no boolean is 400.
+- AC-17: a list whose indexes visit more than 1,024 shards in all is a 400 naming the limit, on `_search`, `_count` and an `_msearch` item, and a repeat of the refusal makes no request; the limit counts the shards a `routing` leaves, not the ones an index declares.
+- AC-18: an `_msearch` item with `ignore_unavailable` over a list that names a missing index, and `_field_caps` over such a list, make the same requests each time they run, none of them a LIST, a PUT or a COPY; the URL parameters of `_msearch` read nothing, and an index named twice to `_field_caps` is read once.
 
 ## S3 request budget
 
@@ -46,4 +48,4 @@ None: an error becomes an answer, and a single index costs what it did.
 
 ## Tests
 
-`crates/node/tests/it/search_several.rs`, through HTTP over the compat fixture indexes and a stub alias source.
+`crates/node/tests/it/search_several.rs` and `search_several_budget.rs`, through HTTP over the compat fixture indexes and a stub alias source.
