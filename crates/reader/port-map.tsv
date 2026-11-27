@@ -312,3 +312,6 @@ src/ltr/models.rs	new		the resolver a search reads a model through, installed by
 src/search_ltr.rs	new		the sltr rescore: one feature query a feature, combined with the first pass score
 src/dsl/queries/sltr.rs	new		the sltr query of the learning to rank plugin
 src/dsl/queries/sltr_tests.rs	new		tests of the sltr parser
+src/dsl/ltr_log.rs	new		the ext.ltr_log section of the learning to rank plugin
+src/dsl/ltr_log_tests.rs	new		tests of the ltr_log parser
+src/search_ltr_log.rs	new		feature logging: each hit of the page carries its feature values under fields._ltrlog

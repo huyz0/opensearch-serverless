@@ -103,6 +103,35 @@ fn a_cold_resolve_reads_the_store_a_warm_one_does_not_and_an_old_one_reads_the_m
     assert_eq!(r.store.meter().count(S3Op::List), 0);
 }
 
+// AC-11
+#[test]
+fn a_feature_set_is_read_cached_and_kept_apart_from_a_model_of_its_name() {
+    let r = rig(8 << 20);
+    seed(&r);
+    let before = gets(&r);
+    let set = r.models.feature_set(None, "fs").expect("resolves");
+    assert_eq!(
+        set.features
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "b"]
+    );
+    assert_eq!(set.features[0].params, ["q"]);
+    assert_eq!(gets(&r) - before, 3, "a cold read");
+    let before = gets(&r);
+    r.models.feature_set(None, "fs").expect("resolves");
+    assert_eq!(gets(&r) - before, 0, "a warm read");
+    assert!(matches!(
+        r.models.feature_set(None, "m"),
+        Err(ResolveError::NotFound(_))
+    ));
+    assert!(matches!(
+        r.models.resolve(None, "fs"),
+        Err(ResolveError::NotFound(_))
+    ));
+}
+
 // AC-10
 #[test]
 fn a_model_replaced_through_the_store_is_seen_after_the_ttl() {

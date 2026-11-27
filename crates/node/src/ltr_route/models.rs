@@ -17,7 +17,7 @@ use oss_format::DocKind;
 use oss_mem::{MemoryBudget, Pool, Reservation};
 use oss_meta::{DocSet, MetaError};
 use oss_reader::ltr::Evaluator;
-use oss_reader::ltr::models::{Feature, Models, ResolveError, Resolved};
+use oss_reader::ltr::models::{Feature, FeatureSet, Models, ResolveError, Resolved};
 use serde_json::Value;
 
 use super::DEFAULT;
@@ -37,8 +37,38 @@ pub struct ModelCache {
     pub bytes: usize,
 }
 
+/// Which set an object is read from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Which {
+    Model,
+    Features,
+}
+
+impl Which {
+    fn kind(self) -> DocKind {
+        match self {
+            Self::Model => DocKind::LtrModels,
+            Self::Features => DocKind::LtrFeatureSets,
+        }
+    }
+
+    fn noun(self) -> &'static str {
+        match self {
+            Self::Model => "model",
+            Self::Features => "feature set",
+        }
+    }
+}
+
+/// What a read parsed to.
+#[derive(Clone)]
+enum Loaded {
+    Model(Arc<Resolved>),
+    Features(Arc<FeatureSet>),
+}
+
 struct Entry {
-    resolved: Arc<Resolved>,
+    resolved: Loaded,
     /// The models set's change count when this was read.
     version: i64,
     checked: Instant,
@@ -49,7 +79,7 @@ struct Entry {
 
 #[derive(Default)]
 struct State {
-    entries: HashMap<(String, String), Entry>,
+    entries: HashMap<(Which, String, String), Entry>,
     held: usize,
     tick: u64,
 }
@@ -87,26 +117,28 @@ impl StoreModels {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    fn set(&self, store: &str) -> Result<DocSet, ResolveError> {
+    fn set(&self, store: &str, which: Which) -> Result<DocSet, ResolveError> {
         // ALLOC: one key prefix, once a load.
         let base = format!("{}ltr/{store}/", self.base);
-        DocSet::new_created(Arc::clone(&self.store), &base, DocKind::LtrModels)
+        DocSet::new_created(Arc::clone(&self.store), &base, which.kind())
             .map_err(|e| ResolveError::Failed(e.to_string()))
     }
 
     /// Reads and parses the model, charging what it will hold first.
     fn load(
         &self,
+        which: Which,
         store: &str,
         name: &str,
-    ) -> Result<(Arc<Resolved>, i64, Reservation, usize), ResolveError> {
-        let set = self.set(store)?;
+    ) -> Result<(Loaded, i64, Reservation, usize), ResolveError> {
+        let set = self.set(store, which)?;
         let missing = || {
             ResolveError::NotFound(format!(
-                "model [{name}] does not exist in the store [{store}]"
+                "{} [{name}] does not exist in the store [{store}]",
+                which.noun()
             ))
         };
-        let max = DocKind::LtrModels.max_doc_bytes();
+        let max = which.kind().max_doc_bytes();
         let _read = self
             .budget
             .try_reserve(
@@ -138,26 +170,20 @@ impl StoreModels {
             .try_reserve(Pool::OpenIndexes, bytes)
             .map_err(|e| ResolveError::TooBig(e.to_string()))?;
         let value: Value = serde_json::from_slice(doc.get(..len).unwrap_or_default())
-            .map_err(|_| ResolveError::Failed("a stored model is unreadable".to_owned()))?;
-        Ok((Arc::new(resolved(&value)?), version, held, bytes))
+            .map_err(|_| ResolveError::Failed("a stored object is unreadable".to_owned()))?;
+        let loaded = match which {
+            Which::Model => Loaded::Model(Arc::new(resolved(&value)?)),
+            Which::Features => Loaded::Features(Arc::new(FeatureSet {
+                features: features_of(value.pointer("/featureset/features"))?,
+            })),
+        };
+        Ok((loaded, version, held, bytes))
     }
 }
 
-fn resolved(doc: &Value) -> Result<Resolved, ResolveError> {
-    let unreadable = || ResolveError::Failed("a stored model is unreadable".to_owned());
-    let model = doc.pointer("/model/model").ok_or_else(unreadable)?;
-    let kind = model
-        .get("type")
-        .and_then(Value::as_str)
-        .ok_or_else(unreadable)?;
-    let definition = model
-        .get("definition")
-        .and_then(Value::as_str)
-        .ok_or_else(unreadable)?;
-    let set = doc
-        .pointer("/model/feature_set/features")
-        .and_then(Value::as_array)
-        .ok_or_else(unreadable)?;
+fn features_of(set: Option<&Value>) -> Result<Vec<Feature>, ResolveError> {
+    let unreadable = || ResolveError::Failed("a stored feature set is unreadable".to_owned());
+    let set = set.and_then(Value::as_array).ok_or_else(unreadable)?;
     // ALLOC: one entry a feature of the set, at most MAX_FEATURES.
     let mut features = Vec::with_capacity(set.len());
     for f in set {
@@ -186,6 +212,21 @@ fn resolved(doc: &Value) -> Result<Resolved, ResolveError> {
             template,
         });
     }
+    Ok(features)
+}
+
+fn resolved(doc: &Value) -> Result<Resolved, ResolveError> {
+    let unreadable = || ResolveError::Failed("a stored model is unreadable".to_owned());
+    let model = doc.pointer("/model/model").ok_or_else(unreadable)?;
+    let kind = model
+        .get("type")
+        .and_then(Value::as_str)
+        .ok_or_else(unreadable)?;
+    let definition = model
+        .get("definition")
+        .and_then(Value::as_str)
+        .ok_or_else(unreadable)?;
+    let features = features_of(doc.pointer("/model/feature_set/features"))?;
     let names: Vec<String> = features.iter().map(|f| f.name.clone()).collect();
     let evaluator = Evaluator::parse(kind, definition, &names)
         .map_err(|e| ResolveError::Failed(format!("a stored model no longer parses: {e}")))?;
@@ -197,9 +238,44 @@ fn resolved(doc: &Value) -> Result<Resolved, ResolveError> {
 
 impl Models for StoreModels {
     fn resolve(&self, store: Option<&str>, name: &str) -> Result<Arc<Resolved>, ResolveError> {
+        match self.cached(Which::Model, store, name)? {
+            Loaded::Model(m) => Ok(m),
+            Loaded::Features(_) => Err(ResolveError::Failed(
+                "a cache entry of the wrong kind".into(),
+            )),
+        }
+    }
+
+    fn feature_set(
+        &self,
+        store: Option<&str>,
+        name: &str,
+    ) -> Result<Arc<FeatureSet>, ResolveError> {
+        match self.cached(Which::Features, store, name)? {
+            Loaded::Features(f) => Ok(f),
+            Loaded::Model(_) => Err(ResolveError::Failed(
+                "a cache entry of the wrong kind".into(),
+            )),
+        }
+    }
+
+    fn max_window(&self) -> usize {
+        self.cache.max_window
+    }
+}
+
+impl StoreModels {
+    /// The object through the cache: held while fresh, its set's marker read
+    /// once it is older than the TTL, read again only when the set moved.
+    fn cached(
+        &self,
+        which: Which,
+        store: Option<&str>,
+        name: &str,
+    ) -> Result<Loaded, ResolveError> {
         let store = store.unwrap_or(DEFAULT);
         // ALLOC: one key a resolve.
-        let key = (store.to_owned(), name.to_owned());
+        let key = (which, store.to_owned(), name.to_owned());
         let stale = {
             let mut state = self.lock();
             state.tick = state.tick.saturating_add(1);
@@ -207,7 +283,7 @@ impl Models for StoreModels {
             match state.entries.get_mut(&key) {
                 Some(e) if e.checked.elapsed() < self.cache.ttl => {
                     e.used = tick;
-                    return Ok(Arc::clone(&e.resolved));
+                    return Ok(e.resolved.clone());
                 }
                 Some(e) => Some(e.version),
                 None => None,
@@ -215,7 +291,7 @@ impl Models for StoreModels {
         };
         if let Some(version) = stale {
             // One marker read: has the set moved since this was read?
-            let set = self.set(store)?;
+            let set = self.set(store, which)?;
             let _read = self
                 .budget
                 .try_reserve(Pool::OpenIndexes, self.cache.buffer_bytes)
@@ -229,11 +305,11 @@ impl Models for StoreModels {
                 let mut state = self.lock();
                 if let Some(e) = state.entries.get_mut(&key) {
                     e.checked = Instant::now();
-                    return Ok(Arc::clone(&e.resolved));
+                    return Ok(e.resolved.clone());
                 }
             }
         }
-        let (resolved, version, held, bytes) = self.load(store, name)?;
+        let (resolved, version, held, bytes) = self.load(which, store, name)?;
         let mut state = self.lock();
         if let Some(old) = state.entries.remove(&key) {
             state.held = state.held.saturating_sub(old.bytes);
@@ -258,7 +334,7 @@ impl Models for StoreModels {
         state.entries.insert(
             key,
             Entry {
-                resolved: Arc::clone(&resolved),
+                resolved: resolved.clone(),
                 version,
                 checked: Instant::now(),
                 used: tick,
@@ -269,12 +345,6 @@ impl Models for StoreModels {
         Ok(resolved)
     }
 
-    fn max_window(&self) -> usize {
-        self.cache.max_window
-    }
-}
-
-impl StoreModels {
     /// How many models the cache holds, and their bytes.
     pub fn held(&self) -> (usize, usize) {
         let state = self.lock();

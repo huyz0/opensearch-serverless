@@ -1,8 +1,8 @@
 //! The `sltr` query of the learning to rank plugin: a stored model's score
 //! of a hit, as the plugin's `StoredLtrQueryBuilder` reads it. Served as the
 //! `rescore_query` of a `rescore` ([`crate::search_ltr`]); anywhere else it
-//! is refused. The parameters that name a feature set or a log (`featureset`,
-//! `_name`) belong to feature logging and are refused until that is served.
+//! is refused. With a `featureset` instead of a `model` it is the marker
+//! feature logging reads (`ltr_log`), and `_name` is what a log names it by.
 
 use crate::dsl::error::DslError;
 use crate::dsl::queries::More;
@@ -14,8 +14,12 @@ use crate::template::{Val, read_val};
 pub struct Sltr {
     /// The store, the default one when absent.
     pub store: Option<String>,
-    /// The model's name.
+    /// The model's name; empty for a logging query.
     pub model: String,
+    /// The feature set a logging query reads, instead of a model.
+    pub featureset: Option<String>,
+    /// `_name`, the name a log asks for it by.
+    pub name: Option<String>,
     /// The parameters the feature templates render with.
     pub params: Val,
     /// The features to compute, all when absent.
@@ -40,6 +44,7 @@ fn string(p: &Parser<'_>, name: &str) -> Result<String, DslError> {
 pub fn parse_sltr(p: &mut Parser<'_>) -> Result<More, DslError> {
     // ALLOC: one string, bounded by the body's recording.
     let (mut store, mut model, mut params, mut active) = (None, None, Val::Map(Vec::new()), None);
+    let (mut featureset, mut qname) = (None, None);
     loop {
         match p.next_token() {
             Some(Kind::EndObject) | None => break,
@@ -72,12 +77,8 @@ pub fn parse_sltr(p: &mut Parser<'_>) -> Result<More, DslError> {
                         }
                         active = Some(names);
                     }
-                    "featureset" | "_name" => {
-                        // ALLOC: one string, bounded by the body's recording.
-                        return Err(DslError::unsupported(&format!(
-                            "[sltr] with [{name}], feature logging,"
-                        )));
-                    }
+                    "featureset" => featureset = Some(string(p, "featureset")?),
+                    "_name" => qname = Some(string(p, "_name")?),
                     other => {
                         return Err(DslError::parsing(
                             p.location(),
@@ -90,13 +91,16 @@ pub fn parse_sltr(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some(_) => return Err(bad(p, "malformed")),
         }
     }
-    let Some(model) = model else {
-        return Err(bad(p, "needs a [model]"));
-    };
+    if model.is_some() == featureset.is_some() {
+        return Err(bad(p, "needs one of a [model] or a [featureset]"));
+    }
+    let model = model.unwrap_or_default();
     // ALLOC: one box an sltr query, bounded by the body's recording.
     Ok(More::Sltr(Box::new(Sltr {
         store,
         model,
+        featureset,
+        name: qname,
         params,
         active_features: active,
     })))

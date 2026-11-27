@@ -42,7 +42,11 @@ fn only_the_model_is_required() {
 #[test]
 fn malformed_bodies_are_refused_by_name() {
     for (body, want) in [
-        (r#"{"sltr":{}}"#, "needs a [model]"),
+        (r#"{"sltr":{}}"#, "needs one of a [model] or a [featureset]"),
+        (
+            r#"{"sltr":{"model":"m","featureset":"f"}}"#,
+            "needs one of a [model] or a [featureset]",
+        ),
         (r#"{"sltr":{"model":1}}"#, "[model] must be a string"),
         (
             r#"{"sltr":{"model":"m","store":1}}"#,
@@ -68,12 +72,9 @@ fn malformed_bodies_are_refused_by_name() {
 }
 
 #[test]
-fn feature_logging_parameters_are_refused_until_served() {
-    for body in [
-        r#"{"sltr":{"model":"m","_name":"n"}}"#,
-        r#"{"sltr":{"model":"m","featureset":"f"}}"#,
-    ] {
-        let reason = parse(body).expect_err(body);
-        assert!(reason.contains("feature logging"), "{body}: {reason}");
-    }
+fn a_logging_query_names_a_feature_set_and_itself() {
+    let s = parse(r#"{"sltr":{"_name":"n","featureset":"f","params":{"q":"x"}}}"#).expect("parses");
+    assert_eq!(s.featureset.as_deref(), Some("f"));
+    assert_eq!(s.name.as_deref(), Some("n"));
+    assert_eq!(s.model, "");
 }
