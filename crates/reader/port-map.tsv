@@ -290,3 +290,5 @@ src/ltr/linear.rs	new		model/linear of the plugin
 src/ltr/xgboost.rs	new		model/xgboost+json of the plugin, scored as XGBoost predicts
 src/ltr/ranklib.rs	new		model/ranklib of the plugin (MART, LambdaMART, Random Forests), scored as RankLib evaluates
 src/ltr/tests.rs	new		unit tests of the evaluators
+src/dsl/queries/script_query.rs	port	server/src/main/java/org/opensearch/index/query/ScriptQueryBuilder.java@3.10.0	fromXContent for Painless source only, and the engine filter built from it
+src/dsl/queries/script_switch_tests.rs	new		tests of the Painless switch on script_score and the script query; Java has no such switch
