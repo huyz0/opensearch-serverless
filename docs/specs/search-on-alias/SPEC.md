@@ -10,7 +10,8 @@ The "alias in a search path" gap of [compatibility](../../compatibility.md): the
 - A search, count or `_msearch` item naming a name that is not an open concrete index asks the source once. An alias of one index runs against that index: the hits' `_index`, the response and every later step use the concrete name, as OpenSearch reports. An alias of several indexes answers 501 `unsupported_alias_option` (a search across the members is not built). A name that is neither is 404 `index_not_found_exception` naming the name asked.
 - A name that is an open concrete index is never looked up as an alias: a warm search of an index makes no new request. A cold open reads what it read before.
 - Aliases are not cached: each request naming an alias reads its register again, so an alias change is seen at once.
-- Not here: `_field_caps` on an alias, `routing` and `preference`, an alias in a point-in-time search, alias filters (the routes refuse them), and a data stream's several backing indexes.
+- `_field_caps` takes the same step for each name of its index list: an alias of one index is that index, and the answer's `indices` names it.
+- Not here: `routing` and `preference`, an alias in a point-in-time search, alias filters (the routes refuse them), and a data stream's several backing indexes.
 
 ## Acceptance criteria
 
@@ -20,6 +21,7 @@ The "alias in a search path" gap of [compatibility](../../compatibility.md): the
 - AC-4: an alias of two indexes answers 501 `unsupported_alias_option`.
 - AC-5: a warm search of a concrete index makes no object-store request more than before; a search of an alias costs one GET for the failed open of its own name and the alias register's one GET, on top of the index's.
 - AC-6: a name that is neither an index nor an alias is 404 as today, with no alias read when no source is installed.
+- AC-7: `GET /{alias}/_field_caps?fields=*` of an alias of one index answers what the index answers, `indices` naming the index; an alias of several is 501.
 
 ## S3 request budget
 

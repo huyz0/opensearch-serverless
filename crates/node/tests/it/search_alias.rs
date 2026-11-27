@@ -132,3 +132,23 @@ fn a_name_that_is_neither_is_not_found_and_no_source_changes_nothing() {
     let (status, body) = post(&bare, "/live/_search", TERM);
     assert_eq!(status, 404, "{body}");
 }
+
+// AC-7
+#[test]
+fn field_caps_of_an_alias_names_the_index_it_stands_for() {
+    let (node, _) = node_with(&[("live", &["compat-term"]), ("both", &["compat-term", "x"])]);
+    let get = |path: &str| {
+        let r = request(node.addr(), "GET", path, None);
+        (r.status, r.text())
+    };
+    let (status, direct) = get("/compat-term/_field_caps?fields=*");
+    assert_eq!(status, 200, "{direct}");
+    let (status, aliased) = get("/live/_field_caps?fields=*");
+    assert_eq!((status, aliased.as_str()), (200, direct.as_str()));
+    assert!(
+        aliased.starts_with(r#"{"indices":["compat-term"]"#),
+        "{aliased}"
+    );
+    let (status, body) = get("/both/_field_caps?fields=*");
+    assert_eq!(status, 501, "{body}");
+}
