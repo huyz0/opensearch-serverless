@@ -29,3 +29,4 @@ crates/node/tests/takeover_budgets.rs             twin
 crates/node/tests/takeover_scale.rs               twin
 crates/node/tests/search_slots_cold.rs            twin
 crates/reader/tests/knn_requests.rs               twin
+crates/node/tests/warm_scale_evidence.rs   twin
