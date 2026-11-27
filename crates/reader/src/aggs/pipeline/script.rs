@@ -13,7 +13,69 @@ use lucene_painless::scripted_metric as run;
 use super::PipelineAgg;
 use super::compute::resolve;
 use super::parent::{Entry, put};
+use crate::aggs::metric::write_aggregations_piped;
+use crate::aggs::partial::Partial;
 use crate::aggs::pipeline::BucketValue;
+
+/// A script that failed, as the `io::Error` of the render carries it, for
+/// the caller that answers 400 `script_exception` for it.
+#[derive(Debug)]
+pub struct ScriptFailure {
+    /// The pipeline's name.
+    pub name: String,
+    /// What went wrong.
+    pub message: String,
+}
+
+impl std::fmt::Display for ScriptFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}", self.name, self.message)
+    }
+}
+
+impl std::error::Error for ScriptFailure {}
+
+/// The script failure `error` carries, if it is one.
+pub fn failure_of(error: &io::Error) -> Option<&ScriptFailure> {
+    error.get_ref()?.downcast_ref::<ScriptFailure>()
+}
+
+/// Runs the script pipelines once over the reduced `parts`, so a script
+/// that fails is known before a response starts.
+///
+/// # Errors
+///
+/// The [`ScriptFailure`] of a script that throws or returns the wrong type.
+pub fn settle(
+    parts: &[Partial],
+    pipelines: &[PipelineAgg],
+    typed: bool,
+) -> Result<(), ScriptFailure> {
+    if !pipelines.iter().any(|p| p.kind.runs_script()) {
+        return Ok(());
+    }
+    let rendered =
+        write_aggregations_piped(&mut io::sink(), parts, pipelines, typed, &mut |_, _, _| {
+            Ok(())
+        });
+    match rendered.as_ref().err().and_then(failure_of) {
+        // ALLOC: error path; one name and message.
+        Some(f) => Err(ScriptFailure {
+            name: f.name.clone(),
+            message: f.message.clone(),
+        }),
+        None => Ok(()),
+    }
+}
+
+/// Wraps a failure of `pipe`'s script.
+fn failed(pipe: &PipelineAgg, message: impl Into<String>) -> io::Error {
+    io::Error::other(ScriptFailure {
+        // ALLOC: error path; one name and message.
+        name: pipe.name.clone(),
+        message: message.into(),
+    })
+}
 
 /// A script pipeline's script and what its variables read.
 #[derive(Clone, Debug, PartialEq)]
@@ -29,7 +91,7 @@ pub struct ScriptPipe {
 impl ScriptPipe {
     /// The script's value for `vars`, which win over a param of the same
     /// name (`vars.putAll(script.getParams())`, then each variable).
-    fn execute(&self, vars: Vec<(String, f64)>) -> io::Result<Constant> {
+    fn execute(&self, vars: Vec<(String, f64)>) -> Result<Constant, String> {
         // ALLOC: one entry a param and variable, bounded by the request.
         let mut params: Vec<(Constant, Constant)> = self
             .params
@@ -44,12 +106,12 @@ impl ScriptPipe {
         );
         run::reduce(&self.source, &Constant::Map(params), &[])
             // ALLOC: error path; one message.
-            .map_err(|e| io::Error::other(format!("runtime error in a pipeline script: {e}")))
+            .map_err(|e| format!("runtime error in a pipeline script: {e}"))
     }
 }
 
 /// The number a script returned (`Number`), `None` for `null`.
-fn number(value: &Constant) -> io::Result<Option<f64>> {
+fn number(value: &Constant) -> Result<Option<f64>, String> {
     #[allow(clippy::cast_precision_loss)]
     Ok(Some(match *value {
         Constant::Null => return Ok(None),
@@ -60,9 +122,10 @@ fn number(value: &Constant) -> io::Result<Option<f64>> {
         Constant::Float(v) => f64::from(v),
         Constant::Double(v) => v,
         _ => {
-            return Err(io::Error::other(
-                "a [bucket_script] script returned a value that is not a number",
-            ));
+            // ALLOC: error path; one message.
+            return Err(
+                "a [bucket_script] script returned a value that is not a number".to_owned(),
+            );
         }
     }))
 }
@@ -89,7 +152,8 @@ pub(super) fn script(entries: &mut [Entry], pipe: &PipelineAgg, typed: bool) -> 
         if skip {
             continue;
         }
-        if let Some(value) = number(&spec.execute(vars)?)? {
+        let result = spec.execute(vars).and_then(|v| number(&v));
+        if let Some(value) = result.map_err(|m| failed(pipe, m))? {
             put(bucket, pipe, typed, value);
         }
     }
@@ -112,11 +176,12 @@ pub(super) fn select(entries: &mut Vec<Entry>, pipe: &PipelineAgg) -> io::Result
             .map(|(name, value)| (name.clone(), resolve(&entry.1, value, pipe.insert_zeros)))
             // ALLOC: as above.
             .collect();
-        match spec.execute(vars)? {
+        match spec.execute(vars).map_err(|m| failed(pipe, m))? {
             Constant::Bool(true) => kept.push(entry),
             Constant::Bool(false) => {}
             _ => {
-                return Err(io::Error::other(
+                return Err(failed(
+                    pipe,
                     "a [bucket_selector] script returned a value that is not a boolean",
                 ));
             }

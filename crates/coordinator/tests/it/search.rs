@@ -4,6 +4,7 @@
 
 use std::sync::Mutex;
 
+use oss_coordinator::reduce::aggs::AggsError;
 use oss_coordinator::search::{Params, SearchFailure, Shards, search};
 use oss_reader::aggs::partial::{Format, Partial, Value};
 use oss_reader::fetch::source_filter::SourceFilter;
@@ -350,4 +351,52 @@ fn a_sibling_pipeline_aggregation_is_computed_over_the_reduced_buckets() {
         "{body}"
     );
     assert!(body.contains(r#""lterms#t":{"#), "{body}");
+}
+
+/// docs/specs/pipeline-aggs-script AC-4: a script pipeline that fails is a
+/// failure of the search, not a response cut short.
+#[test]
+fn a_script_pipeline_that_fails_fails_the_search() {
+    use oss_reader::aggs::bucket::terms::{TermsResult, TermsSpec};
+    use oss_reader::aggs::pipeline::script::ScriptPipe;
+    use oss_reader::aggs::pipeline::{BucketValue, PipelineAgg, PipelineKind};
+    let terms = Partial {
+        name: "t".into(),
+        format: Format::Raw,
+        value: Value::Terms(Box::new(TermsResult {
+            spec: TermsSpec {
+                size: 10,
+                shard_size: 13,
+                ..TermsSpec::default()
+            },
+            buckets: vec![(1, 5)],
+            ..TermsResult::default()
+        })),
+    };
+    let pipe = |source: &str| PipelineAgg {
+        name: "half".to_owned(),
+        kind: PipelineKind::BucketScript,
+        path: String::new(),
+        agg: "t".to_owned(),
+        value: BucketValue::Count,
+        insert_zeros: false,
+        host: Some("t".to_owned()),
+        sort: None,
+        script: Some(Box::new(ScriptPipe {
+            source: source.to_owned(),
+            params: Vec::new(),
+            vars: vec![("n".to_owned(), BucketValue::Count)],
+        })),
+        lag: 1,
+    };
+    let f = fake(vec![Ok(hits(1, &[1.0], vec![terms]))]);
+    let mut p = params(0, 10);
+    p.pipelines = vec![pipe("return 'text'")];
+    match search(&f, 1, &p) {
+        Err(SearchFailure::Aggs(AggsError::Script { name, .. })) => assert_eq!(name, "half"),
+        other => panic!("{:?}", other.map(text)),
+    }
+    p.pipelines = vec![pipe("return params.n * 2")];
+    let body = text(search(&f, 1, &p).expect("searches"));
+    assert!(body.contains(r#""half":{"value":10.0}"#), "{body}");
 }
