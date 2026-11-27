@@ -99,9 +99,10 @@ pub struct SearchService<S: BlobStore + 'static> {
     /// Where `?search_pipeline=` finds its pipelines; none, and naming one
     /// is refused.
     pipelines: OnceLock<Arc<dyn PipelineSource>>,
-    /// Where a request naming a stored template finds it; none, and naming
-    /// one is refused.
+    /// Where a stored template is found; none, and naming one is refused.
     templates: OnceLock<Arc<dyn TemplateSource>>,
+    /// Where an alias's members are read; none, and an alias is no index.
+    aliases: OnceLock<Arc<dyn alias::AliasSource>>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -135,6 +136,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             modules: OnceLock::new(),
             pipelines: OnceLock::new(),
             templates: OnceLock::new(),
+            aliases: OnceLock::new(),
         }
     }
 
@@ -166,6 +168,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
 
     /// Handles one `_search`.
     pub fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        self.resolve_alias(req)?;
         // Held to the end of the search, then the permit, if any, goes back.
         let _admitted = self.slots.get().and_then(|slots| {
             let index = req.path_param("index")?;
@@ -381,6 +384,8 @@ pub fn routes<S: BlobStore + 'static>(
         .and_then(|router| rank_eval::routes(router, ranking))
 }
 
+#[path = "search_alias.rs"]
+pub mod alias;
 #[path = "search_analyze.rs"]
 mod analyze;
 #[path = "search_count.rs"]

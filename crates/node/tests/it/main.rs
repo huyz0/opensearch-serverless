@@ -29,6 +29,7 @@ mod rescore;
 mod script_fields;
 mod script_sort;
 mod search;
+mod search_alias;
 mod search_hits;
 mod search_pipeline;
 mod search_template;

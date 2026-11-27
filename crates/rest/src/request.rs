@@ -25,6 +25,7 @@ pub struct Request<'a> {
     pub(crate) principal: Option<Arc<str>>,
     pub(crate) head_buf: &'a [u8],
     pub(crate) body: Body<'a>,
+    pub(crate) renamed: Option<(&'static str, String)>,
 }
 
 impl<'a> Request<'a> {
@@ -41,11 +42,23 @@ impl<'a> Request<'a> {
     /// A path parameter bound by the route's `{name}`, percent-decoded.
     /// Decoding was checked when the request was routed.
     pub fn path_param(&self, name: &str) -> Option<Cow<'a, str>> {
+        if let Some((renamed, value)) = &self.renamed
+            && *renamed == name
+        {
+            // ALLOC: one name a renamed request.
+            return Some(Cow::Owned(value.clone()));
+        }
         let path = self.path;
         self.path_params
             .iter()
             .find(|(n, _)| *n == name)
             .and_then(|(_, r)| decode_component(&path[r.clone()], false).ok())
+    }
+
+    /// Makes [`Request::path_param`] answer `value` for `name`, as when the
+    /// path had named it: a name that stands for another, resolved.
+    pub fn rename_path_param(&mut self, name: &'static str, value: String) {
+        self.renamed = Some((name, value));
     }
 
     /// A query parameter, percent-decoded; the last one wins when repeated.

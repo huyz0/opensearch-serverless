@@ -419,6 +419,7 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
         principal,
         head_buf: buf,
         body,
+        renamed: None,
     };
     let handled = panic::catch_unwind(AssertUnwindSafe(|| {
         route.handler().handle(&mut req, &mut resp)

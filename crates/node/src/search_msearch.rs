@@ -285,9 +285,12 @@ impl<S: BlobStore + 'static> LineSink for Items<'_, '_, '_, S> {
         ) {
             (Err(item), _) => item,
             (Ok(_), Some(e)) => answer_item(bad_request(e)),
-            (Ok(index), None) => match self.item_source() {
-                Ok(mut source) => self.run(&index, &mut source),
-                Err(answer) => answer_item(answer),
+            (Ok(index), None) => match self.service.alias_target(&index) {
+                Err(e) => rest_item(&e),
+                Ok(target) => match self.item_source() {
+                    Ok(mut source) => self.run(target.as_deref().unwrap_or(&index), &mut source),
+                    Err(answer) => answer_item(answer),
+                },
             },
         };
         self.body = Recorder::new(MAX_RECORDED_BYTES);
@@ -322,6 +325,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         resp: &mut Response<'_>,
         template: bool,
     ) -> Result<(), RestError> {
+        self.resolve_alias(req)?;
         let started = Instant::now();
         let default = req.path_param("index").map(std::borrow::Cow::into_owned);
         let mut items = Items::new(self, default, template, resp);

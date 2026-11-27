@@ -81,6 +81,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
+        self.resolve_alias(req)?;
         #[cfg(feature = "coordinator")]
         let started = Instant::now();
         let mut source = match read_source(req) {

@@ -189,6 +189,8 @@ pub fn assemble(
         budget,
     ));
     crate::search_modules::install(&search, &store, &config.base, budget);
+    crate::search::alias::install(&search, &store, &config.base, config.delete_mode)
+        .map_err(AssembleError::Store)?;
     let mut publishing = config.publishing(Arc::clone(&store));
     #[cfg(feature = "coordinator")]
     let bucket_wiring = writer.buckets.clone();
