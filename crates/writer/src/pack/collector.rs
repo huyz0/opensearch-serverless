@@ -17,7 +17,8 @@ use oss_format::INDEX_SLOTS;
 use super::election::{collector_for, window_of};
 use super::index::Removal;
 use super::{
-    PackError, PackIndexStore, PackJudge, PackLedger, PackReferences, PackSidecarStore, sync,
+    PackError, PackIndexStore, PackJudge, PackLedger, PackReferences, PackSeeder, PackSidecarStore,
+    Seeded, sync,
 };
 
 /// What one tick did.
@@ -46,6 +47,7 @@ pub struct PackCollector {
     index: PackIndexStore,
     max_tracked: usize,
     judges: BTreeMap<String, PackJudge>,
+    seeder: Option<PackSeeder>,
     last_window: Option<u64>,
 }
 
@@ -61,8 +63,18 @@ impl PackCollector {
             max_tracked,
             // ALLOC: an empty map, one judge a node with a live epoch.
             judges: BTreeMap::new(),
+            seeder: None,
             last_window: None,
         }
+    }
+
+    /// Walks `packs/` once a cluster, `page` children a pass, to name in
+    /// the index the nodes that left before any collector ran. Off by
+    /// default.
+    #[must_use]
+    pub fn with_seeding(mut self, page: usize) -> Self {
+        self.seeder = Some(PackSeeder::new(Arc::clone(&self.store), &self.base, page));
+        self
     }
 
     /// Runs the pass of `now_millis`'s window if `me` is the member elected
@@ -86,6 +98,7 @@ impl PackCollector {
             return Ok(out);
         }
         out.ran = true;
+        self.seed(now_millis)?;
         for slot in 0..INDEX_SLOTS {
             let state = self.index.read(slot)?;
             for node in state.index.nodes() {
@@ -101,6 +114,19 @@ impl PackCollector {
         }
         self.last_window = Some(window);
         Ok(out)
+    }
+
+    /// One step of the seeding walk, if it is on and not done. A done walk
+    /// is remembered, so it costs nothing after.
+    fn seed(&mut self, now: u64) -> Result<(), PackError> {
+        let Some(seeder) = &self.seeder else {
+            return Ok(());
+        };
+        let step = seeder.step(now)?;
+        if matches!(step, Seeded::Done | Seeded::Page { done: true, .. }) {
+            self.seeder = None;
+        }
+        Ok(())
     }
 
     /// Builds the node's sidecar from its ledger, judges its packs, and

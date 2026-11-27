@@ -287,3 +287,68 @@ fn the_newest_epoch_stays_in_the_sidecar_when_all_of_it_is_collected() {
     assert_eq!(read.sidecar.epochs().len(), 1);
     assert!(read.sidecar.epochs()[0].unmarked().next().is_none());
 }
+
+/// A node in no index register, with only a ledger, as a node that left
+/// before the first Rust collector ran.
+fn unindexed_ledger(e: &Arc<Emulator>, epoch: u64, high: u64) {
+    ledger(e).reserve(epoch, high).expect("reserved");
+}
+
+/// With seeding on, the walk names a node that is in no index register and
+/// its packs are then judged; the walk runs once and a later pass lists
+/// nothing.
+#[test]
+fn a_seeding_collector_finds_a_node_the_index_never_named() {
+    let e = emulator();
+    unindexed_ledger(&e, 1, 8);
+    pack(&e, 1, 0);
+    e.advance_clock(16 * MIN);
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100).with_seeding(16);
+    run(&mut c, 100, &refs);
+    run(&mut c, 101, &refs);
+    assert!(!exists(&e, 1, 0), "found by the walk and judged");
+    let lists = e.meter().count(S3Op::List);
+    run(&mut c, 102, &refs);
+    assert_eq!(
+        e.meter().count(S3Op::List),
+        lists,
+        "the walk is not repeated"
+    );
+}
+
+/// Without seeding an unindexed node is never found.
+#[test]
+fn a_collector_without_seeding_does_not_look_for_unindexed_nodes() {
+    let e = emulator();
+    unindexed_ledger(&e, 1, 8);
+    pack(&e, 1, 0);
+    e.advance_clock(16 * MIN);
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100);
+    run(&mut c, 100, &refs);
+    run(&mut c, 101, &refs);
+    assert!(exists(&e, 1, 0));
+    assert_eq!(e.meter().count(S3Op::List), 0);
+}
+
+/// A walk over several pages takes one page a pass and judges nothing it
+/// has not named yet.
+#[test]
+fn a_walk_over_many_pages_takes_one_page_a_pass() {
+    let e = emulator();
+    unindexed_ledger(&e, 1, 8);
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100).with_seeding(1);
+    let mut steps = 0;
+    for w in 100..110 {
+        run(&mut c, w, &refs);
+        if e.meter().count(S3Op::List) > steps {
+            steps = e.meter().count(S3Op::List);
+        }
+    }
+    assert!(steps >= 1);
+    let after = e.meter().count(S3Op::List);
+    run(&mut c, 110, &refs);
+    assert_eq!(e.meter().count(S3Op::List), after, "done, so no more LISTs");
+}
