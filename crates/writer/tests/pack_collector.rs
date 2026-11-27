@@ -218,3 +218,31 @@ fn an_idle_pass_writes_and_lists_nothing() {
     assert_eq!(e.meter().count(S3Op::Put), puts);
     assert_eq!(e.meter().count(S3Op::List), lists);
 }
+
+/// A node with more live packs than the tracking cap says so, and the pass
+/// still judges the ones it tracks.
+#[test]
+fn a_tick_reports_that_tracking_stopped_at_its_cap() {
+    let e = emulator();
+    let sidecar = node_with_a_pack(&e, "writer");
+    let second = node_pack_key("", "writer", 1, 1).expect("key");
+    e.put(&second, &mut SliceSource::new(b"pack"), &mut [0; 16])
+        .expect("put");
+    let state = sidecar.read().expect("read");
+    sidecar
+        .update(state, |_| PackSidecar::new(vec![SidecarEpoch::new(1, 2)]))
+        .expect("update");
+    e.advance_clock(16_u64.saturating_mul(MIN));
+    let (now, elected) = window(100);
+    let mut capped = PackCollector::new(dynstore(&e), "", 1);
+    let out = capped
+        .tick(&elected, &members(), now, &Nothing::default())
+        .expect("tick");
+    assert!(out.at_cap);
+    assert!(
+        !collector(&e)
+            .tick(&elected, &members(), now, &Nothing::default())
+            .expect("tick")
+            .at_cap
+    );
+}
