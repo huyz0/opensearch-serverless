@@ -1,6 +1,6 @@
 //! The `sltr` query of the learning to rank plugin: a stored model's score
 //! of a hit, as the plugin's `StoredLtrQueryBuilder` reads it. Served as the
-//! `rescore_query` of a `rescore` ([`crate::search_ltr`]); anywhere else it
+//! `rescore_query` of a `rescore` (`crate::search_ltr`); anywhere else it
 //! is refused. With a `featureset` instead of a `model` it is the marker
 //! feature logging reads (`ltr_log`), and `_name` is what a log names it by.
 
