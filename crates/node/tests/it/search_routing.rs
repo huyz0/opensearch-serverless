@@ -92,3 +92,43 @@ fn an_msearch_header_routes_and_prefers() {
     assert_eq!(text.matches(r#""total":{"value":2"#).count(), 1, "{text}");
     assert_eq!(text.matches(r#""total":{"value":4"#).count(), 1, "{text}");
 }
+
+fn count(node: &Node, path: &str) -> u64 {
+    let r = request(
+        node.addr(),
+        "POST",
+        path,
+        Some(br#"{"query":{"term":{"title":"brown"}}}"#),
+    );
+    assert_eq!(r.status, 200, "{}", r.text());
+    let text = r.text();
+    let from = text.find(r#""count":"#).expect("count") + 8;
+    text[from..]
+        .split(|c: char| !c.is_ascii_digit())
+        .next()
+        .and_then(|d| d.parse().ok())
+        .expect("a number")
+}
+
+#[test]
+fn a_count_visits_the_shards_its_routing_names() {
+    let node = two_shards();
+    assert_eq!(count(&node, "/two/_count"), 4);
+    for shard in [0, 1] {
+        assert_eq!(
+            count(&node, &format!("/two/_count?routing={}", routing_to(shard))),
+            2
+        );
+    }
+    let both = format!("{},{}", routing_to(0), routing_to(1));
+    assert_eq!(count(&node, &format!("/two/_count?routing={both}")), 4);
+    assert_eq!(count(&node, "/two/_count?routing="), 4);
+    let one = format!("/compat-term/_count?routing={}", routing_to(1));
+    assert_eq!(count(&node, &one), count(&node, "/compat-term/_count"));
+}
+
+#[test]
+fn a_count_accepts_a_preference_and_ignores_it() {
+    let node = two_shards();
+    assert_eq!(count(&node, "/two/_count?preference=_local"), 4);
+}
