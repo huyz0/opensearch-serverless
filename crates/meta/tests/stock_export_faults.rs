@@ -56,7 +56,7 @@ mod faults {
         ) -> BlobResult<GetOutcome> {
             let mut reads = self.reads.lock().unwrap();
             let n = *reads;
-            *reads += 1;
+            *reads = reads.saturating_add(1);
             drop(reads);
             if self.fail_read_at == Some(n) {
                 return Err(BlobError::Unavailable);
