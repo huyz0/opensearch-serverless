@@ -84,3 +84,25 @@ pub fn parse_missing_body(p: &mut Parser<'_>) -> Result<(String, FiltersSpec), D
     };
     Ok((field, spec))
 }
+
+/// `global`'s body: `GlobalAggregationBuilder.parse` takes an empty object,
+/// the parser on its start, and counts every live document: a `match_all`
+/// filter, which the shard runs under a `match_all` query of its own.
+pub fn parse_global_body(p: &mut Parser<'_>, name: &str) -> Result<FiltersSpec, DslError> {
+    match p.next_token() {
+        Some(Kind::EndObject) | None => {}
+        Some(kind) => {
+            return Err(DslError::parsing(
+                p.location(),
+                // ALLOC: error path; one message.
+                format!("Unexpected token {} in [{name}].", kind.name()),
+            ));
+        }
+    }
+    Ok(FiltersSpec {
+        single: true,
+        // ALLOC: one filter, bounded by the body's recording.
+        filters: vec![("0".to_owned(), Query::MatchAll { boost: 1.0 })],
+        ..FiltersSpec::default()
+    })
+}

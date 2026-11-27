@@ -327,11 +327,13 @@ pub fn search_with<S: BlobStore + 'static>(
         opened.open_points().map_err(ShardError::engine)?;
     }
     let segments = opened.as_open_segments();
-    let mut aggregations = metric::collect(
+    let match_all = to_lucene(&crate::dsl::Query::MatchAll { boost: 1.0 }, &cx)
+        .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;
+    let mut aggregations = metric::collect_with_global(
         &source.aggs,
         shard,
         &segments,
-        &query,
+        (&query, &match_all),
         &filter_plans,
         &norms,
     )?;
