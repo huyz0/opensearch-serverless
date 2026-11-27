@@ -4,6 +4,12 @@
 # hangs is killed instead of holding the runner until the job's timeout.
 
 [profile.default]
+# Most of the slow tests wait (a timer, a lease TTL, an idle window) and use
+# little CPU, so as many as cores leave the cores idle. Measured on oss-node
+# (1,550 tests, 4 cores): 158 s at 4 threads, 80 s at 8, 58 s at 16, the same
+# 96 s of CPU each time. The cap on each test's memory (memcap-runner.sh)
+# still bounds a runaway test.
+test-threads = 16
 # Reported SLOW after 60 s; killed and failed after 10 periods (10 minutes).
 slow-timeout = { period = "60s", terminate-after = 10 }
 
