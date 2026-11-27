@@ -345,3 +345,6 @@ src/aggs/pipeline/serial_tests.rs	new		serial_diff computed, parsed and validate
 src/search_named.rs	new		the named queries of a search and which of them match each hit, scored at the hits only
 src/search_named_tests.rs	new		collecting the named queries
 src/dsl/queries/named_tests.rs	new		_name on the compound, full-text, nested and function_score queries
+src/aggs/pipeline/script.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketScriptPipelineAggregator.java@429b4cbc	bucket_script and bucket_selector compute (BucketSelectorPipelineAggregator.reduce too), over the rendered buckets
+src/aggs/pipeline/script_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketScriptPipelineAggregationBuilder.java@429b4cbc	the bucket_script parser; bucket_selector's loop is BucketSelectorPipelineAggregationBuilder.parse
+src/aggs/pipeline/script_tests.rs	new		both script pipelines computed and parsed against the bytes Java wrote
