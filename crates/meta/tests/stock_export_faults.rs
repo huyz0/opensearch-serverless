@@ -26,6 +26,9 @@ mod faults {
         pub inner: S,
         pub log: Mutex<Vec<String>>,
         pub fail_at: Option<usize>,
+        /// How many `get`s have been made, and the one to fail.
+        pub reads: Mutex<usize>,
+        pub fail_read_at: Option<usize>,
     }
 
     impl<S: BlobStore> Recording<S> {
@@ -51,6 +54,13 @@ mod faults {
             buf: &mut [u8],
             sink: &mut dyn ChunkSink,
         ) -> BlobResult<GetOutcome> {
+            let mut reads = self.reads.lock().unwrap();
+            let n = *reads;
+            *reads = reads.saturating_add(1);
+            drop(reads);
+            if self.fail_read_at == Some(n) {
+                return Err(BlobError::Unavailable);
+            }
             self.inner.get(key, range, buf, sink)
         }
         fn put(&self, key: &str, body: &mut dyn ChunkSource, buf: &mut [u8]) -> BlobResult<()> {
@@ -104,10 +114,24 @@ fn publish_through(
     fail_at: Option<usize>,
     take: &Take<'_>,
 ) -> (Result<oss_meta::Published, ExportError>, Vec<String>) {
+    let (got, log, _) = publish_reading(store, fail_at, None, take);
+    (got, log)
+}
+
+/// A take that fails its write `fail_at` or its read `fail_read_at`; the
+/// writes it made and the reads it made.
+fn publish_reading(
+    store: &Arc<Emulator>,
+    fail_at: Option<usize>,
+    fail_read_at: Option<usize>,
+    take: &Take<'_>,
+) -> (Result<oss_meta::Published, ExportError>, Vec<String>, usize) {
     let rec = Recording {
         inner: ExportStore::new(store.clone(), PREFIX),
         log: std::sync::Mutex::new(Vec::new()),
         fail_at,
+        reads: std::sync::Mutex::new(0),
+        fail_read_at,
     };
     let target = ExportTarget {
         store: &rec,
@@ -138,7 +162,8 @@ fn publish_through(
         publish_snapshot(&target, base, &snap, &mut [0u8; 64])
     })();
     let log = rec.log.lock().unwrap().clone();
-    (got, log)
+    let reads = *rec.reads.lock().unwrap();
+    (got, log, reads)
 }
 
 /// Everything the generation `index.latest` names reads back: each
@@ -235,6 +260,48 @@ fn a_fault_at_every_write_of_a_first_take_leaves_an_empty_or_restorable_reposito
         let store = store();
         let (got, _) = publish_through(&store, Some(k), &first());
         assert!(got.is_err());
+        assert_restorable(&store);
+    }
+}
+
+#[test]
+fn a_fault_at_every_read_of_a_second_take_fails_it_and_leaves_the_repository_restorable() {
+    let second = Take {
+        name: "s2",
+        uuid: "U2",
+        shards: shards("q", 2),
+        ..first()
+    };
+    let reads = {
+        let store = store();
+        publish(&store, None, &first()).unwrap();
+        let (got, _, reads) = publish_reading(&store, None, None, &second);
+        got.unwrap();
+        reads
+    };
+    // The take reads `index.latest`, `index-N` and the held shard generations.
+    assert!(reads >= 3, "{reads} reads");
+    for k in 0..reads {
+        let store = store();
+        publish(&store, None, &first()).unwrap();
+        let (got, log, _) = publish_reading(&store, None, Some(k), &second);
+        assert!(got.is_err(), "read {k} failed but the take did not");
+        assert_restorable(&store);
+        let repo = StockRepo::new(&*store, PREFIX);
+        let data = repo.repository_data(repo.generation().unwrap()).unwrap();
+        assert!(
+            data.snapshot("s2").is_none(),
+            "read {k}: the failed take is not named: {log:?}"
+        );
+        assert!(data.snapshot("s1").is_some());
+        // The next take goes through and keeps the first.
+        let retry = Take {
+            name: "s3",
+            uuid: "U3",
+            shards: shards("r", 2),
+            ..first()
+        };
+        publish(&store, None, &retry).unwrap();
         assert_restorable(&store);
     }
 }
