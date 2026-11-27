@@ -117,7 +117,7 @@ mod snapshot_take;
 mod snapshot_take_size;
 mod stock_export;
 mod stock_export_budget;
-mod stock_export_delete;
+mod stock_export_refusals;
 mod stock_export_restore;
 mod stock_restore;
 mod stock_restore_budget;
