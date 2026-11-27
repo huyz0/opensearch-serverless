@@ -11,6 +11,7 @@
 //! ([`render`]). Every other aggregation type, sub-aggregations, scripts,
 //! `missing`, `format` and `meta` are refused as not served yet.
 
+mod body_keys;
 pub mod collect;
 pub mod collect_auto;
 pub mod collect_global;
@@ -65,6 +66,9 @@ pub enum Metric {
     Avg,
     /// `stats`: count, min, max, avg and sum.
     Stats,
+    /// `extended_stats`: `stats` with the sum of squares, the variance and
+    /// the standard deviation.
+    ExtendedStats,
     /// `value_count`: how many values.
     ValueCount,
     /// `cardinality`: an estimate of how many distinct values, from a
@@ -131,12 +135,13 @@ pub enum Metric {
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 28] = [
+    pub const ALL: [Metric; 29] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
         Metric::Avg,
         Metric::Stats,
+        Metric::ExtendedStats,
         Metric::ValueCount,
         Metric::Cardinality,
         Metric::Percentiles,
@@ -170,6 +175,7 @@ impl Metric {
             Metric::Sum => "sum",
             Metric::Avg => "avg",
             Metric::Stats => "stats",
+            Metric::ExtendedStats => "extended_stats",
             Metric::ValueCount => "value_count",
             Metric::Cardinality => "cardinality",
             Metric::Percentiles => "percentiles",
@@ -216,6 +222,9 @@ pub struct MetricAgg {
     /// A `percentiles`' or `percentile_ranks`' options; the defaults, with
     /// no keys, for every other metric.
     pub percentiles: PercentilesOptions,
+    /// An `extended_stats`' `sigma`: how many standard deviations its bounds
+    /// lie from the mean; [`DEFAULT_SIGMA`] for every other aggregation.
+    pub sigma: f64,
     /// A `top_hits`' options; `None` for every other metric (whose `field`
     /// is the one it reads).
     pub top_hits: Option<Box<TopHitsSpec>>,
@@ -261,6 +270,7 @@ impl MetricAgg {
             field: field.to_owned(),
             cardinality: CardinalityOptions::default(),
             percentiles: PercentilesOptions::default(),
+            sigma: crate::aggs::metric::DEFAULT_SIGMA,
             top_hits: None,
             terms: None,
             histogram: None,
@@ -305,6 +315,9 @@ const HISTOGRAM_BUCKET_BYTES: usize = 64;
 
 /// `HyperLogLogPlusPlus.DEFAULT_PRECISION`.
 pub const DEFAULT_PRECISION: u32 = 14;
+
+/// `ExtendedStatsAggregationBuilder.DEFAULT_SIGMA`.
+pub const DEFAULT_SIGMA: f64 = 2.0;
 
 /// The most bytes aggregating `aggs` holds beyond the hits: each
 /// aggregation's result with its name, the engine's request and state for
@@ -395,6 +408,9 @@ mod cardinality_tests;
 
 #[cfg(test)]
 mod collect_kind_tests;
+
+#[cfg(test)]
+mod extended_stats_tests;
 
 #[cfg(test)]
 mod top_hits_tests;

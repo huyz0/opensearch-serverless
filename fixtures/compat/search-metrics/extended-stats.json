@@ -1,0 +1,1797 @@
+{
+  "name": "extended_stats",
+  "description": "The extended_stats metric aggregation over numeric, date, missing and unmapped fields.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-ext-stats",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-ext-stats",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "price": {
+                "type": "double"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-ext-stats"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "price": 10.5,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "price": 20.0,
+            "published": "2002-07-01T10:15:30Z"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "Quick start guide",
+            "tag": "manual",
+            "year": 2010,
+            "price": 5.25,
+            "published": "2010-01-01"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "Brown sugar and brown bread",
+            "tag": "food",
+            "year": 2002,
+            "price": 3.0,
+            "published": "2002-12-31T23:59:59.999Z"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "A fox in the snow",
+            "tag": "animal",
+            "year": 1999,
+            "price": 15.75,
+            "published": "1999-12-31"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "6"
+            }
+          },
+          {
+            "title": "Quick brown foxes jump",
+            "tag": "animal",
+            "year": 2010,
+            "price": 8.0,
+            "published": "2010-06-15"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "7"
+            }
+          },
+          {
+            "title": "Bread and butter",
+            "year": 2005,
+            "price": 2.5,
+            "published": "2005-05-05"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "8"
+            }
+          },
+          {
+            "title": "Snow dogs",
+            "tag": [
+              "animal",
+              "sport"
+            ],
+            "year": 2010,
+            "price": 30.0,
+            "published": "2010-11-30"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats",
+              "_id": "9"
+            }
+          },
+          {
+            "title": "No price here",
+            "tag": "misc",
+            "year": 2020,
+            "published": "2020-02-02"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/items/*/index/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 20,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "7",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 6,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "8",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 7,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats",
+                "_id": "9",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 8,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "extended_stats on a double",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 8,
+              "min": 2.5,
+              "max": 30.0,
+              "avg": 11.875,
+              "sum": 95.0,
+              "sum_of_squares": 1765.125,
+              "variance": 79.625,
+              "variance_population": 79.625,
+              "variance_sampling": 91.0,
+              "std_deviation": 8.923284148787374,
+              "std_deviation_population": 8.923284148787374,
+              "std_deviation_sampling": 9.539392014169456,
+              "std_deviation_bounds": {
+                "upper": 29.72156829757475,
+                "lower": -5.971568297574748,
+                "upper_population": 29.72156829757475,
+                "lower_population": -5.971568297574748,
+                "upper_sampling": 30.953784028338912,
+                "lower_sampling": -7.203784028338912
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats on an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "year"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 9,
+              "min": 1999.0,
+              "max": 2020.0,
+              "avg": 2006.5555555555557,
+              "sum": 18059.0,
+              "sum_of_squares": 36236735.0,
+              "variance": 38.69135802487532,
+              "variance_population": 38.69135802487532,
+              "variance_sampling": 43.52777777798474,
+              "std_deviation": 6.22023777880519,
+              "std_deviation_population": 6.22023777880519,
+              "std_deviation_sampling": 6.597558470978846,
+              "std_deviation_bounds": {
+                "upper": 2018.996031113166,
+                "lower": 1994.1150799979453,
+                "upper_population": 2018.996031113166,
+                "lower_population": 1994.1150799979453,
+                "upper_sampling": 2019.7506724975133,
+                "lower_sampling": 1993.360438613598
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats with sigma 3",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price",
+                "sigma": 3
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 8,
+              "min": 2.5,
+              "max": 30.0,
+              "avg": 11.875,
+              "sum": 95.0,
+              "sum_of_squares": 1765.125,
+              "variance": 79.625,
+              "variance_population": 79.625,
+              "variance_sampling": 91.0,
+              "std_deviation": 8.923284148787374,
+              "std_deviation_population": 8.923284148787374,
+              "std_deviation_sampling": 9.539392014169456,
+              "std_deviation_bounds": {
+                "upper": 38.64485244636212,
+                "lower": -14.894852446362123,
+                "upper_population": 38.64485244636212,
+                "lower_population": -14.894852446362123,
+                "upper_sampling": 40.49317604250837,
+                "lower_sampling": -16.743176042508367
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats with sigma 0",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price",
+                "sigma": 0
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 8,
+              "min": 2.5,
+              "max": 30.0,
+              "avg": 11.875,
+              "sum": 95.0,
+              "sum_of_squares": 1765.125,
+              "variance": 79.625,
+              "variance_population": 79.625,
+              "variance_sampling": 91.0,
+              "std_deviation": 8.923284148787374,
+              "std_deviation_population": 8.923284148787374,
+              "std_deviation_sampling": 9.539392014169456,
+              "std_deviation_bounds": {
+                "upper": 11.875,
+                "lower": 11.875,
+                "upper_population": 11.875,
+                "lower_population": 11.875,
+                "upper_sampling": 11.875,
+                "lower_sampling": 11.875
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats with a negative sigma",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price",
+                "sigma": -1
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:73] [extended_stats] failed to parse field [sigma]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:73] [extended_stats] failed to parse field [sigma]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "[sigma] must be greater than or equal to 0. Found [-1.0] in [e]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "extended_stats with sigma as text",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price",
+                "sigma": "2.5"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 8,
+              "min": 2.5,
+              "max": 30.0,
+              "avg": 11.875,
+              "sum": 95.0,
+              "sum_of_squares": 1765.125,
+              "variance": 79.625,
+              "variance_population": 79.625,
+              "variance_sampling": 91.0,
+              "std_deviation": 8.923284148787374,
+              "std_deviation_population": 8.923284148787374,
+              "std_deviation_sampling": 9.539392014169456,
+              "std_deviation_bounds": {
+                "upper": 34.183210371968435,
+                "lower": -10.433210371968435,
+                "upper_population": 34.183210371968435,
+                "lower_population": -10.433210371968435,
+                "upper_sampling": 35.72348003542364,
+                "lower_sampling": -11.973480035423641
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats over no match",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price"
+              }
+            }
+          },
+          "query": {
+            "term": {
+              "tag": "nosuch"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "e": {
+              "count": 0,
+              "min": null,
+              "max": null,
+              "avg": null,
+              "sum": 0.0,
+              "sum_of_squares": null,
+              "variance": null,
+              "variance_population": null,
+              "variance_sampling": null,
+              "std_deviation": null,
+              "std_deviation_population": null,
+              "std_deviation_sampling": null,
+              "std_deviation_bounds": {
+                "upper": null,
+                "lower": null,
+                "upper_population": null,
+                "lower_population": null,
+                "upper_sampling": null,
+                "lower_sampling": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats over one document",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price"
+              }
+            }
+          },
+          "query": {
+            "ids": {
+              "values": [
+                "1"
+              ]
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 1,
+              "min": 10.5,
+              "max": 10.5,
+              "avg": 10.5,
+              "sum": 10.5,
+              "sum_of_squares": 110.25,
+              "variance": 0.0,
+              "variance_population": 0.0,
+              "variance_sampling": "NaN",
+              "std_deviation": 0.0,
+              "std_deviation_population": 0.0,
+              "std_deviation_sampling": "NaN",
+              "std_deviation_bounds": {
+                "upper": 10.5,
+                "lower": 10.5,
+                "upper_population": 10.5,
+                "lower_population": 10.5,
+                "upper_sampling": "NaN",
+                "lower_sampling": "NaN"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats over two equal values",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "year"
+              }
+            }
+          },
+          "query": {
+            "ids": {
+              "values": [
+                "2",
+                "4"
+              ]
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "2",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 2,
+              "min": 2002.0,
+              "max": 2002.0,
+              "avg": 2002.0,
+              "sum": 4004.0,
+              "sum_of_squares": 8016008.0,
+              "variance": 0.0,
+              "variance_population": 0.0,
+              "variance_sampling": 0.0,
+              "std_deviation": 0.0,
+              "std_deviation_population": 0.0,
+              "std_deviation_sampling": 0.0,
+              "std_deviation_bounds": {
+                "upper": 2002.0,
+                "lower": 2002.0,
+                "upper_population": 2002.0,
+                "lower_population": 2002.0,
+                "upper_sampling": 2002.0,
+                "lower_sampling": 2002.0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats on an unmapped field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "nosuch"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 0,
+              "min": null,
+              "max": null,
+              "avg": null,
+              "sum": 0.0,
+              "sum_of_squares": null,
+              "variance": null,
+              "variance_population": null,
+              "variance_sampling": null,
+              "std_deviation": null,
+              "std_deviation_population": null,
+              "std_deviation_sampling": null,
+              "std_deviation_bounds": {
+                "upper": null,
+                "lower": null,
+                "upper_population": null,
+                "lower_population": null,
+                "upper_sampling": null,
+                "lower_sampling": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats on a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "title"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-ext-stats",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "the node id differs"
+        }
+      ]
+    },
+    {
+      "name": "extended_stats on a keyword field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "tag"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Field [tag] of type [keyword] is not supported for aggregation [extended_stats]"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-ext-stats",
+                "node": "wiANgSBqRqa1Kexlgr46jg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Field [tag] of type [keyword] is not supported for aggregation [extended_stats]"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Field [tag] of type [keyword] is not supported for aggregation [extended_stats]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field [tag] of type [keyword] is not supported for aggregation [extended_stats]"
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "the node id differs"
+        }
+      ]
+    },
+    {
+      "name": "extended_stats on a date field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "published"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 9,
+              "min": 946598400000.0,
+              "max": 1580601600000.0,
+              "avg": 1169216903333.2222,
+              "sum": 10522952129999.0,
+              "min_as_string": "1999-12-31T00:00:00.000Z",
+              "max_as_string": "2020-02-02T00:00:00.000Z",
+              "avg_as_string": "2007-01-19T14:28:23.333Z",
+              "sum_as_string": "2303-06-18T10:15:29.999Z",
+              "sum_of_squares": 1.2631780940437518e+25,
+              "variance": 3.646304856403921e+22,
+              "variance_population": 3.646304856403921e+22,
+              "variance_sampling": 4.102092963454411e+22,
+              "std_deviation": 190953000929.6508,
+              "std_deviation_population": 190953000929.6508,
+              "std_deviation_sampling": 202536242767.91577,
+              "std_deviation_bounds": {
+                "upper": 1551122905192.5237,
+                "lower": 787310901473.9207,
+                "upper_population": 1551122905192.5237,
+                "lower_population": 787310901473.9207,
+                "upper_sampling": 1574289388869.0537,
+                "lower_sampling": 764144417797.3906
+              },
+              "sum_of_squares_as_string": "+292278994-08-17T07:12:55.807Z",
+              "variance_as_string": "+292278994-08-17T07:12:55.807Z",
+              "variance_population_as_string": "+292278994-08-17T07:12:55.807Z",
+              "variance_sampling_as_string": "+292278994-08-17T07:12:55.807Z",
+              "std_deviation_as_string": "1976-01-20T02:30:00.929Z",
+              "std_deviation_population_as_string": "1976-01-20T02:30:00.929Z",
+              "std_deviation_sampling_as_string": "1976-06-02T04:04:02.767Z",
+              "std_deviation_bounds_as_string": {
+                "upper": "2019-02-25T19:28:25.192Z",
+                "lower": "1994-12-13T09:28:21.473Z",
+                "upper_population": "2019-02-25T19:28:25.192Z",
+                "lower_population": "1994-12-13T09:28:21.473Z",
+                "upper_sampling": "2019-11-20T22:36:28.869Z",
+                "lower_sampling": "1994-03-20T06:20:17.797Z"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats under terms",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "t": {
+              "aggs": {
+                "e": {
+                  "extended_stats": {
+                    "field": "price"
+                  }
+                }
+              },
+              "terms": {
+                "field": "tag"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5,
+                  "e": {
+                    "count": 5,
+                    "min": 8.0,
+                    "max": 30.0,
+                    "avg": 16.85,
+                    "sum": 84.25,
+                    "sum_of_squares": 1722.3125,
+                    "variance": 60.540000000000006,
+                    "variance_population": 60.540000000000006,
+                    "variance_sampling": 75.67500000000001,
+                    "std_deviation": 7.780745465570764,
+                    "std_deviation_population": 7.780745465570764,
+                    "std_deviation_sampling": 8.69913788831974,
+                    "std_deviation_bounds": {
+                      "upper": 32.41149093114153,
+                      "lower": 1.288509068858474,
+                      "upper_population": 32.41149093114153,
+                      "lower_population": 1.288509068858474,
+                      "upper_sampling": 34.24827577663948,
+                      "lower_sampling": -0.5482757766394784
+                    }
+                  }
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1,
+                  "e": {
+                    "count": 1,
+                    "min": 3.0,
+                    "max": 3.0,
+                    "avg": 3.0,
+                    "sum": 3.0,
+                    "sum_of_squares": 9.0,
+                    "variance": 0.0,
+                    "variance_population": 0.0,
+                    "variance_sampling": "NaN",
+                    "std_deviation": 0.0,
+                    "std_deviation_population": 0.0,
+                    "std_deviation_sampling": "NaN",
+                    "std_deviation_bounds": {
+                      "upper": 3.0,
+                      "lower": 3.0,
+                      "upper_population": 3.0,
+                      "lower_population": 3.0,
+                      "upper_sampling": "NaN",
+                      "lower_sampling": "NaN"
+                    }
+                  }
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1,
+                  "e": {
+                    "count": 1,
+                    "min": 5.25,
+                    "max": 5.25,
+                    "avg": 5.25,
+                    "sum": 5.25,
+                    "sum_of_squares": 27.5625,
+                    "variance": 0.0,
+                    "variance_population": 0.0,
+                    "variance_sampling": "NaN",
+                    "std_deviation": 0.0,
+                    "std_deviation_population": 0.0,
+                    "std_deviation_sampling": "NaN",
+                    "std_deviation_bounds": {
+                      "upper": 5.25,
+                      "lower": 5.25,
+                      "upper_population": 5.25,
+                      "lower_population": 5.25,
+                      "upper_sampling": "NaN",
+                      "lower_sampling": "NaN"
+                    }
+                  }
+                },
+                {
+                  "key": "misc",
+                  "doc_count": 1,
+                  "e": {
+                    "count": 0,
+                    "min": null,
+                    "max": null,
+                    "avg": null,
+                    "sum": 0.0,
+                    "sum_of_squares": null,
+                    "variance": null,
+                    "variance_population": null,
+                    "variance_sampling": null,
+                    "std_deviation": null,
+                    "std_deviation_population": null,
+                    "std_deviation_sampling": null,
+                    "std_deviation_bounds": {
+                      "upper": null,
+                      "lower": null,
+                      "upper_population": null,
+                      "lower_population": null,
+                      "upper_sampling": null,
+                      "lower_sampling": null
+                    }
+                  }
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1,
+                  "e": {
+                    "count": 1,
+                    "min": 30.0,
+                    "max": 30.0,
+                    "avg": 30.0,
+                    "sum": 30.0,
+                    "sum_of_squares": 900.0,
+                    "variance": 0.0,
+                    "variance_population": 0.0,
+                    "variance_sampling": "NaN",
+                    "std_deviation": 0.0,
+                    "std_deviation_population": 0.0,
+                    "std_deviation_sampling": "NaN",
+                    "std_deviation_bounds": {
+                      "upper": 30.0,
+                      "lower": 30.0,
+                      "upper_population": 30.0,
+                      "lower_population": 30.0,
+                      "upper_sampling": "NaN",
+                      "lower_sampling": "NaN"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats beside stats",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price"
+              }
+            },
+            "s": {
+              "stats": {
+                "field": "price"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "s": {
+              "count": 8,
+              "min": 2.5,
+              "max": 30.0,
+              "avg": 11.875,
+              "sum": 95.0
+            },
+            "e": {
+              "count": 8,
+              "min": 2.5,
+              "max": 30.0,
+              "avg": 11.875,
+              "sum": 95.0,
+              "sum_of_squares": 1765.125,
+              "variance": 79.625,
+              "variance_population": 79.625,
+              "variance_sampling": 91.0,
+              "std_deviation": 8.923284148787374,
+              "std_deviation_population": 8.923284148787374,
+              "std_deviation_sampling": 9.539392014169456,
+              "std_deviation_bounds": {
+                "upper": 29.72156829757475,
+                "lower": -5.971568297574748,
+                "upper_population": 29.72156829757475,
+                "lower_population": -5.971568297574748,
+                "upper_sampling": 30.953784028338912,
+                "lower_sampling": -7.203784028338912
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats with typed_keys",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price"
+              }
+            }
+          },
+          "size": 1
+        },
+        "query": {
+          "typed_keys": "true"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "extended_stats#e": {
+              "count": 8,
+              "min": 2.5,
+              "max": 30.0,
+              "avg": 11.875,
+              "sum": 95.0,
+              "sum_of_squares": 1765.125,
+              "variance": 79.625,
+              "variance_population": 79.625,
+              "variance_sampling": 91.0,
+              "std_deviation": 8.923284148787374,
+              "std_deviation_population": 8.923284148787374,
+              "std_deviation_sampling": 9.539392014169456,
+              "std_deviation_bounds": {
+                "upper": 29.72156829757475,
+                "lower": -5.971568297574748,
+                "upper_population": 29.72156829757475,
+                "lower_population": -5.971568297574748,
+                "upper_sampling": 30.953784028338912,
+                "lower_sampling": -7.203784028338912
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats with an unknown parameter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price",
+                "nope": 1
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:65] [extended_stats] unknown field [nope]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:65] [extended_stats] unknown field [nope]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "extended_stats without a field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats/_search",
+        "body": {
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {}
+            }
+          },
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Required one of fields [field, script], but none were specified. "
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Required one of fields [field, script], but none were specified. "
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}

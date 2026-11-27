@@ -297,6 +297,27 @@ fn an_assembled_node_answers_every_recorded_gap_as_stock_did() {
 }
 
 #[test]
+fn an_assembled_node_answers_every_metric_fixture_as_stock_opensearch_did() {
+    let fixtures: Vec<Fixture> = load_dir(&root().join("compat/search-metrics"))
+        .expect("fixtures load")
+        .into_iter()
+        .map(|(_, f)| f)
+        .map(|mut f| {
+            support::normalise_columns(&mut f);
+            f
+        })
+        .collect();
+    assert_eq!(fixtures.len(), 1, "an extended_stats fixture");
+    let failed: Vec<String> = fixtures.into_iter().flat_map(replay).collect();
+    assert!(
+        failed.is_empty(),
+        "{} differ:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
+
+#[test]
 fn an_assembled_node_answers_every_nested_fixture_as_stock_opensearch_did() {
     let fixtures: Vec<Fixture> = load_dir(&root().join("compat/nested-search"))
         .expect("fixtures load")
