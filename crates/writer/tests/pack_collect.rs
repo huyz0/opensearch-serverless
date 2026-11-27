@@ -2,13 +2,18 @@
 //! an epoch rotates every 1,024 ordinals, the live epochs are capped, and
 //! the sidecar register is read and swapped.
 
+mod common;
+
 use std::sync::Arc;
 use std::time::Duration;
 
 use oss_blob::{BlobStore, Emulator, S3Op, SliceSource};
-use oss_format::{NodePackLedger, PackEpoch, PackSidecar, SidecarEpoch, node_pack_key};
+use oss_format::{
+    NodePackLedger, PackEpoch, PackSidecar, SidecarEpoch, node_pack_key, pack_index_slot,
+};
 use oss_writer::pack::{
-    PackError, PackLedger, PackSidecarStore, PackStore, PackWriter, Part, RESERVE_AHEAD,
+    PackError, PackIndexStore, PackLedger, PackSidecarStore, PackStore, PackWriter, Part,
+    RESERVE_AHEAD,
 };
 
 const NODE: &str = "node-1";
@@ -177,4 +182,65 @@ fn the_sidecar_is_read_and_swapped_by_generation() {
         .expect("re-applied");
     let epochs: Vec<u64> = merged.sidecar.epochs().iter().map(|e| e.epoch).collect();
     assert_eq!(epochs, vec![5, 6, 7]);
+}
+
+fn indexed(store: Arc<dyn BlobStore>, e: &Arc<Emulator>) -> PackWriter {
+    PackWriter::new(
+        PackStore::new(dynstore(e), "", NODE),
+        Some(PackLedger::new(dynstore(e), "", NODE).expect("ledger")),
+        BASE_EPOCH,
+        Duration::ZERO,
+        8 << 20,
+    )
+    .with_collection(true)
+    .with_index(PackIndexStore::new(store, ""), NODE)
+}
+
+/// AC-4: the node is named in its index register before its first pack, in
+/// the same publish: pack, ledger create and index create.
+#[test]
+fn the_node_is_indexed_before_its_first_pack() {
+    let e = emulator();
+    let w = indexed(dynstore(&e), &e);
+    w.add(vec![part()]).expect("packs");
+    assert_eq!(e.meter().count(S3Op::Put), 3, "pack, ledger, index");
+    let index = PackIndexStore::new(dynstore(&e), "");
+    let state = index.read(pack_index_slot(NODE)).expect("reads");
+    assert_eq!(state.index.stamp(NODE), Some(BASE_EPOCH));
+    // Later packs of the epoch add nothing to the index.
+    let puts = e.meter().count(S3Op::Put);
+    w.add(vec![part()]).expect("packs");
+    assert_eq!(e.meter().count(S3Op::Put), puts + 1, "only the pack");
+}
+
+/// AC-4: a rotation names the node again, with the new epoch's stamp.
+#[test]
+fn a_rotation_adds_the_node_again() {
+    let e = emulator();
+    let w = indexed(dynstore(&e), &e);
+    for _ in 0..1025 {
+        w.add(vec![part()]).expect("packs");
+    }
+    let state = PackIndexStore::new(dynstore(&e), "")
+        .read(pack_index_slot(NODE))
+        .expect("reads");
+    assert_eq!(state.index.stamp(NODE), Some(BASE_EPOCH + 1));
+}
+
+/// AC-4: when the index cannot be written the publish fails and no pack is
+/// written, so no pack exists that the index cannot find.
+#[test]
+fn no_pack_is_written_when_the_index_add_fails() {
+    let e = emulator();
+    PackIndexStore::new(dynstore(&e), "")
+        .add(NODE, 1)
+        .expect("seeded");
+    let busy = common::Hooked::swapping(&e, |_, _, _, _| {
+        Ok(oss_blob::register::SwapOutcome::Conflict(None))
+    });
+    let w = indexed(busy, &e);
+    let err = w.add(vec![part()]).expect_err("fails");
+    assert!(matches!(err, PackError::IndexBusy), "{err}");
+    let key = node_pack_key("", NODE, BASE_EPOCH, 0).expect("key");
+    assert!(e.head(&key).expect("head").is_none(), "no pack was written");
 }

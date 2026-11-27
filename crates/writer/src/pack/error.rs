@@ -21,6 +21,8 @@ pub enum PackError {
     Length(&'static str),
     /// The ledger moved under every attempt to update it.
     LedgerBusy,
+    /// An index register moved under every attempt to add to it.
+    IndexBusy,
     /// The ledger already holds the most live epochs a collector tracks, so
     /// the writer will not start another.
     TooManyEpochs,
@@ -37,6 +39,7 @@ impl fmt::Display for PackError {
             Self::Taken => write!(f, "the node pack's slot is taken"),
             Self::Length(why) => write!(f, "a pack part {why}"),
             Self::LedgerBusy => write!(f, "the node pack ledger kept moving under every attempt"),
+            Self::IndexBusy => write!(f, "the node pack index kept moving under every attempt"),
             Self::TooManyEpochs => write!(
                 f,
                 "the node already has {MAX_LIVE_EPOCHS} live pack epochs, so no more are started"

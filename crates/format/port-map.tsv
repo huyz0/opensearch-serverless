@@ -65,3 +65,4 @@ src/stock/lucene_file.rs	new		the Lucene version a segment's .si or segments_N h
 src/snapshot_aliases.rs	new		the alias fields of a snapshot record (ADR 0065); the Java shell makes the matching change on its own branch
 src/snapshot_global_state.rs	new		the global state member of a snapshot record (ADR 0068); the Java shell carries it through opaquely
 src/pack_sidecar.rs	new		the collector's per-node sidecar register: a bitmap of collected ordinals and the high of each live epoch (ADR 0025); Rust only, the Java does not read it
+src/pack_index.rs	new		the collector's 16 index registers naming the nodes that may hold live packs, spread by an FNV-1a slot (ADR 0025); Rust only

@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 use oss_format::ORDINALS_PER_EPOCH;
 
 use super::PackError;
+use super::index::PackIndexStore;
 use super::ledger::PackLedger;
 use super::store::{Landed, PackStore, Part};
 
@@ -62,6 +63,8 @@ pub struct PackWriter {
     next_ordinal: AtomicU64,
     recorded: Mutex<bool>,
     collect: bool,
+    index: Option<(PackIndexStore, String)>,
+    indexed: Mutex<Option<u64>>,
     reserved: Mutex<u64>,
     batch: Mutex<Batch>,
     full: Condvar,
@@ -101,6 +104,8 @@ impl PackWriter {
             next_ordinal: AtomicU64::new(0),
             recorded: Mutex::new(false),
             collect: false,
+            index: None,
+            indexed: Mutex::new(None),
             reserved: Mutex::new(0),
             batch: Mutex::new(Batch::default()),
             full: Condvar::new(),
@@ -114,6 +119,15 @@ impl PackWriter {
     #[must_use]
     pub fn with_collection(mut self, collect: bool) -> Self {
         self.collect = collect;
+        self
+    }
+
+    /// With collection on, names `node` in the pack index before the first
+    /// pack of each epoch, so a collector finds this node's ledger.
+    #[must_use]
+    pub fn with_index(mut self, index: PackIndexStore, node: &str) -> Self {
+        // ALLOC: one node id, once a writer.
+        self.index = Some((index, node.to_owned()));
         self
     }
 
@@ -228,8 +242,22 @@ impl PackWriter {
         }
         // Collection on: the epoch rotates every ORDINALS_PER_EPOCH ordinals.
         let epoch = self.epoch.saturating_add(ordinal / ORDINALS_PER_EPOCH);
+        self.name_in_index(epoch)?;
         self.reserve(ordinal)?;
         self.store.write(epoch, ordinal % ORDINALS_PER_EPOCH, parts)
+    }
+
+    /// Names the node in the index before its first pack of `epoch`.
+    fn name_in_index(&self, epoch: u64) -> Result<(), PackError> {
+        let Some((index, node)) = &self.index else {
+            return Ok(());
+        };
+        let mut done = locked(&self.indexed);
+        if *done != Some(epoch) {
+            index.add(node, epoch)?;
+            *done = Some(epoch);
+        }
+        Ok(())
     }
 
     /// Makes the ledger's `high` cover `ordinal`, a block ahead.

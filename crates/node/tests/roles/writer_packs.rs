@@ -296,10 +296,10 @@ fn a_failing_shard_is_reported_and_the_others_are_published() {
     assert!(pass.failed[0].contains("[u2][0]"), "{:?}", pass.failed);
 }
 
-// AC-1, AC-2: with collection on a publish is still pack, ledger create and
-// swap, and the ledger already reserves its high a block ahead.
+// AC-2, AC-4: with collection on a first publish is the pack, the ledger
+// create, the index add and the swap, and the ledger reserves a block ahead.
 #[test]
-fn with_collection_on_a_first_publish_costs_the_same_and_reserves_ahead() {
+fn with_collection_on_a_first_publish_indexes_the_node_and_reserves_ahead() {
     let c = cluster();
     create(&c, "logs", "u1");
     let n = node_full(
@@ -321,9 +321,18 @@ fn with_collection_on_a_first_publish_costs_the_same_and_reserves_ahead() {
     assert_eq!(pass.published, 1, "{:?}", pass.failed);
     assert_eq!(
         c.store.meter().count(S3Op::Put) - before,
-        3,
-        "pack, ledger, swap"
+        4,
+        "pack, ledger, index, swap"
     );
+    let mut ibuf = vec![0u8; 1 << 16];
+    let slot = oss_format::pack_index_slot("node-1");
+    let iread = c
+        .store
+        .read_register(&format!("packs/index/{slot}"), &mut ibuf)
+        .expect("reads")
+        .expect("the node is indexed");
+    let named = oss_format::PackIndex::parse(&ibuf[..iread.len]).expect("index");
+    assert!(named.contains("node-1"));
     let mut buf = vec![0u8; 1 << 16];
     let read = c
         .store
