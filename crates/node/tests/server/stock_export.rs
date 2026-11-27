@@ -310,6 +310,46 @@ fn a_target_outside_the_export_roots_is_refused_and_nothing_is_written() {
     assert_eq!(std::fs::read_dir(&elsewhere).unwrap().count(), 0);
 }
 
+/// Registers an fs stock repository at `location` as `name`.
+fn register_at(r: &Rig, name: &str, location: &str) {
+    let body =
+        format!(r#"{{"type":"fs","settings":{{"format":"stock","location":"{location}"}}}}"#);
+    assert_eq!(
+        send(r, "PUT", &format!("/_snapshot/{name}"), Some(&body)).status,
+        200
+    );
+}
+
+#[test]
+fn a_location_reached_by_dot_dot_is_refused_and_nothing_is_written() {
+    let r = rig(true, "dotdot");
+    let sibling = r.root.join("sibling");
+    std::fs::create_dir_all(&sibling).unwrap();
+    register_at(&r, "up", &format!("{}/out/../sibling", r.root.display()));
+    let reply = send(&r, "PUT", &format!("/_snapshot/up/s1{WAIT}"), Some(TAKE));
+    assert_eq!(reply.status, 400, "{}", reply.text());
+    assert_eq!(std::fs::read_dir(&sibling).unwrap().count(), 0);
+    assert!(r.written().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_location_reached_through_a_symlink_is_refused_and_nothing_is_written() {
+    let r = rig(true, "symlink");
+    let outside = std::env::temp_dir().join(format!("oss-export-linked-{}", std::process::id()));
+    std::fs::create_dir_all(&outside).unwrap();
+    std::os::unix::fs::symlink(&outside, r.root.join("link")).unwrap();
+    register_at(&r, "linked", &format!("{}/link", r.root.display()));
+    let reply = send(
+        &r,
+        "PUT",
+        &format!("/_snapshot/linked/s1{WAIT}"),
+        Some(TAKE),
+    );
+    assert_eq!(reply.status, 400, "{}", reply.text());
+    assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 0);
+}
+
 fn add_index(r: &Rig, name: &str, edit: impl FnOnce(&mut IndexRecord<'_>)) {
     let mut record = IndexRecord::new(name, "u2", 1);
     edit(&mut record);
