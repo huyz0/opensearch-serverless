@@ -3,7 +3,6 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Instant;
 
 use lucene_store::Directory;
 use oss_format::{encode_segment_header, segment_blob_order};
@@ -12,6 +11,7 @@ use super::PublishError;
 use super::blob::SegmentBlob;
 use super::publisher::ShardPublisher;
 use super::register::Known;
+use crate::boot_clock::BootInstant;
 use crate::pack::{PackWriter, Part};
 
 /// Where a shard's small segment blobs go when its publishes use node packs:
@@ -120,7 +120,7 @@ impl ShardPublisher {
     pub(super) fn put_packed(
         &self,
         packable: Vec<(Packable, Part)>,
-        packed_at: &mut Option<Instant>,
+        packed_at: &mut Option<BootInstant>,
         uploaded: &mut BTreeMap<String, Known>,
         entries: &mut BTreeMap<String, Known>,
     ) -> Result<(), PublishError> {
@@ -134,7 +134,7 @@ impl ShardPublisher {
         let (laid, parts): (Vec<Packable>, Vec<Part>) = packable.into_iter().unzip();
         // Taken before the pack is asked for, so the pack is never younger
         // than this says.
-        packed_at.get_or_insert_with(Instant::now);
+        packed_at.get_or_insert_with(BootInstant::now);
         let landed = placement.writer.add(parts)?;
         for (found, at) in laid.iter().zip(&landed) {
             let mut offset = found.header_len;

@@ -1,12 +1,12 @@
 //! A publisher that starts from a commit adopted from a predecessor's log
 //! (docs/specs/open-from-logged-commit).
 
-use std::time::Instant;
-
 use super::PublishError;
 use super::publisher::ShardPublisher;
 use super::register::last_of;
 use oss_format::CommitManifest;
+
+use crate::boot_clock::BootInstant;
 
 impl ShardPublisher {
     /// Makes `manifest`, read at register `generation`, the commit this
@@ -25,7 +25,7 @@ impl ShardPublisher {
         &mut self,
         manifest: &[u8],
         generation: u64,
-        packed_at: Instant,
+        packed_at: BootInstant,
     ) -> Result<(), PublishError> {
         let last = last_of(manifest, generation)?;
         let parsed = CommitManifest::parse(manifest)?;

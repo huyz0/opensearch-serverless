@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use lucene_store::Directory;
 use oss_blob::{BlobStore, SwapOutcome};
@@ -15,6 +15,7 @@ use super::names::segment_name;
 use super::packed::{PackPlacement, Packable};
 use super::register::{Known, Last, fence};
 use super::staging::{Staged, due};
+use crate::boot_clock::BootInstant;
 use crate::bulk::IdGenerator;
 use crate::pack::{Part, SWAP_DEADLINE_MILLIS};
 
@@ -51,7 +52,7 @@ pub struct ShardPublisher {
     pub(super) sequence: i64,
     /// When the oldest pack of a commit adopted from a predecessor's log
     /// landed, minus the open margin: the commit is only that old to a swap.
-    pub(super) adopted: Option<Instant>,
+    pub(super) adopted: Option<BootInstant>,
 }
 
 impl std::fmt::Debug for ShardPublisher {
@@ -211,7 +212,7 @@ impl ShardPublisher {
         let mut blobs: Vec<String> = Vec::new();
         // When this publish asked for its pack, the earliest, so the swap's
         // age check never undercounts how long ago a pack landed.
-        let mut packed_at: Option<Instant> = None;
+        let mut packed_at: Option<BootInstant> = None;
         // At most two rounds: a swap lost over a remembered generation is
         // tried once more over what the register holds.
         for round in 0..2 {
@@ -284,8 +285,8 @@ impl ShardPublisher {
                 let oldest = self
                     .staged
                     .as_ref()
-                    .map_or_else(Instant::now, |s| s.oldest)
-                    .min(packed_at.unwrap_or_else(Instant::now));
+                    .map_or_else(BootInstant::now, |s| s.oldest)
+                    .min(packed_at.unwrap_or_else(BootInstant::now));
                 // ALLOC: one manifest's bytes and names a shard with a staged commit.
                 self.staged = Some(Staged {
                     manifest: manifest.clone(),
@@ -377,7 +378,7 @@ impl ShardPublisher {
         known: &BTreeMap<String, Known>,
         uploaded: &mut BTreeMap<String, Known>,
         blobs: &mut Vec<String>,
-        packed_at: &mut Option<Instant>,
+        packed_at: &mut Option<BootInstant>,
         now_millis: u64,
     ) -> Result<BTreeMap<String, Known>, PublishError> {
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
