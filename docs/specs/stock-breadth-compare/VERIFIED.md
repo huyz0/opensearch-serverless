@@ -14,3 +14,6 @@ Findings:
 Not run: the `min` fixture (recording refused by the sandbox), nested-aggregation `terms` ordering, a multi-shard or multi-segment comparison.
 
 R10.1 and R10.2 stay open: 13 recorded answers are not matched yet.
+
+Update 2026-11-27: replaying `search-breadth-gaps/` found 11 of the 13 steps already served and matching (the list above was written before several aggregations landed); `an_assembled_node_answers_the_recorded_gaps_as_stock_did_except_the_open_ones` now holds them and lists the open ones. `date_range` with `format` is served ([date-range-agg](../date-range-agg/SPEC.md) AC-4). Still open: `match_phrase_prefix` scores.
+- AC-4: `an_assembled_node_answers_the_recorded_gaps_as_stock_did_except_the_open_ones` (crates/compat/tests/node_cluster.rs).

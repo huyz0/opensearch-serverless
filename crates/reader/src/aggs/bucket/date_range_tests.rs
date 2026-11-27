@@ -74,7 +74,9 @@ fn bad_bodies_and_unserved_options_fail_by_name() {
         "{got}"
     );
     for body in [
-        r#"{"field":"n","format":"yyyy","ranges":[{"to":1}]}"#,
+        r#"{"field":"n","format":"yyyy","ranges":[{"to":"2002-01-01"}]}"#,
+        r#"{"field":"n","format":"dd/MM/yyyy","ranges":[{"to":"2002-01-01"}]}"#,
+        r#"{"field":"n","format":"nope","ranges":[{"to":1}]}"#,
         r#"{"field":"n","time_zone":"+01:00","ranges":[{"to":1}]}"#,
         r#"{"field":"n","ranges":[{"to":"now-1d"}]}"#,
         r#"{"field":"n","ranges":[{"to":"2020-01-01||+1d"}]}"#,
@@ -85,6 +87,31 @@ fn bad_bodies_and_unserved_options_fail_by_name() {
             "{body}: {got}"
         );
     }
+}
+
+// AC-4
+#[test]
+fn a_format_prints_the_bounds_and_the_keys() {
+    use crate::aggs::bucket::range_render::write_range;
+    use crate::aggs::partial::Format;
+    let agg = parsed(
+        r#"{"field":"n","ranges":[{"to":"2002-01-01"},{"from":"2002-01-01","to":1199145600000}],"format":"yyyy-MM-dd"}"#,
+    )
+    .expect("parses");
+    let spec = agg.range.expect("a range");
+    assert!(spec.format.is_some());
+    let result = crate::aggs::bucket::range_collect::from_counts(&spec, &[2, 3]);
+    let mut out = Vec::new();
+    write_range(&mut out, Format::Date, &result).expect("writes");
+    let text = String::from_utf8(out).expect("utf-8");
+    assert_eq!(
+        text,
+        concat!(
+            r#""buckets":[{"key":"*-2002-01-01","to":1.0098432E12,"to_as_string":"2002-01-01","doc_count":2},"#,
+            r#"{"key":"2002-01-01-2008-01-01","from":1.0098432E12,"from_as_string":"2002-01-01","#,
+            r#""to":1.1991456E12,"to_as_string":"2008-01-01","doc_count":3}]"#
+        )
+    );
 }
 
 fn shard(name: &str) -> OpenShard<Emulator> {

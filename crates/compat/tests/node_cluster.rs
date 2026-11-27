@@ -271,6 +271,39 @@ fn an_assembled_node_answers_every_breadth_fixture_as_stock_opensearch_did() {
     );
 }
 
+/// The recorded steps this node still answers differently from stock; a
+/// step that starts to match must leave this list.
+const STILL_OPEN: &[&str] = &["queries not served yet / match_phrase_prefix"];
+
+#[test]
+fn an_assembled_node_answers_the_recorded_gaps_as_stock_did_except_the_open_ones() {
+    let fixtures: Vec<Fixture> = load_dir(&root().join("compat/search-breadth-gaps"))
+        .expect("fixtures load")
+        .into_iter()
+        .map(|(_, f)| f)
+        .map(|mut f| {
+            support::normalise_columns(&mut f);
+            f
+        })
+        .collect();
+    assert_eq!(
+        fixtures.len(),
+        2,
+        "a query and a bucket aggregation fixture"
+    );
+    let failed: Vec<String> = fixtures.into_iter().flat_map(replay).collect();
+    let names: Vec<&str> = failed
+        .iter()
+        .map(|f| f.split(": ").next().unwrap_or(f))
+        .collect();
+    assert_eq!(
+        names,
+        STILL_OPEN,
+        "the differing steps:\n{}",
+        failed.join("\n")
+    );
+}
+
 #[test]
 fn an_assembled_node_answers_every_nested_fixture_as_stock_opensearch_did() {
     let fixtures: Vec<Fixture> = load_dir(&root().join("compat/nested-search"))
