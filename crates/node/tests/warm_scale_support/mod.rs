@@ -128,7 +128,16 @@ pub fn spawn_joiner(
     let (endpoint, bucket, region, access, secret) = cluster.store();
     let http: SocketAddr = format!("127.0.0.1:{}", free_port()).parse().expect("addr");
     let transport = format!("127.0.0.1:{}", free_port());
-    let mut command = Command::new(env!("CARGO_BIN_EXE_oss-node"));
+    // `WARM_JOINER_CPUS` pins the joiner to those cores (`taskset -c`), so a
+    // measurement can keep it off the cores the peer and the store run on.
+    let mut command = match std::env::var("WARM_JOINER_CPUS") {
+        Ok(cpus) if !cpus.is_empty() => {
+            let mut c = Command::new("taskset");
+            c.arg("-c").arg(cpus).arg(env!("CARGO_BIN_EXE_oss-node"));
+            c
+        }
+        _ => Command::new(env!("CARGO_BIN_EXE_oss-node")),
+    };
     command
         .env("OSS_NODE_ID", id)
         .env("OSS_STORE", "s3")
