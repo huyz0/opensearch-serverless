@@ -21,6 +21,10 @@ use super::{
     Seeded, sync,
 };
 
+/// How long a live member with no ledger is left alone before its ledger is
+/// read again.
+const IDLE_RECHECK_MILLIS: u64 = 60 * 60_000;
+
 /// What one tick did.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Collected {
@@ -49,6 +53,7 @@ pub struct PackCollector {
     judges: BTreeMap<String, PackJudge>,
     seeder: Option<PackSeeder>,
     adopt_members: bool,
+    idle: BTreeMap<String, u64>,
     last_window: Option<u64>,
 }
 
@@ -66,6 +71,8 @@ impl PackCollector {
             judges: BTreeMap::new(),
             seeder: None,
             adopt_members: false,
+            // ALLOC: an empty map, one entry a live member with no ledger.
+            idle: BTreeMap::new(),
             last_window: None,
         }
     }
@@ -117,6 +124,7 @@ impl PackCollector {
                 // index; the swap fails if a writer added it since the read.
                 if !live && !alive && self.index.remove(slot, state, node)? == Removal::Removed {
                     self.judges.remove(node);
+                    self.idle.remove(node);
                     out.dropped = out.dropped.saturating_add(1);
                 }
             }
@@ -168,9 +176,21 @@ impl PackCollector {
         now: u64,
         out: &mut Collected,
     ) -> Result<bool, PackError> {
-        let sidecar = PackSidecarStore::new(Arc::clone(&self.store), &self.base, node)?;
+        if alive && self.idle.get(node).is_some_and(|until| now < *until) {
+            return Ok(true);
+        }
         let ledger = PackLedger::new(Arc::clone(&self.store), &self.base, node)?;
         let from = ledger.read()?;
+        if alive && from.epochs.is_empty() {
+            // A live member that has written nothing: named, but not worth
+            // a sidecar read, and asked about again in an hour.
+            // ALLOC: one entry a live member with no ledger, at most the members.
+            self.idle
+                .insert(node.to_owned(), now.saturating_add(IDLE_RECHECK_MILLIS));
+            return Ok(true);
+        }
+        self.idle.remove(node);
+        let sidecar = PackSidecarStore::new(Arc::clone(&self.store), &self.base, node)?;
         let state = sidecar.update(sidecar.read()?, |current| {
             sync::synced(&from.epochs, current, alive)
         })?;

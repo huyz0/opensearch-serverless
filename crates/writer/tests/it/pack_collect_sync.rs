@@ -431,3 +431,64 @@ fn a_member_with_an_unusable_id_is_skipped() {
     c.tick(&me, &all, now, &refs).expect("tick");
     assert!(index_state(&e).index.contains(NODE));
 }
+
+/// Whole-object GETs so far.
+fn gets(e: &Arc<Emulator>) -> u64 {
+    e.meter().count(S3Op::Get)
+}
+
+/// A live member with no ledger costs one GET and is not looked at again for
+/// an hour: the passes between ask only the index.
+#[test]
+fn a_live_member_with_no_ledger_is_looked_at_once_an_hour() {
+    let e = emulator();
+    PackIndexStore::new(dynstore(&e), "")
+        .add(NODE, 1)
+        .expect("indexed");
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100);
+    let before = gets(&e);
+    run_as(&mut c, 100, &refs, true);
+    assert_eq!(gets(&e) - before, 16 + 1, "16 index registers, one ledger");
+    let before = gets(&e);
+    for w in 101..106 {
+        run_as(&mut c, w, &refs, true);
+    }
+    assert_eq!(gets(&e) - before, 5 * 16, "only the index, for five passes");
+    let before = gets(&e);
+    run_as(&mut c, 106, &refs, true);
+    assert_eq!(gets(&e) - before, 16 + 1, "an hour on, the ledger again");
+}
+
+/// A ledger that appears is found at the next look.
+#[test]
+fn a_ledger_that_appears_is_judged_at_the_next_look() {
+    let e = emulator();
+    PackIndexStore::new(dynstore(&e), "")
+        .add(NODE, 1)
+        .expect("indexed");
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100);
+    run_as(&mut c, 100, &refs, true);
+    ledger(&e).reserve(1, 16).expect("reserved");
+    pack(&e, 1, 0);
+    e.advance_clock(16 * MIN);
+    for w in 101..109 {
+        run_as(&mut c, w, &refs, true);
+    }
+    assert!(!exists(&e, 1, 0), "judged after the hour, not never");
+}
+
+/// A dead member with no ledger is not waited on: it leaves the index.
+#[test]
+fn a_dead_member_with_no_ledger_leaves_the_index_at_once() {
+    let e = emulator();
+    PackIndexStore::new(dynstore(&e), "")
+        .add(NODE, 1)
+        .expect("indexed");
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100);
+    run_as(&mut c, 100, &refs, true);
+    run(&mut c, 101, &refs);
+    assert!(!index_state(&e).index.contains(NODE));
+}
