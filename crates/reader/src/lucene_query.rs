@@ -84,9 +84,15 @@ pub(crate) fn text_query(
             format!("field [{field}] is analysed by [{pin}], which this node cannot run"),
         ));
     };
-    let tokens = pinned
-        .tokens(pin, text)
-        .map_err(|why| Failure::plain("extension_unavailable", why))?;
+    let tokens = pinned.tokens(pin, text).map_err(|why| {
+        // A call the host had no capacity for is the caller's to retry.
+        let kind = if why.starts_with("extension_busy") {
+            "extension_busy"
+        } else {
+            "extension_unavailable"
+        };
+        Failure::plain(kind, why)
+    })?;
     let mut stream = crate::pinned::ListStream::new(tokens);
     builder
         .create_field_query(&mut stream, occur, field, quoted, slop)
