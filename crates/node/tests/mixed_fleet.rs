@@ -5,6 +5,8 @@
 // ARITH: batch sizes, chunk offsets and durations are small and bounded by the reply read.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
+#[path = "mixed_fleet/live_plugins.rs"]
+mod live_plugins;
 #[path = "mixed_fleet/made_from_nothing.rs"]
 mod made_from_nothing;
 #[path = "mixed_fleet/snapshots.rs"]
