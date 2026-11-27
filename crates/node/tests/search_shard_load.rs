@@ -157,6 +157,7 @@ fn owner_write_time_with_and_without_forwarded_searches_at_the_pool_limit() {
                     timeout_millis: None,
                     track_total_hits_up_to: Some(10_000),
                     fetch_source: None,
+                    aggregations: Vec::new(),
                 },
                 index_uuid: None,
                 now_millis: now_millis(),

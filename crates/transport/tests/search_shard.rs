@@ -177,10 +177,10 @@ fn a_sort_is_refused_by_name() {
 
 #[test]
 fn the_first_unsupported_item_is_named_and_nothing_after_it_is_read() {
-    // An aggregation comes first; the `from` after it is never reached.
+    // A `terms` aggregation comes first; the `from` after it is never reached.
     assert_eq!(
         read("aggs_then_from"),
-        Err(Refusal::Unsupported("aggregations"))
+        Err(Refusal::Unsupported("an aggregation of another type"))
     );
 }
 
@@ -263,7 +263,7 @@ fn written(hits: &[Hit<'_>], total: i64) -> Vec<u8> {
         timed_out: false,
         terminated_early: None,
     }
-    .write(hits, &mut out)
+    .write(hits, &[], &mut out)
     .expect("writes");
     buf
 }
@@ -316,7 +316,7 @@ fn an_answer_past_the_limit_is_refused_whole() {
         terminated_early: None,
     };
     assert!(matches!(
-        answer.write(&[hit], &mut out),
+        answer.write(&[hit], &[], &mut out),
         Err(WireError::TooLarge { .. })
     ));
 }
