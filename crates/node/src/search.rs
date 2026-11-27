@@ -168,14 +168,15 @@ impl<S: BlobStore + 'static> SearchService<S> {
 
     /// Handles one `_search`.
     pub fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
-        if let multi::Targets::Many(indexes) = self.resolve_targets(req)? {
-            return self.handle_many(req, resp, &indexes);
-        }
+        let targets = self.resolve_targets(req)?;
         // Held to the end of the search, then the permit, if any, goes back.
         let _admitted = self.slots.get().and_then(|slots| {
             let index = req.path_param("index")?;
             slots.admit(&index)
         });
+        if let multi::Targets::Many(indexes) = targets {
+            return self.handle_many(req, resp, &indexes);
+        }
         self.handle_admitted(req, resp)
     }
 

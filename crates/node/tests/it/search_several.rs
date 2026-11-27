@@ -8,7 +8,10 @@ use std::sync::Mutex;
 use oss_node::search::alias::AliasSource;
 use oss_rest::RestError;
 
-use crate::support::{Node, request, start};
+use oss_blob::S3Op;
+use oss_node::search_slots::{Config, Gated, SearchSlots};
+
+use crate::support::{Node, counts, put_shard_copy, put_variant, request, start};
 
 struct Table(Mutex<HashMap<String, Vec<String>>>);
 
@@ -45,6 +48,17 @@ fn number(text: &str, key: &str) -> u64 {
         .next()
         .and_then(|d| d.parse().ok())
         .expect("a number")
+}
+
+fn ids_of(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut rest = text;
+    while let Some(at) = rest.find(r#""_id":""#) {
+        rest = &rest[at + 7..];
+        let end = rest.find('"').expect("end");
+        found.push(rest[..end].to_owned());
+    }
+    found
 }
 
 fn indexes_of(text: &str) -> Vec<&str> {
@@ -119,7 +133,7 @@ fn a_size_merges_across_the_indexes() {
         r#"{"query":{"match_all":{}},"size":3}"#,
     );
     assert_eq!(status, 200, "{page}");
-    assert_eq!(indexes_of(&page).len(), 3, "{page}");
+    assert_eq!(ids_of(&page), ids_of(&whole)[..3], "{page}");
     assert_eq!(
         number(&page, r#""total":{"value":"#),
         number(&whole, r#""total":{"value":"#)
@@ -158,4 +172,99 @@ fn one_name_answers_as_before() {
             "{path}"
         );
     }
+}
+
+fn total(text: &str) -> u64 {
+    number(text, r#""total":{"value":"#)
+}
+
+/// `two`: two shards holding copies of `compat-term`'s documents.
+fn with_two_shards() -> Node {
+    let node = start();
+    put_variant(&node.store, "compat-term", "two", |j| {
+        j.replace(r#""number_of_shards":1"#, r#""number_of_shards":2"#)
+    });
+    put_shard_copy(&node.store, "compat-term", "compat-term-uuid", 1);
+    node
+}
+
+// routing
+#[test]
+fn routing_narrows_each_index_of_the_list() {
+    let node = with_two_shards();
+    let routing = oss_cluster::routing::DocumentRouting::legacy_scaled(2, 1, 2).expect("layout");
+    let value = (0..64)
+        .map(|n| format!("r{n}"))
+        .find(|r| routing.shard_for(r, Some(r)) == Ok(0))
+        .expect("a value");
+    let (_, one) = post(&node, "/compat-term/_search", ALL);
+    let (_, whole) = post(&node, "/two,compat-term/_search", ALL);
+    assert_eq!(total(&whole), 3 * total(&one), "two shards and one");
+    let (status, routed) = post(
+        &node,
+        &format!("/two,compat-term/_search?routing={value}"),
+        ALL,
+    );
+    assert_eq!(status, 200, "{routed}");
+    assert_eq!(
+        total(&routed),
+        2 * total(&one),
+        "one shard of two, and the one of the other"
+    );
+}
+
+// budget
+#[test]
+fn a_list_costs_what_its_indexes_cost_alone_and_lists_nothing() {
+    let cold = |path: &str| {
+        let node = start();
+        let before = counts(&node.store);
+        assert_eq!(post(&node, path, ALL).0, 200);
+        let after = counts(&node.store);
+        let mut spent = [0u64; 7];
+        for (i, n) in spent.iter_mut().enumerate() {
+            *n = after[i] - before[i];
+        }
+        spent
+    };
+    let a = cold("/compat-term/_search");
+    let b = cold("/compat-bool/_search");
+    let both = cold("/compat-term,compat-bool/_search");
+    for (i, op) in S3Op::ALL.iter().enumerate() {
+        assert_eq!(both[i], a[i] + b[i], "{op:?}: {both:?} vs {a:?} and {b:?}");
+    }
+    let list = S3Op::ALL
+        .iter()
+        .position(|o| *o == S3Op::List)
+        .expect("list");
+    assert_eq!(both[list], 0);
+}
+
+// bounds
+#[test]
+fn a_search_may_name_at_most_the_limit_of_indexes() {
+    let node = start();
+    let names: Vec<String> = (0..65).map(|n| format!("idx{n}")).collect();
+    let (status, body) = post(&node, &format!("/{}/_search", names.join(",")), ALL);
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("at most 64 indexes"), "{body}");
+}
+
+// admission
+#[test]
+fn a_list_search_takes_a_permit_like_any_search() {
+    let node = start();
+    let gate = Arc::new(SearchSlots::new(&Config {
+        slots: 4,
+        fair_share_pct: 25,
+        wait_millis: 100,
+        waiter_cap: 2,
+    }));
+    assert!(node.service.set_search_slots(Gated::new(
+        Arc::clone(&gate),
+        Box::new(|name| (name.to_owned(), 0)),
+    )));
+    assert_eq!(post(&node, "/compat-term,compat-bool/_search", ALL).0, 200);
+    assert_eq!(gate.report().admitted, 1);
+    assert_eq!(gate.report().in_use, 0, "the permit goes back");
 }

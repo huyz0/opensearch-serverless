@@ -13,6 +13,19 @@ use oss_rest::{Request, Response, RestError};
 use super::coordinate::Visit;
 use super::{Answer, SearchService, send, uri_query};
 
+/// The most indexes one search may name or resolve to.
+pub(super) const MAX_INDEXES: usize = 64;
+
+/// The most shards, over all its indexes, one search may visit.
+pub(super) const MAX_SHARDS: usize = 1_024;
+
+fn too_many(what: &str, limit: usize) -> RestError {
+    // ALLOC: error path; one message.
+    RestError::illegal_argument(format!(
+        "a search over several indexes may visit at most {limit} {what}"
+    ))
+}
+
 /// What a request's `index` path parameter resolves to.
 pub(super) enum Targets {
     /// One index, now the path parameter (or none named).
@@ -34,11 +47,17 @@ impl<S: BlobStore + 'static> SearchService<S> {
         // ALLOC: one name per entry of the path, bounded by its length.
         let mut resolved: Vec<String> = Vec::new();
         for name in path.split(',').filter(|n| !n.is_empty()) {
+            if resolved.len() >= MAX_INDEXES {
+                return Err(too_many("indexes", MAX_INDEXES));
+            }
             let members = self.alias_members(name)?;
             // ALLOC: one name per member or entry.
             let names = members.unwrap_or_else(|| vec![name.to_owned()]);
             for index in names {
                 if !resolved.contains(&index) {
+                    if resolved.len() >= MAX_INDEXES {
+                        return Err(too_many("indexes", MAX_INDEXES));
+                    }
                     resolved.push(index);
                 }
             }
@@ -95,6 +114,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
                     Err(Answer::Rest(e)) => return Err(e),
                     Err(Answer::Search(e)) => return send(resp, &e),
                 };
+                if members
+                    .len()
+                    .saturating_add(only.as_ref().map_or(count, Vec::len))
+                    > MAX_SHARDS
+                {
+                    return Err(too_many("shards", MAX_SHARDS));
+                }
                 match only {
                     // ALLOC: one name per shard.
                     Some(only) => members.extend(only.into_iter().map(|n| (index.clone(), n))),
@@ -109,6 +135,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 only: None,
                 members: Some(&members),
             };
+            // The coordinator names each shard's index from `members`; this
+            // one only labels the call.
             let first = indexes.first().map_or("", String::as_str);
             self.handle_sharded(resp, first, visit, &source, started)
         }
