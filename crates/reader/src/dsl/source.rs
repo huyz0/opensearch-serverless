@@ -118,6 +118,8 @@ pub struct SearchSource {
     pub seq_no_primary_term: bool,
     /// `highlight`: the fields whose matches each hit marks.
     pub highlight: Option<HighlightSpec>,
+    /// `ext.ltr_log`: the feature vectors each hit logs.
+    pub ltr_log: Vec<crate::dsl::ltr_log::LogSpec>,
     /// `rescore`: the second passes over the best hits, in order.
     pub rescore: Vec<crate::dsl::rescore::Rescorer>,
     /// `collapse`: the field whose values keep one hit each.
@@ -184,6 +186,7 @@ impl Default for SearchSource {
             seq_no_primary_term: false,
             highlight: None,
             // ALLOC: empty; parsing pushes one a rescorer.
+            ltr_log: Vec::new(),
             rescore: Vec::new(),
             collapse: None,
             pit: None,
@@ -373,8 +376,8 @@ impl SearchSource {
             "script_fields" => self.script_fields = crate::fetch::script_fields::parse(p)?,
             "rescore" => self.rescore = crate::dsl::rescore::parse_object(p)?,
             "collapse" => self.collapse = Some(crate::dsl::collapse::parse(p)?),
-            // No search extension is registered here, so only the empty object reads.
-            "ext" if p.next_token() == Some(Kind::EndObject) => {}
+            // Only the learning to rank `ltr_log` extension is served.
+            "ext" => self.ltr_log = crate::dsl::ltr_log::parse_ext(p)?,
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }

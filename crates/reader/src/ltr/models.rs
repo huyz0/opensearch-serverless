@@ -26,6 +26,13 @@ pub struct Resolved {
     pub features: Vec<Feature>,
 }
 
+/// A stored feature set: what a log reads when it names no model.
+#[derive(Debug)]
+pub struct FeatureSet {
+    /// The features, in the set's order.
+    pub features: Vec<Feature>,
+}
+
 /// Why a model could not be resolved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ResolveError {
@@ -54,6 +61,14 @@ pub trait Models: Send + Sync {
     /// [`ResolveError`].
     fn resolve(&self, store: Option<&str>, name: &str) -> Result<Arc<Resolved>, ResolveError>;
 
+    /// The feature set `name` of `store` (the default store when `None`).
+    ///
+    /// # Errors
+    ///
+    /// [`ResolveError`].
+    fn feature_set(&self, store: Option<&str>, name: &str)
+    -> Result<Arc<FeatureSet>, ResolveError>;
+
     /// The most hits an `sltr` rescore scores (`serverless.ltr.max_window`).
     fn max_window(&self) -> usize;
 }
@@ -80,6 +95,10 @@ mod tests {
 
     impl Models for Fixed {
         fn resolve(&self, _: Option<&str>, _: &str) -> Result<Arc<Resolved>, ResolveError> {
+            Err(ResolveError::NotFound(String::new()))
+        }
+
+        fn feature_set(&self, _: Option<&str>, _: &str) -> Result<Arc<FeatureSet>, ResolveError> {
             Err(ResolveError::NotFound(String::new()))
         }
 

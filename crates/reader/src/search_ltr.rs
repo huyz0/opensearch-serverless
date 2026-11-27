@@ -21,7 +21,7 @@ use crate::dsl::queries::sltr::Sltr;
 use crate::dsl::query::parse_inner;
 use crate::dsl::rescore::Rescorer;
 use crate::failure::Failure;
-use crate::ltr::models::{ResolveError, Resolved, installed};
+use crate::ltr::models::{Feature, ResolveError, Resolved, installed};
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::search::ShardError;
 
@@ -58,6 +58,12 @@ pub(crate) fn build<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     index: &str,
 ) -> Result<Built, ShardError> {
+    if q.featureset.is_some() {
+        return Err(bad(
+            // ALLOC: error path; one message.
+            "an [sltr] rescore needs a [model], not a [featureset]".to_owned(),
+        ));
+    }
     let Some(models) = installed() else {
         return Err(bad(
             // ALLOC: error path; one message.
@@ -80,21 +86,41 @@ pub(crate) fn build<S: BlobStore + 'static>(
             ResolveError::TooBig(m) => refused(429, "circuit_breaking_exception", m),
             ResolveError::Failed(m) => refused(500, "ltr_store_failure", m),
         })?;
+    let queries = feature_queries(&model.features, (q, &q.model), cx, shard, index)?;
+    Ok(Built {
+        window: r.window,
+        query_weight: r.query_weight,
+        rescore_query_weight: r.rescore_query_weight,
+        mode: r.mode,
+        model,
+        queries,
+    })
+}
+
+/// The query of each of `features` rendered with `q`'s params and built;
+/// `None` for one `q` does not activate. `what` names the model or feature
+/// set for a message.
+pub(crate) fn feature_queries<S: BlobStore + 'static>(
+    features: &[Feature],
+    (q, what): (&Sltr, &str),
+    cx: &QueryContext<'_>,
+    shard: &OpenShard<S>,
+    index: &str,
+) -> Result<Vec<Option<BooleanQuery>>, ShardError> {
     if let Some(active) = &q.active_features
         && let Some(unknown) = active
             .iter()
-            .find(|a| !model.features.iter().any(|f| &f.name == *a))
+            .find(|a| !features.iter().any(|f| &f.name == *a))
     {
         // ALLOC: one message or window copy a request, bounded by the request's window.
         return Err(bad(format!(
             // ALLOC: error path; one message.
-            "unknown feature [{unknown}] in active_features of model [{}]",
-            q.model
+            "unknown feature [{unknown}] in active_features of [{what}]"
         )));
     }
     // ALLOC: one entry a feature of the set, at most MAX_FEATURES.
-    let mut queries = Vec::with_capacity(model.features.len());
-    for feature in &model.features {
+    let mut queries = Vec::with_capacity(features.len());
+    for feature in features {
         let active = q
             .active_features
             .as_ref()
@@ -123,14 +149,7 @@ pub(crate) fn build<S: BlobStore + 'static>(
             .map_err(|f| ShardError::of_query(shard_failure(f, index, &shard.meta.uuid)))?;
         queries.push(Some(built));
     }
-    Ok(Built {
-        window: r.window,
-        query_weight: r.query_weight,
-        rescore_query_weight: r.rescore_query_weight,
-        mode: r.mode,
-        model,
-        queries,
-    })
+    Ok(queries)
 }
 
 impl Built {
@@ -154,48 +173,18 @@ impl Built {
         if top == 0 {
             return Ok(());
         }
-        let window = hits.get(..top).unwrap_or_default();
-        let first_pass = TopDocs {
-            total_hits: TotalHits {
-                value: 0,
-                relation: TotalHitsRelation::EqualTo,
-            },
-            // ALLOC: one message or window copy a request, bounded by the request's window.
-            score_docs: window.to_vec(),
-        };
-        // ALLOC: one entry a hit of the window, at most the window.
-        let slot: HashMap<i32, usize> =
-            window.iter().enumerate().map(|(i, h)| (h.doc, i)).collect();
+        let vectors = vectors(ctx, hits.get(..top).unwrap_or_default(), &self.queries)?;
         let width = self.queries.len();
-        // ALLOC: one vector of the window's hits times the features, zeroed.
-        let mut vectors = vec![0.0f32; top.saturating_mul(width)];
-        for (f, query) in self.queries.iter().enumerate() {
-            let Some(query) = query else { continue };
-            let rescorer = QueryRescorer::new(
-                query.clone(),
-                // ALLOC: one closure a feature.
-                Arc::new(
-                    |_first: f32, matches: bool, second: f32| {
-                        if matches { second } else { 0.0 }
-                    },
-                ),
-            );
-            let scored = rescorer
-                .rescore(ctx, &first_pass, top)
-                .map_err(ShardError::engine)?;
-            for hit in scored.score_docs {
-                if let Some(&i) = slot.get(&hit.doc)
-                    && let Some(v) = vectors.get_mut(i.saturating_mul(width).saturating_add(f))
-                {
-                    *v = hit.score;
-                }
-            }
-        }
+        // ALLOC: one row, reused for every hit of the window.
+        let mut row = vec![0.0f32; width];
         for (i, hit) in hits.iter_mut().take(top).enumerate() {
-            let row = vectors
+            let seen = vectors
                 .get(i.saturating_mul(width)..i.saturating_add(1).saturating_mul(width))
                 .unwrap_or_default();
-            let model = self.model.evaluator.score(row);
+            for (cell, v) in row.iter_mut().zip(seen) {
+                *cell = if v.is_nan() { 0.0 } else { *v };
+            }
+            let model = self.model.evaluator.score(&row);
             hit.score = self.mode.combine(
                 hit.score * self.query_weight,
                 model * self.rescore_query_weight,
@@ -207,4 +196,50 @@ impl Built {
         hits.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.doc.cmp(&b.doc)));
         Ok(())
     }
+}
+
+/// Each feature's score of each of `window`'s hits, a hit's row after a
+/// hit's row; NaN where a feature is not active or did not match.
+pub(crate) fn vectors(
+    ctx: &ValuesContext<'_>,
+    window: &[ShardScoreDoc],
+    queries: &[Option<BooleanQuery>],
+) -> Result<Vec<f32>, ShardError> {
+    let top = window.len();
+    let first_pass = TopDocs {
+        total_hits: TotalHits {
+            value: 0,
+            relation: TotalHitsRelation::EqualTo,
+        },
+        // ALLOC: one copy of the window, once.
+        score_docs: window.to_vec(),
+    };
+    // ALLOC: one entry a hit of the window, at most the window.
+    let slot: HashMap<i32, usize> = window.iter().enumerate().map(|(i, h)| (h.doc, i)).collect();
+    let width = queries.len();
+    // ALLOC: one vector of the window's hits times the features.
+    let mut out = vec![f32::NAN; top.saturating_mul(width)];
+    for (f, query) in queries.iter().enumerate() {
+        let Some(query) = query else { continue };
+        let rescorer = QueryRescorer::new(
+            query.clone(),
+            // ALLOC: one closure a feature.
+            Arc::new(
+                |_first: f32, matches: bool, second: f32| {
+                    if matches { second } else { f32::NAN }
+                },
+            ),
+        );
+        let scored = rescorer
+            .rescore(ctx, &first_pass, top)
+            .map_err(ShardError::engine)?;
+        for hit in scored.score_docs {
+            if let Some(&i) = slot.get(&hit.doc)
+                && let Some(v) = out.get_mut(i.saturating_mul(width).saturating_add(f))
+            {
+                *v = hit.score;
+            }
+        }
+    }
+    Ok(out)
 }

@@ -126,6 +126,7 @@ pub fn resolve(entries: &[DocValueField], mapping: &Mapping) -> Result<Vec<HitFi
                         path: field.fetch.parent.as_deref().unwrap_or(n).to_owned(),
                         ty,
                     }),
+                    ltr: None,
                 });
             }
         }

@@ -19,6 +19,7 @@ mod field_caps;
 mod frozen_search;
 mod function_score_random;
 mod function_score_script;
+mod ltr_log;
 mod ltr_rescore;
 mod msearch;
 mod msearch_template;

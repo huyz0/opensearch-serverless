@@ -326,9 +326,9 @@ pub fn search_with<S: BlobStore + 'static>(
         || top_plans.iter().any(top_hits::TopHitsPlan::numeric)
         || top_hits_sub::any_numeric_sub(&source.aggs, shard);
     let rescore = crate::search_rescore::plan(source, &cx, shard, index, sort.is_some())?;
-    let rescore_points = rescore
-        .as_ref()
-        .is_some_and(crate::search_rescore::Plan::has_points);
+    let ltr_log = crate::search_ltr_log::plan(source, &cx, shard, index)?;
+    let rescore_points = ltr_log.has_points()
+        || (rescore.as_ref()).is_some_and(crate::search_rescore::Plan::has_points);
     if numeric_sort
         || rescore_points
         || has_points(&query)
@@ -412,6 +412,7 @@ pub fn search_with<S: BlobStore + 'static>(
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() {
         hits.fields = crate::fetch::script_fields::all(source, &meta.mapping)?;
+        ltr_log.attach(shard, &segments, &mut hits)?;
     }
     if let Some(spec) = source.highlight.as_ref().filter(|_| !hits.hits.is_empty()) {
         hits.highlight = highlight::plan(spec, &meta.mapping, &query)?;

@@ -5,12 +5,27 @@ use std::sync::{Arc, Once};
 
 use crate::support::{request, start};
 use oss_reader::ltr::Evaluator;
-use oss_reader::ltr::models::{Feature, Models, ResolveError, Resolved, install};
+use oss_reader::ltr::models::{Feature, FeatureSet, Models, ResolveError, Resolved, install};
 
 const ANIMAL: &str = r#"{"constant_score":{"filter":{"term":{"tag":"animal"}},"boost":5}}"#;
 const FOOD: &str = r#"{"constant_score":{"filter":{"term":{"tag":"food"}},"boost":{{w}}}}"#;
 
-struct Fake;
+pub(crate) struct Fake;
+
+fn features() -> Vec<Feature> {
+    vec![
+        Feature {
+            name: "animal".into(),
+            params: vec![],
+            template: ANIMAL.into(),
+        },
+        Feature {
+            name: "food".into(),
+            params: vec!["w".into()],
+            template: FOOD.into(),
+        },
+    ]
+}
 
 impl Models for Fake {
     fn resolve(&self, store: Option<&str>, name: &str) -> Result<Arc<Resolved>, ResolveError> {
@@ -19,24 +34,24 @@ impl Models for Fake {
                 "model [{name}] does not exist"
             )));
         }
-        let features = vec![
-            Feature {
-                name: "animal".into(),
-                params: vec![],
-                template: ANIMAL.into(),
-            },
-            Feature {
-                name: "food".into(),
-                params: vec!["w".into()],
-                template: FOOD.into(),
-            },
-        ];
+        let features = features();
         let names: Vec<String> = features.iter().map(|f| f.name.clone()).collect();
         let evaluator = Evaluator::parse("model/linear", r#"{"animal":2.0,"food":1.0}"#, &names)
             .expect("parses");
         Ok(Arc::new(Resolved {
             evaluator,
             features,
+        }))
+    }
+
+    fn feature_set(&self, _: Option<&str>, name: &str) -> Result<Arc<FeatureSet>, ResolveError> {
+        if name != "fs" {
+            return Err(ResolveError::NotFound(format!(
+                "feature set [{name}] does not exist"
+            )));
+        }
+        Ok(Arc::new(FeatureSet {
+            features: features(),
         }))
     }
 

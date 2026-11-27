@@ -136,8 +136,16 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             .ok_or_else(|| unsupported("the [knn] query here")),
         More::Knn(q) => crate::knn::radial(q, cx),
         More::Nested(q, _) => super::nested_build::nested(q, cx),
+        // A logging query matches every document and adds nothing to a score.
+        More::Sltr(q) if q.featureset.is_some() => {
+            // ALLOC: one box a logging query.
+            Ok(Clause::ConstantScore(Box::new(ConstantScoreQuery::new(
+                crate::lucene_query::match_all(cx),
+                0.0,
+            ))))
+        }
         More::Sltr(_) => Err(unsupported(
-            "an [sltr] query anywhere but as the rescore_query of a rescore",
+            "an [sltr] query with a [model] anywhere but as the rescore_query of a rescore",
         )),
     }
 }

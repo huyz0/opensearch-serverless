@@ -142,6 +142,8 @@ pub enum ValueKind {
     Script,
     /// Values read from the hit's `_source` (the `fields` API).
     Source,
+    /// The feature values `ext.ltr_log` logged, written as `_ltrlog`.
+    LtrLog,
 }
 
 /// A resolved field: its name, how it reads, and how many times the request
@@ -158,6 +160,8 @@ pub struct HitField {
     pub script: Option<std::sync::Arc<lucene_engine::painless_score::ScriptFunction>>,
     /// Where the values sit in `_source`, for a `fields` entry.
     pub source: Option<crate::fetch::source_fields::SourceFetch>,
+    /// The logged feature values, for `_ltrlog`.
+    pub ltr: Option<std::sync::Arc<crate::search_ltr_log::LtrLogged>>,
 }
 
 fn bad_request(reason: String) -> ShardError {
@@ -230,6 +234,7 @@ pub fn resolve(fields: &[DocValueField], mapping: &Mapping) -> Result<Vec<HitFie
                     times: 1,
                     script: None,
                     source: None,
+                    ltr: None,
                 }),
             }
         }
@@ -305,6 +310,17 @@ pub fn write_fields(
         let values = match field.kind {
             // Written from the `_source`, by `source_fields`.
             ValueKind::Source => continue,
+            ValueKind::LtrLog => {
+                let global = segment.doc_base.saturating_add(doc);
+                if let Some(logged) = &field.ltr
+                    && logged.logs.iter().any(|l| l.rows.contains_key(&global))
+                {
+                    out.write_all(if opened { b"," } else { b",\"fields\":{" })?;
+                    opened = true;
+                    crate::search_ltr_log::write(out, logged, global)?;
+                }
+                continue;
+            }
             ValueKind::Long | ValueKind::Date => numbers(segment, &field.name, doc)?,
             ValueKind::Double | ValueKind::Float => {
                 decimals(segment, &field.name, doc, field.kind == ValueKind::Float)?
