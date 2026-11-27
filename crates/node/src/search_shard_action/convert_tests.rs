@@ -438,9 +438,10 @@ fn a_rare_terms_and_a_multi_terms_reach_the_source() {
         .map(|x| x.field.as_str())
         .collect();
     assert_eq!(fields, ["tag", "n"]);
-    // The error bound is refused when asked for.
+    // The error bound is asked for as the aggregation reads it.
     if let Some(m) = with.aggregations[1].multi.as_mut() {
         m.options.show_error = true;
     }
-    assert!(search_source(&with).is_err());
+    let s = search_source(&with).expect("shows the error bound");
+    assert!(s.aggs[1].terms.as_ref().expect("terms").show_error);
 }

@@ -43,6 +43,9 @@ public final class RareMultiRecordings {
     static InternalMultiTerms.Bucket mb(String k, long n, long count, List<DocValueFormat> f) {
         return new InternalMultiTerms.Bucket(List.of(new BytesRef(k), n), count, InternalAggregations.EMPTY, false, 0, f);
     }
+    static InternalMultiTerms.Bucket mbe(String k, long n, long count, long error, List<DocValueFormat> f) {
+        return new InternalMultiTerms.Bucket(List.of(new BytesRef(k), n), count, InternalAggregations.EMPTY, true, error, f);
+    }
     public static void main(String[] a) throws Exception {
         request("request.rare_terms", new RareTermsAggregationBuilder("r").field("tag"));
         RareTermsAggregationBuilder rare = new RareTermsAggregationBuilder("r").field("n").maxDocCount(5);
@@ -51,6 +54,8 @@ public final class RareMultiRecordings {
         request("request.multi_terms", new MultiTermsAggregationBuilder("m").terms(List.of(term("tag"), term("n"))));
         request("request.multi_terms_options", new MultiTermsAggregationBuilder("m").terms(List.of(term("tag"), term("n")))
             .size(3).shardSize(7).minDocCount(2).shardMinDocCount(1).order(BucketOrder.key(false)));
+        request("request.multi_terms_show", new MultiTermsAggregationBuilder("m").terms(List.of(term("tag"), term("n")))
+            .showTermDocCountError(true));
 
         BucketOrder order = BucketOrder.count(true);
         SetBackedScalingCuckooFilter none = new SetBackedScalingCuckooFilter(10000, new Random(0), 0.001);
@@ -82,6 +87,8 @@ public final class RareMultiRecordings {
         BucketOrder co = BucketOrder.compound(BucketOrder.count(false));
         answer("response.multi_terms", new InternalMultiTerms("m", co, co, null, 12, false, 4, 0, f,
             List.of(mb("a", 1, 3, f), mb("b", 2, 1, f)), new TermsAggregator.BucketCountThresholds(1, 0, 10, 12)));
+        answer("response.multi_terms_errors", new InternalMultiTerms("m", co, co, null, 12, true, 4, 3, f,
+            List.of(mbe("a", 1, 3, 0, f), mbe("b", 2, 1, 7, f)), new TermsAggregator.BucketCountThresholds(1, 0, 10, 12)));
         answer("response.multi_terms_empty", new InternalMultiTerms("m", co, co, null, 12, false, 0, 0, f,
             List.of(), new TermsAggregator.BucketCountThresholds(1, 0, 10, 12)));
     }

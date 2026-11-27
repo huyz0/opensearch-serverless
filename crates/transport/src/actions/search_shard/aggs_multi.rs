@@ -142,6 +142,11 @@ pub struct MultiAnswer {
     pub keys: Vec<Vec<MultiTerm>>,
     /// The buckets' document counts, one a key.
     pub counts: Vec<i64>,
+    /// `show_term_doc_count_error`: each bucket then carries its bound.
+    pub show_error: bool,
+    /// The buckets' `doc_count_error_upper_bound`s, one a key, when shown;
+    /// a missing one is 0.
+    pub errors: Vec<i64>,
 }
 
 impl MultiAnswer {
@@ -161,10 +166,10 @@ impl MultiAnswer {
             write_format(out, false)?;
         }
         out.count(usize::try_from(self.shard_size).unwrap_or(0))?;
-        out.bool(false)?; // show_term_doc_count_error
+        out.bool(self.show_error)?;
         out.vlong(self.other_doc_count)?;
         out.count(self.keys.len())?;
-        for (key, count) in self.keys.iter().zip(&self.counts) {
+        for (at, (key, count)) in self.keys.iter().zip(&self.counts).enumerate() {
             out.count(key.len())?;
             for term in key {
                 match term {
@@ -180,6 +185,10 @@ impl MultiAnswer {
             }
             out.vlong(*count)?;
             out.count(0)?; // sub-aggregations
+            if self.show_error {
+                let error = self.errors.get(at).copied().unwrap_or(0);
+                out.bytes(&error.to_be_bytes())?;
+            }
         }
         Ok(())
     }

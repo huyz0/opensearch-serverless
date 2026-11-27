@@ -161,9 +161,27 @@ fn multi_part(buckets: Vec<(&str, i64, u64)>, other: u64) -> Partial {
                 .into_iter()
                 .map(|(t, n, c)| (vec![MultiPart::Text(t.to_owned()), MultiPart::Long(n)], c))
                 .collect(),
+            bucket_errors: Vec::new(),
             reduced: false,
         })),
     }
+}
+
+#[test]
+fn a_multi_terms_that_shows_its_error_bound_writes_each_buckets() {
+    let mut request = multi_request();
+    request.multi.as_mut().unwrap().options.show_error = true;
+    let mut part = multi_part(vec![("a", 1, 3), ("b", 2, 1)], 4);
+    if let Part::Multi(m) = &mut part.value {
+        m.spec.show_error = true;
+        m.doc_count_error = 3;
+        m.bucket_errors = vec![0, 7];
+    }
+    let answer = ask_with(vec![request], vec![part]).unwrap();
+    assert!(
+        contains(&answer, &recorded("response.multi_terms_errors")),
+        "{answer:?}"
+    );
 }
 
 #[test]

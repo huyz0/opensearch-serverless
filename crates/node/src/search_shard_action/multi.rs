@@ -47,5 +47,7 @@ pub fn answer(r: &MultiResult, req: &AggRequest) -> Result<MultiAnswer, RemoteEx
             })
             .collect(),
         counts: r.buckets.iter().map(|b| long(b.1)).collect(),
+        show_error: r.spec.show_error,
+        errors: r.bucket_errors.clone(),
     })
 }

@@ -124,10 +124,6 @@ fn bad_and_unserved_options_fail_as_java_fails() {
             "not supported by this node yet",
         ),
         (
-            format!(r#"{two},"show_term_doc_count_error":true"#),
-            "not supported by this node yet",
-        ),
-        (
             format!(r#"{two},"collect_mode":"breadth_first""#),
             "not supported by this node yet",
         ),
@@ -170,6 +166,11 @@ fn key(text: &str, n: i64) -> MultiKey {
     vec![MultiPart::Text(text.to_owned()), MultiPart::Long(n)]
 }
 
+thread_local! {
+    /// Whether `shard_of` builds shards that show the error bound.
+    static SHOW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// A shard of the recorder: ordered by count descending, `other` documents
 /// in buckets it did not keep.
 fn shard_of(
@@ -181,6 +182,7 @@ fn shard_of(
     let spec = TermsSpec {
         size,
         shard_size,
+        show_error: SHOW.with(std::cell::Cell::get),
         ..TermsSpec::default()
     };
     let counted = buckets.iter().map(|(t, n, c)| (key(t, *n), *c)).collect();
@@ -209,6 +211,38 @@ fn written(shards: &[MultiResult]) -> String {
     let mut out = Vec::new();
     write_multi(&mut out, &reduced).expect("writes");
     format!(r#"{{"m":{{{}}}}}"#, String::from_utf8(out).expect("utf-8"))
+}
+
+#[test]
+fn the_error_bound_shows_as_java_leaves_it_on_the_first_part_holding_a_key() {
+    // `InternalMultiTerms.createBucket` keeps its prototype's error, so a key
+    // held by shards of errors 1 and 2 (or 4 and 2) ends at 2 where a terms
+    // aggregation ends at 2 (or 0): recorded from 3.10.0.
+    SHOW.with(|s| s.set(true));
+    let one = [shard_of(&[("a", 1, 3), ("b", 2, 1)], 1, 2, 4)];
+    assert_eq!(written(&one), recorded("show_one"));
+    let two = [
+        shard_of(&[("a", 1, 5), ("b", 2, 1)], 5, 2, 0),
+        shard_of(&[("a", 1, 3), ("c", 3, 2)], 5, 2, 0),
+    ];
+    assert_eq!(written(&two), recorded("show_two"));
+    let three = [
+        shard_of(&[("a", 1, 5), ("b", 2, 4)], 5, 2, 0),
+        shard_of(&[("a", 1, 3), ("c", 3, 2)], 5, 2, 0),
+    ];
+    assert_eq!(written(&three), recorded("show_three"));
+    SHOW.with(|s| s.set(false));
+}
+
+#[test]
+fn show_term_doc_count_error_parses_as_a_boolean() {
+    let two = r#""terms":[{"field":"tag"},{"field":"n"}]"#;
+    for (value, shown) in [("true", true), ("false", false), (r#""true""#, true)] {
+        let (_, spec) = spec_of(&format!(
+            r#"{{"aggs":{{"m":{{"multi_terms":{{{two},"show_term_doc_count_error":{value}}}}}}}}}"#
+        ));
+        assert_eq!(spec.show_error, shown, "{value}");
+    }
 }
 
 // AC-2

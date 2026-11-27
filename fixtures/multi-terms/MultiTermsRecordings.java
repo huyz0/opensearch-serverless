@@ -23,13 +23,15 @@ import java.util.List;
 public final class MultiTermsRecordings {
     static final List<DocValueFormat> FORMATS = List.of(DocValueFormat.RAW, DocValueFormat.RAW);
 
+    static boolean show = false;
+
     static InternalMultiTerms.Bucket b(String k, long n, long count) {
-        return new InternalMultiTerms.Bucket(List.of(new BytesRef(k), n), count, InternalAggregations.EMPTY, false, 0, FORMATS);
+        return new InternalMultiTerms.Bucket(List.of(new BytesRef(k), n), count, InternalAggregations.EMPTY, show, 0, FORMATS);
     }
 
     static InternalMultiTerms shard(List<InternalMultiTerms.Bucket> buckets, int size, int shardSize, long other) {
         BucketOrder order = BucketOrder.compound(BucketOrder.count(false));
-        return new InternalMultiTerms("m", order, order, null, shardSize, false, other, 0, FORMATS, buckets,
+        return new InternalMultiTerms("m", order, order, null, shardSize, show, other, 0, FORMATS, buckets,
             new TermsAggregator.BucketCountThresholds(1, 0, size, shardSize));
     }
 
@@ -55,6 +57,13 @@ public final class MultiTermsRecordings {
         reduce("ties_number", shard(List.of(b("a", 10, 5), b("a", 9, 5), b("a", 100, 5)), 10, 20, 0));
         reduce("ties_mixed", shard(List.of(b("a", 1, 3), b("b", 2, 3), b("a", 0, 1)), 10, 20, 0));
         // Equal keys add over shards.
+        // `show_term_doc_count_error`: each bucket's bound. Shard errors 1 and 2 leave the key both hold at 2,
+        // as the running sum of `reduceBucket` passes through -1.
+        show = true;
+        reduce("show_one", shard(List.of(b("a", 1, 3), b("b", 2, 1)), 1, 2, 4));
+        reduce("show_two", shard(List.of(b("a", 1, 5), b("b", 2, 1)), 5, 2, 0), shard(List.of(b("a", 1, 3), b("c", 3, 2)), 5, 2, 0));
+        reduce("show_three", shard(List.of(b("a", 1, 5), b("b", 2, 4)), 5, 2, 0), shard(List.of(b("a", 1, 3), b("c", 3, 2)), 5, 2, 0));
+        show = false;
         reduce("merged", shard(List.of(b("a", 1, 3), b("b", 2, 1)), 10, 20, 0), shard(List.of(b("a", 1, 2), b("c", 3, 2)), 10, 20, 0));
     }
 }
