@@ -49,6 +49,7 @@ fn shard(scores: &[f32]) -> Hits {
         tracked: true,
         total_as_int: false,
         typed_keys: false,
+        pipelines: Vec::new(),
         source: SourceFilter::default(),
         fields: Vec::new(),
         explanations: Vec::new(),
@@ -127,6 +128,7 @@ fn params() -> Params {
         show_total: true,
         total_as_int: false,
         typed_keys: false,
+        pipelines: Vec::new(),
         concurrency: 2,
         took_ms: 1,
     }

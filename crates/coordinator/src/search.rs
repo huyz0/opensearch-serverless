@@ -9,7 +9,7 @@ use std::fmt::Display;
 use std::io::Write;
 
 use oss_doc::mapping::json::write_str;
-use oss_reader::aggs::metric::render::write_aggregations_typed;
+use oss_reader::aggs::metric::render::write_aggregations_piped;
 use oss_reader::aggs::partial::Partial;
 use oss_reader::response::write_java_float;
 use oss_reader::search::Hits;
@@ -108,6 +108,8 @@ pub struct Params {
     pub total_as_int: bool,
     /// Whether each aggregation's key carries its type (`typed_keys`).
     pub typed_keys: bool,
+    /// The sibling pipeline aggregations to compute over the reduced aggregations.
+    pub pipelines: Vec<oss_reader::aggs::pipeline::PipelineAgg>,
     /// How many shards are asked at once.
     pub concurrency: usize,
     /// The `took` the response reports.
@@ -471,9 +473,10 @@ fn write_envelope<T: Shards>(
         out.write_all(hit)?;
     }
     out.write_all(b"]}")?;
-    write_aggregations_typed(
+    write_aggregations_piped(
         out,
         parts,
+        &p.pipelines,
         p.typed_keys,
         &mut |out, name, _| match top_bodies.iter().find(|(n, _)| n == name) {
             Some((_, body)) => out.write_all(body),

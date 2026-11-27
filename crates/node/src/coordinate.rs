@@ -281,6 +281,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             show_total: source.track_total_hits.is_some(),
             total_as_int: source.total_as_int,
             typed_keys: source.typed_keys,
+            // ALLOC: one entry a pipeline aggregation, bounded by the request's.
+            pipelines: source.pipelines.clone(),
             concurrency: shards.min(8),
             took_ms,
         };

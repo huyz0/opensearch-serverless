@@ -315,3 +315,9 @@ src/dsl/queries/sltr_tests.rs	new		tests of the sltr parser
 src/dsl/ltr_log.rs	new		the ext.ltr_log section of the learning to rank plugin
 src/dsl/ltr_log_tests.rs	new		tests of the ltr_log parser
 src/search_ltr_log.rs	new		feature logging: each hit of the page carries its feature values under fields._ltrlog
+src/aggs/pipeline/mod.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsPipelineAggregator.java@429b4cbc	the sibling pipeline kinds and what a request holds of one
+src/aggs/pipeline/parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsParser.java@429b4cbc	the builders' body parser and AggregatorFactories.Builder.validate over buckets_path
+src/aggs/pipeline/compute.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsPipelineAggregator.java@429b4cbc	doReduce with the avg, sum, min, max and stats collectors, over a rendered body
+src/aggs/pipeline/pipeline_tests.rs	new		tests of the pipeline module against the recorded Java
+src/aggs/metric/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@429b4cbc	the registered aggregation names
+src/search_query_fields.rs	new		what a query reads: point clauses and scored fields

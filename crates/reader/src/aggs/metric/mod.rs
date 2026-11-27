@@ -22,6 +22,7 @@ pub mod long_value;
 pub mod parse;
 pub mod partial;
 pub mod percentiles;
+mod registered;
 pub mod render;
 pub mod resolve;
 pub mod sub_rules;
@@ -35,7 +36,9 @@ pub use collect::collect;
 pub use collect_global::collect_with_global;
 pub use parse::parse_aggregations;
 pub use percentiles::PercentilesOptions;
-pub use render::{write_aggregations, write_aggregations_typed, write_aggregations_with};
+pub use render::{
+    write_aggregations, write_aggregations_piped, write_aggregations_typed, write_aggregations_with,
+};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
 use crate::aggs::bucket::composite::CompositeSpec;

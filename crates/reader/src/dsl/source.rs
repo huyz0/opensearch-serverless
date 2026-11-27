@@ -8,7 +8,8 @@
 
 use oss_rest::json::{Limits, Tokenizer};
 
-use crate::aggs::metric::{MetricAgg, parse_aggregations};
+use crate::aggs::metric::{MetricAgg, parse::parse_aggregations_with_pipelines};
+use crate::aggs::pipeline::PipelineAgg;
 use crate::dsl::error::DslError;
 use crate::dsl::pit::{PitRef, parse_pit};
 use crate::dsl::query::{Query, parse_inner};
@@ -81,6 +82,8 @@ pub struct SearchSource {
     pub source: SourceFilter,
     /// The aggregations, in request order; none when empty.
     pub aggs: Vec<MetricAgg>,
+    /// The top-level sibling pipeline aggregations, in request order.
+    pub pipelines: Vec<PipelineAgg>,
     /// `search_after`: the sort values the page starts after; none when
     /// empty.
     pub search_after: Vec<AfterValue>,
@@ -168,6 +171,8 @@ impl Default for SearchSource {
             source: SourceFilter::default(),
             // ALLOC: empty; parsing pushes one an aggregation.
             aggs: Vec::new(),
+            // ALLOC: empty; the body's pipeline aggregations fill it.
+            pipelines: Vec::new(),
             // ALLOC: empty; parsing pushes one a value.
             search_after: Vec::new(),
             // ALLOC: empty; parsing pushes one an entry.
@@ -365,7 +370,9 @@ impl SearchSource {
         match name {
             "query" => self.query = Some(parse_inner(p)?),
             "sort" => self.sort = parse_sort(p)?,
-            "aggregations" | "aggs" => self.aggs = parse_aggregations(p)?,
+            "aggregations" | "aggs" => {
+                (self.aggs, self.pipelines) = parse_aggregations_with_pipelines(p)?;
+            }
             "_source" => {
                 self.source = parse_source(p, name)?;
                 self.source_given = true;
