@@ -97,7 +97,7 @@ fn stored(id: &str, scripts: Option<&dyn StoredScripts>) -> Result<String, RestE
     use oss_types::stored_scripts::ResolveError;
     let Some(scripts) = scripts else {
         return Err(RestError::illegal_argument(
-            "a stored script [id] is not served on this node: send the script as [source]",
+            "a stored script in [script] is not served on this node: send the script as [source]",
         ));
     };
     match scripts.resolve(id) {
