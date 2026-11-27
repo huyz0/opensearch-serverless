@@ -21,6 +21,7 @@ pub mod fetch;
 mod frozen;
 pub mod hits_total;
 pub mod knn;
+pub mod ltr;
 pub mod lucene_query;
 mod lucene_range;
 pub mod mapping;
