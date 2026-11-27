@@ -73,6 +73,7 @@ mod newest_ask;
 mod pinned_frozen;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_read;
+mod pinned_shard;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod pipeline_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
