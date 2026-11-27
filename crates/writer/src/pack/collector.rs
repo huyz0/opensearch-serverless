@@ -8,7 +8,7 @@
 //! between is not lost. An open epoch keeps its node listed, which costs
 //! one sidecar read a pass. Every schedule is in memory.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
 use oss_blob::BlobStore;
@@ -54,6 +54,7 @@ pub struct PackCollector {
     seeder: Option<PackSeeder>,
     adopt_members: bool,
     idle: BTreeMap<String, u64>,
+    settled: BTreeMap<String, u64>,
     last_window: Option<u64>,
 }
 
@@ -73,6 +74,8 @@ impl PackCollector {
             adopt_members: false,
             // ALLOC: an empty map, one entry a live member with no ledger.
             idle: BTreeMap::new(),
+            // ALLOC: an empty map, one entry a live node with nothing to judge.
+            settled: BTreeMap::new(),
             last_window: None,
         }
     }
@@ -116,15 +119,18 @@ impl PackCollector {
             states.push(self.index.read(slot)?);
         }
         self.adopt(members, &states, now_millis)?;
+        // ALLOC: the live members as a set, one pass, at most the members.
+        let live_members: HashSet<&str> = members.iter().map(String::as_str).collect();
         for (slot, state) in (0..INDEX_SLOTS).zip(&states) {
             for node in state.index.nodes() {
-                let alive = members.iter().any(|m| m == node);
+                let alive = live_members.contains(node);
                 let live = self.judge_node(node, alive, refs, now_millis, &mut out)?;
                 // A node with nothing left to judge and no lease leaves the
                 // index; the swap fails if a writer added it since the read.
                 if !live && !alive && self.index.remove(slot, state, node)? == Removal::Removed {
                     self.judges.remove(node);
                     self.idle.remove(node);
+                    self.settled.remove(node);
                     out.dropped = out.dropped.saturating_add(1);
                 }
             }
@@ -190,6 +196,11 @@ impl PackCollector {
             return Ok(true);
         }
         self.idle.remove(node);
+        if alive && self.settled.get(node) == Some(&from.generation) {
+            // Nothing was left to judge under this very ledger, and only a
+            // ledger that moves can bring something: no sidecar read.
+            return Ok(true);
+        }
         let sidecar = PackSidecarStore::new(Arc::clone(&self.store), &self.base, node)?;
         let state = sidecar.update(sidecar.read()?, |current| {
             sync::synced(&from.epochs, current, alive)
@@ -209,7 +220,14 @@ impl PackCollector {
         out.referenced = out.referenced.saturating_add(judged.referenced);
         out.young = out.young.saturating_add(judged.young);
         out.at_cap |= judged.at_cap;
-        ledger.update(from, |epochs| sync::advanced(epochs, &state.sidecar))?;
-        Ok(sync::has_live(&state.sidecar))
+        let after = ledger.update(from, |epochs| sync::advanced(epochs, &state.sidecar))?;
+        let live = sync::has_live(&state.sidecar);
+        if !live {
+            // ALLOC: one entry a node with nothing to judge, at most the members.
+            self.settled.insert(node.to_owned(), after.generation);
+        } else {
+            self.settled.remove(node);
+        }
+        Ok(live)
     }
 }

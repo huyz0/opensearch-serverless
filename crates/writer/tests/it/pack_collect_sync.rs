@@ -492,3 +492,25 @@ fn a_dead_member_with_no_ledger_leaves_the_index_at_once() {
     run(&mut c, 101, &refs);
     assert!(!index_state(&e).index.contains(NODE));
 }
+
+/// A live writer with nothing to judge is asked about with its ledger alone
+/// while the ledger has not moved: the sidecar is not read again.
+#[test]
+fn a_live_node_with_nothing_to_judge_costs_one_get_while_its_ledger_stands() {
+    let e = emulator();
+    writer_with_ledger(&e, 1, 8);
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100);
+    let before = gets(&e);
+    run_as(&mut c, 100, &refs, true);
+    assert_eq!(gets(&e) - before, 16 + 2, "index, ledger and sidecar");
+    let before = gets(&e);
+    for w in 101..104 {
+        run_as(&mut c, w, &refs, true);
+    }
+    assert_eq!(gets(&e) - before, 3 * (16 + 1), "index and ledger only");
+    ledger(&e).reserve(1, 16).expect("moved");
+    let before = gets(&e);
+    run_as(&mut c, 104, &refs, true);
+    assert_eq!(gets(&e) - before, 16 + 2, "a moved ledger is read in full");
+}
