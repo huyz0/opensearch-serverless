@@ -239,3 +239,36 @@ fn a_value_the_field_cannot_read_fails_the_write() {
         );
     }
 }
+
+#[test]
+fn a_double_and_a_float_read_from_the_source_as_the_mapper_parses_them() {
+    let mapping =
+        Mapping::from_json(r#"{"properties":{"d":{"type":"double"},"f":{"type":"float"}}}"#)
+            .expect("mapping");
+    let fields = asked(r#"{"fields":["d","f"]}"#);
+    let hit = resolve(&fields, &mapping).expect("resolves");
+    let write = |source: &str| {
+        let mut out = Vec::new();
+        write_fields(&mut out, &hit, source.as_bytes())
+            .map(|()| String::from_utf8(out).expect("utf-8"))
+    };
+    assert_eq!(
+        write(r#"{"d":[1,"2.5",1e3,""],"f":[0.1,"3"]}"#).expect("writes"),
+        r#","fields":{"d":[1.0,2.5,1000.0],"f":[0.1,3.0]}"#
+    );
+    // Infinity and text that is not a number fail the write, as the mapper's parse fails.
+    for source in [
+        r#"{"d":"Infinity"}"#,
+        r#"{"f":1e39}"#,
+        r#"{"d":"x"}"#,
+        r#"{"d":true}"#,
+    ] {
+        assert!(write(source).is_err(), "{source}");
+    }
+    let formatted = asked(r#"{"fields":[{"field":"d","format":"x"}]}"#);
+    let e = resolve(&formatted, &mapping).expect_err("refused");
+    assert_eq!(
+        e.failure.reason,
+        "Field [d] of type [double] doesn't support formats."
+    );
+}

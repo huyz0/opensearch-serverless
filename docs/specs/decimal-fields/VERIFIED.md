@@ -10,3 +10,5 @@
 - AC-8: `a_value_that_is_not_a_finite_number_is_refused_as_the_mapper_refuses_it`
 - AC-9: `a_double_sort_orders_across_segments_and_reads_back_doubles`, `a_float_sort_reads_back_floats`, `a_decimal_sort_puts_a_missing_value_last_in_either_direction`
 - AC-10: `search_after_resumes_a_double_and_a_float_sort`
+- AC-11: `docvalue_fields_write_a_double_and_a_float_widened_to_a_double`
+- AC-12: `the_fields_api_reads_a_double_and_a_float_from_the_source`, `a_double_and_a_float_read_from_the_source_as_the_mapper_parses_them`
