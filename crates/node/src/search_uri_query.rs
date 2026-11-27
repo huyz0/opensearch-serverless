@@ -6,6 +6,7 @@
 
 use oss_reader::dsl::SearchSource;
 use oss_reader::dsl::uri_query::UriQuery;
+use oss_reader::dsl::url_params::UrlParams;
 use oss_rest::Request;
 
 use super::{Answer, bad_request, read_source};
@@ -56,11 +57,55 @@ pub(super) const SEARCH_PARAMS: &[&str] = &[
     "routing",
     "preference",
     "ignore_unavailable",
+    "track_total_hits",
+    "terminate_after",
+    "explain",
+    "version",
+    "seq_no_primary_term",
+    "track_scores",
+    "_source",
+    "_source_includes",
+    "_source_excludes",
+    "sort",
+    "search_type",
+    // Accepted and without effect: one serving path, no shard copies to tune.
+    "timeout",
+    "request_cache",
+    "batched_reduce_size",
+    "pre_filter_shard_size",
+    "allow_partial_search_results",
+    "ccs_minimize_roundtrips",
+    "max_concurrent_shard_requests",
 ];
 
 /// The body and URL parameters of a `_search`, a `q` replacing the body's query.
 pub(super) fn read_search_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
     let mut source = read_source(req)?;
     apply(req, &mut source, false)?;
+    let track_total_hits = req.param("track_total_hits");
+    let terminate_after = req.param("terminate_after");
+    let explain = req.param("explain");
+    let version = req.param("version");
+    let seq_no_primary_term = req.param("seq_no_primary_term");
+    let track_scores = req.param("track_scores");
+    let source_param = req.param("_source");
+    let includes = req.param("_source_includes");
+    let excludes = req.param("_source_excludes");
+    let sort = req.param("sort");
+    let search_type = req.param("search_type");
+    let params = UrlParams {
+        track_total_hits: track_total_hits.as_deref(),
+        terminate_after: terminate_after.as_deref(),
+        explain: explain.as_deref(),
+        version: version.as_deref(),
+        seq_no_primary_term: seq_no_primary_term.as_deref(),
+        track_scores: track_scores.as_deref(),
+        source: source_param.as_deref(),
+        source_includes: includes.as_deref(),
+        source_excludes: excludes.as_deref(),
+        sort: sort.as_deref(),
+        search_type: search_type.as_deref(),
+    };
+    source.apply_url(&params).map_err(bad_request)?;
     Ok(source)
 }

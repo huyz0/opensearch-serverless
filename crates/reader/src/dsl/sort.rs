@@ -53,7 +53,7 @@ pub enum SortKey {
 
 impl SortKey {
     /// `fieldOrScoreSort`: `_score` is a score sort, anything else a field.
-    fn named(name: &str) -> Self {
+    pub(crate) fn named(name: &str) -> Self {
         if name == "_score" {
             SortKey::Score { ascending: false }
         } else {
@@ -66,7 +66,7 @@ impl SortKey {
         }
     }
 
-    fn with_order(self, ascending: bool) -> Self {
+    pub(crate) fn with_order(self, ascending: bool) -> Self {
         match self {
             SortKey::Score { .. } => SortKey::Score { ascending },
             SortKey::Field { field, nested, .. } => SortKey::Field {
@@ -120,7 +120,7 @@ pub fn parse_sort(p: &mut Parser<'_>) -> Result<Vec<SortKey>, DslError> {
     Ok(keys)
 }
 
-fn push(keys: &mut Vec<SortKey>, key: SortKey) -> Result<(), DslError> {
+pub(crate) fn push(keys: &mut Vec<SortKey>, key: SortKey) -> Result<(), DslError> {
     if keys.len() >= MAX_SORT_KEYS {
         return Err(DslError::illegal(
             // ALLOC: error path; one message.
