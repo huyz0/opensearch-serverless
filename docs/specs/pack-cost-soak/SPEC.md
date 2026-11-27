@@ -8,7 +8,7 @@ Parity plan R11.5, the part the commit soak ([commit-cost-soak](../commit-cost-s
 
 A test in its own binary (`crates/writer/tests/pack_soak.rs`): 1,000 shards, each with its own directory and publisher over one metered emulator and one shared `PackWriter` (50 ms linger), commit a document and publish for three rounds, the 1,000 publishes of a round running together on a bounded set of threads so packs fill across shards. It counts the requests, the publishes per pack and the peak heap. No production code changes.
 
-Not changed, by design and listed: takeover time, first search and write p99 of a packed node at 1,000 shards (the node suites hold packed takeover and reads at small counts: [node-pack-wiring](../node-pack-wiring/SPEC.md) AC-5; the scale figure is NOT-RUN), the collector.
+Not changed, by design and listed: takeover time ([pack-takeover-scale](../pack-takeover-scale/SPEC.md)), first search ([pack-first-search](../pack-first-search/SPEC.md)) and write p99 of a packed node at 1,000 shards (the node suites hold packed takeover and reads at small counts: [node-pack-wiring](../node-pack-wiring/SPEC.md) AC-5; the scale figure is NOT-RUN), the collector.
 
 ## Acceptance criteria
 
