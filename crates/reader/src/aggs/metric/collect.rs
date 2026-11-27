@@ -73,6 +73,7 @@ fn needs(metric: Metric) -> u8 {
         Metric::Range
         | Metric::DateRange
         | Metric::Filters
+        | Metric::AdjacencyMatrix
         | Metric::Filter
         | Metric::Missing
         | Metric::Global
@@ -115,6 +116,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         ))),
         Metric::Range | Metric::DateRange => range_collect::value(agg, &[]),
         Metric::Filters
+        | Metric::AdjacencyMatrix
         | Metric::Filter
         | Metric::Missing
         | Metric::Global

@@ -48,6 +48,7 @@ mod pack_commit_refs;
 mod pack_election;
 mod pack_index;
 mod pack_judge;
+mod pack_seed;
 mod pack_writer;
 mod pinned_analyzer;
 mod publish;
