@@ -176,7 +176,7 @@ impl UpdateService {
         let bytes = DocService::source(req)?;
         let body = read(&bytes)?;
         let has_script = body.script.is_some();
-        if has_script && !oss_reader::painless_switch::native_compile() {
+        if has_script && !oss_coordinator::docs::update_script::native_compile() {
             return Err(RestError::simple(
                 501,
                 "script updates need serverless.scripting.painless.native_compile",
