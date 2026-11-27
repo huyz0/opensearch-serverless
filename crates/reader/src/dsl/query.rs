@@ -8,6 +8,7 @@
 //! takes but this reader does not serve yet is refused
 //! ([`DslError::unsupported`]) rather than ignored.
 
+use crate::date::{DateFormat, DateSpec, parse_zone};
 use crate::dsl::bool_query::{BoolQuery, parse_bool};
 use crate::dsl::error::DslError;
 pub use crate::dsl::registered::REGISTERED_QUERIES;
@@ -69,6 +70,8 @@ pub enum Query {
         include_upper: bool,
         /// The boost.
         boost: f32,
+        /// The `format` and `time_zone` the bounds are read in.
+        date: DateSpec,
     },
     /// `BoolQueryBuilder`.
     Bool(Box<BoolQuery>),
@@ -390,6 +393,7 @@ fn parse_range(p: &mut Parser<'_>) -> Result<Query, DslError> {
     let (mut from, mut to) = (None, None);
     let (mut include_lower, mut include_upper): (Option<bool>, Option<bool>) = (None, None);
     let mut boost = 1.0;
+    let mut date = DateSpec::default();
     let mut current = "";
     while let Some(token) = next_or_end(p, Kind::EndObject) {
         match token {
@@ -430,7 +434,9 @@ fn parse_range(p: &mut Parser<'_>) -> Result<Query, DslError> {
                             to = object_value(p)?;
                             include_upper = Some(current == "lte");
                         }
-                        "time_zone" | "format" | "relation" | "_name" => {
+                        "time_zone" => date = range_zone(p, date)?,
+                        "format" => date = range_format(p, date)?,
+                        "relation" | "_name" => {
                             // ALLOC: error path; one message.
                             return Err(DslError::unsupported(&format!("[range] [{current}]")));
                         }
@@ -449,7 +455,40 @@ fn parse_range(p: &mut Parser<'_>) -> Result<Query, DslError> {
         include_lower: include_lower.unwrap_or(true),
         include_upper: include_upper.unwrap_or(true),
         boost,
+        date,
     })
+}
+
+/// A range's `time_zone`: a fixed zone, which only a date field takes.
+fn range_zone(p: &Parser<'_>, date: DateSpec) -> Result<DateSpec, DslError> {
+    match (p.current_token(), parse_zone(p.text())) {
+        (Some(Kind::String), Some(zone)) => Ok(DateSpec {
+            zone,
+            named: true,
+            ..date
+        }),
+        // ALLOC: error path; one message.
+        _ => Err(DslError::unsupported(&format!(
+            "[range] [time_zone] [{}]",
+            p.text()
+        ))),
+    }
+}
+
+/// A range's `format`: one of the formats this node reads, which only a date field takes.
+fn range_format(p: &Parser<'_>, date: DateSpec) -> Result<DateSpec, DslError> {
+    match (p.current_token(), DateFormat::of(p.text())) {
+        (Some(Kind::String), Some(format)) => Ok(DateSpec {
+            format,
+            named: true,
+            ..date
+        }),
+        // ALLOC: error path; one message.
+        _ => Err(DslError::unsupported(&format!(
+            "[range] [format] [{}]",
+            p.text()
+        ))),
+    }
 }
 
 #[cfg(test)]

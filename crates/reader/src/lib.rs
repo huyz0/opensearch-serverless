@@ -21,6 +21,7 @@ mod frozen;
 pub mod hits_total;
 pub mod knn;
 pub mod lucene_query;
+mod lucene_range;
 pub mod mapping;
 pub mod numbers;
 pub mod open_cost;
