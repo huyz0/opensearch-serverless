@@ -42,3 +42,23 @@ fn a_body_timeout_changes_nothing_and_a_bad_one_is_refused() {
         "{text}"
     );
 }
+
+#[test]
+fn a_body_profile_false_and_stats_change_nothing() {
+    let (status, plain) = post(r#"{"query":{"match_all":{}}}"#);
+    assert_eq!(status, 200, "{plain}");
+    for extra in [
+        r#""profile":false"#,
+        r#""stats":["a","b"]"#,
+        r#""profile":false,"stats":["group"]"#,
+    ] {
+        let (status, text) = post(&format!(r#"{{{extra},"query":{{"match_all":{{}}}}}}"#));
+        assert_eq!(status, 200, "{extra}: {text}");
+        assert_eq!(untimed(&text), untimed(&plain), "{extra}");
+    }
+    for extra in [r#""profile":true"#, r#""stats":[1]"#] {
+        let (status, text) = post(&format!("{{{extra}}}"));
+        assert_eq!(status, 400, "{extra}: {text}");
+        assert!(text.contains("is not supported by this node yet"), "{text}");
+    }
+}

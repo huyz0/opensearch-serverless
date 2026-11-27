@@ -288,6 +288,8 @@ impl SearchSource {
             // A time limit changes nothing here: a search is not cut short.
             "timeout" if matches!(kind, Kind::String | Kind::Number) && is_time_value(p.text()) => {
             }
+            // A profile is not built, so only the default of no profile is read.
+            "profile" if kind == Kind::Bool && p.text() == "false" => {}
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, kind, name)),
         }
@@ -319,6 +321,14 @@ impl SearchSource {
             "search_after" => self.search_after = parse_search_after(p)?,
             "docvalue_fields" => self.docvalue_fields = parse_docvalue_fields(p)?,
             "rescore" => self.rescore = crate::dsl::rescore::parse_array(p)?,
+            // Group names for the stats API, which this node does not keep.
+            "stats" => loop {
+                match p.next_token() {
+                    Some(Kind::EndArray) | None => break,
+                    Some(Kind::String) => {}
+                    Some(_) => return Err(unsupported(name)),
+                }
+            },
             known if ARRAY_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartArray, name)),
         }
