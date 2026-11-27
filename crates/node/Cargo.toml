@@ -164,3 +164,7 @@ required-features = ["writer"]
 [[test]]
 name = "virtual_soak"
 required-features = ["writer"]
+
+[[test]]
+name = "scripted_metric_shards"
+required-features = ["coordinator"]

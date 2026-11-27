@@ -44,7 +44,7 @@ fn script_of(body: &str) -> super::function_score_script::ScriptScore {
 fn painless_is_served_only_while_the_switch_is_on() {
     use super::function_score_script::{Lang, Param};
     let painless = r#"{"functions":[{"script_score":{"script":{"source":"params.a + params.s.length()","params":{"a":2,"b":3000000000,"c":1.5,"s":"x","t":true}}}}]}"#;
-    let refusal = "[script_score] runs only lang [expression] on this node";
+    let refusal = "[script] runs only lang [expression] on this node";
     assert!(!crate::painless_switch::native_compile());
     assert_eq!(reason(painless), refusal);
     assert_eq!(

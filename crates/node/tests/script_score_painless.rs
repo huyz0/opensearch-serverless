@@ -368,3 +368,24 @@ fn a_scripted_metric_refuses_what_it_does_not_serve() {
         assert!(text.contains(reason), "{agg}: {text}");
     }
 }
+
+// AC-3: a stored script is refused the same way in every context, naming no
+// other context and saying what to send instead.
+#[test]
+fn a_stored_script_is_refused_the_same_way_in_every_context() {
+    on();
+    let node = start();
+    let (status, text) = query_search(&node, r#"{"script":{"script":{"id":"s"}}}"#);
+    assert_eq!(status, 400, "{text}");
+    let (agg_status, agg) = aggregate(&node, r#"{"x":{"sum":{"script":{"id":"s"}}}}"#);
+    assert_eq!(agg_status, 400, "{agg}");
+    for body in [&text, &agg] {
+        assert!(
+            body.contains(
+                "[script] a stored script [id] is not served: send the script as [source]"
+            ),
+            "{body}"
+        );
+        assert!(!body.contains("[script_score]"), "{body}");
+    }
+}
