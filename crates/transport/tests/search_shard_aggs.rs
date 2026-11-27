@@ -26,6 +26,7 @@ fn request(name: &str, kind: AggKind, field: &str) -> AggRequest {
         precision_threshold: None,
         percentiles: None,
         terms: None,
+        subs: Vec::new(),
     }
 }
 

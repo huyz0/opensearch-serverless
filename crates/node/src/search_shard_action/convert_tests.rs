@@ -82,6 +82,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            subs: Vec::new(),
         },
         AggRequest {
             name: "c".to_owned(),
@@ -90,6 +91,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            subs: Vec::new(),
         },
     ];
     let s = search_source(&with).expect("a search source");
@@ -112,6 +114,7 @@ fn a_precision_threshold_reaches_the_source() {
         precision_threshold: Some(100),
         percentiles: None,
         terms: None,
+        subs: Vec::new(),
     }];
     let s = search_source(&with).expect("a search source");
     assert_eq!(s.aggs[0].cardinality.precision_threshold, Some(100));
@@ -132,6 +135,7 @@ fn percentile_keys_and_options_reach_the_source() {
             compression: Some(200.0),
         }),
         terms: None,
+        subs: Vec::new(),
     };
     with.aggregations = vec![
         ask("p", AggKind::Percentiles, &[50.0, 99.5]),
@@ -175,6 +179,7 @@ fn a_terms_aggregations_options_reach_the_source() {
             order,
             show_error: true,
         }),
+        subs: Vec::new(),
     };
     let mut with = read("request.match_all");
     with.aggregations = vec![ask(
@@ -204,4 +209,38 @@ fn a_terms_aggregations_options_reach_the_source() {
     let t = s.aggs[0].terms.as_ref().expect("terms");
     assert_eq!(t.order, TermsOrder::CountDesc);
     assert_eq!(t.shard_size, 17); // size 5 and a half of it, and ten
+}
+
+#[test]
+fn the_sub_aggregations_of_a_terms_reach_the_source() {
+    use oss_transport::actions::search_shard::{
+        AggKind, AggRequest, Order, OrderSpec, TermsRequest,
+    };
+    let leaf = |name: &str, kind| AggRequest {
+        name: name.to_owned(),
+        kind,
+        field: "n".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        subs: Vec::new(),
+    };
+    let mut parent = leaf("t", AggKind::Terms);
+    parent.terms = Some(TermsRequest {
+        size: 5,
+        shard_size: -1,
+        min_doc_count: 1,
+        shard_min_doc_count: 0,
+        order: OrderSpec {
+            compound: true,
+            items: vec![Order::CountDesc, Order::KeyAsc],
+        },
+        show_error: false,
+    });
+    parent.subs = vec![leaf("hi", AggKind::Max), leaf("lo", AggKind::Min)];
+    let mut with = read("request.match_all");
+    with.aggregations = vec![parent];
+    let s = search_source(&with).expect("a search source");
+    let names: Vec<&str> = s.aggs[0].subs.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(names, ["hi", "lo"]);
 }

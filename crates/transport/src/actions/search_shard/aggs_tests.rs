@@ -19,6 +19,7 @@ fn a_written_request_reads_back() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            subs: Vec::new(),
         },
         AggRequest {
             name: "c".into(),
@@ -27,6 +28,7 @@ fn a_written_request_reads_back() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            subs: Vec::new(),
         },
     ];
     let wire = bytes(&aggs);
@@ -45,13 +47,26 @@ fn another_type_and_a_sub_aggregation_are_refused() {
         read(&mut Input::new(&wire)),
         Err(Refusal::Unsupported("an aggregation of another type"))
     ));
-    let mut wire = Vec::new();
-    let mut out = Output::new(&mut wire, 1 << 20);
-    out.vint(1).expect("count");
-    out.string("max").expect("type");
-    out.string("m").expect("name");
-    out.vint(1).expect("a sub-aggregation");
-    out.vint(0).expect("no pipelines");
+    // A metric with a sub-aggregation, written as a builder would write it.
+    let inner = AggRequest {
+        name: "x".into(),
+        kind: AggKind::Min,
+        field: "n".into(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        subs: Vec::new(),
+    };
+    let outer = AggRequest {
+        name: "m".into(),
+        kind: AggKind::Max,
+        field: "n".into(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        subs: vec![inner],
+    };
+    let wire = bytes(&[outer]);
     assert!(matches!(
         read(&mut Input::new(&wire)),
         Err(Refusal::Unsupported("sub-aggregations"))

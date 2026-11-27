@@ -8,13 +8,15 @@
 //! node cannot run; nothing after it is read.
 
 pub mod aggs;
+pub mod aggs_percentiles;
 pub mod aggs_terms;
 mod query;
 mod response;
 mod write;
 
-pub use aggs::{AggAnswer, AggKind, AggRequest, AggValue, PercentilesRequest};
-pub use aggs_terms::{Keys, Order, OrderSpec, TermsAnswer, TermsRequest};
+pub use aggs::{AggAnswer, AggKind, AggRequest, AggValue};
+pub use aggs_percentiles::PercentilesRequest;
+pub use aggs_terms::{Keys, Order, OrderSpec, SubAnswer, TermsAnswer, TermsRequest};
 pub use query::{Limits, Node, Query, Value};
 pub use response::{Hit, MAX_BYTES, Response};
 

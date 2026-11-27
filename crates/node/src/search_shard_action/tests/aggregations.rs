@@ -30,6 +30,7 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            subs: Vec::new(),
         },
         AggRequest {
             name: "c".to_owned(),
@@ -38,6 +39,7 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            subs: Vec::new(),
         },
     ];
     let mut message = Vec::new();
@@ -187,6 +189,7 @@ fn terms_request(
             },
             show_error: false,
         }),
+        subs: Vec::new(),
     }
 }
 
@@ -241,12 +244,12 @@ fn a_keyword_terms_aggregation_is_answered_as_string_terms_in_the_requests_order
 }
 
 #[test]
-fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_one_with_sub_aggregations_is_refused()
+fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_a_bucket_carries_its_sub_aggregations()
 {
     use oss_reader::aggs::bucket::terms::{TermsResult, TermsSpec};
     use oss_reader::aggs::partial::{Format, Partial, Value as Part};
     use oss_transport::actions::search_shard::Order;
-    let part = |meta: Vec<(String, Format)>| Partial {
+    let part = |meta: Vec<(String, Format)>, lists: Vec<Vec<Part>>| Partial {
         name: "u".to_owned(),
         format: Format::Raw,
         value: Part::Terms(Box::new(TermsResult {
@@ -254,6 +257,7 @@ fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_one_with_sub_aggreg
             buckets: vec![(7, 3)],
             subs: oss_reader::aggs::bucket::sub_values::BucketSubs {
                 meta,
+                lists,
                 ..Default::default()
             },
             ..Default::default()
@@ -261,7 +265,7 @@ fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_one_with_sub_aggreg
     };
     let answer = ask_with(
         vec![terms_request("u", Order::KeyAsc)],
-        vec![part(Vec::new())],
+        vec![part(Vec::new(), Vec::new())],
     )
     .unwrap();
     let mut expected = vec![1, 6];
@@ -276,13 +280,37 @@ fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_one_with_sub_aggreg
             || answer.windows(tail.len()).any(|w| w == tail),
         "{answer:?}"
     );
+    // A bucket's sub-aggregation, as its own named writeable before the key.
+    let mut sub_request = terms_request("u", Order::KeyAsc);
+    sub_request.subs = vec![oss_transport::actions::search_shard::AggRequest {
+        name: "m".to_owned(),
+        kind: oss_transport::actions::search_shard::AggKind::Max,
+        field: "n".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        subs: Vec::new(),
+    }];
+    let meta = vec![("m".to_owned(), Format::Raw)];
+    let answer = ask_with(
+        vec![sub_request.clone()],
+        vec![part(meta.clone(), vec![vec![Part::Max(4.0)]])],
+    )
+    .unwrap();
+    let mut expected = vec![1, 3, b'm', b'a', b'x', 1, b'm', 0xFF, 3, b'r', b'a', b'w'];
+    expected.extend_from_slice(&4.0f64.to_bits().to_be_bytes());
+    assert!(
+        answer.windows(expected.len()).any(|w| w == &expected[..]),
+        "{answer:?}"
+    );
+    // A sub-aggregation result this node does not answer is refused.
     let refused = ask_with(
-        vec![terms_request("u", Order::KeyAsc)],
-        vec![part(vec![("m".to_owned(), Format::Raw)])],
+        vec![sub_request],
+        vec![part(meta, vec![vec![Part::Rendered(Vec::new())]])],
     )
     .unwrap_err();
     assert!(
-        format!("{refused:?}").contains("sub-aggregations"),
+        format!("{refused:?}").contains("not supported by this node"),
         "{refused:?}"
     );
 }

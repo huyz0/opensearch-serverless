@@ -8,6 +8,7 @@
 //! refused by name.
 
 use super::Refusal;
+use super::aggs_percentiles::{self, PercentilesRequest};
 use super::aggs_terms::{self, TermsAnswer, TermsRequest};
 use crate::error::WireError;
 use crate::stream::{Input, Output};
@@ -75,17 +76,6 @@ impl AggKind {
     }
 }
 
-/// What a `percentiles` or `percentile_ranks` asks beyond its field.
-#[derive(Debug, Clone, PartialEq)]
-pub struct PercentilesRequest {
-    /// The percents or the values ranked, as the builder holds them.
-    pub keys: Vec<f64>,
-    /// `keyed`.
-    pub keyed: bool,
-    /// The t-digest's compression; the default when none.
-    pub compression: Option<f64>,
-}
-
 /// One aggregation asked for.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AggRequest {
@@ -101,6 +91,8 @@ pub struct AggRequest {
     pub percentiles: Option<PercentilesRequest>,
     /// A `terms`' options.
     pub terms: Option<TermsRequest>,
+    /// The sub-aggregations of a bucket aggregation, in request order.
+    pub subs: Vec<AggRequest>,
 }
 
 /// One shard-level result.
@@ -200,42 +192,8 @@ fn empty_builder(input: &mut Input<'_>, what: &'static str) -> Result<(), Refusa
     Ok(())
 }
 
-/// The most keys a percentiles aggregation may carry.
-const MAX_KEYS: usize = 1024;
-
-fn double(input: &mut Input<'_>, what: &'static str) -> Result<f64, WireError> {
-    Ok(f64::from_bits(input.long(what)?.cast_unsigned()))
-}
-
-/// A percentiles builder's own fields: the keys, `keyed`, and the optional
-/// `PercentilesConfig` (a method byte, 0 for the t-digest, and its
-/// compression).
-fn read_percentiles(input: &mut Input<'_>) -> Result<PercentilesRequest, Refusal> {
-    let n = input.count(8, "percentile keys")?;
-    if n > MAX_KEYS {
-        return Err(Refusal::TooLarge("percentile keys"));
-    }
-    // ALLOC: one double a key, at most MAX_KEYS.
-    let mut keys = Vec::with_capacity(n);
-    for _ in 0..n {
-        keys.push(double(input, "a percentile key")?);
-    }
-    let keyed = input.bool("keyed")?;
-    let mut compression = None;
-    if input.bool("a percentiles config")? {
-        if input.byte("a percentiles method")? != 0 {
-            return Err(Refusal::Unsupported(
-                "a percentiles method other than tdigest",
-            ));
-        }
-        compression = Some(double(input, "a compression")?);
-    }
-    Ok(PercentilesRequest {
-        keys,
-        keyed,
-        compression,
-    })
-}
+/// How deep sub-aggregations may nest.
+const MAX_DEPTH: usize = 3;
 
 /// Reads the `AggregatorFactories.Builder` after its presence flag was read
 /// as true.
@@ -244,70 +202,101 @@ fn read_percentiles(input: &mut Input<'_>) -> Result<PercentilesRequest, Refusal
 ///
 /// [`Refusal`] for malformed bytes or an aggregation this node does not run.
 pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
+    let mut budget = MAX_AGGREGATIONS;
+    read_builder(input, 0, &mut budget)
+}
+
+/// One `AggregatorFactories.Builder`: the aggregations, then the pipeline
+/// aggregations, of which there are none. `budget` is how many aggregations
+/// the whole request may still hold.
+fn read_builder(
+    input: &mut Input<'_>,
+    depth: usize,
+    budget: &mut usize,
+) -> Result<Vec<AggRequest>, Refusal> {
     let count = input.vint("aggregations")?;
     let count = usize::try_from(count)
         .ok()
-        .filter(|n| *n <= MAX_AGGREGATIONS)
+        .filter(|n| *n <= *budget)
         .ok_or(Refusal::TooLarge("aggregations"))?;
-    // ALLOC: one entry an aggregation, at most MAX_AGGREGATIONS.
+    *budget = budget.saturating_sub(count);
+    // ALLOC: one entry an aggregation, within the request's budget.
     let mut out = Vec::with_capacity(count);
     for _ in 0..count {
-        let kind_name = input.string("aggregation type")?;
-        let Some(kind) = AggKind::from_name(&kind_name) else {
-            return Err(Refusal::Unsupported("an aggregation of another type"));
-        };
-        let name = input.string("aggregation name")?;
-        empty_builder(input, "sub-aggregations")?;
-        null_generic(input, "aggregation metadata")?;
-        if matches!(
-            kind,
-            AggKind::ValueCount | AggKind::Cardinality | AggKind::Terms
-        ) {
-            // `serializeTargetValueType`: a null writeable.
-            none(input, "a value type target")?;
-        }
-        let field = input
-            .optional_string("aggregation field")?
-            .ok_or(Refusal::Unsupported("an aggregation without a field"))?;
-        none(input, "an aggregation script")?;
-        none(input, "an aggregation value type")?;
-        if input.optional_string("aggregation format")?.is_some() {
-            return Err(Refusal::Unsupported("an aggregation format"));
-        }
-        null_generic(input, "an aggregation missing value")?;
-        none(input, "an aggregation time zone")?;
-        let mut precision_threshold = None;
-        if kind == AggKind::Cardinality {
-            if input.bool("a precision threshold flag")? {
-                precision_threshold = Some(input.long("a precision threshold")?);
-            }
-            if input.optional_string("an execution hint")?.is_some() {
-                return Err(Refusal::Unsupported("an execution hint"));
-            }
-        }
-        let mut percentiles = None;
-        if matches!(kind, AggKind::Percentiles | AggKind::PercentileRanks) {
-            percentiles = Some(read_percentiles(input)?);
-        }
-        let terms = if kind == AggKind::Terms {
-            Some(aggs_terms::read(input)?)
-        } else {
-            None
-        };
-        out.push(AggRequest {
-            name,
-            kind,
-            field,
-            precision_threshold,
-            percentiles,
-            terms,
-        });
+        out.push(read_one(input, depth, budget)?);
     }
     // Pipeline aggregations.
     if input.vint("pipeline aggregations")? != 0 {
         return Err(Refusal::Unsupported("pipeline aggregations"));
     }
     Ok(out)
+}
+
+fn read_one(
+    input: &mut Input<'_>,
+    depth: usize,
+    budget: &mut usize,
+) -> Result<AggRequest, Refusal> {
+    let kind_name = input.string("aggregation type")?;
+    let Some(kind) = AggKind::from_name(&kind_name) else {
+        return Err(Refusal::Unsupported("an aggregation of another type"));
+    };
+    let name = input.string("aggregation name")?;
+    let subs = if depth >= MAX_DEPTH {
+        empty_builder(input, "sub-aggregations nested so deep")?;
+        // ALLOC: empty.
+        Vec::new()
+    } else {
+        read_builder(input, depth.saturating_add(1), budget)?
+    };
+    if !subs.is_empty() && kind != AggKind::Terms {
+        return Err(Refusal::Unsupported("sub-aggregations"));
+    }
+    null_generic(input, "aggregation metadata")?;
+    if matches!(
+        kind,
+        AggKind::ValueCount | AggKind::Cardinality | AggKind::Terms
+    ) {
+        // `serializeTargetValueType`: a null writeable.
+        none(input, "a value type target")?;
+    }
+    let field = input
+        .optional_string("aggregation field")?
+        .ok_or(Refusal::Unsupported("an aggregation without a field"))?;
+    none(input, "an aggregation script")?;
+    none(input, "an aggregation value type")?;
+    if input.optional_string("aggregation format")?.is_some() {
+        return Err(Refusal::Unsupported("an aggregation format"));
+    }
+    null_generic(input, "an aggregation missing value")?;
+    none(input, "an aggregation time zone")?;
+    let mut precision_threshold = None;
+    if kind == AggKind::Cardinality {
+        if input.bool("a precision threshold flag")? {
+            precision_threshold = Some(input.long("a precision threshold")?);
+        }
+        if input.optional_string("an execution hint")?.is_some() {
+            return Err(Refusal::Unsupported("an execution hint"));
+        }
+    }
+    let mut percentiles = None;
+    if matches!(kind, AggKind::Percentiles | AggKind::PercentileRanks) {
+        percentiles = Some(aggs_percentiles::read(input)?);
+    }
+    let terms = if kind == AggKind::Terms {
+        Some(aggs_terms::read(input)?)
+    } else {
+        None
+    };
+    Ok(AggRequest {
+        name,
+        kind,
+        field,
+        precision_threshold,
+        percentiles,
+        terms,
+        subs,
+    })
 }
 
 /// Writes `aggs` as `AggregatorFactories.Builder.writeTo` does.
@@ -320,8 +309,7 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
     for agg in aggs {
         out.string(agg.kind.name())?;
         out.string(&agg.name)?;
-        out.vint(0)?; // sub-aggregations
-        out.vint(0)?; // sub pipeline aggregations
+        write(&agg.subs, out)?; // sub-aggregations and their pipelines
         out.byte(0xFF)?; // metadata: null
         if matches!(
             agg.kind,
@@ -383,7 +371,21 @@ fn answer_name(kind: AggKind, value: &AggValue) -> &'static str {
 pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<(), WireError> {
     out.count(answers.len())?;
     for a in answers {
-        let (kind, ()) = match &a.value {
+        write_one(a.name, &a.value, a.date, out)?;
+    }
+    Ok(())
+}
+
+/// One result as a named writeable: its type name, its name, and its
+/// `InternalAggregation.writeTo`.
+pub(super) fn write_one(
+    name: &str,
+    value: &AggValue,
+    date: bool,
+    out: &mut Output<'_>,
+) -> Result<(), WireError> {
+    {
+        let (kind, ()) = match value {
             AggValue::Min(_) => (AggKind::Min, ()),
             AggValue::Max(_) => (AggKind::Max, ()),
             AggValue::Sum(_) => (AggKind::Sum, ()),
@@ -395,12 +397,12 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
             AggValue::Percentiles { ranks: false, .. } => (AggKind::Percentiles, ()),
             AggValue::Percentiles { ranks: true, .. } => (AggKind::PercentileRanks, ()),
         };
-        out.string(answer_name(kind, &a.value))?;
-        out.string(a.name)?;
+        out.string(answer_name(kind, value))?;
+        out.string(name)?;
         out.byte(0xFF)?; // metadata: null
-        match &a.value {
+        match value {
             AggValue::Min(v) | AggValue::Max(v) | AggValue::Sum(v) => {
-                write_format(out, a.date)?;
+                write_format(out, date)?;
                 out.bytes(&v.to_bits().to_be_bytes())?;
             }
             AggValue::Percentiles {
@@ -409,7 +411,7 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
                 keyed,
                 ..
             } => {
-                write_format(out, a.date)?;
+                write_format(out, date)?;
                 out.count(keys.len())?;
                 for k in keys {
                     out.bytes(&k.to_bits().to_be_bytes())?;
@@ -418,16 +420,16 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
                 out.bytes(digest)?;
                 out.bool(*keyed)?;
             }
-            AggValue::Terms(t) => t.write(a.date, out)?,
+            AggValue::Terms(t) => t.write(date, out)?,
             AggValue::Cardinality(sketch) => {
-                write_format(out, a.date)?;
+                write_format(out, date)?;
                 out.bool(sketch.is_some())?;
                 if let Some(bytes) = sketch {
                     out.bytes(bytes)?;
                 }
             }
             AggValue::Avg { sum, count } => {
-                write_format(out, a.date)?;
+                write_format(out, date)?;
                 out.bytes(&sum.to_bits().to_be_bytes())?;
                 out.vlong(*count)?;
             }
@@ -438,7 +440,7 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
                 max,
                 sum,
             } => {
-                write_format(out, a.date)?;
+                write_format(out, date)?;
                 out.vlong(*count)?;
                 for v in [min, max, sum] {
                     out.bytes(&v.to_bits().to_be_bytes())?;

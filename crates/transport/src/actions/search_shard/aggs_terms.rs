@@ -3,7 +3,7 @@
 //! `LongTerms` answering it, as `InternalTerms.doWriteTo` writes them.
 
 use super::Refusal;
-use super::aggs::write_format;
+use super::aggs::{AggValue, write_format, write_one};
 use crate::error::WireError;
 use crate::stream::{Input, Output};
 
@@ -197,8 +197,19 @@ impl Keys {
     }
 }
 
+/// One sub-aggregation's result in a bucket.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubAnswer {
+    /// The sub-aggregation's name.
+    pub name: String,
+    /// Its result.
+    pub value: AggValue,
+    /// Whether its field is a date.
+    pub date: bool,
+}
+
 /// A shard's `StringTerms` or `LongTerms`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TermsAnswer {
     /// The order the buckets are in (`reduceOrder`): by key.
     pub reduce_order: Order,
@@ -222,6 +233,9 @@ pub struct TermsAnswer {
     pub counts: Vec<i64>,
     /// The buckets' error bounds, one a key, when `show_error`.
     pub errors: Vec<i64>,
+    /// The buckets' sub-aggregation results, one list a key; empty when the
+    /// aggregation has no sub-aggregations.
+    pub subs: Vec<Vec<SubAnswer>>,
 }
 
 impl TermsAnswer {
@@ -254,7 +268,11 @@ impl TermsAnswer {
             if self.show_error {
                 out.bytes(&self.errors.get(i).copied().unwrap_or(0).to_be_bytes())?;
             }
-            out.vint(0)?; // no sub-aggregations
+            let subs = self.subs.get(i).map_or(&[][..], Vec::as_slice);
+            out.count(subs.len())?;
+            for sub in subs {
+                write_one(&sub.name, &sub.value, sub.date, out)?;
+            }
             match &self.keys {
                 Keys::Text(terms) => {
                     out.bytes_reference(terms.get(i).map_or(&[][..], |t| t.as_bytes()))?;
