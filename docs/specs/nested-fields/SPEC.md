@@ -36,7 +36,7 @@ Not here: `inner_hits`, nested aggregations and `reverse_nested`, `include_in_pa
 - AC-1, AC-2: `crates/doc/tests/nested_mapping.rs`.
 - AC-3 to AC-5: `crates/doc/tests/nested_document.rs`.
 - AC-6: `crates/doc/tests/nested_lucene.rs`.
-- AC-7, AC-8: `crates/writer/tests/nested_shard.rs`.
+- AC-7, AC-8: `crates/writer/tests/it/nested_shard.rs`.
 - AC-9, AC-10: `crates/node/tests/nested.rs`; AC-11: `crates/node/tests/nested_shards.rs`.
 
 ## S3 request budget

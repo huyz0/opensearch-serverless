@@ -1,8 +1,7 @@
 //! A successor reads a shard's records from a fenced log (the reading
 //! half of the shell's `NodeLogTakeoverTests`), by criterion of the spec.
 
-mod common;
-
+use crate::common;
 use common::committer::{Rig, rec, rig, shard, window};
 use oss_blob::{BlobStore, S3Op};
 use oss_format::{OrdinalRange, UNASSIGNED_SEQ_NO};

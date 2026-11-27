@@ -19,7 +19,7 @@ A get returned no `_routing` because the engine never stored the routing a docum
 
 ## Test plan
 
-`crates/writer/tests/shard_get.rs`, `crates/node/tests/server/get_route.rs`, `crates/node/tests/server/read_forward.rs`.
+`crates/writer/tests/it/shard_get.rs`, `crates/node/tests/server/get_route.rs`, `crates/node/tests/server/read_forward.rs`.
 
 ## S3 request budget
 

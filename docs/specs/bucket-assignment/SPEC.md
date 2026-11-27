@@ -28,7 +28,7 @@ Stricter than the Java: `Limits::new` clamps `max_members` to the manifest's 1,0
 
 ## Tests
 
-`crates/writer/tests/bucket_assign.rs` over the in-process emulator with its request meter; `crates/format/tests/bucket_open.rs`.
+`crates/writer/tests/it/bucket_assign.rs` over the in-process emulator with its request meter; `crates/format/tests/bucket_open.rs`.
 
 ## S3 request budget
 

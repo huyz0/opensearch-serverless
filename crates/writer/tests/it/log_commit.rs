@@ -1,7 +1,6 @@
 //! A staged commit logged under its commit key (docs/specs/logged-commits).
 
-mod common;
-
+use crate::common;
 use std::time::Duration;
 
 use common::committer::{header_at, puts, rec, rig, shard, window};

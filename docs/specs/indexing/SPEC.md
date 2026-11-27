@@ -31,7 +31,7 @@ Parity plan R6.2 (roadmap stage 3, [roadmap](../../roadmap.md)): the writer turn
 
 ## Test plan
 
-`crates/writer/tests/segment_fixtures.rs` builds each fixture's documents with `document::parse` and `lucene::Indexer`, writes them with the engine's `IndexWriter` to an in-memory directory, and compares a dump of the result, in `SegmentDump.java`'s form, with the recording (AC-1, AC-2, AC-4); AC-3 is the `ids.json` fixture. The recordings were failing tests before the code existed. `crates/writer/tests/lucene_fields.rs` commits several segments and reopens the writer (AC-5). Unit tests in `lucene/` cover the encodings at their edges (`intToByte4`, sortable floats, `Uid.encodeId`).
+`crates/writer/tests/it/segment_fixtures.rs` builds each fixture's documents with `document::parse` and `lucene::Indexer`, writes them with the engine's `IndexWriter` to an in-memory directory, and compares a dump of the result, in `SegmentDump.java`'s form, with the recording (AC-1, AC-2, AC-4); AC-3 is the `ids.json` fixture. The recordings were failing tests before the code existed. `crates/writer/tests/lucene_fields.rs` commits several segments and reopens the writer (AC-5). Unit tests in `lucene/` cover the encodings at their edges (`intToByte4`, sortable floats, `Uid.encodeId`).
 
 ## S3 request budget
 

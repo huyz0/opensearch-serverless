@@ -31,7 +31,7 @@ Not here: bucket assignment, the size decider, bucket heads and ownership, setti
 
 ## Tests
 
-`crates/writer/tests/bucket_commits.rs`, over the in-process emulator with its request meter.
+`crates/writer/tests/it/bucket_commits.rs`, over the in-process emulator with its request meter.
 
 ## S3 request budget
 

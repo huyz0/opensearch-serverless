@@ -31,7 +31,7 @@ Parity plan R5.2, part 2 (roadmap stage 3, [roadmap](../../roadmap.md)). Invaria
 
 ## Test plan
 
-AC-1 to AC-5, AC-7, AC-8: `crates/writer/tests/node_log_committer.rs` and `node_log_committer_track.rs` on the emulator, its meter counting PUTs; the lease and admission are recording fakes. AC-6: unit tests in `hedge_delay.rs`. Ported code with its tests written alongside: `scripts/mutants.sh` on the diff stands in for watching each test fail, by showing a test fails for each plausible change (a PUT per caller, a skipped lease write, an admission every time).
+AC-1 to AC-5, AC-7, AC-8: `crates/writer/tests/it/node_log_committer.rs` and `node_log_committer_track.rs` on the emulator, its meter counting PUTs; the lease and admission are recording fakes. AC-6: unit tests in `hedge_delay.rs`. Ported code with its tests written alongside: `scripts/mutants.sh` on the diff stands in for watching each test fail, by showing a test fails for each plausible change (a PUT per caller, a skipped lease write, an admission every time).
 
 ## S3 request budget
 

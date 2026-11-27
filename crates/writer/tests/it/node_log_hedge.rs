@@ -2,9 +2,8 @@
 //! landing on whichever answers first, and still telling a fence from its
 //! own other PUT (the shell's `NodeLogHedgeTests`).
 
+use crate::common;
 use std::sync::Arc;
-mod common;
-
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 

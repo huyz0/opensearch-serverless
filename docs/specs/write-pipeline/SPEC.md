@@ -39,7 +39,7 @@ A write group held its shard's slot lock across the wait for the node log, so tw
 
 ## Test plan
 
-`crates/writer/tests/node_log_staged.rs` (AC-1), `crates/node/tests/writer_pipeline.rs` (AC-2 to AC-6, AC-9 to AC-14) and `crates/node/tests/writer_pipeline_bounds.rs` (AC-17 to AC-19), `crates/node/tests/server/boot_write_concurrency.rs` (AC-7, AC-8, a booted node over a file store).
+`crates/writer/tests/it/node_log_staged.rs` (AC-1), `crates/node/tests/writer_pipeline.rs` (AC-2 to AC-6, AC-9 to AC-14) and `crates/node/tests/writer_pipeline_bounds.rs` (AC-17 to AC-19), `crates/node/tests/server/boot_write_concurrency.rs` (AC-7, AC-8, a booted node over a file store).
 
 ## S3 request budget
 

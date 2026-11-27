@@ -1,6 +1,6 @@
 # Writes to one shard share a commit window: evidence
 
-- AC-1: `records_staged_one_after_another_share_a_window_and_a_put`, `staging_no_records_stages_nothing`, `finishing_a_staged_window_writes_it_without_a_wait`, `finishing_a_failed_window_reports_the_failure_to_the_wait` (crates/writer/tests/node_log_staged.rs).
+- AC-1: `records_staged_one_after_another_share_a_window_and_a_put`, `staging_no_records_stages_nothing`, `finishing_a_staged_window_writes_it_without_a_wait`, `finishing_a_failed_window_reports_the_failure_to_the_wait` (crates/writer/tests/it/node_log_staged.rs).
 - AC-2: `at_depth_one_the_groups_of_a_shard_go_one_at_a_time` (crates/node/tests/writer_pipeline.rs).
 - AC-3: `groups_in_flight_together_all_land_in_one_put` (crates/node/tests/writer_pipeline.rs).
 - AC-4: `a_failed_put_fails_every_group_in_flight_and_the_shard_is_released_by_the_last`, `a_group_staged_after_a_failure_is_refused_not_hung` (crates/node/tests/writer_pipeline.rs).

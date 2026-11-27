@@ -28,7 +28,7 @@ Parity plan R8.1 (shard head and takeover, [roadmap](../../roadmap.md)) and the 
 
 ## Test plan
 
-AC-1, AC-2: `crates/writer/tests/shard_replay.rs`, each seen failing first against a `replay` that does nothing. AC-3 to AC-8: `crates/writer/tests/takeover.rs` over the emulator with a fenced predecessor log built by the committer, a head in a register, the engine over a real `Shard`, and the emulator's meter.
+AC-1, AC-2: `crates/writer/tests/it/shard_replay.rs`, each seen failing first against a `replay` that does nothing. AC-3 to AC-8: `crates/writer/tests/it/takeover.rs` over the emulator with a fenced predecessor log built by the committer, a head in a register, the engine over a real `Shard`, and the emulator's meter.
 
 ## S3 request budget
 

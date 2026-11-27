@@ -1,8 +1,7 @@
 //! Adopting a shard reads only the log past its commit and replays in a
 //! bounded buffer.
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 
 use common::committer::{rec, rig, shard, window};

@@ -24,7 +24,7 @@ The sightings live in memory: a sweep that moves to another node starts its grac
 
 ## Tests
 
-`crates/node/tests/roles/bucket_orphans.rs` (AC-1 to AC-5), `crates/writer/tests/bucket_assign.rs` (AC-6).
+`crates/node/tests/roles/bucket_orphans.rs` (AC-1 to AC-5), `crates/writer/tests/it/bucket_assign.rs` (AC-6).
 
 ## S3 request budget
 

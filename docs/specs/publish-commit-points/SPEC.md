@@ -16,7 +16,7 @@ A refresh that wrote a new `segments_N` and no new segment file (a shard refresh
 
 ## Test plan
 
-`crates/writer/tests/publish.rs`: `a_commit_with_no_fresh_segment_still_publishes_its_commit_point` (red before the change: the manifest lacks `segments_N`).
+`crates/writer/tests/it/publish.rs`: `a_commit_with_no_fresh_segment_still_publishes_its_commit_point` (red before the change: the manifest lacks `segments_N`).
 
 ## S3 request budget
 

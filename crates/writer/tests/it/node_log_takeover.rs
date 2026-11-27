@@ -1,8 +1,7 @@
 //! A successor fences a predecessor's write log (the fencing half of the
 //! shell's `NodeLogTakeoverTests`), by criterion of the spec.
 
-mod common;
-
+use crate::common;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

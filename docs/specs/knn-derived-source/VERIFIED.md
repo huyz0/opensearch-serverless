@@ -1,6 +1,6 @@
-- AC-1: `a_stock_derived_segment_reads_back_with_its_vectors` in crates/writer/tests/knn_derived.rs
-- AC-2: `a_knn_shard_stores_what_the_stock_plugin_stores_and_reads_vectors_back` in crates/writer/tests/knn_derived.rs
-- AC-3: `a_knn_shard_stores_what_the_stock_plugin_stores_and_reads_vectors_back` and `an_update_and_a_realtime_get_read_the_new_vector_back` in crates/writer/tests/knn_derived.rs
-- AC-4: NOT-RUN in CI: by hand, `knn_segments_are_written_for_java_to_check` (crates/writer/tests/knn_check_index.rs) then `SegmentDump` with the k-NN plugin jars on the class path; the output equals the recorded dump of knn-l2, knn-cosine and knn-innerproduct
+- AC-1: `a_stock_derived_segment_reads_back_with_its_vectors` in crates/writer/tests/it/knn_derived.rs
+- AC-2: `a_knn_shard_stores_what_the_stock_plugin_stores_and_reads_vectors_back` in crates/writer/tests/it/knn_derived.rs
+- AC-3: `a_knn_shard_stores_what_the_stock_plugin_stores_and_reads_vectors_back` and `an_update_and_a_realtime_get_read_the_new_vector_back` in crates/writer/tests/it/knn_derived.rs
+- AC-4: NOT-RUN in CI: by hand, `knn_segments_are_written_for_java_to_check` (crates/writer/tests/it/knn_check_index.rs) then `SegmentDump` with the k-NN plugin jars on the class path; the output equals the recorded dump of knn-l2, knn-cosine and knn-innerproduct
 - AC-5: `a_top_level_vector_becomes_one_and_the_rest_is_kept`, `a_vector_in_a_nested_object_is_found_by_its_path`, `strings_holding_structure_and_escapes_do_not_move_the_scan` and `what_cannot_be_placed_is_refused_as_unsupported` in crates/doc/tests/knn_derived.rs
-- AC-6: `an_index_without_a_vector_field_writes_the_codec_and_source_it_wrote_before` in crates/writer/tests/knn_derived.rs
+- AC-6: `an_index_without_a_vector_field_writes_the_codec_and_source_it_wrote_before` in crates/writer/tests/it/knn_derived.rs

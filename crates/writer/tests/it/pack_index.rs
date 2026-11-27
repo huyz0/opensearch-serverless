@@ -2,8 +2,7 @@
 //! removal is a compare-and-swap on the generation read before, and both
 //! stop after 16 attempts.
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

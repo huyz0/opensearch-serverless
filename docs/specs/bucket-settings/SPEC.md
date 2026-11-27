@@ -26,7 +26,7 @@ Stricter than the Java: a size at or under zero is refused instead of clamped to
 
 ## Tests
 
-`crates/writer/tests/bucket_settings.rs`; the registry check is `the_nodes_settings_form_a_valid_registry` in `crates/node`.
+`crates/writer/tests/it/bucket_settings.rs`; the registry check is `the_nodes_settings_form_a_valid_registry` in `crates/node`.
 
 ## S3 request budget
 

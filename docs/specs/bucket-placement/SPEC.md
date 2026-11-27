@@ -26,7 +26,7 @@ Not here: bucket heads and ownership, node wiring. Nothing in a node calls this 
 
 ## Tests
 
-`crates/writer/tests/bucket_placement.rs`, by hand-built leases and the murmur function itself.
+`crates/writer/tests/it/bucket_placement.rs`, by hand-built leases and the murmur function itself.
 
 ## S3 request budget
 
