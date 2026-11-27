@@ -8,6 +8,7 @@
 //! refused by name.
 
 use super::Refusal;
+use super::aggs_terms::{self, TermsAnswer, TermsRequest};
 use crate::error::WireError;
 use crate::stream::{Input, Output};
 
@@ -35,6 +36,8 @@ pub enum AggKind {
     Percentiles,
     /// `percentile_ranks`.
     PercentileRanks,
+    /// `terms`.
+    Terms,
 }
 
 impl AggKind {
@@ -50,6 +53,7 @@ impl AggKind {
             Self::Cardinality => "cardinality",
             Self::Percentiles => "percentiles",
             Self::PercentileRanks => "percentile_ranks",
+            Self::Terms => "terms",
         }
     }
 
@@ -64,6 +68,7 @@ impl AggKind {
             Self::Cardinality,
             Self::Percentiles,
             Self::PercentileRanks,
+            Self::Terms,
         ]
         .into_iter()
         .find(|k| k.name() == name)
@@ -94,6 +99,8 @@ pub struct AggRequest {
     pub precision_threshold: Option<i64>,
     /// A `percentiles`' or `percentile_ranks`' keys and options.
     pub percentiles: Option<PercentilesRequest>,
+    /// A `terms`' options.
+    pub terms: Option<TermsRequest>,
 }
 
 /// One shard-level result.
@@ -117,6 +124,8 @@ pub enum AggValue {
     /// `InternalCardinality`: the sketch as `AbstractHyperLogLogPlusPlus`
     /// writes it, or none when no value was seen.
     Cardinality(Option<Vec<u8>>),
+    /// `StringTerms` or `LongTerms`.
+    Terms(TermsAnswer),
     /// `InternalTDigestPercentiles` or `InternalTDigestPercentileRanks`.
     Percentiles {
         /// Ranks rather than percentiles.
@@ -157,7 +166,7 @@ pub struct AggAnswer<'a> {
 /// `out.writeNamedWriteable(format)` of `DocValueFormat.RAW`, or of the
 /// `DocValueFormat.DateTime` a date field of the default format, in UTC and
 /// in milliseconds, has.
-fn write_format(out: &mut Output<'_>, date: bool) -> Result<(), WireError> {
+pub(super) fn write_format(out: &mut Output<'_>, date: bool) -> Result<(), WireError> {
     if !date {
         return out.string("raw"); // writes nothing more
     }
@@ -250,7 +259,10 @@ pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
         let name = input.string("aggregation name")?;
         empty_builder(input, "sub-aggregations")?;
         null_generic(input, "aggregation metadata")?;
-        if matches!(kind, AggKind::ValueCount | AggKind::Cardinality) {
+        if matches!(
+            kind,
+            AggKind::ValueCount | AggKind::Cardinality | AggKind::Terms
+        ) {
             // `serializeTargetValueType`: a null writeable.
             none(input, "a value type target")?;
         }
@@ -277,12 +289,18 @@ pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
         if matches!(kind, AggKind::Percentiles | AggKind::PercentileRanks) {
             percentiles = Some(read_percentiles(input)?);
         }
+        let terms = if kind == AggKind::Terms {
+            Some(aggs_terms::read(input)?)
+        } else {
+            None
+        };
         out.push(AggRequest {
             name,
             kind,
             field,
             precision_threshold,
             percentiles,
+            terms,
         });
     }
     // Pipeline aggregations.
@@ -305,7 +323,10 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         out.vint(0)?; // sub-aggregations
         out.vint(0)?; // sub pipeline aggregations
         out.byte(0xFF)?; // metadata: null
-        if matches!(agg.kind, AggKind::ValueCount | AggKind::Cardinality) {
+        if matches!(
+            agg.kind,
+            AggKind::ValueCount | AggKind::Cardinality | AggKind::Terms
+        ) {
             out.bool(false)?; // target value type
         }
         out.optional_string(Some(&agg.field))?;
@@ -320,6 +341,9 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
                 out.long(t)?;
             }
             out.optional_string(None)?; // execution hint
+        }
+        if let Some(t) = &agg.terms {
+            aggs_terms::write(t, out)?;
         }
         if let Some(p) = &agg.percentiles {
             out.count(p.keys.len())?;
@@ -339,7 +363,10 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
 
 /// The writeable name of an answer: the aggregation's own, but for the
 /// percentiles, which are named for their t-digest.
-fn answer_name(kind: AggKind, _value: &AggValue) -> &'static str {
+fn answer_name(kind: AggKind, value: &AggValue) -> &'static str {
+    if let AggValue::Terms(t) = value {
+        return t.name();
+    }
     match kind {
         AggKind::Percentiles => "tdigest_percentiles",
         AggKind::PercentileRanks => "tdigest_percentile_ranks",
@@ -364,6 +391,7 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
             AggValue::ValueCount(_) => (AggKind::ValueCount, ()),
             AggValue::Stats { .. } => (AggKind::Stats, ()),
             AggValue::Cardinality(_) => (AggKind::Cardinality, ()),
+            AggValue::Terms(_) => (AggKind::Terms, ()),
             AggValue::Percentiles { ranks: false, .. } => (AggKind::Percentiles, ()),
             AggValue::Percentiles { ranks: true, .. } => (AggKind::PercentileRanks, ()),
         };
@@ -390,6 +418,7 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
                 out.bytes(digest)?;
                 out.bool(*keyed)?;
             }
+            AggValue::Terms(t) => t.write(a.date, out)?,
             AggValue::Cardinality(sketch) => {
                 write_format(out, a.date)?;
                 out.bool(sketch.is_some())?;
