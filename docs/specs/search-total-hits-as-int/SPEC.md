@@ -9,7 +9,7 @@ The `rest_total_hits_as_int` gap of [compatibility](../../compatibility.md): the
 - `?rest_total_hits_as_int=true` writes the response's `hits.total` as a number (`"total":5`), not `{"value":5,"relation":"eq"}`, on a search of one index, of several, and of none (`ignore_unavailable`).
 - As in OpenSearch it counts exactly: a body or URL `track_total_hits` of a number or `false` answers 400 "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate, got N" (`-1` for `false`); the default cap becomes exact.
 - `false` is the same as the parameter absent; any other value answers the boolean-parse 400 of [search-url-params](../search-url-params/SPEC.md).
-- Differs: the total inside a `top_hits` aggregation and inside `inner_hits` stays the object.
+- The total inside a `top_hits` aggregation and inside `inner_hits` is [its own spec](../search-total-hits-as-int-nested/SPEC.md).
 
 ## Acceptance criteria
 

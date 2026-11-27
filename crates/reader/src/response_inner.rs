@@ -29,11 +29,9 @@ pub(super) fn write_inner_hits(
             out.write_all(b",")?;
         }
         write_json_str(out, &r.name)?;
-        write!(
-            out,
-            ":{{\"hits\":{{\"total\":{{\"value\":{},\"relation\":\"eq\"}},\"max_score\":",
-            r.total
-        )?;
+        out.write_all(b":{\"hits\":{")?;
+        crate::hits_total::write_exact(out, r.total)?;
+        out.write_all(b"\"max_score\":")?;
         write_score(out, r.max_score)?;
         out.write_all(b",\"hits\":[")?;
         for (i, (hit, offset)) in r.hits.iter().zip(&r.offsets).enumerate() {

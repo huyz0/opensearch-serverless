@@ -23,6 +23,7 @@ use crate::fetch::highlight::{self, Highlighters, Plan};
 use crate::fetch::hit_meta::{self, HitMeta};
 use crate::fetch::source_filter::SourceFilter;
 use crate::fetch::{explain, source_filter};
+use crate::hits_total;
 use crate::search::{Hit, Hits, SortValue};
 use lucene_search::Explanation;
 
@@ -119,6 +120,23 @@ pub fn write_response_with<S: BlobStore + 'static>(
     pit_id: Option<&str>,
     reserve: &mut dyn FnMut(usize) -> io::Result<()>,
 ) -> io::Result<()> {
+    hits_total::scoped(hits.total_as_int, || {
+        write_scoped(out, shard, index, node_id, hits, took_ms, pit_id, reserve)
+    })
+}
+
+/// [`write_response_with`] inside the scope of its totals.
+#[allow(clippy::too_many_arguments)]
+fn write_scoped<S: BlobStore + 'static>(
+    out: &mut dyn Write,
+    shard: &OpenShard<S>,
+    index: &str,
+    node_id: &str,
+    hits: &Hits,
+    took_ms: u64,
+    pit_id: Option<&str>,
+    reserve: &mut dyn FnMut(usize) -> io::Result<()>,
+) -> io::Result<()> {
     out.write_all(b"{")?;
     if let Some(id) = pit_id {
         out.write_all(b"\"pit_id\":")?;
@@ -166,11 +184,9 @@ pub fn write_response_with<S: BlobStore + 'static>(
     write_hit_list(out, shard, index, node_id, &hits.view(), &mut fetch)?;
     out.write_all(b"]}")?;
     write_aggregations_typed(out, aggregations, hits.typed_keys, &mut |out, _, top| {
-        write!(
-            out,
-            "\"hits\":{{\"total\":{{\"value\":{},\"relation\":\"eq\"}},\"max_score\":",
-            top.total
-        )?;
+        out.write_all(b"\"hits\":{")?;
+        hits_total::write_exact(out, top.total)?;
+        out.write_all(b"\"max_score\":")?;
         write_score(out, top.max_score)?;
         out.write_all(b",\"hits\":[")?;
         write_hit_list(out, shard, index, node_id, &top.view(), &mut fetch)?;

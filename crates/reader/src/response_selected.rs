@@ -226,14 +226,12 @@ pub(crate) fn render_nested<S: BlobStore + 'static>(
 /// The aggregation's `"hits":{..}` body from its total, best score and
 /// written hits, as a shard writes it.
 pub(crate) fn top_hits_body(total: u64, max_score: Option<f32>, hits: &[Vec<u8>]) -> Vec<u8> {
-    use std::io::Write;
     // ALLOC: the body, bounded by the bucket's rendered hits.
     let mut out = Vec::new();
     // Writing to a vector cannot fail.
-    let _ = write!(
-        out,
-        "\"hits\":{{\"total\":{{\"value\":{total},\"relation\":\"eq\"}},\"max_score\":"
-    );
+    out.extend_from_slice(b"\"hits\":{");
+    let _ = crate::hits_total::write_exact(&mut out, total);
+    out.extend_from_slice(b"\"max_score\":");
     let _ = super::write_score(&mut out, max_score);
     out.extend_from_slice(b",\"hits\":[");
     for (i, hit) in hits.iter().enumerate() {

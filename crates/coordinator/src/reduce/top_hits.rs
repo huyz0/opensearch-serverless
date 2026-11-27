@@ -7,8 +7,6 @@
 //! `from` can land in the page. The page names its hits as a shard and a
 //! position; fetching them from their shards is the caller's.
 
-use std::io::Write;
-
 use oss_reader::aggs::metric::top_hits::TopHitsResult;
 use oss_reader::response::write_java_float;
 
@@ -189,11 +187,9 @@ where
     // ALLOC: the body, bounded by the page's rendered hits.
     let mut out = Vec::new();
     // Writing to a vector cannot fail.
-    let _ = write!(
-        out,
-        "\"hits\":{{\"total\":{{\"value\":{},\"relation\":\"eq\"}},\"max_score\":",
-        merged.total
-    );
+    out.extend_from_slice(b"\"hits\":{");
+    let _ = oss_reader::hits_total::write_exact(&mut out, merged.total);
+    out.extend_from_slice(b"\"max_score\":");
     match merged.max_score {
         Some(score) => {
             let _ = write_java_float(&mut out, score);
