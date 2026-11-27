@@ -4,8 +4,8 @@
 //! descriptor recorded, or stretched for a replay.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Weak};
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
@@ -176,6 +176,10 @@ pub struct ModuleSource {
     /// why, so a module that cannot run costs one read in 30 seconds, not
     /// one a shard open.
     refused: Mutex<HashMap<String, (u64, String)>>,
+    /// The modules some open index holds, by hash: another shard that pins
+    /// one shares it, so a node reads and compiles a module once, and the
+    /// code is released with the last set that holds it.
+    resident: Mutex<HashMap<String, Weak<Module>>>,
     /// The time in milliseconds, from any fixed start.
     clock: Arc<dyn Fn() -> u64 + Send + Sync>,
 }
@@ -199,6 +203,7 @@ impl ModuleSource {
             budget,
             factor,
             refused: Mutex::new(HashMap::new()),
+            resident: Mutex::new(HashMap::new()),
             clock: Arc::new(|| {
                 static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
                 u64::try_from(
@@ -277,7 +282,7 @@ impl ModuleSource {
             let module = match loaded.get(&pin.module) {
                 Some(m) => Arc::clone(m),
                 None => {
-                    let m = Arc::new(self.load(&pin).map_err(unavailable)?);
+                    let m = self.resident(&pin).map_err(unavailable)?;
                     // ALLOC: one entry a distinct module, at most four.
                     loaded.insert(pin.module.clone(), Arc::clone(&m));
                     m
@@ -337,6 +342,29 @@ impl ModuleSource {
                 (now.saturating_add(REFUSED_FOR_MILLIS), why.to_owned()),
             );
         }
+    }
+
+    /// The module `pin` names: the one an open index already holds, else one
+    /// read from the store, which the sets that hold it then share.
+    fn resident(&self, pin: &Pin) -> Result<Arc<Module>, String> {
+        let held = self
+            .resident
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&pin.module)
+            .and_then(Weak::upgrade);
+        if let Some(module) = held {
+            module
+                .check_analyzer_pin(pin.version)
+                .map_err(|e| format!("module [{}]: {e}", pin.module))?;
+            return Ok(module);
+        }
+        let module = Arc::new(self.load(pin)?);
+        let mut resident = self.resident.lock().unwrap_or_else(PoisonError::into_inner);
+        // ALLOC: one entry a distinct module, dropped once nothing holds it.
+        resident.retain(|_, m| m.strong_count() > 0);
+        resident.insert(pin.module.clone(), Arc::downgrade(&module));
+        Ok(module)
     }
 
     fn load(&self, pin: &Pin) -> Result<Module, String> {
