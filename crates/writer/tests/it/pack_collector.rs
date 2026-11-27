@@ -2,8 +2,6 @@
 //! nodes the pack index names, judges each, and drops a node with no live
 //! epoch from the index.
 
-mod common;
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

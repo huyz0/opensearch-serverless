@@ -6,8 +6,7 @@
 //! writes/s), `OSS_ACK_SHARDS` (200) and `OSS_ACK_WINDOW_MS` (250) as in
 //! the shell. Emulator numbers: provisional, relative only.
 
-mod common;
-
+use crate::common;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};

@@ -24,7 +24,7 @@
 
 ## Test plan
 
-`crates/blob/src/cost.rs` unit tests (AC-1, AC-2); `crates/writer/tests/node_log_cost_window.rs` (AC-3 to AC-7) over a committer on a counting store, writers joining one window; `crates/node/tests/server/boot_usage.rs` (AC-8). Each seen failing with the behaviour removed.
+`crates/blob/src/cost.rs` unit tests (AC-1, AC-2); `crates/writer/tests/it/node_log_cost_window.rs` (AC-3 to AC-7) over a committer on a counting store, writers joining one window; `crates/node/tests/server/boot_usage.rs` (AC-8). Each seen failing with the behaviour removed.
 
 ## S3 request budget
 

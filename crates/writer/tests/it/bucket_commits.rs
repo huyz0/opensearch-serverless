@@ -17,8 +17,7 @@ use oss_writer::bucket::{
     BucketCommits, BucketError, BucketStore, ManifestWrite, MemberOutcome, Swap,
 };
 
-mod bucket_support;
-
+use crate::bucket_support;
 use bucket_support::Racing;
 
 const BUCKET: &str = "bk-1";

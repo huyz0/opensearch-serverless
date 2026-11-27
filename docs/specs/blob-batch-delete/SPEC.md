@@ -35,7 +35,7 @@ Invariant I-1 (every request through `oss-blob`, metered). It is the follow-up t
 - AC-1 to AC-3: `tests/emulator/deletes.rs` and `tests/s3/deletes.rs`. Each was seen failing against the trait's one-key-a-call default: 2,502 `Delete` requests instead of 3.
 - AC-4: `tests/s3/deletes.rs`, seen failing against a client that sent the wrong digest and against one that did not escape keys. Unit tests in `s3/delete.rs` cover the scanner, base64 and the body.
 - AC-9, AC-10: `tests/s3/deletes.rs` and unit tests in `s3/delete.rs`. AC-9 was seen failing with a client that did not escape `\r` and with one that sent keys XML cannot carry. AC-10 was seen failing with a client that retried every listed code.
-- AC-5: `tests/fs/writes.rs`. AC-6: `tests/rustfs.rs`. AC-7: `tests/rounds.rs`. AC-8: `deletes_go_by_name` in `crates/writer/tests/node_log_store.rs`, seen failing at 1,200 requests.
+- AC-5: `tests/fs/writes.rs`. AC-6: `tests/rustfs.rs`. AC-7: `tests/rounds.rs`. AC-8: `deletes_go_by_name` in `crates/writer/tests/it/node_log_store.rs`, seen failing at 1,200 requests.
 
 ## S3 request budget
 

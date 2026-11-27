@@ -2,8 +2,6 @@
 //! store's age, deleted only after two unreferenced sightings a minute
 //! apart, and a referenced one is rechecked on a doubling backoff.
 
-mod common;
-
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::Mutex;

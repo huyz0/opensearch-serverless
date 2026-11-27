@@ -2,8 +2,7 @@
 //! one after another share a window, and a staged window is driven to its
 //! end without being waited for.
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 
 use common::committer::{puts, rec, rig, shard, window};

@@ -21,7 +21,7 @@ R8.1, takeover of a shard that has a history: a node that wins the head of a sha
 
 ## Test plan
 
-`crates/writer/tests/restore.rs` over the emulator and a real `Shard`, each seen failing first against a `restore` that does nothing.
+`crates/writer/tests/it/restore.rs` over the emulator and a real `Shard`, each seen failing first against a `restore` that does nothing.
 
 ## S3 request budget
 

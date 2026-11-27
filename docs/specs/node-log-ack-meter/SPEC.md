@@ -23,7 +23,7 @@ Parity plan R5.5 (roadmap stage 3, [roadmap](../../roadmap.md)): the roadmap's w
 
 ## Test plan
 
-`crates/writer/tests/node_log_ack_meter.rs` on the emulator. Only lower bounds the committer's own waits guarantee are asserted, never an upper bound on time. `scripts/mutants.sh` on the diff.
+`crates/writer/tests/it/node_log_ack_meter.rs` on the emulator. Only lower bounds the committer's own waits guarantee are asserted, never an upper bound on time. `scripts/mutants.sh` on the diff.
 
 ## S3 request budget
 

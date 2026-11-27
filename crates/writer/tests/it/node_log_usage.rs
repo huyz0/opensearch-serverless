@@ -4,8 +4,7 @@
 // ARITH: counts and shares here are small test constants.
 #![allow(clippy::arithmetic_side_effects)]
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 use std::time::Duration;
 

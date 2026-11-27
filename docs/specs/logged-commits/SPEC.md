@@ -26,7 +26,7 @@ Parity plan R11.2, second slice, under [ADR 0064](../../adr/0064-commits-are-sta
 
 ## Test plan
 
-`crates/writer/tests/log_commit.rs` for AC-1 to AC-5 over the committer rig (counting PUTs with the meter), a unit test for the record round trip, node role tests for AC-3 and AC-6, config and registry tests for AC-8; AC-7 follows from the `named` test, which the janitor reads through.
+`crates/writer/tests/it/log_commit.rs` for AC-1 to AC-5 over the committer rig (counting PUTs with the meter), a unit test for the record round trip, node role tests for AC-3 and AC-6, config and registry tests for AC-8; AC-7 follows from the `named` test, which the janitor reads through.
 
 ## S3 request budget
 

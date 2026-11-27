@@ -9,8 +9,7 @@
 // A fixture is a small file the test reads whole.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
-mod segment_dump;
-
+use crate::segment_dump;
 use segment_dump::{document_json, field_json, read_back};
 use std::collections::BTreeMap;
 

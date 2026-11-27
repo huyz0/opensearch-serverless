@@ -4,8 +4,7 @@
 // ARITH: test sizes and request counts are small; an overflow panics the test.
 #![allow(clippy::arithmetic_side_effects)]
 
-mod bucket_support;
-
+use crate::bucket_support;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 

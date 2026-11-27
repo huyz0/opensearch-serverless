@@ -1,8 +1,7 @@
 //! A node's write log: one blob per window holding every shard, an index in
 //! each header, fences and deletes by name (the shell's `NodeLogStoreTests`).
 
-mod common;
-
+use crate::common;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
 use std::time::Duration;

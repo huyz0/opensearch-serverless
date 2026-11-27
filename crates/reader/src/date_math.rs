@@ -46,9 +46,9 @@ pub fn parse_at_with(
     } else {
         return parse_to_millis_with(text, round_up, spec);
     };
-    // ARITH: a zone is at most 18 hours; the saturation keeps an extreme instant in range.
-    let offset = spec.zone.saturating_mul(1_000);
-    apply(base.saturating_add(offset), math, round_up).map(|local| local.saturating_sub(offset))
+    // ARITH: an offset is at most a day; the saturation keeps an extreme instant in range.
+    let offset = spec.offset_at(base);
+    apply(base.saturating_add(offset), math, round_up).map(|local| spec.utc_of_local(local))
 }
 
 #[derive(Clone, Copy, PartialEq)]

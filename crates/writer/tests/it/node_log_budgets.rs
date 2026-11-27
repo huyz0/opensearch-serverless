@@ -1,8 +1,7 @@
 //! docs/specs/request-budgets/SPEC.md AC-5: a write to a shard already in
 //! the node's log epoch, held to docs/request-budgets.md on the emulator.
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 use std::time::Duration;
 

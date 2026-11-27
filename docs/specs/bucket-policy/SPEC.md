@@ -26,7 +26,7 @@ Not here: heads and placement, the descriptor's bucket field, node wiring. Nothi
 
 ## Tests
 
-`crates/writer/tests/bucket_policy.rs`; the node's registry test counts the settings.
+`crates/writer/tests/it/bucket_policy.rs`; the node's registry test counts the settings.
 
 ## S3 request budget
 

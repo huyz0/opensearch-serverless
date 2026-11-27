@@ -25,7 +25,7 @@ Not here: the committer's checkpointing of many members in one swap (staging), t
 
 ## Tests
 
-`crates/writer/tests/publish_member.rs` over the emulator with its request meter, and the existing `publish` tests unchanged.
+`crates/writer/tests/it/publish_member.rs` over the emulator with its request meter, and the existing `publish` tests unchanged.
 
 ## S3 request budget
 

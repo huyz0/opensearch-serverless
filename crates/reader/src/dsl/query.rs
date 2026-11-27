@@ -8,7 +8,8 @@
 //! takes but this reader does not serve yet is refused
 //! ([`DslError::unsupported`]) rather than ignored.
 
-use crate::date::{DateFormat, DateSpec, parse_zone};
+use crate::date::{DateFormat, DateSpec};
+use crate::date_zone::parse_time_zone;
 use crate::dsl::bool_query::{BoolQuery, parse_bool};
 use crate::dsl::error::DslError;
 pub use crate::dsl::registered::REGISTERED_QUERIES;
@@ -461,9 +462,10 @@ fn parse_range(p: &mut Parser<'_>) -> Result<Query, DslError> {
 
 /// A range's `time_zone`: a fixed zone, which only a date field takes.
 fn range_zone(p: &Parser<'_>, date: DateSpec) -> Result<DateSpec, DslError> {
-    match (p.current_token(), parse_zone(p.text())) {
+    match (p.current_token(), parse_time_zone(p.text())) {
         (Some(Kind::String), Some(zone)) => Ok(DateSpec {
-            zone,
+            zone: zone.fixed,
+            region: zone.region,
             named: true,
             ..date
         }),

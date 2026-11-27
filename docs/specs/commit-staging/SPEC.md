@@ -34,7 +34,7 @@ Not changed: the reader, the janitor, takeover, the write log's format, node pac
 
 ## Test plan
 
-AC-1 to AC-10 in `crates/writer/tests/publish_staging.rs` over the emulator, counting PUTs by the meter (the bug each catches: a staged commit that swaps anyway, a re-upload of staged files, a manifest that names a file not uploaded). The due boundary and the deadline are unit tests of the pure functions in `publish/staging.rs` (a `>=` against a `>` is what a mutation of them would flip). AC-11 and AC-12 as unit tests beside the settings. AC-13 and AC-14 in `crates/node/tests/roles/` with the writer-role rigs the takeover and publish suites use.
+AC-1 to AC-10 in `crates/writer/tests/it/publish_staging.rs` over the emulator, counting PUTs by the meter (the bug each catches: a staged commit that swaps anyway, a re-upload of staged files, a manifest that names a file not uploaded). The due boundary and the deadline are unit tests of the pure functions in `publish/staging.rs` (a `>=` against a `>` is what a mutation of them would flip). AC-11 and AC-12 as unit tests beside the settings. AC-13 and AC-14 in `crates/node/tests/roles/` with the writer-role rigs the takeover and publish suites use.
 
 ## S3 request budget
 

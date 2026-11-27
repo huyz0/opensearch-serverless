@@ -27,7 +27,7 @@ Parity plan R5.4 (roadmap stage 3, [roadmap](../../roadmap.md)): a shard taken f
 
 AC-6 replays `fixtures/node-log-replay/`, recorded by `NodeLogReplay.java` there (its README says how), on a copy of the recorded tree.
 
-`crates/writer/tests/node_log_replay.rs` on the emulator, its meter counting `Put` and `Get`; the writer is a `NodeLogCommitter`. Ported code with its tests written alongside: `scripts/mutants.sh` on the diff stands in for watching each test fail.
+`crates/writer/tests/it/node_log_replay.rs` on the emulator, its meter counting `Put` and `Get`; the writer is a `NodeLogCommitter`. Ported code with its tests written alongside: `scripts/mutants.sh` on the diff stands in for watching each test fail.
 
 ## S3 request budget
 

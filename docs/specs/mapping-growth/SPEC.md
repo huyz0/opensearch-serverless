@@ -28,7 +28,7 @@ Not changed: the reconciler refresh and descriptor hosting of the Java (`node.re
 
 ## Test plan
 
-`crates/writer/tests/mapping_growth.rs` over the in-process emulator with a request meter and a recording wait (AC-1 to AC-6); the same file with threads and a gate on the store for AC-7.
+`crates/writer/tests/it/mapping_growth.rs` over the in-process emulator with a request meter and a recording wait (AC-1 to AC-6); the same file with threads and a gate on the store for AC-7.
 
 ## S3 request budget
 

@@ -22,7 +22,7 @@ The shared-schemas goal (about 100 distinct schemas across 10M tenants), under [
 
 ## Tests
 
-`crates/doc/tests/mapping_intern.rs` (AC-1, AC-2, AC-5, AC-7), `crates/node/tests/roles/writer_opener.rs` (AC-3), `crates/writer/tests/shard.rs` (AC-4); AC-6 holds by construction (`intern.rs` holds no store).
+`crates/doc/tests/mapping_intern.rs` (AC-1, AC-2, AC-5, AC-7), `crates/node/tests/roles/writer_opener.rs` (AC-3), `crates/writer/tests/it/shard.rs` (AC-4); AC-6 holds by construction (`intern.rs` holds no store).
 
 ## S3 request budget
 
