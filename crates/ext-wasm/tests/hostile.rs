@@ -54,7 +54,13 @@ fn a_point_that_is_not_in_the_descriptor_and_a_large_input_are_refused() {
 
 #[test]
 fn a_spinning_module_runs_out_of_fuel_and_the_next_call_is_served() {
-    let host = host();
+    // A small fuel budget and a deadline far beyond it, so fuel always runs out
+    // first however slow the machine is.
+    let host = Host::new(HostConfig {
+        fuel: 1_000_000,
+        deadline_ms: 60_000,
+        ..HostConfig::default()
+    });
     let spin = load(&host, &with_body("(loop $l (br $l)) (i32.const 0)"));
     assert_eq!(
         kind(&spin),
