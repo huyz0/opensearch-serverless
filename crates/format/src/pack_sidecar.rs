@@ -22,9 +22,9 @@ pub const ORDINALS_PER_EPOCH: u64 = 1024;
 /// Bytes an epoch takes in the register: the epoch, its `high`, the bitmap.
 pub const SIDECAR_EPOCH_BYTES: usize = 16 + BITMAP_BYTES;
 
-/// The most epochs a sidecar holds, so the register stays under the 256 KiB
-/// a register read keeps.
-pub const MAX_SIDECAR_EPOCHS: usize = ((256 << 10) - PREFIX_BYTES) / SIDECAR_EPOCH_BYTES;
+/// The most epochs a sidecar holds: 1,800 of 144 bytes is 259,205 bytes, under
+/// the 256 KiB a register read keeps.
+pub const MAX_SIDECAR_EPOCHS: usize = 1_800;
 
 /// One epoch's collection progress.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

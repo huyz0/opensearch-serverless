@@ -23,7 +23,13 @@ fn a_sidecar_round_trips_at_144_bytes_an_epoch() {
     assert_eq!(bytes.len(), 5 + 2 * SIDECAR_EPOCH_BYTES);
     assert_eq!(PackSidecar::parse(&bytes).expect("parses"), sidecar);
     const { assert!(MAX_SIDECAR_EPOCHS * SIDECAR_EPOCH_BYTES + 5 <= 256 << 10) };
-    const { assert!(MAX_SIDECAR_EPOCHS >= 1_800) };
+    assert_eq!(MAX_SIDECAR_EPOCHS, 1_800);
+    let largest = PackSidecar::new(
+        (0..MAX_SIDECAR_EPOCHS as u64)
+            .map(|n| epoch(n, 0))
+            .collect(),
+    );
+    assert_eq!(largest.encode().expect("at the cap").len(), 5 + 1_800 * 144);
 }
 
 /// An ordinal is marked once; a full epoch (every ordinal marked) says so,
