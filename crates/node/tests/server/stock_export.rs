@@ -80,10 +80,10 @@ fn rig(enabled: bool, tag: &str) -> Rig {
 
 /// A node whose export goes as `settings` say, with the repository `stock` registered as `repo`.
 pub(crate) fn rig_with(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
-    stand_up(settings, root, repo)
+    stand_up(settings, root, repo, 200 << 20)
 }
 
-fn stand_up(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
+fn stand_up(settings: StockExportSettings, root: PathBuf, repo: &str, pool: usize) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -143,7 +143,7 @@ fn stand_up(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
     let router = routes(Router::new(), &service, Some(&taker)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let config = BudgetConfig::new(256 << 20)
-        .with_pool(Pool::RequestBodies, 200 << 20)
+        .with_pool(Pool::RequestBodies, pool)
         .expect("fits");
     let budget = MemoryBudget::new(&config);
     let server =
@@ -332,6 +332,37 @@ fn each_refusal_is_answered_before_anything_is_written() {
         );
         assert_eq!(reply.status, status, "{name} {body}: {}", reply.text());
         assert!(r.written().is_empty(), "{name} {body}");
+    }
+}
+
+/// A node whose request-body pool is `pool` bytes, exporting into `root/out`.
+fn rig_pooled(pool: usize, tag: &str) -> Rig {
+    let root = std::env::temp_dir().join(format!("oss-export-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("out")).unwrap();
+    let root = root.canonicalize().unwrap();
+    let settings = StockExportSettings {
+        enabled: true,
+        roots: SourceRoots::parse(root.to_str().unwrap(), ""),
+        s3: None,
+        chunk_bytes: 1 << 16,
+    };
+    let body = format!(
+        r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
+        root.join("out").display()
+    );
+    stand_up(settings, root, &body, pool)
+}
+
+#[test]
+fn a_pool_too_small_for_the_copy_is_429_and_writes_nothing() {
+    // The take reserves two copy buffers and the largest `index-N` it reads.
+    let held = (64 << 20) + 2 * (1 << 16);
+    for (tag, pool) in [("pool-tiny", 8 << 20), ("pool-short", held - 1)] {
+        let r = rig_pooled(pool, tag);
+        let reply = send(&r, "PUT", &format!("/_snapshot/stock/s1{WAIT}"), Some(TAKE));
+        assert_eq!(reply.status, 429, "{tag}: {}", reply.text());
+        assert!(r.written().is_empty(), "{tag}: nothing was written");
     }
 }
 
