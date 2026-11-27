@@ -318,12 +318,13 @@ fn a_row_carries_the_names_its_hit_matched_with_scores_only_when_asked() {
         assert_eq!(row.matched[0].0, "all");
         assert!(row.matched[0].1.is_nan());
     }
-    let scored = rows(
-        &shard,
-        r#"{"size":2,"include_named_queries_score":true,"query":{"match_all":{"_name":"all"}}}"#,
-        &mut |_| Ok(()),
-    )
-    .expect("rows");
+    // The URL parameter is what asks for scores.
+    let mut asked =
+        parse_chunks([br#"{"size":2,"query":{"match_all":{"_name":"all"}}}"#.as_slice()])
+            .expect("parses");
+    asked.named_scores = true;
+    let found = search(&shard, "idx", &asked, &Analyzer::standard(None)).expect("searches");
+    let scored = super::fetch_rows(&shard, &found, &mut |_| Ok(())).expect("rows");
     assert!(scored[0].matched[0].1 > 0.0);
     let unnamed = rows(&shard, r#"{"size":2}"#, &mut |_| Ok(())).expect("rows");
     assert!(unnamed.iter().all(|r| r.matched.is_empty()));

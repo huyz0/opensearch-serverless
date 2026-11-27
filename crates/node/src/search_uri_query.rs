@@ -70,6 +70,7 @@ pub(super) const SEARCH_PARAMS: &[&str] = &[
     "search_type",
     "rest_total_hits_as_int",
     "typed_keys",
+    "include_named_queries_score",
     // Accepted and without effect: one serving path, no shard copies to tune.
     "timeout",
     "request_cache",
@@ -100,6 +101,7 @@ pub(super) fn read_search_source(req: &mut Request<'_>) -> Result<SearchSource, 
     let search_type = req.param("search_type");
     let as_int = req.param("rest_total_hits_as_int");
     let typed = req.param("typed_keys");
+    let named_scores = req.param("include_named_queries_score");
     let params = UrlParams {
         track_total_hits: track_total_hits.as_deref(),
         terminate_after: terminate_after.as_deref(),
@@ -114,6 +116,7 @@ pub(super) fn read_search_source(req: &mut Request<'_>) -> Result<SearchSource, 
         search_type: search_type.as_deref(),
         rest_total_hits_as_int: as_int.as_deref(),
         typed_keys: typed.as_deref(),
+        include_named_queries_score: named_scores.as_deref(),
     };
     source.apply_url(&params).map_err(bad_request)?;
     stamp(&mut source);

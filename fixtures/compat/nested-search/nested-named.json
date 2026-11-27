@@ -1,0 +1,1320 @@
+{
+  "name": "named queries and nested inner hits",
+  "description": "_name on a nested query, on a query inside it and beside it, with inner_hits, and with include_named_queries_score: which hit lists which name.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-nested",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-nested",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "keyword"
+              },
+              "price": {
+                "type": "long"
+              },
+              "meta": {
+                "properties": {
+                  "k": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "comments": {
+                "type": "nested",
+                "properties": {
+                  "who": {
+                    "type": "keyword"
+                  },
+                  "n": {
+                    "type": "long"
+                  },
+                  "text": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-nested"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "a",
+            "price": 10,
+            "meta": {
+              "k": "x"
+            },
+            "comments": [
+              {
+                "who": "ann",
+                "n": 1,
+                "text": "good value"
+              },
+              {
+                "who": "bob",
+                "n": 5,
+                "text": "too pricey"
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "b",
+            "price": 20,
+            "meta": {
+              "k": "y"
+            },
+            "comments": [
+              {
+                "who": "bob",
+                "n": 3,
+                "text": "good value"
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "c",
+            "price": 30,
+            "meta": {
+              "k": "x"
+            },
+            "comments": [
+              {
+                "who": "ann",
+                "n": 4,
+                "text": "fine"
+              },
+              {
+                "who": "cat",
+                "n": 2,
+                "text": "good enough"
+              },
+              {
+                "who": "ann",
+                "n": 6,
+                "text": "great"
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "d",
+            "price": 40,
+            "meta": {
+              "k": "z"
+            }
+          },
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "e",
+            "price": 50,
+            "meta": {
+              "k": "y"
+            },
+            "comments": []
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 16,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "names on the nested query and inside it, with inner_hits",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "sort": [
+            {
+              "price": "asc"
+            }
+          ],
+          "_source": [
+            "title"
+          ],
+          "query": {
+            "nested": {
+              "path": "comments",
+              "query": {
+                "term": {
+                  "comments.who": {
+                    "value": "bob",
+                    "_name": "child"
+                  }
+                }
+              },
+              "inner_hits": {},
+              "_name": "parent"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-nested",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "a"
+                },
+                "sort": [
+                  10
+                ],
+                "matched_queries": [
+                  "parent"
+                ],
+                "inner_hits": {
+                  "comments": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-nested",
+                          "_id": "1",
+                          "_nested": {
+                            "field": "comments",
+                            "offset": 1
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "text": "too pricey",
+                            "n": 5,
+                            "who": "bob"
+                          },
+                          "matched_queries": [
+                            "child"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "_index": "compat-nested",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "b"
+                },
+                "sort": [
+                  20
+                ],
+                "matched_queries": [
+                  "parent"
+                ],
+                "inner_hits": {
+                  "comments": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-nested",
+                          "_id": "2",
+                          "_nested": {
+                            "field": "comments",
+                            "offset": 0
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "text": "good value",
+                            "n": 3,
+                            "who": "bob"
+                          },
+                          "matched_queries": [
+                            "child"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a name beside the nested query in a bool",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "sort": [
+            {
+              "price": "asc"
+            }
+          ],
+          "_source": [
+            "title"
+          ],
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "nested": {
+                    "path": "comments",
+                    "query": {
+                      "term": {
+                        "comments.who": {
+                          "value": "bob",
+                          "_name": "child"
+                        }
+                      }
+                    },
+                    "inner_hits": {},
+                    "_name": "parent"
+                  }
+                },
+                {
+                  "term": {
+                    "meta.k": {
+                      "value": "x",
+                      "_name": "beside"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-nested",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "a"
+                },
+                "sort": [
+                  10
+                ],
+                "matched_queries": [
+                  "parent",
+                  "beside"
+                ],
+                "inner_hits": {
+                  "comments": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-nested",
+                          "_id": "1",
+                          "_nested": {
+                            "field": "comments",
+                            "offset": 1
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "text": "too pricey",
+                            "n": 5,
+                            "who": "bob"
+                          },
+                          "matched_queries": [
+                            "child"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the body key include_named_queries_score is read and has no effect",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "sort": [
+            {
+              "price": "asc"
+            }
+          ],
+          "_source": [
+            "title"
+          ],
+          "include_named_queries_score": true,
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "nested": {
+                    "path": "comments",
+                    "query": {
+                      "term": {
+                        "comments.who": {
+                          "value": "bob",
+                          "_name": "child"
+                        }
+                      }
+                    },
+                    "inner_hits": {},
+                    "_name": "parent"
+                  }
+                },
+                {
+                  "term": {
+                    "meta.k": {
+                      "value": "x",
+                      "_name": "beside"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-nested",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "a"
+                },
+                "sort": [
+                  10
+                ],
+                "matched_queries": [
+                  "parent",
+                  "beside"
+                ],
+                "inner_hits": {
+                  "comments": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-nested",
+                          "_id": "1",
+                          "_nested": {
+                            "field": "comments",
+                            "offset": 1
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "text": "too pricey",
+                            "n": 5,
+                            "who": "bob"
+                          },
+                          "matched_queries": [
+                            "child"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "inner_hits with its own name and a post_filter name",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "sort": [
+            {
+              "price": "asc"
+            }
+          ],
+          "_source": [
+            "title"
+          ],
+          "post_filter": {
+            "term": {
+              "title": {
+                "value": "b",
+                "_name": "pf"
+              }
+            }
+          },
+          "query": {
+            "nested": {
+              "path": "comments",
+              "query": {
+                "term": {
+                  "comments.who": {
+                    "value": "bob",
+                    "_name": "child"
+                  }
+                }
+              },
+              "inner_hits": {
+                "name": "mine"
+              },
+              "_name": "parent"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-nested",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "b"
+                },
+                "sort": [
+                  20
+                ],
+                "matched_queries": [
+                  "parent",
+                  "pf"
+                ],
+                "inner_hits": {
+                  "mine": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-nested",
+                          "_id": "2",
+                          "_nested": {
+                            "field": "comments",
+                            "offset": 0
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "text": "good value",
+                            "n": 3,
+                            "who": "bob"
+                          },
+                          "matched_queries": [
+                            "child"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the URL parameter writes scores, inner hits too",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "query": {
+          "include_named_queries_score": "true"
+        },
+        "body": {
+          "sort": [
+            {
+              "price": "asc"
+            }
+          ],
+          "_source": [
+            "title"
+          ],
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "nested": {
+                    "path": "comments",
+                    "query": {
+                      "term": {
+                        "comments.who": {
+                          "value": "bob",
+                          "_name": "child"
+                        }
+                      }
+                    },
+                    "inner_hits": {},
+                    "_name": "parent"
+                  }
+                },
+                {
+                  "term": {
+                    "meta.k": {
+                      "value": "x",
+                      "_name": "beside"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-nested",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "a"
+                },
+                "sort": [
+                  10
+                ],
+                "matched_queries": {
+                  "parent": 1.0,
+                  "beside": 1.0
+                },
+                "inner_hits": {
+                  "comments": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-nested",
+                          "_id": "1",
+                          "_nested": {
+                            "field": "comments",
+                            "offset": 1
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "text": "too pricey",
+                            "n": 5,
+                            "who": "bob"
+                          },
+                          "matched_queries": {
+                            "child": "NaN"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the URL parameter with no value is true",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "query": {
+          "include_named_queries_score": ""
+        },
+        "body": {
+          "sort": [
+            {
+              "price": "asc"
+            }
+          ],
+          "_source": [
+            "title"
+          ],
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "nested": {
+                    "path": "comments",
+                    "query": {
+                      "term": {
+                        "comments.who": {
+                          "value": "bob",
+                          "_name": "child"
+                        }
+                      }
+                    },
+                    "inner_hits": {},
+                    "_name": "parent"
+                  }
+                },
+                {
+                  "term": {
+                    "meta.k": {
+                      "value": "x",
+                      "_name": "beside"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-nested",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "a"
+                },
+                "sort": [
+                  10
+                ],
+                "matched_queries": {
+                  "parent": 1.0,
+                  "beside": 1.0
+                },
+                "inner_hits": {
+                  "comments": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-nested",
+                          "_id": "1",
+                          "_nested": {
+                            "field": "comments",
+                            "offset": 1
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "text": "too pricey",
+                            "n": 5,
+                            "who": "bob"
+                          },
+                          "matched_queries": {
+                            "child": "NaN"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the URL parameter false",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "query": {
+          "include_named_queries_score": "false"
+        },
+        "body": {
+          "sort": [
+            {
+              "price": "asc"
+            }
+          ],
+          "_source": [
+            "title"
+          ],
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "nested": {
+                    "path": "comments",
+                    "query": {
+                      "term": {
+                        "comments.who": {
+                          "value": "bob",
+                          "_name": "child"
+                        }
+                      }
+                    },
+                    "inner_hits": {},
+                    "_name": "parent"
+                  }
+                },
+                {
+                  "term": {
+                    "meta.k": {
+                      "value": "x",
+                      "_name": "beside"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-nested",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "a"
+                },
+                "sort": [
+                  10
+                ],
+                "matched_queries": [
+                  "parent",
+                  "beside"
+                ],
+                "inner_hits": {
+                  "comments": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-nested",
+                          "_id": "1",
+                          "_nested": {
+                            "field": "comments",
+                            "offset": 1
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "text": "too pricey",
+                            "n": 5,
+                            "who": "bob"
+                          },
+                          "matched_queries": [
+                            "child"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the URL parameter not a boolean",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "query": {
+          "include_named_queries_score": "yes"
+        },
+        "body": {
+          "sort": [
+            {
+              "price": "asc"
+            }
+          ],
+          "_source": [
+            "title"
+          ],
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "nested": {
+                    "path": "comments",
+                    "query": {
+                      "term": {
+                        "comments.who": {
+                          "value": "bob",
+                          "_name": "child"
+                        }
+                      }
+                    },
+                    "inner_hits": {},
+                    "_name": "parent"
+                  }
+                },
+                {
+                  "term": {
+                    "meta.k": {
+                      "value": "x",
+                      "_name": "beside"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse value [yes] as only [true] or [false] are allowed."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Failed to parse value [yes] as only [true] or [false] are allowed."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "the body key not a boolean",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "include_named_queries_score": "yes",
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse value [yes] as only [true] or [false] are allowed."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Failed to parse value [yes] as only [true] or [false] are allowed."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "the body key null",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "include_named_queries_score": null,
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a VALUE_NULL in [include_named_queries_score].",
+                "line": 1,
+                "col": 32
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a VALUE_NULL in [include_named_queries_score].",
+            "line": 1,
+            "col": 32
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}
