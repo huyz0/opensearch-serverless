@@ -6,6 +6,7 @@ use std::cmp::Ordering;
 
 use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_values::reduce_fixed;
+use crate::aggs::metric::Metric;
 use crate::aggs::partial::{Format, Value};
 use crate::dsl::Query;
 
@@ -33,9 +34,52 @@ pub fn compare_keys(a: &str, b: &str) -> Ordering {
     a.encode_utf16().cmp(b.encode_utf16())
 }
 
+/// Which aggregation a [`FiltersResult`] stands for: the four that count documents in one or
+/// several filtered buckets share its shape, and `typed_keys` names them apart.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FilterKind {
+    /// `filters`.
+    #[default]
+    Filters,
+    /// `filter`.
+    Filter,
+    /// `missing`.
+    Missing,
+    /// `nested`.
+    Nested,
+    /// `reverse_nested`.
+    ReverseNested,
+}
+
+impl FilterKind {
+    /// The kind of the aggregation `metric` names.
+    pub fn of(metric: Metric) -> Self {
+        match metric {
+            Metric::Filter => Self::Filter,
+            Metric::Missing => Self::Missing,
+            Metric::Nested => Self::Nested,
+            Metric::ReverseNested => Self::ReverseNested,
+            _ => Self::Filters,
+        }
+    }
+
+    /// The type name `InternalAggregation.getWriteableName` gives the result.
+    pub fn type_name(self) -> &'static str {
+        match self {
+            Self::Filters => "filters",
+            Self::Filter => "filter",
+            Self::Missing => "missing",
+            Self::Nested => "nested",
+            Self::ReverseNested => "reverse_nested",
+        }
+    }
+}
+
 /// What one shard (or one reduce) holds for a `filters`: `InternalFilters`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FiltersResult {
+    /// The aggregation this result is of.
+    pub kind: FilterKind,
     /// A `filter`'s result: one bucket, written as its document count alone.
     pub single: bool,
     /// Written as an object named by the keys.
@@ -65,6 +109,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     let (first, rest) = results.split_first()?;
     let same = |r: &&FiltersResult| {
         r.keyed == first.keyed
+            && r.kind == first.kind
             && r.single == first.single
             && r.sub_meta.len() == first.sub_meta.len()
             && r.buckets.len() == first.buckets.len()

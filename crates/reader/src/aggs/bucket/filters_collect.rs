@@ -6,7 +6,7 @@ use lucene_aggs::bucket_aggs::AggNode;
 use lucene_search::BooleanQuery;
 
 use crate::aggs::bucket::BUCKET_LIMIT;
-use crate::aggs::bucket::filters::{FiltersResult, FiltersSpec};
+use crate::aggs::bucket::filters::{FilterKind, FiltersResult, FiltersSpec};
 use crate::aggs::bucket::nested_agg;
 use crate::aggs::bucket::terms_collect::too_many_buckets;
 use crate::aggs::metric::MetricAgg;
@@ -166,6 +166,7 @@ pub fn value(agg: &MetricAgg, docs: &[u64]) -> Value {
         return Value::Filters(Box::new(FiltersResult {
             single: true,
             buckets: vec![("0".to_owned(), docs.first().copied().unwrap_or(0))],
+            kind: FilterKind::of(agg.metric),
             ..FiltersResult::default()
         }));
     }
@@ -183,6 +184,7 @@ pub fn value(agg: &MetricAgg, docs: &[u64]) -> Value {
         .collect();
     // ALLOC: one box a `filters`, bounded by the request's.
     Value::Filters(Box::new(FiltersResult {
+        kind: FilterKind::of(agg.metric),
         single: spec.single,
         keyed: spec.keyed,
         buckets,

@@ -48,8 +48,7 @@ fn type_name(value: &Value) -> Option<&'static str> {
         Value::Histogram(_) => "histogram",
         Value::DateHistogram(_) => "date_histogram",
         Value::Range(_) => "range",
-        Value::Filters(result) if result.single => "filter",
-        Value::Filters(_) => "filters",
+        Value::Filters(result) => result.kind.type_name(),
         Value::Composite(_) => "composite",
     })
 }
@@ -95,14 +94,28 @@ mod tests {
 
     #[test]
     fn every_value_has_the_type_its_java_class_writes() {
-        use crate::aggs::bucket::filters::FiltersResult;
+        use crate::aggs::bucket::filters::{FilterKind, FiltersResult};
         let single = Value::Filters(Box::new(FiltersResult {
+            kind: FilterKind::Filter,
             single: true,
             ..FiltersResult::default()
         }));
+        let kinds = [
+            (FilterKind::Missing, r#""missing#n""#),
+            (FilterKind::Nested, r#""nested#n""#),
+            (FilterKind::ReverseNested, r#""reverse_nested#n""#),
+        ];
         let several = Value::Filters(Box::default());
         scoped(true, || {
             assert_eq!(key(&single), r#""filter#n""#);
+            for (kind, written) in kinds {
+                let value = Value::Filters(Box::new(FiltersResult {
+                    kind,
+                    single: true,
+                    ..FiltersResult::default()
+                }));
+                assert_eq!(key(&value), written);
+            }
             assert_eq!(key(&several), r#""filters#n""#);
             assert_eq!(key(&Value::ValueCount(0)), r#""value_count#n""#);
             assert_eq!(key(&Value::Rendered(Vec::new())), r#""top_hits#n""#);

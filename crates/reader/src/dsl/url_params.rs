@@ -5,7 +5,6 @@
 //! (server/src/main/java/org/opensearch/rest/action/search/RestSearchAction.java) at OpenSearch
 //! 3.10.0: a parameter on the URL replaces the body's value of the same setting.
 
-use crate::aggs::metric::{Metric, MetricAgg};
 use crate::dsl::error::DslError;
 use crate::dsl::sort::{SortKey, push};
 use crate::dsl::source::{DEFAULT_TRACK_TOTAL_HITS, SearchSource};
@@ -99,21 +98,9 @@ impl SearchSource {
         Ok(())
     }
 
-    /// `typed_keys`: each aggregation's key carries its type. A `nested` or `reverse_nested`
-    /// aggregation, whose result is not told from a `filter` by what it holds, is refused.
+    /// `typed_keys`: each aggregation's key carries its type.
     fn apply_typed_keys(&mut self, text: Option<&str>) -> Result<(), DslError> {
-        flag(text, &mut self.typed_keys)?;
-        if !self.typed_keys {
-            return Ok(());
-        }
-        match first_nested(&self.aggs) {
-            // ALLOC: error path; one message.
-            Some(agg) => Err(DslError::unsupported(&format!(
-                "[typed_keys] with a [{}] aggregation",
-                agg.metric.name()
-            ))),
-            None => Ok(()),
-        }
+        flag(text, &mut self.typed_keys)
     }
 
     /// `rest_total_hits_as_int`: the total is a number and counted exactly, which a `track_total_hits`
@@ -162,14 +149,6 @@ impl SearchSource {
         }
         Ok(())
     }
-}
-
-/// The first `nested` or `reverse_nested` aggregation of the tree.
-fn first_nested(aggs: &[MetricAgg]) -> Option<&MetricAgg> {
-    aggs.iter().find_map(|agg| match agg.metric {
-        Metric::Nested | Metric::ReverseNested => Some(agg),
-        _ => first_nested(&agg.subs),
-    })
 }
 
 /// A `true` or `false` parameter, as `Booleans.parseBoolean` reads it.
@@ -378,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn typed_keys_are_served_but_for_the_nested_aggregations() {
+    fn typed_keys_is_a_flag() {
         let typed = |source: &mut SearchSource| {
             source.apply_url(&UrlParams {
                 typed_keys: Some("true"),
@@ -395,25 +374,6 @@ mod tests {
         })
         .unwrap();
         assert!(!off.typed_keys);
-        let with = |body: &str| {
-            let mut tokenizer = crate::dsl::source::tokenizer();
-            let mut rec = crate::dsl::Recorder::new(1 << 16);
-            tokenizer.feed(body.as_bytes(), &mut rec).unwrap();
-            tokenizer.finish(&mut rec).unwrap();
-            let mut source = SearchSource::parse(&rec).unwrap();
-            typed(&mut source).map(|()| source)
-        };
-        assert!(with(r#"{"aggs":{"a":{"min":{"field":"f"}},"t":{"top_hits":{}}}}"#).is_ok());
-        assert!(with(r#"{"aggs":{"a":{"terms":{"field":"f"}}}}"#).is_ok());
-        let said = format!(
-            "{:?}",
-            with(r#"{"aggs":{"a":{"nested":{"path":"p"},"aggs":{"b":{"min":{"field":"f"}}}}}}"#)
-                .unwrap_err()
-        );
-        assert!(
-            said.contains("[typed_keys] with a [nested] aggregation"),
-            "{said}"
-        );
     }
 
     #[test]
