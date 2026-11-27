@@ -477,3 +477,23 @@ fn a_build_that_fails_for_another_reason_keeps_no_module_failure() {
     assert!(fx.builder.settle(), "a build never finished");
     assert!(fx.builder.extension_refusal("u1", 0, &stage(1)).is_none());
 }
+
+// docs/specs/refresh-count-after-publish AC-3
+#[test]
+fn a_search_and_the_worker_never_build_the_same_overlay_twice() {
+    let fx = fixture(16 << 20);
+    fx.push(&[index("d", 8, 100)]);
+    // The worker holds the queued build while the search builds for itself.
+    fx.builder.pause();
+    let _ = fx.ready();
+    fx.builder.apply_pending("u1", 0, &stage(1), &fx.commit);
+    assert_eq!(fx.builder.builds(), 1, "the search built it");
+    fx.builder.resume();
+    assert!(fx.builder.settle(), "a build never finished");
+    assert_eq!(
+        fx.builder.builds(),
+        1,
+        "the worker finds it covering and builds nothing"
+    );
+    assert_eq!(fx.ready().expect("covers").overlay().ids(), ["d"]);
+}

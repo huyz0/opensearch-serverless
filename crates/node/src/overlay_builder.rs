@@ -24,10 +24,11 @@ use oss_reader::overlay::{
     BuildError, CommitAccess, ExtensionRefusal, OverlaySource, Ready, build_ready_with,
     estimate_bytes, kept_bytes, local_checkpoint, mask_bytes,
 };
-use oss_transport::actions::tail::{FetchRequest, FetchResponse, NEW, Record, ShardRef};
+use oss_transport::actions::tail::{FetchRequest, FetchResponse, NEW, ShardRef};
 use oss_transport::stream::TaskId;
 
 use crate::newest_ask::LiveWriters;
+use crate::overlay_parts::{Flights, wal};
 use crate::tail_held::TailHeld;
 use crate::tail_reader_link::{Clock, TransportTailFetch};
 
@@ -101,6 +102,8 @@ struct Inner {
     control: Mutex<Control>,
     changed: Condvar,
     builds: AtomicU64,
+    /// One build at a time for each shard.
+    flights: Flights,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -155,6 +158,7 @@ impl OverlayBuilder {
             control: Mutex::new(Control::default()),
             changed: Condvar::new(),
             builds: AtomicU64::new(0),
+            flights: Flights::default(),
         });
         let (tx, rx) = sync_channel(queue);
         let worker = Arc::clone(&inner);
@@ -429,10 +433,20 @@ impl Inner {
 
     fn build(&self, job: &Job) {
         let (uuid, shard) = (&job.key.0, job.key.1);
+        // A search that builds for itself and the worker may want the same
+        // shard: the second finds the first's overlay covering the records
+        // and builds nothing, instead of reserving the estimate twice (which
+        // the pool refuses, and the search would then serve the commit alone).
+        let _one = self.flights.begin(&job.key);
         let held = self.held.from(uuid, shard, 0);
         let Some(through) = held.last().map(|(ordinal, _)| ordinal.saturating_add(1)) else {
             return;
         };
+        if lock(&self.slots).get(&job.key).is_some_and(|slot| {
+            slot.stage == job.stage && slot.built.as_ref().is_some_and(|b| b.through >= through)
+        }) {
+            return;
+        }
         // ALLOC: one record a held record, at most MAX_RECORDS; borrowed text.
         let records: Vec<WalRecord<'_>> = held.iter().map(|(_, r)| wal(r)).collect();
         let estimate = estimate_bytes(&records);
@@ -476,19 +490,5 @@ impl Inner {
                 _charge: charge,
             });
         }
-    }
-}
-
-fn wal(r: &Record) -> WalRecord<'_> {
-    if r.deletion {
-        WalRecord::deletion(r.id.as_str(), r.seq_no, r.primary_term, r.version)
-    } else {
-        WalRecord::index(
-            r.id.as_str(),
-            r.source.as_str(),
-            r.seq_no,
-            r.primary_term,
-            r.version,
-        )
     }
 }

@@ -45,7 +45,24 @@ fn a_count_after_a_refresh_is_answered_when_a_publish_landed_since_the_shard_ope
     rounds(3, "1");
 }
 
+/// AC-2 of docs/specs/refresh-count-after-publish: a refresh answers a count
+/// when the unpublished tail has outgrown what the writer keeps for readers
+/// (16 MiB a shard) and no lazy publish is due, so the refresh itself must
+/// publish.
+#[test]
+fn a_count_after_a_refresh_is_answered_when_the_unpublished_tail_outgrew_the_keep() {
+    rounds_on(
+        3,
+        "1",
+        Some(br#"{"settings":{"index":{"refresh_interval":"1h"}}}"#),
+    );
+}
+
 fn rounds(rounds: usize, depth: &str) {
+    rounds_on(rounds, depth, None);
+}
+
+fn rounds_on(rounds: usize, depth: &str, create: Option<&[u8]>) {
     let dir = TempDir::new("refresh-large-tail");
     let root = dir.path().display().to_string();
     let lookup = |key: &str| match key {
@@ -58,7 +75,7 @@ fn rounds(rounds: usize, depth: &str) {
     };
     let node = start(&NodeConfig::from_lookup(lookup).expect("valid")).expect("starts");
     let addr = node.addr();
-    assert_eq!(support::request(addr, "PUT", "/big", None).status, 200);
+    assert_eq!(support::request(addr, "PUT", "/big", create).status, 200);
     // Each round leaves a fresh unpublished tail of DOCS large documents.
     for round in 1..=rounds {
         let reply = support::request(addr, "POST", "/_bulk", Some(&bulk_body(round)));

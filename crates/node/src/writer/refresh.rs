@@ -86,11 +86,16 @@ impl WriterRole {
         }
         // ALLOC: one key a refresh.
         let key = (index.uuid.clone(), shard);
-        let done = self
-            .publish_shard(publishing, &key, &index.name, &slot, false)?
-            .map(|(done, _)| done);
-        if let Some(done) = done {
+        let done = self.publish_shard(publishing, &key, &index.name, &slot, false)?;
+        if let Some((done, max_seq_no)) = done {
             self.staged(&index.uuid, shard, &done.manifest);
+            // A register write holds the records, so the tail lets them go
+            // and a later refresh is not made to publish for them again.
+            if !done.staged
+                && let Some(t) = self.tail.get()
+            {
+                t.published(&index.uuid, shard, max_seq_no);
+            }
         }
         Ok(())
     }

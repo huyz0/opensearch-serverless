@@ -182,8 +182,12 @@ impl TailSink for Sink {
     }
 
     fn await_visible(&self, uuid: &str, shard: u32, grants: bool) -> bool {
+        // Pushes cannot make visible what the keep dropped for room: a reader
+        // that opens a commit older than it is refused, so the refresh
+        // publishes instead.
         self.push
             .await_search_nodes(uuid, shard, crate::tail_await::WAIT, grants)
+            && !self.keep.unheld(uuid, shard)
     }
 }
 
