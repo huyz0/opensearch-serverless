@@ -3,7 +3,9 @@
 //! parser, so a query means here what it means on a REST search.
 
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
-use oss_transport::actions::search_shard::{AggKind, AggRequest, Node, Query, Source, Value};
+use oss_transport::actions::search_shard::{
+    AggKind, AggRequest, DateHistogramRequest, IntervalType, Node, OrderSpec, Query, Source, Value,
+};
 use serde_json::{Map, Number, Value as Json, json};
 
 /// Why a decoded source could not become a search source.
@@ -228,6 +230,41 @@ fn body(source: &Source) -> Result<Json, ConvertError> {
     Ok(Json::Object(top))
 }
 
+/// An order as the body's `,"order":...` key.
+fn order_json(order: &OrderSpec) -> Result<String, ConvertError> {
+    let items: Vec<Json> = order
+        .items
+        .iter()
+        .map(|o| {
+            let (key, direction) = o.json();
+            json!({ key: direction })
+        })
+        .collect();
+    let value = if order.compound {
+        Json::Array(items)
+    } else {
+        items.into_iter().next().unwrap_or(Json::Null)
+    };
+    let value = serde_json::to_string(&value).map_err(|_| ConvertError::Number("an order"))?;
+    Ok(format!(",\"order\":{value}"))
+}
+
+/// A `date_histogram`'s options as the body's keys, each after a comma.
+fn histogram_options(h: &DateHistogramRequest) -> Result<String, ConvertError> {
+    let key = match h.interval_type {
+        IntervalType::Fixed => "fixed_interval",
+        IntervalType::Calendar => "calendar_interval",
+    };
+    let interval =
+        serde_json::to_string(&h.interval).map_err(|_| ConvertError::Number("an interval"))?;
+    let mut text = format!(
+        ",\"{key}\":{interval},\"offset\":{},\"keyed\":{},\"min_doc_count\":{}",
+        h.offset, h.keyed, h.min_doc_count
+    );
+    text.push_str(&order_json(&h.order)?);
+    Ok(text)
+}
+
 /// A `terms`' options as the body's keys, each after a comma.
 fn terms_options(
     t: &oss_transport::actions::search_shard::TermsRequest,
@@ -240,22 +277,7 @@ fn terms_options(
         text.push_str(&format!(",\"shard_size\":{}", t.shard_size));
     }
     if !t.order.is_default() {
-        let items: Vec<Json> = t
-            .order
-            .items
-            .iter()
-            .map(|o| {
-                let (key, direction) = o.json();
-                json!({ key: direction })
-            })
-            .collect();
-        let order = if t.order.compound {
-            Json::Array(items)
-        } else {
-            items.into_iter().next().unwrap_or(Json::Null)
-        };
-        let order = serde_json::to_string(&order).map_err(|_| ConvertError::Number("an order"))?;
-        text.push_str(&format!(",\"order\":{order}"));
+        text.push_str(&order_json(&t.order)?);
     }
     Ok(text)
 }
@@ -278,6 +300,9 @@ fn write_aggs(aggs: &[AggRequest], text: &mut Vec<u8>) -> Result<(), ConvertErro
         }
         if let Some(t) = &a.terms {
             text.extend_from_slice(terms_options(t)?.as_bytes());
+        }
+        if let Some(h) = &a.histogram {
+            text.extend_from_slice(histogram_options(h)?.as_bytes());
         }
         if let Some(p) = &a.percentiles {
             let keys = serde_json::to_string(&p.keys)
