@@ -25,7 +25,7 @@ The commit's files and reader are never changed; a mask is a copy.
 
 ## Test plan
 
-`crates/reader/tests/overlay_view.rs`, one test per criterion, over commits built with `oss-doc`; the shared helper is `crates/reader/tests/common/mod.rs`.
+`crates/reader/tests/it/overlay_view.rs`, one test per criterion, over commits built with `oss-doc`; the shared helper is `crates/reader/tests/common/mod.rs`.
 
 ## S3 request budget
 

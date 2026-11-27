@@ -8,4 +8,4 @@ Run in the cloud sandbox with `cargo test -p oss-reader --lib`; the tests were s
 - AC-4: `search_sort::nested_tests::a_filter_chooses_the_children_that_count_and_a_parent_without_one_is_last`.
 - AC-5: `search_sort::nested_tests::parents_come_by_their_greatest_child_descending_and_their_least_ascending` (asserts the reported child values).
 - AC-6: `search_sort::nested_tests::a_path_that_is_not_a_nested_object_fails_in_words`.
-- AC-7: `inner_hits_and_a_nested_sort_add_no_request_to_a_cold_search` in crates/reader/tests/nested_requests.rs: the nested sort makes the same cold requests as the same search unsorted (not seen red: it compares two counts, written with the code).
+- AC-7: `inner_hits_and_a_nested_sort_add_no_request_to_a_cold_search` in crates/reader/tests/it/nested_requests.rs: the nested sort makes the same cold requests as the same search unsorted (not seen red: it compares two counts, written with the code).

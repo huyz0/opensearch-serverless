@@ -4,7 +4,7 @@
 // ARITH: test sizes are small constants.
 #![allow(clippy::arithmetic_side_effects)]
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 

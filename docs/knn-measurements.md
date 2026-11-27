@@ -5,7 +5,7 @@ Provisional: every number is from one 4-core cloud sandbox with the in-process e
 Harnesses (ignored tests, run by hand, never part of `cargo test`):
 
 - `crates/writer/tests/knn_measure.rs`: recall against exact search, ingest memory, search time.
-- `crates/reader/tests/knn_requests.rs`: object-store requests of an open and a `knn` search.
+- `crates/reader/tests/it/knn_requests.rs`: object-store requests of an open and a `knn` search.
 
 ```text
 KNN_N=100000 KNN_DIM=128 KNN_SPACE=l2 KNN_DATA=clustered \

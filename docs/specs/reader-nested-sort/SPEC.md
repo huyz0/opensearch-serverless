@@ -31,7 +31,7 @@ Without a `nested` object a sort is exactly what it was, including a sort on a f
 
 - AC-1, AC-2: `dsl/sort.rs` unit tests.
 - AC-3 to AC-6: `search_nested_sort_tests.rs`, over the `Spec::with_nested` index (a keyword child `c.w`, children `w<i>-0` and `w<i>-1`).
-- AC-7: by construction (the sort reads doc values of segments the search already reads); counted by `crates/reader/tests/nested_requests.rs`.
+- AC-7: by construction (the sort reads doc values of segments the search already reads); counted by `crates/reader/tests/it/nested_requests.rs`.
 
 ## S3 request budget
 

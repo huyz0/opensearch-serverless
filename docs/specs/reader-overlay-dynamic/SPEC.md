@@ -29,7 +29,7 @@ Not changed: the mapping a search translates queries against (the shard's at ope
 
 ## Test plan
 
-AC-1 to AC-3: `crates/reader/tests/overlay_dynamic.rs`, red first (they fail on today's refusal). AC-4, AC-5: `crates/node/tests/overlay_dynamic.rs`, `#[ignore = "slow"]` on the suite rig (boots three nodes).
+AC-1 to AC-3: `crates/reader/tests/it/overlay_dynamic.rs`, red first (they fail on today's refusal). AC-4, AC-5: `crates/node/tests/overlay_dynamic.rs`, `#[ignore = "slow"]` on the suite rig (boots three nodes).
 
 ## S3 request budget
 

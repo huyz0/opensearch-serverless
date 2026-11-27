@@ -25,7 +25,7 @@ Parity plan R7.6, the tail overlay engine, sixth piece ([ADR 0018](../../adr/001
 
 ## Test plan
 
-`crates/node/tests/overlay_builder.rs` over a commit a writer published to a file store, pushing records into a real `TailHeld`, with `settle()` (waits for the worker to be idle) and `builds()` on the builder. `crates/reader/tests/overlay_build_ready.rs` for AC-8.
+`crates/node/tests/overlay_builder.rs` over a commit a writer published to a file store, pushing records into a real `TailHeld`, with `settle()` (waits for the worker to be idle) and `builds()` on the builder. `crates/reader/tests/it/overlay_build_ready.rs` for AC-8.
 
 ## S3 request budget
 

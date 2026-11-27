@@ -3,11 +3,11 @@
 // ARITH: test sizes are small; an overflow panics the test, which fails it as it should.
 #![allow(clippy::arithmetic_side_effects)]
 
+use crate::common;
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::ByteBuffersDirectory;
 use oss_doc::mapping::Mapping;
 use oss_format::WalRecord;
-mod common;
 
 use oss_reader::overlay::{MAX_IDS, Overlay, candidate_ids, find_copies};
 

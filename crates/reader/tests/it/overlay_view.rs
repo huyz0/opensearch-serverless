@@ -3,7 +3,7 @@
 // ARITH: test sizes are small; an overflow panics the test, which fails it as it should.
 #![allow(clippy::arithmetic_side_effects)]
 
-mod common;
+use crate::common;
 
 use std::collections::HashMap;
 
