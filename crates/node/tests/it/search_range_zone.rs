@@ -62,6 +62,20 @@ fn a_range_reads_its_bounds_in_the_zone_and_format_it_names() {
         at_utc(r#""lt":"2001-03-04T02:00:00||/d","time_zone":"+01:00""#),
         at_utc(r#""lt":"2001-03-03T23:00:00Z""#)
     );
+    // A region reads the wall clock at the offset in force: Paris is an hour east in March.
+    assert_eq!(
+        at_utc(r#""lte":"2001-03-04T00:00:00","time_zone":"Europe/Paris""#),
+        one_hour_early
+    );
+    // ... and two hours east in July, so the same wall clock is two hours before UTC.
+    assert_eq!(
+        at_utc(r#""lte":"2001-07-01T00:00:00","time_zone":"Europe/Paris""#),
+        at_utc(r#""lte":"2001-06-30T22:00:00Z""#)
+    );
+    assert_eq!(
+        at_utc(r#""lt":"2001-03-04T02:00:00||/d","time_zone":"Europe/Paris""#),
+        at_utc(r#""lt":"2001-03-03T23:00:00Z""#)
+    );
     for (bound, same_as) in [
         (
             r#""lte":"983664000000","format":"epoch_millis""#,
@@ -85,7 +99,8 @@ fn a_range_refuses_a_format_or_zone_it_does_not_read() {
     let node = start();
     for bound in [
         r#""lte":"2001","format":"yyyy""#,
-        r#""lte":"2001-03-04","time_zone":"Asia/Kolkata""#,
+        r#""lte":"2001-03-04","time_zone":"Mars/Base""#,
+        r#""lte":"2001-03-04","time_zone":"asia/kolkata""#,
         r#""lte":"983664000000","format":"strict_date_optional_time""#,
         r#""lte":"2001-03-04","format":"epoch_millis""#,
     ] {

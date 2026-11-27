@@ -375,6 +375,8 @@ fn a_range_reads_its_format_and_zone_and_refuses_what_it_cannot() {
     };
     assert_eq!(date(r#""time_zone":"+01:30""#).zone, 5_400);
     assert!(date(r#""time_zone":"UTC""#).named);
+    let paris = date(r#""time_zone":"Europe/Paris""#);
+    assert!(paris.named && paris.region.is_some() && paris.zone == 0);
     assert_eq!(date(r#""format":"epoch_millis""#).format, DateFormat::Epoch);
     assert_eq!(
         date(r#""format":"strict_date_optional_time""#).format,
@@ -382,7 +384,8 @@ fn a_range_reads_its_format_and_zone_and_refuses_what_it_cannot() {
     );
     assert_eq!(date(r#""boost":2"#), DateSpec::default());
     for bad in [
-        r#""time_zone":"Asia/Kolkata""#,
+        r#""time_zone":"Mars/Base""#,
+        r#""time_zone":"asia/kolkata""#,
         r#""time_zone":5"#,
         r#""format":"yyyy-MM-dd""#,
         r#""format":true"#,

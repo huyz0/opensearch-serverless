@@ -12,6 +12,7 @@
 //! `JavaDateFormatter`'s round-up defaults do. Date math (`now`, `||`) is not
 //! served yet.
 
+use crate::aggs::bucket::date_histogram::RegionZone;
 use crate::failure::Failure;
 
 /// The default format's name, as errors quote it.
@@ -108,12 +109,14 @@ pub struct DateSpec {
     pub format: DateFormat,
     /// The zone a bound with no zone of its own is read in, as seconds east of UTC.
     pub zone: i64,
+    /// A region zone, which takes the place of `zone` when named.
+    pub region: Option<RegionZone>,
     /// Whether the range named a `format` or a `time_zone`, which only a date field takes.
     pub named: bool,
 }
 
 /// A fixed `time_zone` as seconds east of UTC: `Z`, `UTC`, `GMT` or `UT`, or an offset of
-/// `+HH`, `+HH:mm` or `+HHmm`. A region (`Asia/Kolkata`) needs a zone database this node has not.
+/// `+HH`, `+HH:mm` or `+HHmm`. A region (`Asia/Kolkata`) is read by [`parse_time_zone`](crate::date_zone::parse_time_zone).
 pub fn parse_zone(text: &str) -> Option<i64> {
     if matches!(text, "Z" | "UTC" | "GMT" | "UT") {
         return Some(0);
@@ -125,7 +128,7 @@ pub fn parse_zone(text: &str) -> Option<i64> {
         bytes: text.as_bytes(),
         at: 0,
     };
-    let seconds = zone(&mut c, 0)?;
+    let seconds = zone(&mut c, None)?.unwrap_or(0);
     c.done().then_some(seconds)
 }
 
@@ -142,7 +145,7 @@ pub fn parse_to_millis_with(text: &str, round_up: bool, spec: DateSpec) -> Resul
         return Err(DateError::Math);
     }
     if spec.format != DateFormat::Epoch
-        && let Some(millis) = strict_date_optional_time(text.as_bytes(), round_up, spec.zone)
+        && let Some(millis) = strict_date_optional_time(text.as_bytes(), round_up, spec)
     {
         return Ok(millis);
     }
@@ -243,7 +246,7 @@ impl Cursor<'_> {
 /// `HH[:mm[:ss[.S{1,9}]]]` (a comma also separates the fraction), then an
 /// optional zone: `Z`, `+HH`, `+HHmm` or `+HH:mm`. Without a zone the date
 /// is UTC.
-fn strict_date_optional_time(text: &[u8], round_up: bool, default_zone: i64) -> Option<i64> {
+fn strict_date_optional_time(text: &[u8], round_up: bool, spec: DateSpec) -> Option<i64> {
     let mut c = Cursor { bytes: text, at: 0 };
     let year = c.digits(4)?;
     let (mut month, mut day) = (1, 1);
@@ -270,7 +273,7 @@ fn strict_date_optional_time(text: &[u8], round_up: bool, default_zone: i64) -> 
             }
         }
     }
-    let offset_seconds = zone(&mut c, default_zone)?;
+    let own_zone = zone(&mut c, None)?;
     if !c.done() || !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) {
         return None;
     }
@@ -280,11 +283,16 @@ fn strict_date_optional_time(text: &[u8], round_up: bool, default_zone: i64) -> 
     // ARITH: every term is bounded (a 4-digit year, valid month, day and
     // time fields), so the sum fits far inside an i64 of milliseconds.
     #[allow(clippy::arithmetic_side_effects)]
-    let millis = (days_from_civil(year, month, day) * 86_400 + hour * 3_600 + minute * 60 + second
-        - offset_seconds)
+    let wall = (days_from_civil(year, month, day) * 86_400 + hour * 3_600 + minute * 60 + second)
         * 1_000
         + nanos / 1_000_000;
-    Some(millis)
+    // A bound with an offset of its own keeps it; one without is wall-clock time in the zone.
+    Some(match own_zone {
+        // ARITH: a zone is at most 18 hours and `wall` is a 4-digit year's milliseconds.
+        #[allow(clippy::arithmetic_side_effects)]
+        Some(seconds) => wall - seconds * 1_000,
+        None => spec.utc_of_local(wall),
+    })
 }
 
 /// One to nine digits of a second, as nanoseconds.
@@ -308,9 +316,9 @@ fn fraction(c: &mut Cursor<'_>) -> Option<i64> {
 }
 
 /// The zone, as seconds east of UTC; none is `default`.
-fn zone(c: &mut Cursor<'_>, default: i64) -> Option<i64> {
+fn zone(c: &mut Cursor<'_>, default: Option<i64>) -> Option<Option<i64>> {
     if c.eat(b'Z') {
-        return Some(0);
+        return Some(Some(0));
     }
     let sign = if c.eat(b'+') {
         1
@@ -331,7 +339,7 @@ fn zone(c: &mut Cursor<'_>, default: i64) -> Option<i64> {
     }
     // ARITH: at most 18 hours of seconds.
     #[allow(clippy::arithmetic_side_effects)]
-    Some(sign * (hours * 3_600 + minutes * 60))
+    Some(Some(sign * (hours * 3_600 + minutes * 60)))
 }
 
 fn is_leap(year: i64) -> bool {
