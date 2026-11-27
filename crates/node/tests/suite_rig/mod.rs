@@ -301,6 +301,20 @@ impl Cluster {
         self.ids.iter().position(|id| *id == owner)
     }
 
+    /// The node id the head of `index` shard `shard` names as its owner,
+    /// whether or not that node is one of this cluster's slots.
+    pub fn owner_id(&self, index: &str, shard: u32) -> Option<String> {
+        use oss_blob::BlobStore;
+        let Backing::Emulated(server) = &self._backing else {
+            panic!("the owner is read from the emulator");
+        };
+        let key = oss_cluster::heads::shard_head_key("", index, shard);
+        let mut buf = vec![0u8; 1 << 16];
+        let read = server.store().read_register(&key, &mut buf).ok()??;
+        let head = oss_format::ShardHead::parse(buf.get(..read.len)?).ok()?;
+        head.owner_node_id.map(|id| id.to_string())
+    }
+
     /// The `held` shards a node's lease reports, from the emulated store;
     /// -1 when it says none or has no lease.
     pub fn held_of(&self, slot: usize) -> i32 {

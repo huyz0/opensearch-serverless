@@ -229,6 +229,9 @@ fn a_write_held_at_a_frozen_owner_is_counted_once_or_not_at_all_after_the_thaw()
         for slot in &survivors {
             converges(&cluster, *slot, None, 25);
         }
+        // The head names a survivor while the owner is frozen.
+        let head = cluster.owner_slot("logs", 0).expect("a head owner");
+        assert!(survivors.contains(&head), "the head names slot {head}");
         assert!(
             !answered.load(Ordering::SeqCst),
             "the frozen owner acknowledged a write before the thaw"
@@ -252,6 +255,10 @@ fn a_write_held_at_a_frozen_owner_is_counted_once_or_not_at_all_after_the_thaw()
     for slot in 0..3 {
         converges(&cluster, slot, None, 26);
     }
+    // The head is still the survivor's: the thawed node's late append and its
+    // passed-on write did not take it back.
+    let head = cluster.owner_slot("logs", 0).expect("a head owner");
+    assert!(survivors.contains(&head), "the head moved to slot {head}");
     // No node counts a document of the refused write.
     for slot in 0..3 {
         converges(&cluster, slot, Some(9), 0);
