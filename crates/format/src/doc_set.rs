@@ -27,6 +27,10 @@ pub const MAX_DOC_NAME_BYTES: usize = 255;
 /// REST edge; a bound here keeps a read in one buffer.
 pub const MAX_DOC_BYTES: usize = 1 << 20;
 
+/// The longest model a learning to rank store holds: a tree ensemble of a few
+/// thousand trees is some megabytes of JSON or XML.
+pub const MAX_MODEL_BYTES: usize = 10 << 20;
+
 /// The longest marker: [`MAX_DOCS`] entries of a longest name and a content
 /// key of 64 hex digits, `-` and a 22-character id (the blob is then
 /// `blob-` and the key), with the quotes, colon and comma.
@@ -61,6 +65,14 @@ pub enum DocKind {
     SecurityTenants,
     /// Security action groups, `security/actiongroups/`.
     SecurityActionGroups,
+    /// The learning to rank stores of a deployment, `ltr/stores/`.
+    LtrStores,
+    /// A learning to rank store's feature sets, `featuresets/` under the
+    /// store's own base.
+    LtrFeatureSets,
+    /// A learning to rank store's models, `models/` under the store's own
+    /// base.
+    LtrModels,
 }
 
 impl DocKind {
@@ -77,6 +89,20 @@ impl DocKind {
             Self::SecurityInternalUsers => "security/internalusers/",
             Self::SecurityTenants => "security/tenants/",
             Self::SecurityActionGroups => "security/actiongroups/",
+            Self::LtrStores => "ltr/stores/",
+            Self::LtrFeatureSets => "featuresets/",
+            Self::LtrModels => "models/",
+        }
+    }
+}
+
+impl DocKind {
+    /// The longest document of this set: [`MAX_DOC_BYTES`], or for models
+    /// [`MAX_MODEL_BYTES`].
+    pub const fn max_doc_bytes(self) -> usize {
+        match self {
+            Self::LtrModels => MAX_MODEL_BYTES,
+            _ => MAX_DOC_BYTES,
         }
     }
 }

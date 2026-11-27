@@ -80,7 +80,7 @@ pub use descriptors::{
     REAP_DEADLINE_MILLIS, REAP_HANDOFF_MILLIS, Resolution, Target,
 };
 pub use doc_cache::{DEFAULT_DOC_CACHE_BYTES, DocSetCache, DocSnapshot};
-pub use doc_set::DocSet;
+pub use doc_set::{DocSet, Put};
 pub use error::MetaError;
 pub use lifecycle::{
     DEFAULT_RECLAIM_DELAY_MILLIS, Deleted, HeadAt, IndexLifecycle, Purged, ReclaimQueue,

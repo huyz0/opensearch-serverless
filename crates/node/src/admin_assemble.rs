@@ -99,6 +99,12 @@ pub(crate) fn register(
             .map_err(store_error)?;
     let router =
         crate::script_route::routes(router, &Arc::new(scripts)).map_err(AssembleError::Route)?;
+    let router = if config.ltr {
+        let ltr = crate::ltr_route::LtrService::new(store, &config.base, config.pit_buffer_bytes);
+        crate::ltr_route::routes(router, &Arc::new(ltr)).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,

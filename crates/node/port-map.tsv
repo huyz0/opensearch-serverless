@@ -265,3 +265,8 @@ src/search_shard_action/answer_value.rs	new		a shard result as the forwarded ans
 src/search_shard_action/histogram.rs	new		a shard date histogram result as the forwarded answer's value
 src/search_shard_action/range.rs	new		a shard range result as the forwarded answer's value
 src/search_shard_action/tests/ranges.rs	new		tests of the forwarded range answers
+src/ltr_setting.rs	new		serverless.ltr.enabled
+src/ltr_route/mod.rs	new		the learning to rank feature store service over document sets; the Java plugin (o19s) is ported natively by ADR 0071
+src/ltr_route/objects.rs	new		the feature set and model objects as the plugin shapes them
+src/ltr_route/stores.rs	new		create, delete and list the stores
+src/ltr_route/routes.rs	new		the route table under /_ltr and /_plugins/_ltr
