@@ -54,11 +54,12 @@ use crate::writer::{
 pub use config::commits::Logged;
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 pub use error::BootError;
+use pack_collect::collect_packs;
 use renew::{Cadence, Renewal};
 pub use retire::{Retired, retire_within, within};
 use support::{
-    Held, INCARNATION_WINDOW, REPLAY_BUFFER, REPLAY_CAPACITY, address_bytes, earlier_epochs,
-    store_of, usage_of,
+    Held, INCARNATION_WINDOW, REPLAY_BUFFER, REPLAY_CAPACITY, address_bytes, cluster,
+    earlier_epochs, store_of, usage_of,
 };
 
 /// The most members a node's membership view holds.
@@ -130,10 +131,6 @@ impl Drop for Node {
             let _ = self.membership.release(&self.node_id);
         }
     }
-}
-
-fn cluster<E: std::fmt::Display>(e: E) -> BootError {
-    BootError::Cluster(e.to_string())
 }
 
 /// Starts a node from `config`: enrols its lease, builds its write log and
@@ -243,7 +240,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let log = NodeLogStore::new(Arc::clone(&store), &config.base, &config.node_id)
         .map(|log| support::shared_in(log, usage.as_ref()))
         .map_err(cluster)?;
-    let lease_for_enrolment = lease.clone();
+    let mut lease_for_enrolment = lease.clone();
     // What the lease tells peers this node holds; the renewal thread keeps it.
     let load = Arc::new(crate::writer::LoadReport::default());
     let readiness = Arc::new(support::readiness_for(config));
@@ -405,12 +402,10 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     support::wire_commit_push(&assembled, &client, &auth, &membership, config)?;
     // Enrolled last: a peer that sees the lease can reach everything it names.
     // A node still warming enrols without the search role, as its renewals do.
-    let mut lease_for_enrolment = lease_for_enrolment;
     readiness.stamp(&mut lease_for_enrolment);
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
     shard_action.age.mark();
-    join::announce(&membership, client, &auth, &config.node_id, &ephemeral)
-        .map_err(|e| BootError::Cluster(format!("lease announce thread: {e}")))?;
+    join::announce(&membership, client, &auth, &config.node_id, &ephemeral)?;
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
     let role = Arc::clone(&assembled.role);
@@ -490,7 +485,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         renewal: Some(renewal),
         dead_logs: Some(dead_logs),
         orphan_sweep,
-        pack_collect: pack_collect::start(&node_config, config, &store, &membership, &clock),
+        pack_collect: collect_packs(&node_config, config, &store, &membership, &clock, &budget),
         following,
         membership,
         node_id: config.node_id.clone(),

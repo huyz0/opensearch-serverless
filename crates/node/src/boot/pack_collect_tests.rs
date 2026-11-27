@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use oss_blob::{Emulator, SliceSource};
 use oss_cluster::lease::SystemClock;
 use oss_format::{PackSidecar, PlannedBlock, SidecarEpoch, encode_node_pack, node_pack_key};
+use oss_mem::{MemoryBudget, Pool};
 use oss_writer::pack::{PackIndexStore, PackSidecarStore, WINDOW_MILLIS};
 
 use super::*;
@@ -50,6 +51,10 @@ fn the_thread_runs_the_pass_each_tick() {
         Box::new(|| vec!["me".to_owned()]),
         Arc::new(move || ticking.load(Ordering::SeqCst)),
         Arc::new(SystemClock),
+        Tracking {
+            cap: MAX_TRACKED,
+            held: None,
+        },
     )
     .expect("thread");
     // The first window sights the pack; the second, a window later, deletes it.
@@ -61,4 +66,56 @@ fn the_thread_runs_the_pass_each_tick() {
         assert!(started.elapsed() < Duration::from_secs(10), "never deleted");
         std::thread::sleep(Duration::from_millis(20));
     }
+}
+
+fn budget_of(open_indexes: usize) -> MemoryBudget {
+    MemoryBudget::new(
+        &oss_mem::BudgetConfig::new(open_indexes)
+            .with_pool(Pool::OpenIndexes, open_indexes)
+            .expect("fits"),
+    )
+}
+
+/// A pool with room gives the whole tracking cap, and the reservation is
+/// what the pool counts as used until it is dropped.
+#[test]
+fn tracking_is_reserved_from_the_pool_in_full_when_it_fits() {
+    let budget = budget_of(MAX_TRACKED * ENTRY_BYTES * 2);
+    let (cap, held) = reserve_tracking(&budget);
+    assert_eq!(cap, MAX_TRACKED);
+    assert_eq!(budget.in_use(Pool::OpenIndexes), MAX_TRACKED * ENTRY_BYTES);
+    drop(held);
+    assert_eq!(budget.in_use(Pool::OpenIndexes), 0);
+}
+
+/// A pool too small for the cap lowers the cap to what it holds.
+#[test]
+fn a_small_pool_lowers_the_cap_to_what_it_holds() {
+    let budget = budget_of(ENTRY_BYTES * 10 + 5);
+    let (cap, held) = reserve_tracking(&budget);
+    assert_eq!(cap, 10);
+    assert_eq!(budget.in_use(Pool::OpenIndexes), 10 * ENTRY_BYTES);
+    assert_eq!(held.map(|r| r.bytes()), Some(10 * ENTRY_BYTES));
+}
+
+/// A pool with no room tracks nothing, so nothing is judged or deleted.
+#[test]
+fn a_pool_with_no_room_tracks_nothing() {
+    let budget = budget_of(ENTRY_BYTES - 1);
+    let (cap, held) = reserve_tracking(&budget);
+    assert_eq!(cap, 0);
+    assert!(held.is_none());
+    assert_eq!(budget.in_use(Pool::OpenIndexes), 0);
+}
+
+/// The log line is written only when a pass stopped tracking at the cap.
+#[test]
+fn the_cap_is_logged_only_when_reached() {
+    assert!(cap_line(&Collected::default(), 7).is_none());
+    let at_cap = Collected {
+        at_cap: true,
+        ..Collected::default()
+    };
+    let line = cap_line(&at_cap, 7).expect("a line");
+    assert!(line.contains('7'), "names the cap: {line}");
 }
