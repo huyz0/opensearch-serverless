@@ -32,7 +32,7 @@ pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;
 pub use parse::parse_aggregations;
 pub use percentiles::PercentilesOptions;
-pub use render::{write_aggregations, write_aggregations_with};
+pub use render::{write_aggregations, write_aggregations_typed, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
 use crate::aggs::bucket::composite::CompositeSpec;

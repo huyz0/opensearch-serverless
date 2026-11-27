@@ -5,6 +5,7 @@
 //! (server/src/main/java/org/opensearch/rest/action/search/RestSearchAction.java) at OpenSearch
 //! 3.10.0: a parameter on the URL replaces the body's value of the same setting.
 
+use crate::aggs::metric::Metric;
 use crate::dsl::error::DslError;
 use crate::dsl::sort::{SortKey, push};
 use crate::dsl::source::{DEFAULT_TRACK_TOTAL_HITS, SearchSource};
@@ -37,6 +38,8 @@ pub struct UrlParams<'a> {
     pub search_type: Option<&'a str>,
     /// `rest_total_hits_as_int`.
     pub rest_total_hits_as_int: Option<&'a str>,
+    /// `typed_keys`.
+    pub typed_keys: Option<&'a str>,
 }
 
 impl SearchSource {
@@ -79,6 +82,7 @@ impl SearchSource {
                 .map_err(|_| DslError::illegal("terminateAfter must be > 0".to_owned()))?;
         }
         self.apply_total_as_int(params.rest_total_hits_as_int)?;
+        self.apply_typed_keys(params.typed_keys)?;
         flag(params.explain, &mut self.explain)?;
         flag(params.version, &mut self.version)?;
         flag(params.seq_no_primary_term, &mut self.seq_no_primary_term)?;
@@ -93,6 +97,38 @@ impl SearchSource {
             self.sort = keys;
         }
         Ok(())
+    }
+
+    /// `typed_keys`: each aggregation's key carries its type. Served for the metric aggregations;
+    /// a bucket aggregation, whose sub-aggregations are typed too, is refused.
+    fn apply_typed_keys(&mut self, text: Option<&str>) -> Result<(), DslError> {
+        flag(text, &mut self.typed_keys)?;
+        if !self.typed_keys {
+            return Ok(());
+        }
+        let metric = |m: Metric| {
+            matches!(
+                m,
+                Metric::Min
+                    | Metric::Max
+                    | Metric::Sum
+                    | Metric::Avg
+                    | Metric::Stats
+                    | Metric::ValueCount
+                    | Metric::Cardinality
+                    | Metric::Percentiles
+                    | Metric::PercentileRanks
+                    | Metric::TopHits
+            )
+        };
+        match self.aggs.iter().find(|a| !metric(a.metric)) {
+            // ALLOC: error path; one message.
+            Some(agg) => Err(DslError::unsupported(&format!(
+                "[typed_keys] with a [{}] aggregation",
+                agg.metric.name()
+            ))),
+            None => Ok(()),
+        }
     }
 
     /// `rest_total_hits_as_int`: the total is a number and counted exactly, which a `track_total_hits`
@@ -346,6 +382,43 @@ mod tests {
             })
             .unwrap_err();
         assert!(format!("{said:?}").contains("got -1"));
+    }
+
+    #[test]
+    fn typed_keys_are_served_for_metrics_only() {
+        let typed = |source: &mut SearchSource| {
+            source.apply_url(&UrlParams {
+                typed_keys: Some("true"),
+                ..UrlParams::default()
+            })
+        };
+        let mut none = SearchSource::default();
+        typed(&mut none).unwrap();
+        assert!(none.typed_keys);
+        let mut off = SearchSource::default();
+        off.apply_url(&UrlParams {
+            typed_keys: Some("false"),
+            ..UrlParams::default()
+        })
+        .unwrap();
+        assert!(!off.typed_keys);
+        let with = |body: &str| {
+            let mut tokenizer = crate::dsl::source::tokenizer();
+            let mut rec = crate::dsl::Recorder::new(1 << 16);
+            tokenizer.feed(body.as_bytes(), &mut rec).unwrap();
+            tokenizer.finish(&mut rec).unwrap();
+            let mut source = SearchSource::parse(&rec).unwrap();
+            typed(&mut source).map(|()| source)
+        };
+        assert!(with(r#"{"aggs":{"a":{"min":{"field":"f"}},"t":{"top_hits":{}}}}"#).is_ok());
+        let said = format!(
+            "{:?}",
+            with(r#"{"aggs":{"a":{"terms":{"field":"f"}}}}"#).unwrap_err()
+        );
+        assert!(
+            said.contains("[typed_keys] with a [terms] aggregation"),
+            "{said}"
+        );
     }
 
     #[test]
