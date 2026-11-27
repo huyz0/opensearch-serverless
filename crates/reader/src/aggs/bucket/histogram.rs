@@ -5,7 +5,9 @@
 use std::cmp::Ordering;
 
 use crate::aggs::bucket::count_order::sort_by_count;
+use crate::aggs::bucket::histogram_sub_order::by_sub;
 use crate::aggs::bucket::running;
+use crate::aggs::bucket::sub_order::SubOrder;
 use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
 
@@ -37,6 +39,9 @@ pub struct HistogramSpec {
     pub min_doc_count: u64,
     /// How the buckets are ordered.
     pub order: HistogramOrder,
+    /// An `order` by a sub-aggregation, which the reduce applies in place of
+    /// `order`.
+    pub sub_order: Option<SubOrder>,
     /// `extended_bounds`: with `min_doc_count` 0, empty buckets are made
     /// out to these (`DoubleBounds`; an end not given is `None`).
     pub extended_bounds: Option<(Option<f64>, Option<f64>)>,
@@ -54,6 +59,7 @@ impl Default for HistogramSpec {
             keyed: false,
             min_doc_count: 0,
             order: HistogramOrder::KeyAsc,
+            sub_order: None,
             extended_bounds: None,
             hard_bounds: (None, None),
         }
@@ -236,6 +242,7 @@ pub fn reduce_results(parts: &[&HistogramResult], limit: usize) -> Result<Histog
         return Err(buckets.len());
     }
     match spec.order {
+        _ if spec.sub_order.is_some() => {}
         HistogramOrder::KeyAsc => {}
         HistogramOrder::KeyDesc => buckets.reverse(),
         HistogramOrder::CountAsc | HistogramOrder::CountDesc => {
@@ -258,6 +265,10 @@ pub fn reduce_results(parts: &[&HistogramResult], limit: usize) -> Result<Histog
             // ALLOC: as above.
             .collect();
         reduce_keyed(&pairs, &keys)
+    };
+    let (buckets, subs) = match &spec.sub_order {
+        Some(order) => by_sub(order, buckets, subs),
+        None => (buckets, subs),
     };
     Ok(HistogramResult {
         spec,
