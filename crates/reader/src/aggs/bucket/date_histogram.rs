@@ -12,6 +12,7 @@ use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_order::SubOrder;
 use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
+use crate::date_pattern::DatePattern;
 
 /// What a `date_histogram` aggregation asks for.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -35,6 +36,9 @@ pub struct DateHistogramSpec {
     pub extended_bounds: Option<(Option<i64>, Option<i64>)>,
     /// `hard_bounds`, rounded the same way: values outside are not counted.
     pub hard_bounds: (Option<i64>, Option<i64>),
+    /// `format`: how a date key is written as text, `None` for the field's
+    /// own format.
+    pub format: Option<DatePattern>,
 }
 
 impl Default for DateHistogramSpec {
@@ -54,6 +58,7 @@ impl Default for DateHistogramSpec {
             sub_order: None,
             extended_bounds: None,
             hard_bounds: (None, None),
+            format: None,
         }
     }
 }

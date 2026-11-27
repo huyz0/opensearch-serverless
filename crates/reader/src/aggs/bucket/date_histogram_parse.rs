@@ -11,6 +11,7 @@ use crate::aggs::bucket::histogram::HistogramOrder;
 use crate::aggs::bucket::histogram_parse::parse_order;
 use crate::aggs::metric::parse::long_value;
 use crate::date::parse_to_millis;
+use crate::date_pattern::DatePattern;
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::{bool_value, suggest};
@@ -197,6 +198,7 @@ pub fn parse_date_histogram_body(
     let mut interval_key: Option<&'static str> = None;
     let mut offset = 0i64;
     let mut keyed = false;
+    let mut format = None;
     let mut min_doc_count = 0u64;
     let mut order = HistogramOrder::KeyAsc;
     let mut sub_order = None;
@@ -225,10 +227,7 @@ pub fn parse_date_histogram_body(
                 None,
             ));
         }
-        if matches!(
-            key,
-            "missing" | "value_type" | "format" | "script" | "interval"
-        ) {
+        if matches!(key, "missing" | "value_type" | "script" | "interval") {
             // ALLOC: error path; one message.
             return Err(DslError::unsupported(&format!(
                 "the [date_histogram] aggregation's [{key}]"
@@ -328,6 +327,15 @@ pub fn parse_date_histogram_body(
                     offset_millis(p.text()).map_err(|m| failed(p, DslError::illegal(m)))?
                 };
             }
+            "format" => {
+                let text = p.text();
+                format = Some(DatePattern::parse(text).ok_or_else(|| {
+                    // ALLOC: error path; one message.
+                    let message =
+                        format!("the [date_histogram] aggregation's [format] of [{text}]");
+                    DslError::unsupported(&message)
+                })?);
+            }
             "keyed" => keyed = bool_value(p).map_err(|e| failed(p, e))?,
             "min_doc_count" => {
                 let n = long_value(token, p.text()).map_err(|e| failed(p, e))?;
@@ -400,6 +408,7 @@ pub fn parse_date_histogram_body(
             sub_order,
             extended_bounds,
             hard_bounds: hard_bounds.unwrap_or((None, None)),
+            format,
         },
     ))
 }

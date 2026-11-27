@@ -17,7 +17,7 @@ const MILLIS_PER_DAY: i64 = 86_400_000;
 // ARITH: `days` is a long's milliseconds over a day, at most about 1.07e11
 // in magnitude, so every step stays far inside an i64.
 #[allow(clippy::arithmetic_side_effects)]
-fn civil_from_days(days: i64) -> (i64, u32, u32) {
+pub(crate) fn civil_from_days(days: i64) -> (i64, u32, u32) {
     let z = days.saturating_add(719_468);
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);
