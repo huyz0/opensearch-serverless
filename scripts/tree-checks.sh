@@ -21,6 +21,7 @@ check-alloc.py
 check-acked.py
 check-s3-access.py
 check-test-endpoints.py
+check-rustfs-scope.py
 check-budgets.py
 check-extension-pins.py
 check-analyzer-sites.py
