@@ -20,6 +20,8 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
+use oss_format::ORDINALS_PER_EPOCH;
+
 use super::PackError;
 use super::ledger::PackLedger;
 use super::store::{Landed, PackStore, Part};
@@ -32,6 +34,10 @@ pub const SWAP_DEADLINE_MILLIS: u64 = 5 * 60 * 1000;
 /// How old a pack must be, since collection first saw it, before collection
 /// may judge it unreferenced.
 pub const COLLECTABLE_AFTER_MILLIS: u64 = 3 * SWAP_DEADLINE_MILLIS;
+
+/// How many ordinals the ledger's `high` is reserved ahead of use with
+/// collection on, so a ledger write is a block of packs, not a pack.
+pub const RESERVE_AHEAD: u64 = 8;
 
 type Answer = Result<Landed, PackError>;
 
@@ -55,6 +61,8 @@ pub struct PackWriter {
     max_pack_bytes: u64,
     next_ordinal: AtomicU64,
     recorded: Mutex<bool>,
+    collect: bool,
+    reserved: Mutex<u64>,
     batch: Mutex<Batch>,
     full: Condvar,
 }
@@ -92,9 +100,21 @@ impl PackWriter {
             max_pack_bytes: max_pack_bytes.max(1),
             next_ordinal: AtomicU64::new(0),
             recorded: Mutex::new(false),
+            collect: false,
+            reserved: Mutex::new(0),
             batch: Mutex::new(Batch::default()),
             full: Condvar::new(),
         }
+    }
+
+    /// With `collect`, the ledger's `high` is reserved ahead in blocks of
+    /// [`RESERVE_AHEAD`] and the epoch rotates every
+    /// [`ORDINALS_PER_EPOCH`] ordinals, so a collector can track every pack
+    /// without listing. Off (the default), the ledger is written once.
+    #[must_use]
+    pub fn with_collection(mut self, collect: bool) -> Self {
+        self.collect = collect;
+        self
     }
 
     /// This writer's epoch.
@@ -202,8 +222,34 @@ impl PackWriter {
     }
 
     fn write(&self, ordinal: u64, parts: Vec<Part>) -> Result<Vec<Landed>, PackError> {
-        self.record_epoch()?;
-        self.store.write(self.epoch, ordinal, parts)
+        if !self.collect {
+            self.record_epoch()?;
+            return self.store.write(self.epoch, ordinal, parts);
+        }
+        // Collection on: the epoch rotates every ORDINALS_PER_EPOCH ordinals.
+        let epoch = self.epoch.saturating_add(ordinal / ORDINALS_PER_EPOCH);
+        self.reserve(ordinal)?;
+        self.store.write(epoch, ordinal % ORDINALS_PER_EPOCH, parts)
+    }
+
+    /// Makes the ledger's `high` cover `ordinal`, a block ahead.
+    fn reserve(&self, ordinal: u64) -> Result<(), PackError> {
+        let Some(ledger) = &self.ledger else {
+            return Ok(());
+        };
+        let mut reserved = locked(&self.reserved);
+        if ordinal < *reserved {
+            return Ok(());
+        }
+        let block_end = (ordinal / RESERVE_AHEAD)
+            .saturating_add(1)
+            .saturating_mul(RESERVE_AHEAD);
+        let epoch = self.epoch.saturating_add(ordinal / ORDINALS_PER_EPOCH);
+        let high = block_end
+            .saturating_sub((ordinal / ORDINALS_PER_EPOCH).saturating_mul(ORDINALS_PER_EPOCH));
+        ledger.reserve(epoch, high)?;
+        *reserved = block_end;
+        Ok(())
     }
 
     fn record_epoch(&self) -> Result<(), PackError> {

@@ -56,6 +56,7 @@ mod node_lease;
 mod node_log;
 mod node_pack;
 mod node_pack_ledger;
+mod pack_sidecar;
 mod point_in_time;
 mod reclaim_intent;
 mod register;
@@ -117,6 +118,9 @@ pub use node_log::{
 };
 pub use node_pack::{Block, EncodedPack, NodePackHeader, PlannedBlock, encode as encode_node_pack};
 pub use node_pack_ledger::{NodePackLedger, PackEpoch, encode as encode_pack_ledger};
+pub use pack_sidecar::{
+    MAX_SIDECAR_EPOCHS, ORDINALS_PER_EPOCH, PackSidecar, SIDECAR_EPOCH_BYTES, SidecarEpoch,
+};
 pub use point_in_time::{MAX_POINT_IN_TIME_BYTES, PitFile, PitShard, PointInTime, RELEASED};
 pub use reclaim_intent::{
     MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,

@@ -59,10 +59,22 @@ pub const PUBLISH_THREADS: LongSetting = LongSetting::new(
      blobs share a pack; 1 publishes them one after another, each in a pack of its own.",
 );
 
+/// `serverless.segments.node_pack.collect`: the writer reserves the ledger's
+/// `high` ahead and rotates its epoch, so a collector can track every pack.
+pub const COLLECT: BoolSetting = BoolSetting::new(
+    "serverless.segments.node_pack.collect",
+    false,
+    Scope::Node,
+    "With node packs on, the writer reserves its ledger's high ahead in blocks and starts a new \
+     epoch every 1,024 packs, so a collector can name every pack without listing; about one \
+     more small PUT in eight packs. Does nothing while packs are off.",
+);
+
 /// Every setting this module defines, for the node's registry.
 pub static SETTINGS: &[&Setting] = &[
     ENABLED.setting(),
     PUBLISH_THREADS.setting(),
+    COLLECT.setting(),
     MAX_BLOB_BYTES.setting(),
     LINGER_MILLIS.setting(),
 ];
@@ -76,6 +88,8 @@ pub struct PackConfig {
     pub linger: Duration,
     /// The most due shards a publish pass publishes at once.
     pub publish_threads: usize,
+    /// Reserve the ledger ahead and rotate epochs, for a collector.
+    pub collect: bool,
 }
 
 impl Default for PackConfig {
@@ -84,6 +98,7 @@ impl Default for PackConfig {
             max_blob_bytes: 8 << 20,
             linger: Duration::from_millis(50),
             publish_threads: 8,
+            collect: false,
         }
     }
 }
@@ -128,13 +143,16 @@ impl Packs {
             let ledger =
                 PackLedger::new(Arc::clone(store), base, node).map_err(|e| e.to_string())?;
             let epoch = ledger.next_epoch(clock_millis).map_err(|e| e.to_string())?;
-            let made = Arc::new(PackWriter::new(
-                PackStore::new(Arc::clone(store), base, node),
-                Some(ledger),
-                epoch,
-                self.config.linger,
-                MAX_PACK_BYTES,
-            ));
+            let made = Arc::new(
+                PackWriter::new(
+                    PackStore::new(Arc::clone(store), base, node),
+                    Some(ledger),
+                    epoch,
+                    self.config.linger,
+                    MAX_PACK_BYTES,
+                )
+                .with_collection(self.config.collect),
+            );
             *held = Some(Arc::clone(&made));
             made
         };

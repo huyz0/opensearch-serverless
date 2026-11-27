@@ -64,3 +64,4 @@ src/stock/shard_write.rs	new		the shard snapshot blob and the shard generation b
 src/stock/lucene_file.rs	new		the Lucene version a segment's .si or segments_N head records, for the written_by of a stock file entry; the Java has SegmentInfo and SegmentInfos readers
 src/snapshot_aliases.rs	new		the alias fields of a snapshot record (ADR 0065); the Java shell makes the matching change on its own branch
 src/snapshot_global_state.rs	new		the global state member of a snapshot record (ADR 0068); the Java shell carries it through opaquely
+src/pack_sidecar.rs	new		the collector's per-node sidecar register: a bitmap of collected ordinals and the high of each live epoch (ADR 0025); Rust only, the Java does not read it

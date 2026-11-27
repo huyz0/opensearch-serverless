@@ -18,6 +18,9 @@ use super::PackError;
 /// How many times an update re-reads after losing a swap.
 const MAX_ATTEMPTS: usize = 16;
 
+/// The most live epochs a node keeps; a writer starts no epoch past it.
+pub(super) const MAX_LIVE_EPOCHS: usize = 1_500;
+
 /// The most a ledger read keeps: some 10,000 epochs.
 const READ_BYTES: usize = 256 << 10;
 
@@ -133,6 +136,33 @@ impl PackLedger {
                 collected_below: 0,
                 high: 0,
             });
+            next
+        })
+    }
+
+    /// Reserves ordinals of `epoch` below `high`, adding the epoch if the
+    /// ledger lacks it, so `high` is never below an ordinal in use. Starting
+    /// an epoch past the 1,500 live epochs a node keeps is refused.
+    ///
+    /// # Errors
+    ///
+    /// As [`PackLedger::add_epoch`], and [`PackError::TooManyEpochs`].
+    pub fn reserve(&self, epoch: u64, high: u64) -> Result<LedgerState, PackError> {
+        let state = self.read()?;
+        if state.epochs.len() >= MAX_LIVE_EPOCHS && !state.epochs.iter().any(|e| e.epoch == epoch) {
+            return Err(PackError::TooManyEpochs);
+        }
+        self.update(state, |epochs| {
+            // ALLOC: the ledger's epochs, 24 bytes each of the register.
+            let mut next = epochs.to_vec();
+            match next.iter_mut().find(|e| e.epoch == epoch) {
+                Some(e) => e.high = e.high.max(high),
+                None => next.push(PackEpoch {
+                    epoch,
+                    collected_below: 0,
+                    high,
+                }),
+            }
             next
         })
     }
