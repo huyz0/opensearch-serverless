@@ -42,6 +42,17 @@ struct JavaNode {
 
 impl JavaNode {
     fn start(name: &str, home: &Path, cluster: &Cluster, buckets: bool) -> Self {
+        Self::start_with(name, home, cluster, buckets, &[])
+    }
+
+    /// `start` with more `-D` settings, as `(key, value)` pairs.
+    fn start_with(
+        name: &str,
+        home: &Path,
+        cluster: &Cluster,
+        buckets: bool,
+        extra: &[(&str, &str)],
+    ) -> Self {
         let java = std::env::var("OSS_JAVA_BIN").expect("OSS_JAVA_BIN");
         let cp = std::env::var("OSS_JAVA_CP").expect("OSS_JAVA_CP");
         let (endpoint, bucket, region, access, secret) = cluster.store();
@@ -103,6 +114,9 @@ impl JavaNode {
         }
         if buckets {
             command.arg("-Dserverless.buckets.enabled=true");
+        }
+        for (k, v) in extra {
+            command.arg(format!("-D{k}={v}"));
         }
         command
             .arg("org.opensearch.serverless.shell.ServerlessBootstrap")
