@@ -105,6 +105,15 @@ fn empty_routing_and_preference_are_no_refusal_and_both_spellings_work() {
 }
 
 #[test]
+fn a_preference_is_taken_and_changes_nothing() {
+    let r = rig();
+    index(&r, "logs", 2);
+    let reply = call(&r, "POST", "/logs/_pit?preference=_local", None);
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert!(reply.text().contains(r#""total":2"#), "{}", reply.text());
+}
+
+#[test]
 fn a_delete_body_is_bounded_deduplicated_and_strict() {
     let r = rig();
     index(&r, "logs", 1);

@@ -120,11 +120,6 @@ fn what_cannot_be_frozen_is_refused_with_the_javas_status() {
             501,
             "unsupported_point_in_time",
         ),
-        (
-            "/logs/_search/point_in_time?preference=_local",
-            501,
-            "unsupported_point_in_time",
-        ),
         ("/absent/_search/point_in_time", 404, "index_not_found"),
         ("/empty/_search/point_in_time", 409, "nothing_published"),
     ] {

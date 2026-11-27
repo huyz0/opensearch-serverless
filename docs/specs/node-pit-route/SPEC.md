@@ -12,7 +12,7 @@ R10.6: the create, delete and list routes of a point in time, in the Java's Poin
 - `DELETE /_search/point_in_time` with a body naming `pit_id` (one id or an array, `_all` meaning every view), `DELETE /_search/point_in_time/_all`, `DELETE /_search/point_in_time/{id}` and `DELETE /_pit/{id}`: release views and answer `pits`, one `{successful, pit_id}` an id, a repeated id once. Naming ids of which none existed is 404 `pit_not_found`. `_all` releases the views that are finished, never a capture still running.
 - `GET /_search/point_in_time/_all`: `pits`, one `{pit_id, keep_alive (milliseconds left), index}` a finished view.
 
-Refusals as the Java's: a list or pattern of indices, an alias, a bucketed index, `routing` and `preference` are 501 `unsupported_point_in_time`; an absent index is 404 `index_not_found`; a shard that published nothing is 409 `nothing_published`.
+Refusals as the Java's: a list or pattern of indices, an alias, a bucketed index and `routing` are 501 `unsupported_point_in_time` (`preference` is taken and has no effect: a shard has no copies); an absent index is 404 `index_not_found`; a shard that published nothing is 409 `nothing_published`.
 
 Not here: closing the frozen shards this node holds open for a view (there is no cache of them yet, R7), searching a view, the system-index refusal, and the janitor pass reading the views.
 
@@ -20,7 +20,7 @@ Not here: closing the frozen shards this node holds open for a view (there is no
 
 - AC-1: a create answers 200 with a pit_id that reads back from the store as a finished view of every shard, and the shard counts, creation time, index and keep-alive in the answer.
 - AC-2: `keep_alive` takes ms, s, m, h and d units; a value past an hour is 400 `keep_alive_too_long`, and one that is no time value is 400 `illegal_argument_exception`; neither writes anything.
-- AC-3: a pattern or list of indices, an alias, a bucketed index, and `routing` or `preference` are 501; an absent index is 404; a shard with nothing published is 409 and leaves nothing live.
+- AC-3: a pattern or list of indices, an alias, a bucketed index, and `routing` are 501; an absent index is 404; a shard with nothing published is 409 and leaves nothing live.
 - AC-4: a delete by body (an id, an array, with `_all`), by `_all` and by path releases the views and answers each id; ids none of which existed are 404; a body with another field, no body, or an id that is no id is refused or not found, never a 500.
 - AC-5: `_all` releases finished views and leaves a capture in progress.
 - AC-6: a list answers each finished view with its remaining keep-alive and index, and nothing for a capture in progress, a released view or an expired one.
