@@ -11,17 +11,19 @@ name: ci
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   push:
     branches: [main]
   workflow_dispatch:
 
-# A newer push to the same PR replaces the run in flight; main runs never
-# cancel each other. Description and label edits run in a group of their own,
-# so editing a PR never cancels the run that checks its code.
+# A newer push to the same PR replaces the run in flight, and a newer main
+# commit replaces the main run in flight (it holds every earlier commit).
+# Description edits run in a group of their own, so editing a PR never cancels
+# the run that checks its code. Label changes start no run: the checks read
+# only needs-huy, which this workflow adds itself.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) && 'text' || 'code' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'edited' && 'text' || 'code' }}
+  cancel-in-progress: true
 
 permissions:
   actions: read
@@ -69,8 +71,8 @@ jobs:
             echo Cargo.lock > "$RUNNER_TEMP/changed.txt"; : > "$RUNNER_TEMP/added.txt"
           fi
           python3 scripts/ci-changes.py "$RUNNER_TEMP/changed.txt" | tee -a "$GITHUB_OUTPUT"
-          # A description or label edit changes no code: check the PR text only.
-          case "$ACTION" in edited|labeled|unlabeled) echo "text_only=true" >> "$GITHUB_OUTPUT";; *) echo "text_only=false" >> "$GITHUB_OUTPUT";; esac
+          # A description edit changes no code: check the PR text only.
+          case "$ACTION" in edited) echo "text_only=true" >> "$GITHUB_OUTPUT";; *) echo "text_only=false" >> "$GITHUB_OUTPUT";; esac
 
       - name: pull request description and risk
         if: github.event_name == 'pull_request'
