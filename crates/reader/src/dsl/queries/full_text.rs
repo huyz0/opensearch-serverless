@@ -68,7 +68,8 @@ pub fn parse_match_phrase(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some("slop") => slop = int_value(p)?,
             Some("zero_terms_query") => zero_terms_all = zero_terms(p)?,
             Some("analyzer") if p.text() == "standard" => {}
-            Some(param @ ("analyzer" | "_name")) => return Err(unsupported("match_phrase", param)),
+            Some("_name") => crate::dsl::values::name_value(p)?,
+            Some(param @ "analyzer") => return Err(unsupported("match_phrase", param)),
             Some(param) => return Err(does_not_support(p, "match_phrase", param)),
         }
         Ok(())
@@ -247,7 +248,8 @@ pub fn parse_multi_match(p: &mut Parser<'_>) -> Result<More, DslError> {
                     bool_value(p)?;
                 }
                 "analyzer" | "fuzziness" | "prefix_length" | "max_expansions" | "fuzzy_rewrite"
-                | "cutoff_frequency" | "_name" => return Err(unsupported("multi_match", current)),
+                | "cutoff_frequency" => return Err(unsupported("multi_match", current)),
+                "_name" => crate::dsl::values::name_value(p)?,
                 _ => return Err(does_not_support(p, "multi_match", current)),
             },
             Some(k) => {

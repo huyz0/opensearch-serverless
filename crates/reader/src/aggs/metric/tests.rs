@@ -70,7 +70,7 @@ fn every_served_metric_parses_in_request_order() {
     for m in Metric::ALL {
         assert_eq!(Metric::from_name(m.name()), Some(m));
     }
-    assert_eq!(Metric::from_name("adjacency_matrix"), None);
+    assert_eq!(Metric::from_name("geohash_grid"), None);
 }
 
 #[test]
@@ -115,8 +115,8 @@ fn malformed_aggregations_fail_as_opensearch_fails_them() {
             "Unknown aggregation type [nope]",
         ),
         (
-            r#"{"aggs":{"a":{"adjacency_matrix":{"filters":{}}}}}"#,
-            "the [adjacency_matrix] aggregation is not supported by this node yet",
+            r#"{"aggs":{"a":{"geohash_grid":{"filters":{}}}}}"#,
+            "the [geohash_grid] aggregation is not supported by this node yet",
         ),
         (
             r#"{"aggs":{"a":{"min":{"field":"n"},"meta":{}}}}"#,

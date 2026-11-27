@@ -22,7 +22,7 @@ pub fn parse_constant_score(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some(Kind::StartObject) => return Err(does_not_support(p, "constant_score", current)),
             Some(k) if k.is_value() => match current {
                 "boost" => boost = float_value(p)?,
-                "_name" => return Err(DslError::unsupported("[constant_score] [_name]")),
+                "_name" => crate::dsl::values::name_value(p)?,
                 _ => return Err(does_not_support(p, "constant_score", current)),
             },
             Some(k) => {
@@ -87,7 +87,7 @@ pub fn parse_dis_max(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some(_) => match current {
                 "boost" => boost = float_value(p)?,
                 "tie_breaker" => tie_breaker = float_value(p)?,
-                "_name" => return Err(DslError::unsupported("[dis_max] [_name]")),
+                "_name" => crate::dsl::values::name_value(p)?,
                 _ => return Err(does_not_support(p, "dis_max", current)),
             },
         }
@@ -122,7 +122,7 @@ pub fn parse_boosting(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some(_) => match current {
                 "negative_boost" => negative_boost = float_value(p)?,
                 "boost" => boost = float_value(p)?,
-                "_name" => return Err(DslError::unsupported("[boosting] [_name]")),
+                "_name" => crate::dsl::values::name_value(p)?,
                 _ => return Err(does_not_support(p, "boosting", current)),
             },
         }
@@ -163,7 +163,7 @@ pub fn parse_match_none(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some(Kind::FieldName) => current = p.text(),
             Some(k) if k.is_value() => match current {
                 "boost" => boost = float_value(p)?,
-                "_name" => return Err(DslError::unsupported("[match_none] [_name]")),
+                "_name" => crate::dsl::values::name_value(p)?,
                 _ => return Err(does_not_support(p, "match_none", current)),
             },
             Some(k) => {
