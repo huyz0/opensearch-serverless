@@ -109,11 +109,14 @@ pub enum Metric {
     /// `rare_terms`: the terms of a keyword field held by at most
     /// `max_doc_count` of the matches.
     RareTerms,
+    /// `multi_terms`: the documents counted by each combination of the
+    /// values of several keyword or long fields.
+    MultiTerms,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 24] = [
+    pub const ALL: [Metric; 25] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -138,6 +141,7 @@ impl Metric {
         Metric::Global,
         Metric::SignificantTerms,
         Metric::RareTerms,
+        Metric::MultiTerms,
     ];
 
     /// The aggregation type name.
@@ -167,6 +171,7 @@ impl Metric {
             Metric::Global => "global",
             Metric::SignificantTerms => "significant_terms",
             Metric::RareTerms => "rare_terms",
+            Metric::MultiTerms => "multi_terms",
         }
     }
 
@@ -282,7 +287,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                     .saturating_mul(per_range)
                     .saturating_add(keys)
             }),
-            Metric::Composite => agg.composite.as_deref().map_or(0, |spec| {
+            Metric::Composite | Metric::MultiTerms => agg.composite.as_deref().map_or(0, |spec| {
                 crate::aggs::bucket::composite_collect::state_bytes(spec, agg.subs.len())
             }),
             Metric::Filters | Metric::Filter | Metric::Missing | Metric::Global => agg

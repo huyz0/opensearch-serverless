@@ -75,6 +75,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Missing
         | Metric::Global
         | Metric::Composite
+        | Metric::MultiTerms
         | Metric::Nested
         | Metric::ReverseNested => NEED_COUNT,
     }
@@ -117,6 +118,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         | Metric::Nested
         | Metric::ReverseNested => filters_collect::value(agg, &[]),
         Metric::Composite => composite_collect::empty(agg),
+        Metric::MultiTerms => crate::aggs::bucket::multi_collect::empty(agg),
         Metric::SignificantTerms => crate::aggs::bucket::significant_collect::unmapped(
             &crate::aggs::bucket::significant_collect::spec_of(agg),
         ),
@@ -171,7 +173,9 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32, values: ValueKind) -> AggNod
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
         Metric::Range | Metric::DateRange => range_collect::node(agg),
-        Metric::Composite => unreachable!("a composite's node is made by composite_collect::node"),
+        Metric::Composite | Metric::MultiTerms => {
+            unreachable!("a composite's node is made by composite_collect::node")
+        }
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(values),
@@ -380,6 +384,10 @@ pub fn collect<S: BlobStore + 'static>(
             Resolved::Unmapped | Resolved::Hits | Resolved::Composite(false) => {
                 (Format::Raw, value_of(agg, &MetricState::default()))
             }
+            Resolved::Composite(true) if agg.metric == Metric::MultiTerms => (
+                Format::Raw,
+                crate::aggs::bucket::multi_collect::value(agg, shard, results.next())?,
+            ),
             Resolved::Composite(true) => (
                 Format::Raw,
                 composite_collect::value_from(agg, shard, results.next())?,
