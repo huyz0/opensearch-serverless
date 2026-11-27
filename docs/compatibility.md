@@ -40,7 +40,7 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 
 ## `_field_caps` on a reader node
 
-`GET|POST /{index}/_field_caps?fields=` over comma-separated concrete index names answers each mapped field (multi-fields included) by type with `searchable`, `aggregatable`, and `indices` or `non_*_indices` where the indices differ ([field-caps-api](specs/field-caps-api/SPEC.md)). **Refused:** `/_field_caps` without an index, a wildcard, `_all` or an alias as the index, and the parameters `ignore_unavailable`, `include_unmapped`, `filters`, `types`, `index_filter` and the `fields` body key. **Differs:** the metadata fields (`_id`, `_index`, `_source` and the rest) are not listed, so `fields=*` answers fewer entries than OpenSearch.
+`GET|POST /{index}/_field_caps?fields=` over comma-separated concrete index names answers each mapped field (multi-fields included) by type with `searchable`, `aggregatable`, and `indices` or `non_*_indices` where the indices differ ([field-caps-api](specs/field-caps-api/SPEC.md)). **Refused:** `/_field_caps` without an index, a wildcard or `_all` as the index, an alias of several indexes (501), and the parameters `ignore_unavailable`, `include_unmapped`, `filters`, `types`, `index_filter` and the `fields` body key. **Differs:** the metadata fields (`_id`, `_index`, `_source` and the rest) are not listed, so `fields=*` answers fewer entries than OpenSearch. An alias of one index is read as that index and the answer names the index ([search-on-alias](specs/search-on-alias/SPEC.md)).
 
 ## `_msearch` on a reader node
 

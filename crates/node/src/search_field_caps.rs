@@ -225,6 +225,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 "a pattern, _all or an empty name as the index of _field_caps",
             ));
         }
+        // An alias of one index is that index; the answer names the index.
+        let mut indices = indices;
+        for name in &mut indices {
+            if let Some(index) = self.alias_target(name)? {
+                *name = index;
+            }
+        }
         let patterns: Vec<&str> = fields.split(',').filter(|p| !p.is_empty()).collect();
         let mut per_index = Vec::new();
         for index in &indices {
