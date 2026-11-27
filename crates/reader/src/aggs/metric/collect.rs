@@ -69,6 +69,7 @@ fn needs(metric: Metric) -> u8 {
         Metric::Range
         | Metric::Filters
         | Metric::Filter
+        | Metric::Missing
         | Metric::Composite
         | Metric::Nested
         | Metric::ReverseNested => NEED_COUNT,
@@ -105,9 +106,11 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
             &date_histogram_spec(agg),
         ))),
         Metric::Range => range_collect::value(agg, &[]),
-        Metric::Filters | Metric::Filter | Metric::Nested | Metric::ReverseNested => {
-            filters_collect::value(agg, &[])
-        }
+        Metric::Filters
+        | Metric::Filter
+        | Metric::Missing
+        | Metric::Nested
+        | Metric::ReverseNested => filters_collect::value(agg, &[]),
         Metric::Composite => composite_collect::empty(agg),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
