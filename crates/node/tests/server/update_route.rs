@@ -222,6 +222,7 @@ fn the_callers_condition_and_the_options_are_checked() {
 
 #[test]
 fn an_update_script_edits_deletes_or_skips_behind_the_switch() {
+    let _switch = support::PAINLESS.lock().unwrap_or_else(|e| e.into_inner());
     let r = rig();
     put(&r, "1", r#"{"n":1,"o":{"x":1}}"#);
     let script = |s: &str| format!(r#"{{"script":{{"source":"{s}","params":{{"by":4}}}}}}"#);

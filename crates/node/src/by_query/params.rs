@@ -3,6 +3,7 @@
 use oss_rest::{Request, RestError};
 
 use crate::bulk_route::refresh;
+use crate::update_body::{ScriptDef, script};
 
 /// The most bytes of a request body.
 const MAX_BODY_BYTES: usize = 1 << 20;
@@ -30,6 +31,8 @@ pub(super) struct Params {
     pub refresh: bool,
     /// `conflicts=abort`, the default.
     pub abort_on_conflict: bool,
+    /// An update by query's `script`; `None` for a delete.
+    pub script: Option<ScriptDef>,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -43,7 +46,10 @@ fn unsupported(what: &str) -> RestError {
 
 impl Params {
     /// Reads the request, refusing what this node does not do.
-    pub fn read(req: &mut Request<'_>) -> Result<Self, RestError> {
+    ///
+    /// `update`: the request is an update by query, whose `query` may be
+    /// absent and whose `script` is required.
+    pub fn read(req: &mut Request<'_>, update: bool) -> Result<Self, RestError> {
         let abort_on_conflict = match req.param("conflicts").as_deref() {
             None | Some("abort") => true,
             Some("proceed") => false,
@@ -84,14 +90,22 @@ impl Params {
             // ALLOC: error path; one message.
             bad(format!("failed to parse the request body: {}", e.reason))
         })?;
-        let Some(query) = value.get("query") else {
-            return Err(bad("query is missing"));
+        let query = match value.get("query") {
+            Some(query) => query.to_json(),
+            None if update => String::from(r#"{"match_all":{}}"#),
+            None => return Err(bad("query is missing")),
+        };
+        let script = match (update, value.get("script")) {
+            (true, Some(def)) => Some(script(def)?),
+            (true, None) => return Err(bad("[script] is required by this node's update by query")),
+            (false, _) => None,
         };
         Ok(Self {
-            query: query.to_json(),
+            query,
             max_docs,
             refresh,
             abort_on_conflict,
+            script,
         })
     }
 }

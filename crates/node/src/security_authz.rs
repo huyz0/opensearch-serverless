@@ -211,6 +211,7 @@ const ALL_ACCESS: &[&str] = &[
     "/{index}/_msearch",
     "/{index}/_msearch/template",
     "/{index}/_delete_by_query",
+    "/{index}/_update_by_query",
     "/_cat",
     "/_cat/health",
     "/_cat/indices",
