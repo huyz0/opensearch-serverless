@@ -101,7 +101,7 @@ pub struct ScriptScore {
 
 fn refuse(what: &str) -> DslError {
     // ALLOC: error path; one message.
-    DslError::unsupported(&format!("[script_score] {what}"))
+    DslError::unsupported(&format!("[script] {what}"))
 }
 
 /// `ScriptScoreFunctionBuilder.fromXContent`: on the function object's start.
@@ -141,7 +141,7 @@ pub(crate) fn parse_params(p: &mut Parser<'_>) -> Result<Vec<(String, Param)>, D
         match p.next_token() {
             Some(Kind::Number) => {
                 let v = Param::of_number(p.text())
-                    .ok_or_else(|| DslError::illegal("[script_score] a param is not a number"))?;
+                    .ok_or_else(|| DslError::illegal("[script] a param is not a number"))?;
                 params.push((key, v));
             }
             // ALLOC: bounded by the script's source, at most 65,535 bytes.
@@ -167,12 +167,16 @@ pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, Ds
             // ALLOC: bounded by the script's source, at most 65,535 bytes.
             ("lang", Some(Kind::String)) => lang = Some(p.text().to_owned()),
             ("params", Some(Kind::StartObject)) => params = parse_params(p)?,
-            ("id", _) => return Err(refuse("a stored script [id]")),
+            ("id", _) => {
+                return Err(refuse(
+                    "a stored script [id] is not served: send the script as [source]",
+                ));
+            }
             ("options", _) => return Err(refuse("script [options]")),
             _ => {
                 // ALLOC: error path; one message.
                 return Err(DslError::illegal(format!(
-                    "[script_score] unknown script field [{name}]"
+                    "[script] unknown script field [{name}]"
                 )));
             }
         }
@@ -182,18 +186,17 @@ pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, Ds
         None | Some("painless") if painless => Lang::Painless,
         _ => {
             return Err(DslError::illegal(
-                "[script_score] runs only lang [expression] on this node",
+                "[script] runs only lang [expression] on this node",
             ));
         }
     };
     if lang == Lang::Expression && params.iter().any(|(_, v)| v.number().is_none()) {
         return Err(refuse("a param that is not a number"));
     }
-    let source =
-        source.ok_or_else(|| DslError::illegal("[script_score] script requires a [source]"))?;
+    let source = source.ok_or_else(|| DslError::illegal("[script] script requires a [source]"))?;
     if source.len() > MAX_SOURCE_BYTES {
         return Err(DslError::illegal(
-            "[script_score] source is over the 65535 byte limit",
+            "[script] source is over the 65535 byte limit",
         ));
     }
     Ok(ScriptScore {
