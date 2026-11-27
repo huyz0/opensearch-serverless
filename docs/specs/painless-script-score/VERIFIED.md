@@ -12,3 +12,4 @@ Run 2026-11-27 in a Linux cloud sandbox (emulator store, so numbers are provisio
 - AC-8: `a_script_query_matches_where_the_script_is_true` in crates/node/tests/script_score_painless.rs
 
 Not run: scores against a recorded Java OpenSearch; a keyword field read by a script (the engine's kind is covered in lucene-rust, not over this node's mapping).
+- AC-9: `a_metric_aggregation_reads_a_painless_script` in crates/node/tests/script_score_painless.rs

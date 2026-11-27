@@ -18,7 +18,10 @@ use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg, PercentilesOpti
 use crate::aggs::pipeline::parse as pipeline_parse;
 use crate::aggs::pipeline::{PipelineAgg, PipelineKind};
 use crate::dsl::error::{DslError, parsing_failure};
+use crate::dsl::queries::function_score_script::ScriptScore;
 use crate::dsl::tokens::{Kind, Parser};
+
+use super::script_values;
 use crate::dsl::values::suggest;
 use crate::failure::Failure;
 
@@ -313,6 +316,7 @@ fn parse_definition(
                     composite: None,
                     significant: None,
                     rare: None,
+                    script: None,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),
                 };
@@ -327,8 +331,8 @@ fn parse_definition(
                             agg.top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
                         }
                         _ => {
-                            let (field, options) = parse_metric_body(p, metric, name)?;
-                            (agg.field, agg.cardinality) = (field, options);
+                            let (field, options, script) = parse_metric_body(p, metric, name)?;
+                            (agg.field, agg.cardinality, agg.script) = (field, options, script);
                         }
                     }
                 }
@@ -361,7 +365,7 @@ fn parse_metric_body(
     p: &mut Parser<'_>,
     metric: Metric,
     name: &str,
-) -> Result<(String, CardinalityOptions), DslError> {
+) -> Result<(String, CardinalityOptions, Option<Box<ScriptScore>>), DslError> {
     let ty = metric.name();
     let keys = if metric == Metric::Cardinality {
         CARDINALITY_KEYS
@@ -369,6 +373,7 @@ fn parse_metric_body(
         VALUES_SOURCE_KEYS
     };
     let mut field: Option<String> = None;
+    let mut script: Option<Box<ScriptScore>> = None;
     let mut options = CardinalityOptions::default();
     let mut key = "";
     let mut key_at = p.location();
@@ -390,6 +395,11 @@ fn parse_metric_body(
                 &format!("[{ty}] unknown field [{key}]{}", suggest(key, keys)),
                 None,
             ));
+        }
+        if key == "script" && script_values::takes_script(metric) {
+            // ALLOC: one box a script, bounded by the source's size.
+            script = Some(Box::new(script_values::parse(p, kind)?));
+            continue;
         }
         let accepted = match key {
             "field" | "execution_hint" => kind == Kind::String,
@@ -442,8 +452,18 @@ fn parse_metric_body(
             }
         }
     }
+    if script.is_some() {
+        if field.is_some() {
+            // ALLOC: error path; one message.
+            return Err(DslError::unsupported(&format!(
+                "the [{ty}] aggregation's [script] with a [field]"
+            )));
+        }
+        // ALLOC: empty; a scripted aggregation reads no field.
+        return Ok((String::new(), options, script));
+    }
     let field = field.ok_or_else(|| {
         DslError::illegal("Required one of fields [field, script], but none were specified. ")
     })?;
-    Ok((field, options))
+    Ok((field, options, None))
 }

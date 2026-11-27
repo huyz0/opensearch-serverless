@@ -25,6 +25,7 @@ pub mod percentiles;
 mod registered;
 pub mod render;
 pub mod resolve;
+pub mod script_values;
 pub mod sub_rules;
 pub mod tdigest;
 pub mod top_hits;
@@ -223,6 +224,9 @@ pub struct MetricAgg {
     pub significant: Option<Box<crate::aggs::bucket::significant::SignificantSpec>>,
     /// A `rare_terms`' options; `None` for every other aggregation.
     pub rare: Option<Box<crate::aggs::bucket::rare::RareSpec>>,
+    /// A `script` in place of the field, on the metrics that take one and
+    /// only when the node compiles Painless; `None` otherwise.
+    pub script: Option<Box<crate::dsl::queries::function_score_script::ScriptScore>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.

@@ -12,7 +12,8 @@
 - Params are numbers (int, long, double), strings and booleans, as `params.name`.
 - `script_fields` and a `_script` sort of `type: number` take the same scripts, under the same switch: the script's number is the field's value or the sort key. A `script_fields` script that reads `_score` is refused as an expression is.
 - The `script` query takes a Painless script (an object, or a string that is its source) and `boost`, under the same switch: it matches the documents the script returns `true` for. Off, it is refused as before. A script in another language is refused.
-- Aggregations, update and ingest scripts are unchanged: they still refuse `lang: painless` (later hooks).
+- `min`, `max`, `sum`, `avg`, `stats` and `value_count` take a `script` in place of a `field` (text, or an object with `source` and `params`), under the same switch: the values are what the script returns for each document, as doubles (`ValuesSource.Numeric.Script`), run by the engine's aggregation script. A `script` with a `field` (`_value` mapping), a stored script and any other aggregation's `script` are refused. The shard action's wire (the Java shell's) has no script field, so a scripted aggregation runs only where the request is parsed.
+- Update and ingest scripts are other hooks, specified in [coordinator-update](../coordinator-update/SPEC.md) and [ingest-pipelines](../ingest-pipelines/SPEC.md).
 - The engine's bounds (source 65,535 bytes, loop counter, call depth, memory per invocation) apply as ADR 0069 states.
 
 ## Acceptance criteria
@@ -24,6 +25,7 @@
 - AC-6: a Painless `script_fields` script writes its number for each hit.
 - AC-7: a Painless `_script` sort orders hits by its number.
 - AC-8: a Painless `script` query matches the documents its script returns `true` for, alone and in a `bool` filter.
+- AC-9: a metric aggregation over a Painless `script` reads each document's value, and the refusals above are 400 with a stated reason.
 - AC-5: a Painless script costs the same object-store requests as the same search with an expression.
 
 ## Tests
