@@ -8,23 +8,30 @@
 
 mod change;
 mod params;
+mod plan;
+mod reindex;
 mod response;
 #[cfg(feature = "reader")]
 mod search;
+mod task_forward;
+mod tasks;
+mod tasks_route;
 
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use oss_coordinator::docs::by_query::{Hit, Source, Walk, walk};
-use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
-use oss_writer::bulk::{BulkBudget, Grant, IdGenerator, Target};
+use oss_coordinator::docs::by_query::{Hit, Source};
+use oss_rest::{Method, Request, Response, RestError, RouteError, Router};
+use oss_writer::bulk::{BulkBudget, Grant};
 
 pub use change::DeleteChange;
-use params::Params;
 #[cfg(feature = "reader")]
 pub use search::SearchMatches;
+pub use task_forward::{TASK_TIMEOUT, TaskForwarder, TaskHandler, TaskSend};
+pub use tasks::Tasks;
 
-use crate::writer::{RoleTarget, WriterRole};
+use crate::writer::WriterRole;
 
 /// How long a page waits for the write budget.
 const ADMIT_WAIT: Duration = Duration::from_secs(30);
@@ -62,6 +69,8 @@ struct QuerySource<'a> {
     budget: &'a BulkBudget,
     index: &'a str,
     query: &'a str,
+    /// Set by a cancel: the walk then finds nothing more and ends.
+    cancel: &'a AtomicBool,
 }
 
 impl Source for QuerySource<'_> {
@@ -72,6 +81,9 @@ impl Source for QuerySource<'_> {
         Self: 'a;
 
     fn newest(&self, shard: u32) -> Result<Option<i64>, RestError> {
+        if self.cancel.load(Ordering::Relaxed) {
+            return Ok(None);
+        }
         self.matches.newest(self.index, shard, self.query)
     }
 
@@ -82,6 +94,9 @@ impl Source for QuerySource<'_> {
         after: Option<i64>,
         size: usize,
     ) -> Result<Vec<Hit>, RestError> {
+        if self.cancel.load(Ordering::Relaxed) {
+            return Ok(Vec::new());
+        }
         self.matches
             .page(self.index, shard, self.query, up_to, after, size)
     }
@@ -92,68 +107,51 @@ impl Source for QuerySource<'_> {
     }
 }
 
-fn now_millis() -> u64 {
+pub(crate) fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
-/// Serves delete-by-query over a [`WriterRole`].
+/// Serves delete-by-query, update-by-query and reindex over a [`WriterRole`].
 pub struct ByQueryService {
     role: Arc<WriterRole>,
     matches: Arc<dyn ShardMatches>,
     budget: BulkBudget,
     address: [u8; 6],
+    tasks: Arc<Tasks>,
+    scripts: Option<Arc<dyn oss_types::stored_scripts::StoredScripts>>,
 }
 
 impl ByQueryService {
     /// A service deleting from `role`'s shards the documents `matches`
-    /// finds, each page admitted to `budget`.
+    /// finds, each page admitted to `budget`; background requests are
+    /// tracked in `tasks`.
     pub fn new(
         role: Arc<WriterRole>,
         matches: Arc<dyn ShardMatches>,
         budget: BulkBudget,
         address: [u8; 6],
+        tasks: Arc<Tasks>,
     ) -> Self {
         Self {
             role,
             matches,
             budget,
             address,
+            tasks,
+            scripts: None,
         }
     }
 
-    /// `POST /{index}/_delete_by_query`.
-    pub fn delete(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
-        let started = Instant::now();
-        let params = Params::read(req)?;
-        let index = req
-            .path_param("index")
-            .ok_or_else(|| RestError::illegal_argument("an index is required"))?
-            .into_owned();
-        let info = RoleTarget::new(&self.role)
-            .index(&index)
-            .ok_or_else(|| missing(&index))?;
-        let shards: Vec<u32> = (0..info.shards).collect();
-        let source = QuerySource {
-            matches: &*self.matches,
-            budget: &self.budget,
-            index: &index,
-            query: &params.query,
-        };
-        let mut ids = IdGenerator::new(0, self.address);
-        let mut change = DeleteChange::new(&self.role, &info, &mut ids, now_millis());
-        let outcome: Walk = walk(
-            &source,
-            &shards,
-            params.max_docs,
-            params.refresh,
-            params.abort_on_conflict,
-            &mut change,
-        )?;
-        let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
-        let (status, body) = response::render(&outcome, &index, took);
-        resp.send(status, JSON, body.as_bytes())
+    /// The same, resolving a script named by `id` through `scripts`.
+    #[must_use]
+    pub fn with_scripts(
+        mut self,
+        scripts: Arc<dyn oss_types::stored_scripts::StoredScripts>,
+    ) -> Self {
+        self.scripts = Some(scripts);
+        self
     }
 }
 
@@ -169,16 +167,37 @@ fn missing(index: &str) -> RestError {
     )
 }
 
-/// The delete-by-query route added to `router`.
+/// The by-query, reindex and task routes added to `router`.
 ///
 /// # Errors
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: Arc<ByQueryService>) -> Result<Router, RouteError> {
-    router.route(
-        Method::Post,
-        "/{index}/_delete_by_query",
-        params::PARAMS,
-        move |req: &mut Request<'_>, resp: &mut Response<'_>| service.delete(req, resp),
-    )
+    let updates = Arc::clone(&service);
+    let reindexes = Arc::clone(&service);
+    let router = router
+        .route(
+            Method::Post,
+            "/{index}/_delete_by_query",
+            params::PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                let plan = service.plan_delete(req)?;
+                service.serve(plan, resp)
+            },
+        )?
+        .route(Method::Post, "/{index}/_update_by_query", params::PARAMS, {
+            let service = Arc::clone(&updates);
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                let plan = service.plan_update(req)?;
+                service.serve(plan, resp)
+            }
+        })?
+        .route(Method::Post, "/_reindex", params::PARAMS, {
+            let service = Arc::clone(&reindexes);
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                let plan = service.plan_reindex(req)?;
+                service.serve(plan, resp)
+            }
+        })?;
+    tasks_route::routes(router, updates)
 }

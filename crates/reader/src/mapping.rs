@@ -43,6 +43,15 @@ pub enum FieldType {
     /// `date` in the default format (`strict_date_optional_time||epoch_millis`),
     /// as epoch milliseconds in `LongPoint`s and sorted numeric doc values.
     Date,
+    /// `float`: `FloatPoint`s and doc values of the sortable int.
+    Float,
+    /// `double`: `DoublePoint`s and doc values of the sortable long.
+    Double,
+    /// `half_float`: 2-byte `HalfFloatPoint`s and doc values of the sortable short.
+    HalfFloat,
+    /// `scaled_float`: `LongPoint`s and doc values of `Math.round(value * scaling_factor)`;
+    /// holds the bits of the factor.
+    Scaled(u64),
     /// A type, or an option, this reader does not search yet.
     Unsupported(String),
 }
@@ -78,38 +87,11 @@ pub struct Fetch {
     pub ignore_above: Option<i64>,
     /// An option the `fields` API does not serve (`null_value`, `ignore_malformed`).
     pub unserved: Option<&'static str>,
+    /// `store: true`: the field's value is also kept as a stored field.
+    pub stored: bool,
 }
 
-/// The space a `knn_vector` field scores in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Space {
-    /// `l2`, the default.
-    L2,
-    /// `cosinesimil`.
-    CosineSimil,
-    /// `innerproduct`.
-    InnerProduct,
-}
-
-impl Space {
-    /// The name the plugin's messages give the space (`SpaceType.name()`).
-    pub fn name(self) -> &'static str {
-        match self {
-            Space::L2 => "L2",
-            Space::CosineSimil => "COSINESIMIL",
-            Space::InnerProduct => "INNER_PRODUCT",
-        }
-    }
-}
-
-/// What the `knn` query reads of a `knn_vector` field.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct KnnField {
-    /// The vectors' length.
-    pub dimension: u32,
-    /// The space the field's `space_type` names.
-    pub space: Space,
-}
+pub use crate::mapping_types::{KnnField, Space};
 
 /// An index's fields by full name.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -119,6 +101,8 @@ pub struct Mapping {
     nested: BTreeSet<String>,
     /// The fields some `copy_to` names, whose source paths include the copying fields'.
     copy_targets: BTreeSet<String>,
+    /// The full paths of the object fields (those with sub-fields and no type), nested ones included.
+    objects: BTreeSet<String>,
 }
 
 /// Why a mapping could not be read.
@@ -221,6 +205,11 @@ impl Mapping {
     /// The field named `name`.
     pub fn get(&self, name: &str) -> Option<&Field> {
         self.fields.get(name)
+    }
+
+    /// Whether `path` is an object field, `nested` or not.
+    pub fn is_object(&self, path: &str) -> bool {
+        self.objects.contains(path)
     }
 
     /// Whether a `copy_to` names the field `name`.
@@ -335,6 +324,7 @@ impl Mapping {
         let mut doc_values = true;
         let mut options = None;
         let mut dimension = None;
+        let mut scaling = None;
         let mut space = None;
         let (mut analyzer, mut search, mut quote) = (None, None, None);
         while let Some(Kind::FieldName) = p.next_token() {
@@ -346,6 +336,7 @@ impl Mapping {
                 "index" => indexed = text != "false",
                 "doc_values" => doc_values = text != "false",
                 "dimension" => dimension = text.parse::<u32>().ok(),
+                "scaling_factor" => scaling = text.parse::<f64>().ok(),
                 "space_type" => space = Some(text),
                 "method" if p.current_token() == Some(Kind::StartObject) => {
                     while let Some(Kind::FieldName) = p.next_token() {
@@ -365,6 +356,7 @@ impl Mapping {
                 }
                 "ignore_above" => fetch.ignore_above = text.parse().ok(),
                 "null_value" => fetch.unserved = Some("null_value"),
+                "store" if text == "true" => fetch.stored = true,
                 "ignore_malformed" if text == "true" => fetch.unserved = Some("ignore_malformed"),
                 "coerce" if text == "false" => fetch.unserved = Some("coerce"),
                 "index_prefixes" => {
@@ -393,10 +385,16 @@ impl Mapping {
             }
             // ALLOC: one path a nested object, at most MAX_FIELDS.
             self.nested.insert(name.to_owned());
+            // ALLOC: one path a nested object, at most MAX_FIELDS.
+            self.objects.insert(name.to_owned());
             return Ok(());
         }
         let Some(ty) = ty else {
             // An object field: its sub-fields are already in.
+            if self.objects.len() < MAX_FIELDS {
+                // ALLOC: one path an object, at most MAX_FIELDS.
+                self.objects.insert(name.to_owned());
+            }
             return Ok(());
         };
         // A pin the index holds, named by the analyzer and by no other
@@ -440,6 +438,12 @@ impl Mapping {
             },
             ("long", None) => FieldType::Long,
             ("date", None) => FieldType::Date,
+            ("float", None) => FieldType::Float,
+            ("double", None) => FieldType::Double,
+            ("half_float", None) => FieldType::HalfFloat,
+            ("scaled_float", None) if scaling.is_some_and(|f| f.is_finite() && f > 0.0) => {
+                FieldType::Scaled(scaling.unwrap_or(1.0).to_bits())
+            }
             // ALLOC: one description a field this reader does not search.
             (other, None) => FieldType::Unsupported(format!("a [{other}] field")),
         };

@@ -1,0 +1,12 @@
+t>a ok
+t>_count ok
+x>a No aggregation found for path [x>a]
+t>zz No aggregation [zz] found for path [t>zz]
+p Cyclical dependency found with pipeline aggregator [p]
+m The first aggregation in buckets_path must be a multi-bucket aggregation for aggregation [p] found :org.opensearch.search.aggregations.metrics.AvgAggregationBuilder for buckets path: m
+t ok
+t>a.max ok
+t>a.value ok
+t>t>a No aggregation [t] found for path [t>t>a]
+ Invalid path []
+t> ok

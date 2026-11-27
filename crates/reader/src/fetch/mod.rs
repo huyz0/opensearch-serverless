@@ -11,3 +11,4 @@ pub mod script_fields;
 pub mod source_fields;
 pub mod source_filter;
 mod source_map;
+pub mod stored_fields;

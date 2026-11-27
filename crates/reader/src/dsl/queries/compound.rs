@@ -1,4 +1,4 @@
-//! The compound parsers: `constant_score`, `dis_max` and `match_none`,
+//! The compound parsers: `constant_score`, `dis_max`, `boosting` and `match_none`,
 //! each its builder's `fromXContent` at OpenSearch 3.10.0.
 
 use crate::dsl::bool_query::MAX_CLAUSES;
@@ -101,6 +101,54 @@ pub fn parse_dis_max(p: &mut Parser<'_>) -> Result<More, DslError> {
     Ok(More::DisMax {
         queries,
         tie_breaker,
+        boost,
+    })
+}
+
+/// `BoostingQueryBuilder.fromXContent`.
+pub fn parse_boosting(p: &mut Parser<'_>) -> Result<More, DslError> {
+    let (mut positive, mut negative) = (None, None);
+    let (mut boost, mut negative_boost) = (1.0, -1.0);
+    let mut current = "";
+    loop {
+        match p.next_token() {
+            Some(Kind::EndObject) | None => break,
+            Some(Kind::FieldName) => current = p.text(),
+            Some(Kind::StartObject) if current == "positive" => positive = Some(parse_inner(p)?),
+            Some(Kind::StartObject) if current == "negative" => negative = Some(parse_inner(p)?),
+            Some(Kind::StartObject | Kind::StartArray) => {
+                return Err(does_not_support(p, "boosting", current));
+            }
+            Some(_) => match current {
+                "negative_boost" => negative_boost = float_value(p)?,
+                "boost" => boost = float_value(p)?,
+                "_name" => return Err(DslError::unsupported("[boosting] [_name]")),
+                _ => return Err(does_not_support(p, "boosting", current)),
+            },
+        }
+    }
+    let Some(positive) = positive else {
+        return Err(DslError::parsing(
+            p.location(),
+            "[boosting] query requires 'positive' query to be set'",
+        ));
+    };
+    let Some(negative) = negative else {
+        return Err(DslError::parsing(
+            p.location(),
+            "[boosting] query requires 'negative' query to be set'",
+        ));
+    };
+    if negative_boost < 0.0 {
+        return Err(DslError::parsing(
+            p.location(),
+            "[boosting] query requires 'negative_boost' to be set to be a positive value'",
+        ));
+    }
+    Ok(More::Boosting {
+        positive,
+        negative,
+        negative_boost,
         boost,
     })
 }

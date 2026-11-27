@@ -5,4 +5,5 @@ pub mod bulk;
 pub mod by_query;
 pub mod get;
 pub mod update;
+pub mod update_script;
 pub mod write;

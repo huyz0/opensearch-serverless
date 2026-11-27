@@ -25,6 +25,8 @@ pub struct SourceFilter {
     pub includes: Vec<String>,
     /// The patterns a dropped field matches.
     pub excludes: Vec<String>,
+    /// `stored_fields: _none_`: the hit has no `_id` either.
+    pub no_id: bool,
 }
 
 impl SourceFilter {

@@ -98,10 +98,10 @@ fn term_errors_are_opensearchs() {
         reason(r#"{"query":{"term":{}}}"#),
         "field name is null or empty"
     );
-    assert!(
-        reason(r#"{"query":{"term":{"a":{"value":"x","case_insensitive":true}}}}"#)
-            .contains("not supported")
-    );
+    assert!(matches!(
+        query(r#"{"query":{"term":{"a":{"value":"x","case_insensitive":true}}}}"#).ok(),
+        Some(Query::More(_))
+    ));
     assert!(
         reason(r#"{"query":{"term":{"a":{"value":"x","_name":"n"}}}}"#).contains("not supported")
     );
@@ -176,7 +176,7 @@ fn match_errors_are_opensearchs() {
         reason(r#"{"query":{"match":{"t":{"query":"x","operator":"xor"}}}}"#),
         "No enum constant org.opensearch.index.query.Operator.XOR"
     );
-    for p in ["fuzziness", "lenient", "_name"] {
+    for p in ["fuzzy_rewrite", "lenient", "_name"] {
         let body = format!(r#"{{"query":{{"match":{{"t":{{"query":"x","{p}":"1"}}}}}}}}"#);
         assert!(reason(&body).contains("not supported"), "{p}");
     }

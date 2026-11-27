@@ -19,13 +19,18 @@ use crate::dsl::parse_chunks;
 use crate::search::{ShardError, search};
 use crate::{OpenShard, open_shard};
 
-fn source(body: &str) -> crate::dsl::SearchSource {
+pub(super) fn source(body: &str) -> crate::dsl::SearchSource {
     parse_chunks([body.as_bytes()]).expect("parses")
 }
 
-const DOCS: usize = 200;
+pub(super) const DOCS: usize = 200;
 
 fn shard(name: &str) -> OpenShard<Emulator> {
+    shard_of(Spec::new(name, DOCS).segments_of(50).with_texts(1))
+}
+
+pub(super) fn shard_of(spec: Spec) -> OpenShard<Emulator> {
+    let name = spec.name.clone();
     let config = BudgetConfig::new(4 << 20)
         .with_pool(Pool::Transport, 4 << 20)
         .expect("fits");
@@ -33,19 +38,19 @@ fn shard(name: &str) -> OpenShard<Emulator> {
     let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 8).expect("fits");
     let store = PooledStore::new(Emulator::new(64 << 20, 1), buffers);
     // Four segments, so each state carries across segments.
-    for (key, bytes) in blobs("", &Spec::new(name, DOCS).segments_of(50).with_texts(1)) {
+    for (key, bytes) in blobs("", &spec) {
         store.put(&key, &mut SliceSource::new(&bytes)).expect("put");
     }
     let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("page cache"));
-    open_shard(Arc::new(store), cache, "", name, 0).expect("opens")
+    open_shard(Arc::new(store), cache, "", &name, 0).expect("opens")
 }
 
-fn run(shard: &OpenShard<Emulator>, body: &str) -> Result<Vec<Partial>, ShardError> {
+pub(super) fn run(shard: &OpenShard<Emulator>, body: &str) -> Result<Vec<Partial>, ShardError> {
     let source = source(body);
     search(shard, "idx", &source, &Analyzer::standard(None)).map(|h| h.aggregations)
 }
 
-fn values(shard: &OpenShard<Emulator>, body: &str) -> Vec<Value> {
+pub(super) fn values(shard: &OpenShard<Emulator>, body: &str) -> Vec<Value> {
     run(shard, body)
         .expect("searches")
         .into_iter()
@@ -198,7 +203,7 @@ fn fields_the_node_cannot_read_yet_or_without_doc_values_fail_the_shard() {
     let mut shard = shard("aggs-types");
     shard.meta.mapping = std::sync::Arc::new(
         crate::SharedMapping::from_json(
-            r#"{"properties":{"n":{"type":"long","doc_values":false},"d":{"type":"double"},
+            r#"{"properties":{"n":{"type":"long","doc_values":false},"p":{"type":"ip"},
             "b":{"type":"byte"}}}"#,
         )
         .expect("mapping"),
@@ -211,12 +216,12 @@ fn fields_the_node_cannot_read_yet_or_without_doc_values_fail_the_shard() {
         "Can't load fielddata on [n] because fielddata is unsupported on fields of type [long]. \
          Use doc values instead."
     );
-    let e = refused(r#"{"aggs":{"a":{"avg":{"field":"d"}}}}"#);
+    let e = refused(r#"{"aggs":{"a":{"avg":{"field":"p"}}}}"#);
     assert_eq!(e.status, 400);
     assert!(
         e.failure
             .reason
-            .ends_with("[d] is not supported by this node yet"),
+            .ends_with("[p] is not supported by this node yet"),
         "{}",
         e.failure.reason
     );

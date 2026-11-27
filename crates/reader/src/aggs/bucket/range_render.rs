@@ -15,14 +15,14 @@ use crate::aggs::partial::Format;
 /// double.
 fn write_bound(out: &mut dyn Write, format: Format, value: f64) -> io::Result<()> {
     match format {
-        Format::Raw => write_java_double(out, value),
+        Format::Raw | Format::Double => write_java_double(out, value),
         Format::Date => write_date_of_double(out, value),
     }
 }
 
 /// The key of `bucket`: the one asked for, else `from-to` with `*` for an
 /// unbounded end (`InternalRange.Bucket.generateKey`).
-fn key_of(format: Format, bucket: &RangeBucket) -> io::Result<Vec<u8>> {
+pub fn key_of(format: Format, bucket: &RangeBucket) -> io::Result<Vec<u8>> {
     // ALLOC: one key a bucket, bounded by the request's ranges.
     let mut key = Vec::new();
     if let Some(asked) = &bucket.key {

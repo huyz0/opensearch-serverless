@@ -6,11 +6,12 @@
 //! write log only behind a register write.
 
 use std::collections::BTreeMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting};
 
 use super::register::Known;
+use crate::boot_clock::BootInstant;
 use crate::pack::SWAP_DEADLINE_MILLIS;
 
 /// `serverless.wal.node_log.commits.staging`: routine publishes keep their
@@ -122,7 +123,7 @@ pub(super) struct Staged {
     pub(super) term: u64,
     pub(super) writer: String,
     /// When the oldest pack a staged commit names landed, or the first was staged.
-    pub(super) oldest: Instant,
+    pub(super) oldest: BootInstant,
 }
 
 #[cfg(test)]

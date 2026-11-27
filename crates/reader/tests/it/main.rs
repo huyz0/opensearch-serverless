@@ -5,12 +5,28 @@
 // test, which fails it as it should.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
+mod commit_push;
+#[path = "../common/mod.rs"]
+mod common;
 mod frozen;
 mod frozen_bucket;
+mod knn_requests;
+mod nested_requests;
 mod never_written;
 mod open;
 mod open_bucket;
+mod overlay_build_ready;
+mod overlay_checkpoint;
+mod overlay_commit;
+mod overlay_dynamic;
+mod overlay_kept;
+mod overlay_pinned;
+mod overlay_search;
+mod overlay_segment;
+mod overlay_view;
 mod push;
+mod search_pipeline;
+mod vector_warm;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

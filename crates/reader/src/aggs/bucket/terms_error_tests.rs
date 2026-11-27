@@ -55,11 +55,22 @@ fn a_bucket_error_adds_the_stored_ones_less_each_parts_own() {
 }
 
 #[test]
-fn an_unbounded_stored_error_makes_the_bucket_unbounded_whatever_came_before_or_after() {
-    let before = [(vec![1], &[4][..], 0), (vec![1], &[-1][..], 0)];
-    assert_eq!(bucket_errors(true, 5, &before, &[1]), [-1]);
-    let after = [(vec![1], &[-1][..], 0), (vec![1], &[3][..], 0)];
-    assert_eq!(bucket_errors(true, 5, &after, &[1]), [-1]);
+fn a_running_sum_that_reaches_minus_one_stops_adding_as_java_does() {
+    // Recorded from 3.10.0's `InternalTerms.reduce` over `LongTerms` shards
+    // of errors (1, 2), (2, 1), (1, 1) and (3, 2), each holding key 10: the
+    // key's bound is 2, 0, 1 and 0. Its sum, -3 or -5, is -1 only after the
+    // first part when that part's error is 1, and `reduceBucket` then adds
+    // nothing more.
+    for (first, second, sum, expected) in [(1, 2, 3, 2), (2, 1, 3, 0), (1, 1, 2, 1), (3, 2, 5, 0)] {
+        let parts = [(vec![10], &[0][..], first), (vec![10], &[0][..], second)];
+        assert_eq!(bucket_errors(true, sum, &parts, &[10]), [expected]);
+    }
+    // A key only one part holds: the sum less that part's error.
+    let parts = [
+        (vec![10, 20], &[0, 0][..], 1),
+        (vec![10, 30], &[0, 0][..], 2),
+    ];
+    assert_eq!(bucket_errors(true, 3, &parts, &[20, 30]), [2, 1]);
 }
 
 #[test]

@@ -22,7 +22,7 @@ The commit's reader, files and the original `OpenShard` are never changed.
 
 ## Test plan
 
-`crates/reader/tests/overlay_search.rs`, one test per criterion, over an index of 40 documents in four segments built with `oss-testkit` and records built in the test.
+`crates/reader/tests/it/overlay_search.rs`, one test per criterion, over an index of 40 documents in four segments built with `oss-testkit` and records built in the test.
 
 ## S3 request budget
 

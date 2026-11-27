@@ -137,3 +137,55 @@ fn dis_max_holds_at_most_the_clause_limit() {
         "too many clauses, the maximum is [1024]"
     );
 }
+
+#[test]
+fn boosting_holds_both_queries_and_its_factors() {
+    let tag = |v: &str| Query::Term {
+        field: "tag".into(),
+        value: s(v),
+        boost: 1.0,
+    };
+    assert_eq!(
+        more(&q(
+            r#"{"boosting":{"positive":{"term":{"tag":"a"}},"negative":{"term":{"tag":"b"}},"negative_boost":0.5,"boost":2}}"#
+        )),
+        More::Boosting {
+            positive: tag("a"),
+            negative: tag("b"),
+            negative_boost: 0.5,
+            boost: 2.0,
+        }
+    );
+}
+
+#[test]
+fn boosting_fails_as_the_builder_fails() {
+    let body = |inner: &str| q(&format!(r#"{{"boosting":{inner}}}"#));
+    let both = r#""positive":{"match_all":{}},"negative":{"match_all":{}}"#;
+    assert_eq!(
+        reason(&body(&format!(r#"{{{both}}}"#))),
+        "[boosting] query requires 'negative_boost' to be set to be a positive value'"
+    );
+    assert_eq!(
+        reason(&body(r#"{"negative":{"match_all":{}},"negative_boost":1}"#)),
+        "[boosting] query requires 'positive' query to be set'"
+    );
+    assert_eq!(
+        reason(&body(r#"{"positive":{"match_all":{}},"negative_boost":1}"#)),
+        "[boosting] query requires 'negative' query to be set'"
+    );
+    assert_eq!(
+        reason(&body(&format!(r#"{{{both},"negative_boost":-1}}"#))),
+        "[boosting] query requires 'negative_boost' to be set to be a positive value'"
+    );
+    assert_eq!(
+        reason(&body(&format!(r#"{{{both},"negative_boost":1,"x":1}}"#))),
+        "[boosting] query does not support [x]"
+    );
+    assert_eq!(
+        reason(&body(&format!(
+            r#"{{{both},"negative_boost":1,"_name":"n"}}"#
+        ))),
+        "[boosting] [_name] is not supported by this node yet"
+    );
+}

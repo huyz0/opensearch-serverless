@@ -5,3 +5,4 @@ src/settings/typed.rs	port	server/src/main/java/org/opensearch/common/settings/S
 src/settings/layers.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/settings/LayeredSetting.java@3920dc36	index over cluster over node over default; an index or cluster value that does not parse is skipped; a bad node value is refused, as the Java refuses it at start-up
 src/settings/registry.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/settings/ServerlessSettings.java@3920dc36	the definitions collected once and checked; check_update as AbstractScopedSettings.validate for the serverless. and index.serverless. keys, with its messages but no did-you-mean suggestion
 src/settings/live.rs	new		the node's current register settings, swapped whole when a newer generation is read
+src/stored_scripts.rs	new		the resolver trait a node installs for a script named by id, shared by reader and writer

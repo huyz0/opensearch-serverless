@@ -1,0 +1,44 @@
+# Forwarded aggregations: single-value metrics
+
+## Serves
+
+Roadmap R10.2 and R7: a Java coordinator's last-resort ask (`internal:serverless/search/shard`) for a shard a Rust node writes used to refuse any request with aggregations ("a forwarded search with [aggregations] is not supported by this node"), so a plugin that aggregates over such an index (anomaly detection) failed with a 503. This slice serves `min`, `max`, `sum`, `avg` and `value_count` over one field. See [ADR 0057](../../adr/0057-a-rust-owner-answers-the-java-search-shard-action.md) for the ask.
+
+## Change
+
+`oss-transport` reads the source's `AggregatorFactories.Builder` (`SearchSourceBuilder.aggregations`) as the Java shell writes it: a count, then each aggregation as its writeable name (`min`, `max`, `sum`, `avg`, `value_count`), its name, an empty sub-builder, a null metadata value, `value_count`'s null target value type, the field, and no script, value type, format, `missing` or time zone, then an empty pipeline list. It writes the shard's reply's aggregations as `InternalAggregations.writeTo` does: each result as its type name, its name, null metadata, `raw` (`DocValueFormat.RAW`, which writes nothing more) and its value (`InternalMax`, `InternalMin` and `InternalSum`: a double; `InternalAvg`: a double and a count; `InternalValueCount`: a count). `oss-node` turns the request's aggregations into the `aggs` of the search body the reader runs, and the reader's shard-level results into the reply.
+
+Refused by name, as before: a sub-aggregation, a pipeline aggregation (read since [forwarded-pipeline-aggs](../forwarded-pipeline-aggs/SPEC.md)), metadata, a script, a format, a `missing` value, a time zone, any other aggregation type, and any result of another kind.
+
+## Acceptance criteria
+
+- AC-1: a request with these aggregations reads, and a request written from the read one reads back the same.
+- AC-2: another aggregation type, a sub-aggregation, and a pipeline aggregation are refused by name, and nothing after them is read.
+- AC-3: the reply's aggregations are `InternalAggregations`' bytes for these six results.
+- AC-4: the handler runs the request's aggregations on the shard and answers them; a result of another kind is refused as a bad request.
+- AC-5: an aggregation over a date field is answered with `DocValueFormat.DateTime` of the default date format, in UTC and milliseconds (`date_time`, `strict_date_time_no_millis||strict_date_optional_time||epoch_millis`, print pattern `strict_date_optional_time`, `Z`, resolution 0), where a number's is `raw`. A `max` of the time field is what anomaly detection asks first.
+- AC-6: a `stats` aggregation is read and written like the single-value metrics, and answered as `InternalStats`: the format, a `vlong` count, then min, max and sum as doubles.
+- AC-7: the request and the answers above are the bytes OpenSearch 3.10.0's own classes write (`fixtures/search-shard/java-aggs-3.10.0.txt`, from `AggRecordings.java`).
+- AC-8: a `cardinality` aggregation, with its `precision_threshold` if any, is read, written and answered as `InternalCardinality` (the format, a present flag, and the sketch `AbstractHyperLogLogPlusPlus.writeTo` writes, or the absent flag when no value was seen); an `execution_hint` is refused by name. The sketch's bytes written from a read one are the ones Java wrote, for no hashes, a few, and a HyperLogLog one.
+- AC-9: a `percentiles` or `percentile_ranks` aggregation, with its keys, `keyed` and a t-digest `compression` if any, is read, written and answered as `InternalTDigestPercentiles` or `InternalTDigestPercentileRanks` (`tdigest_percentiles`, `tdigest_percentile_ranks`): the format, the keys, the digest as `TDigestState.write` writes it from 3.4.0 (the verbose `MergingDigest` encoding), and `keyed`; a shard with no value answers an empty digest of the asked compression. Another method than the t-digest is refused by name. The digest bytes of a Rust digest are the bytes Java wrote.
+- AC-10: a `terms` aggregation (size, shard size, minimum counts, an order by count or key, `show_term_doc_count_error`) over a keyword, a number or a date is read, written and answered as `StringTerms` or `LongTerms`: the buckets by key in the reduce order, each with its count, its error bound when shown, and its key, as `InternalTerms.doWriteTo` writes them. A collect mode, an execution hint, `include` or `exclude`, an order by a sub-aggregation and a pipeline aggregation are refused by name.
+- AC-11: a `terms` with sub-aggregations (metrics, or a `terms`, to three levels, at most 64 aggregations in all) is read and written with them as `AggregatorFactories.Builder` writes them, and each bucket of its answer carries its sub-aggregations' results as named writeables between its count and its key. A sub-aggregation under any other aggregation is refused by name.
+- AC-12: a `date_histogram` (a calendar or fixed interval, an offset, `keyed`, `min_doc_count`, an order by key or count) over a date field, with sub-aggregations as in AC-11, is read, written and answered as `InternalDateHistogram`: the order, the minimum count, with a minimum of 0 the empty bucket information (the rounding by `DateTimeUnit` id or in milliseconds, in UTC, what each sub-aggregation holds for an empty bucket, no bounds), the offset, the date format, `keyed` and the buckets by key. Extended or hard bounds, a time zone and a legacy `interval` are refused by name.
+- AC-13: a `range` or `date_range` (ranges with an optional key and bounds, each bound a double with an optional text, `keyed`), with sub-aggregations as in AC-11, is read, written and answered as `InternalRange` or `InternalDateRange`: the format, `keyed`, and each bucket's key (asked for, else generated from the bounds as the REST answer generates it, a date's bounds as date text), bounds, count and sub-aggregation results. More than 128 ranges are refused by name.
+- AC-14: a `multi_terms` (two or more keyword or long terms, with size, shard size, minimum counts and an order by count or key) and a `rare_terms` (`max_doc_count`) over a keyword or a long are read, written and answered as `InternalMultiTerms`, `StringRareTerms` or `LongRareTerms`: the multi_terms buckets with their keys as a list, the rare_terms buckets and the `SetBackedScalingCuckooFilter` in set mode, its hashes (`MurmurHash3`, as zig-zag longs) in the order of a `HashSet`'s table of 16,384 buckets. A rare_terms with more than 10,000 excluded terms (the filter then a real cuckoo filter) is refused by name.
+
+## Test plan
+
+Unit tests in `oss-transport` (`aggs.rs`: AC-1 to AC-3 and AC-5), the Java recordings in `crates/transport/tests/search_shard_aggs.rs` (AC-1, AC-3, AC-5 to AC-7) and `oss-node` (`search_shard_action/tests.rs`, `convert_tests.rs`: AC-4, AC-6). `AggRecordings.java` records the bytes of the 3.10.0 classes (`AggregatorFactories.Builder`, `InternalAggregations`); the first two slices were written from reading the Java source and the recordings agree with them.
+
+## S3 request budget
+
+None of its own: the shard search runs the aggregations as a REST search of the same index does. LIST 0, HEAD 0, PUT 0.
+
+## Switch
+
+None: the request was refused before; a request without aggregations is unchanged.
+
+## Risks
+
+Written from the Java source, not from Java's bytes. A mismatch fails the coordinator's read of the reply, not the shard.

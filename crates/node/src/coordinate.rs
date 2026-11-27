@@ -281,6 +281,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             show_total: source.track_total_hits.is_some(),
             total_as_int: source.total_as_int,
             typed_keys: source.typed_keys,
+            // ALLOC: one entry a pipeline aggregation, bounded by the request's.
+            pipelines: source.pipelines.clone(),
             concurrency: shards.min(8),
             took_ms,
         };
@@ -313,6 +315,11 @@ pub(super) fn refusal(failure: SearchFailure<ShardError>) -> Box<SearchError> {
             let refused = too_many_buckets(made, BUCKET_LIMIT);
             (refused.status, refused.failure)
         }
+        SearchFailure::Aggs(AggsError::Script { name, message }) => (
+            400,
+            // ALLOC: error path; one message.
+            Failure::plain("script_exception", format!("[{name}] {message}")),
+        ),
         SearchFailure::Aggs(e) => (
             501,
             // ALLOC: error path; one message.

@@ -29,6 +29,9 @@ pub mod keyword_options;
 pub mod keyword_subs;
 pub mod keyword_terms;
 pub mod missing;
+pub mod multi;
+pub mod multi_collect;
+pub mod multi_parse;
 pub mod nested_agg;
 pub mod nested_subs;
 pub mod parse_arms;
@@ -36,7 +39,13 @@ pub mod range;
 pub mod range_collect;
 pub mod range_parse;
 pub mod range_render;
+pub mod rare;
+pub mod rare_collect;
+pub mod rare_parse;
 pub mod running;
+pub mod significant;
+pub mod significant_collect;
+pub mod significant_parse;
 pub mod sub_order;
 pub mod sub_values;
 pub mod terms;
@@ -89,6 +98,8 @@ mod composite_tests;
 #[cfg(test)]
 mod date_histogram_collect_tests;
 #[cfg(test)]
+mod date_histogram_format_tests;
+#[cfg(test)]
 mod date_histogram_region_tests;
 #[cfg(test)]
 mod date_histogram_tests;
@@ -122,10 +133,13 @@ mod keyword_partition_tests;
 mod keyword_subs_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
+
 #[cfg(test)]
 mod missing_collect_tests;
 #[cfg(test)]
 mod missing_tests;
+#[cfg(test)]
+mod multi_tests;
 #[cfg(test)]
 mod nested_agg_collect_tests;
 #[cfg(test)]
@@ -145,7 +159,11 @@ mod range_collect_tests;
 #[cfg(test)]
 mod range_tests;
 #[cfg(test)]
+mod rare_tests;
+#[cfg(test)]
 mod running_tests;
+#[cfg(test)]
+mod significant_tests;
 #[cfg(test)]
 mod sub_order_tests;
 #[cfg(test)]

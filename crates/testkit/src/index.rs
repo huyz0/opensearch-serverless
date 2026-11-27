@@ -31,7 +31,12 @@ use lucene_index::index_writer::{
 use lucene_index::segment_info::LuceneVersion;
 use lucene_store::{ByteBuffersDirectory, Directory};
 
+mod decimals;
 mod nested;
+mod support;
+use support::{encode_id, json_string, register, sortable, term};
+
+pub use decimals::{SCALING_FACTOR, doc_double, doc_float, doc_half, doc_scaled, doc_scaled_long};
 pub use nested::{NESTED_CHILDREN, nested_deep_word, nested_number, nested_word};
 
 /// The mapping of `spec`'s index.
@@ -54,6 +59,7 @@ pub fn mapping(spec: &Spec) -> String {
             r#","v":{{"type":"knn_vector","dimension":{dim},"method":{{"name":"hnsw","engine":"lucene","space_type":"{space}"}}}}"#
         ));
     }
+    decimals::mapping(spec, &mut out);
     nested::mapping(spec, &mut out);
     out.push_str("}}");
     out
@@ -127,6 +133,9 @@ pub struct Spec {
     /// The depth of nested objects: 1 for children `c` ([`Spec::with_nested`]), 2
     /// for grandchildren `c.d` too ([`Spec::with_nested_deep`]).
     pub nested: u8,
+    /// Whether documents hold a `double` field `d` and a `float` field `f`
+    /// ([`doc_double`], [`doc_float`]).
+    pub decimals: bool,
 }
 
 impl Spec {
@@ -144,7 +153,14 @@ impl Spec {
             vector_dimension: 3,
             settings: "{}".to_owned(),
             nested: 0,
+            decimals: false,
         }
+    }
+
+    /// Adds the `double` field `d` and the `float` field `f`.
+    pub fn with_decimals(mut self) -> Self {
+        self.decimals = true;
+        self
     }
 
     /// Commits after every `docs` documents.
@@ -221,6 +237,7 @@ pub fn doc_source(spec: &Spec, i: usize) -> String {
     for x in 0..spec.texts {
         out.push_str(&format!(r#","x{x}":"{}""#, doc_words(i, x).join(" ")));
     }
+    decimals::source(spec, i, &mut out);
     nested::source(spec, i, &mut out);
     out.push_str(&format!(
         r#","pad":"{}"}}"#,
@@ -237,38 +254,16 @@ pub fn doc_words(i: usize, x: usize) -> [String; 2] {
     ]
 }
 
-fn keyword_number(k: usize) -> i32 {
-    FIRST_KEYWORD + i32::try_from(k).expect("fits")
+fn keyword_number(spec: &Spec, k: usize) -> i32 {
+    FIRST_KEYWORD + decimals::FIELDS * i32::from(spec.decimals) + i32::try_from(k).expect("fits")
 }
 
 fn text_number(spec: &Spec, x: usize) -> i32 {
-    keyword_number(spec.keywords) + i32::try_from(x).expect("fits")
+    keyword_number(spec, spec.keywords) + i32::try_from(x).expect("fits")
 }
 
 fn vector_number(spec: &Spec) -> i32 {
     text_number(spec, spec.texts)
-}
-
-fn term(bytes: &[u8]) -> InvertedTerm {
-    InvertedTerm {
-        term: bytes.to_vec(),
-        freq: 1,
-        positions: Vec::new(),
-        offsets: Vec::new(),
-        payloads: Vec::new(),
-    }
-}
-
-/// `Uid.encodeId` of an id that is neither numeric nor URL-safe base64.
-fn encode_id(id: &str) -> Vec<u8> {
-    let mut out = vec![0xff];
-    out.extend_from_slice(id.as_bytes());
-    out
-}
-
-/// `NumericUtils.longToSortableBytes`.
-fn sortable(v: i64) -> Vec<u8> {
-    (v ^ i64::MIN).to_be_bytes().to_vec()
 }
 
 fn document(spec: &Spec, i: usize) -> ExplicitDocument {
@@ -316,15 +311,16 @@ fn document(spec: &Spec, i: usize) -> ExplicitDocument {
             ..ExplicitFields::default()
         },
     };
+    decimals::fields(spec, i, &mut doc);
     for k in 0..spec.keywords {
         let value = doc_keyword(i, k);
         doc.fields.inverted.push(InvertedField {
-            field_number: keyword_number(k),
+            field_number: keyword_number(spec, k),
             terms: vec![term(value.as_bytes())].into(),
             norm: None,
         });
         doc.fields.doc_values.push(StoredField {
-            field_number: keyword_number(k),
+            field_number: keyword_number(spec, k),
             value: FieldValue::Binary(value.into_bytes()),
         });
     }
@@ -342,25 +338,6 @@ fn document(spec: &Spec, i: usize) -> ExplicitDocument {
         });
     }
     doc
-}
-
-fn register(value: &str) -> Vec<u8> {
-    let mut out = 1u64.to_be_bytes().to_vec();
-    out.extend_from_slice(value.as_bytes());
-    out
-}
-
-fn json_string(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
 }
 
 /// The files of `spec`'s index as the engine wrote them, by name.
@@ -394,9 +371,10 @@ pub fn lucene_files(spec: &Spec) -> Vec<(String, Vec<u8>)> {
             -1,
         ))
         .expect("n");
+        decimals::register(&mut w, spec);
         for k in 0..spec.keywords {
             w.register_field(
-                docs_only(&format!("k{k}"), keyword_number(k)).with_doc_values(
+                docs_only(&format!("k{k}"), keyword_number(spec, k)).with_doc_values(
                     DocValuesType::SortedSet,
                     DocValuesSkipIndexType::None,
                     -1,

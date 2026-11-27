@@ -1,0 +1,116 @@
+derivative {} -> org.opensearch.core.common.ParsingException: Missing required field [buckets_path] for derivative aggregation [p]
+cumulative_sum {} -> java.lang.IllegalArgumentException: Required [buckets_path]
+derivative {"buckets_path":"s"} -> ok {"p":{"derivative":{"buckets_path":["s"],"gap_policy":"skip"}}}
+cumulative_sum {"buckets_path":"s"} -> ok {"p":{"cumulative_sum":{"buckets_path":["s"]}}}
+derivative {"buckets_path":1} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NUMBER in [p].
+cumulative_sum {"buckets_path":1} -> org.opensearch.core.xcontent.XContentParseException: [1:17] [cumulative_sum] buckets_path doesn't support values of type: VALUE_NUMBER
+derivative {"buckets_path":"s","gap_policy":"insert_zeros"} -> ok {"p":{"derivative":{"buckets_path":["s"],"gap_policy":"insert_zeros"}}}
+cumulative_sum {"buckets_path":"s","gap_policy":"insert_zeros"} -> org.opensearch.core.xcontent.XContentParseException: [1:21] [cumulative_sum] unknown field [gap_policy]
+derivative {"buckets_path":"s","gap_policy":"nope"} -> org.opensearch.core.common.ParsingException: Invalid gap policy: [nope], accepted values: [insert_zeros, skip]
+cumulative_sum {"buckets_path":"s","gap_policy":"nope"} -> org.opensearch.core.xcontent.XContentParseException: [1:21] [cumulative_sum] unknown field [gap_policy]
+derivative {"buckets_path":"s","format":"0.0"} -> ok {"p":{"derivative":{"buckets_path":["s"],"format":"0.0","gap_policy":"skip"}}}
+cumulative_sum {"buckets_path":"s","format":"0.0"} -> ok {"p":{"cumulative_sum":{"buckets_path":["s"],"format":"0.0"}}}
+derivative {"buckets_path":"s","unit":"1d"} -> ok {"p":{"derivative":{"buckets_path":["s"],"gap_policy":"skip","unit":"1d"}}}
+cumulative_sum {"buckets_path":"s","unit":"1d"} -> org.opensearch.core.xcontent.XContentParseException: [1:21] [cumulative_sum] unknown field [unit]
+derivative {"buckets_path":"s","foo":1} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NUMBER in [p].
+cumulative_sum {"buckets_path":"s","foo":1} -> org.opensearch.core.xcontent.XContentParseException: [1:21] [cumulative_sum] unknown field [foo]
+derivative {"buckets_path":["s"]} -> ok {"p":{"derivative":{"buckets_path":["s"],"gap_policy":"skip"}}}
+cumulative_sum {"buckets_path":["s"]} -> ok {"p":{"cumulative_sum":{"buckets_path":["s"]}}}
+derivative {"buckets_path":["s","a"]} -> ok {"p":{"derivative":{"buckets_path":["s"],"gap_policy":"skip"}}}
+cumulative_sum {"buckets_path":["s","a"]} -> ok {"p":{"cumulative_sum":{"buckets_path":["s","a"]}}}
+derivative {"buckets_path":"s","foo":"x"} -> org.opensearch.core.common.ParsingException: Unknown key for a VALUE_STRING in [p]: [foo].
+cumulative_sum {"buckets_path":"s","foo":"x"} -> org.opensearch.core.xcontent.XContentParseException: [1:21] [cumulative_sum] unknown field [foo]
+derivative {"buckets_path":"s","foo":[1]} -> org.opensearch.core.common.ParsingException: Unknown key for a START_ARRAY in [p]: [foo].
+cumulative_sum {"buckets_path":"s","foo":[1]} -> org.opensearch.core.xcontent.XContentParseException: [1:21] [cumulative_sum] unknown field [foo]
+derivative {"buckets_path":{"a":"s"}} -> org.opensearch.core.common.ParsingException: Unexpected token START_OBJECT in [p].
+cumulative_sum {"buckets_path":{"a":"s"}} -> org.opensearch.core.xcontent.XContentParseException: [1:17] [cumulative_sum] buckets_path doesn't support values of type: START_OBJECT
+derivative {"buckets_path":[]} -> java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0
+cumulative_sum {"buckets_path":[]} -> ok {"p":{"cumulative_sum":{"buckets_path":[]}}}
+derivative {"buckets_path":[1]} -> ok {"p":{"derivative":{"buckets_path":["1"],"gap_policy":"skip"}}}
+cumulative_sum {"buckets_path":[1]} -> ok {"p":{"cumulative_sum":{"buckets_path":["1"]}}}
+derivative {"buckets_path":"s","gap_policy":1} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NUMBER in [p].
+cumulative_sum {"buckets_path":"s","gap_policy":1} -> org.opensearch.core.xcontent.XContentParseException: [1:21] [cumulative_sum] unknown field [gap_policy]
+derivative {"buckets_path":"s","unit":1} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NUMBER in [p].
+cumulative_sum {"buckets_path":"s","unit":1} -> org.opensearch.core.xcontent.XContentParseException: [1:21] [cumulative_sum] unknown field [unit]
+derivative {"buckets_path":"s","format":1} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NUMBER in [p].
+cumulative_sum {"buckets_path":"s","format":1} -> org.opensearch.core.xcontent.XContentParseException: [1:30] [cumulative_sum] format doesn't support values of type: VALUE_NUMBER
+derivative {"buckets_path":null} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NULL in [p].
+cumulative_sum {"buckets_path":null} -> org.opensearch.core.xcontent.XContentParseException: [1:17] [cumulative_sum] buckets_path doesn't support values of type: VALUE_NULL
+bucket_sort {} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"from":1} -> ok {"p":{"bucket_sort":{"sort":[],"from":1,"gap_policy":"SKIP"}}}
+bucket_sort {"size":2} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"size":2,"gap_policy":"SKIP"}}}
+bucket_sort {"size":0} -> org.opensearch.core.xcontent.XContentParseException: [1:9] failed to build [bucket_sort] after last required field arrived <- org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] failed to parse field [size] <- java.lang.IllegalArgumentException: [size] must be a positive integer: [0]
+bucket_sort {"from":-1} -> org.opensearch.core.xcontent.XContentParseException: [1:9] failed to build [bucket_sort] after last required field arrived <- org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] failed to parse field [from] <- java.lang.IllegalArgumentException: [from] must be a non-negative integer: [-1]
+bucket_sort {"sort":[]} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":"s"} -> org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] sort doesn't support values of type: VALUE_STRING
+bucket_sort {"sort":["s"]} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"asc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[{"s":"desc"}]} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"desc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[{"s":{"order":"desc"}}]} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] failed to parse field [sort] <- org.opensearch.core.xcontent.XContentParseException: named objects are not supported for this parser
+bucket_sort {"sort":{"s":{"order":"desc"}}} -> org.opensearch.core.xcontent.XContentParseException: [1:14] [bucket_sort] failed to parse field [sort] <- org.opensearch.core.xcontent.XContentParseException: named objects are not supported for this parser
+bucket_sort {"sort":[{"s":{"order":"desc","missing":"_last"}}]} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] failed to parse field [sort] <- org.opensearch.core.xcontent.XContentParseException: named objects are not supported for this parser
+bucket_sort {"sort":[{"s":{"order":"sideways"}}]} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] failed to parse field [sort] <- org.opensearch.core.xcontent.XContentParseException: named objects are not supported for this parser
+bucket_sort {"sort":[{"_count":"asc"},{"s":"desc"}]} -> ok {"p":{"bucket_sort":{"sort":[{"_count":{"order":"asc"}},{"s":{"order":"desc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"gap_policy":"insert_zeros","size":1} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"size":1,"gap_policy":"INSERT_ZEROS"}}}
+bucket_sort {"size":1,"foo":1} -> org.opensearch.core.xcontent.XContentParseException: [1:11] [bucket_sort] unknown field [foo]
+bucket_sort {"size":"2"} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"size":2,"gap_policy":"SKIP"}}}
+bucket_sort {"size":1.5} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"size":1,"gap_policy":"SKIP"}}}
+bucket_sort {"from":"1","size":1} -> ok {"p":{"bucket_sort":{"sort":[],"from":1,"size":1,"gap_policy":"SKIP"}}}
+bucket_sort {"size":null} -> org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] size doesn't support values of type: VALUE_NULL
+bucket_sort {"sort":[{"s":"desc","a":"asc"}]} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"desc"}},{"a":{"order":"asc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[1]} -> org.opensearch.core.xcontent.XContentParseException: [1:10] [bucket_sort] failed to parse field [sort] <- java.lang.IllegalArgumentException: malformed sort format, within the sort array, an object, or an actual string are allowed
+bucket_sort {"sort":["s","s"]} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"asc"}},{"s":{"order":"asc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":["s"],"size":0} -> org.opensearch.core.xcontent.XContentParseException: [1:22] [bucket_sort] failed to parse field [size] <- java.lang.IllegalArgumentException: [size] must be a positive integer: [0]
+bucket_sort {"gap_policy":"nope"} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] failed to parse field [gap_policy] <- org.opensearch.core.common.ParsingException: Invalid gap policy: [nope], accepted values: [insert_zeros, skip]
+bucket_sort {"sort":["s"],"gap_policy":"nope"} -> org.opensearch.core.xcontent.XContentParseException: [1:28] [bucket_sort] failed to parse field [gap_policy] <- org.opensearch.core.common.ParsingException: Invalid gap policy: [nope], accepted values: [insert_zeros, skip]
+bucket_sort {"from":-1,"size":0} -> org.opensearch.core.xcontent.XContentParseException: [1:19] failed to build [bucket_sort] after last required field arrived <- org.opensearch.core.xcontent.XContentParseException: [1:19] [bucket_sort] failed to parse field [size] <- java.lang.IllegalArgumentException: [size] must be a positive integer: [0]
+bucket_sort {"sort":[{"s":"sideways"}]} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] failed to parse field [sort] <- java.lang.IllegalArgumentException: No enum constant org.opensearch.search.sort.SortOrder.SIDEWAYS
+bucket_sort {"sort":[{"s":1}]} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] failed to parse field [sort] <- org.opensearch.core.xcontent.XContentParseException: named objects are not supported for this parser
+bucket_sort {"sort":["s"],"from":-1} -> org.opensearch.core.xcontent.XContentParseException: [1:22] [bucket_sort] failed to parse field [from] <- java.lang.IllegalArgumentException: [from] must be a non-negative integer: [-1]
+bucket_sort {"size":1,"sort":["s"],"from":1} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"asc"}}],"from":1,"size":1,"gap_policy":"SKIP"}}}
+bucket_sort {"gap_policy":"SKIP"} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":null} -> org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] sort doesn't support values of type: VALUE_NULL
+bucket_sort {"sort":[null]} -> org.opensearch.core.xcontent.XContentParseException: [1:10] [bucket_sort] failed to parse field [sort] <- java.lang.IllegalArgumentException: malformed sort format, within the sort array, an object, or an actual string are allowed
+bucket_sort {"from":null} -> org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] from doesn't support values of type: VALUE_NULL
+bucket_sort {"from":1.5} -> ok {"p":{"bucket_sort":{"sort":[],"from":1,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[{}]} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[""]} -> ok {"p":{"bucket_sort":{"sort":[{"":{"order":"asc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[["s"]]} -> org.opensearch.core.xcontent.XContentParseException: [1:10] [bucket_sort] failed to parse field [sort] <- java.lang.IllegalArgumentException: malformed sort format, within the sort array, an object, or an actual string are allowed
+bucket_sort {"from":true} -> org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] from doesn't support values of type: VALUE_BOOLEAN
+bucket_sort {"sort":{"s":"desc"}} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"desc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[{"s":"DESC"}]} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"desc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[{"s":"Asc"}]} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"asc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":[{"s":null}]} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] failed to parse field [sort] <- org.opensearch.core.xcontent.XContentParseException: named objects are not supported for this parser
+bucket_sort {"sort":[{"s":["desc"]}]} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] failed to parse field [sort] <- org.opensearch.core.xcontent.XContentParseException: named objects are not supported for this parser
+bucket_sort {"sort":{"s":"desc","a":"asc"}} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"desc"}},{"a":{"order":"asc"}}],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"sort":{}} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"gap_policy":"SKIP"}}}
+bucket_sort {"gap_policy":"Insert_Zeros"} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"gap_policy":"INSERT_ZEROS"}}}
+bucket_sort {"gap_policy":"INSERT_ZEROS"} -> ok {"p":{"bucket_sort":{"sort":[],"from":0,"gap_policy":"INSERT_ZEROS"}}}
+bucket_sort {"gap_policy":1} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] gap_policy doesn't support values of type: VALUE_NUMBER
+bucket_sort {"gap_policy":null} -> org.opensearch.core.xcontent.XContentParseException: [1:15] [bucket_sort] gap_policy doesn't support values of type: VALUE_NULL
+bucket_sort {"size":"x"} -> org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] failed to parse field [size] <- java.lang.NumberFormatException: For input string: "x"
+bucket_sort {"sort":["s"],"size":"x"} -> org.opensearch.core.xcontent.XContentParseException: [1:22] [bucket_sort] failed to parse field [size] <- java.lang.NumberFormatException: For input string: "x"
+bucket_sort {"from":[1]} -> org.opensearch.core.xcontent.XContentParseException: [1:9] [bucket_sort] from doesn't support values of type: START_ARRAY
+bucket_sort {"sort":[{"s":"desc"},"a"],"from":1,"size":3} -> ok {"p":{"bucket_sort":{"sort":[{"s":{"order":"desc"}},{"a":{"order":"asc"}}],"from":1,"size":3,"gap_policy":"SKIP"}}}
+validate top.derivative No aggregation found for path [s]
+validate top.cumulative_sum No aggregation found for path [s]
+validate top.bucket_sort No aggregation found for path [s]
+validate histogram.derivative ok
+validate histogram.derivative.bad No aggregation found for path [zz]
+validate histogram.derivative.count ok
+validate histogram.derivative.key ok
+validate histogram.derivative.deep No aggregation [s] found for path [a>s]
+validate histogram.derivative.self Cyclical dependency found with pipeline aggregator [p]
+validate histogram.derivative.metric ok
+validate histogram.derivative.nameclash ok
+validate histogram.cumulative_sum ok
+validate histogram.cumulative_sum.bad No aggregation found for path [zz]
+validate histogram.cumulative_sum.avgpath ok
+validate histogram.bucket_sort ok
+validate histogram.bucket_sort.bad No aggregation found for path [zz]
+validate histogram.bucket_sort.none ok
+validate terms.derivative derivative aggregation [p] must have a histogram, date_histogram or auto_date_histogram as parent
+validate terms.cumulative_sum cumulative_sum aggregation [p] must have a histogram, date_histogram or auto_date_histogram as parent
+validate terms.bucket_sort ok
+validate terms.bucket_sort.bad No aggregation found for path [zz]
+validate histogram.two ok
+validate histogram.dup ok

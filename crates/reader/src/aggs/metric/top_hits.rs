@@ -35,7 +35,7 @@ use crate::fetch::highlight::{self, Plan as HighlightPlan};
 use crate::fetch::highlight_parse::{HighlightSpec, parse_highlight};
 use crate::fetch::source_filter::{SourceFilter, parse_source};
 use crate::search::{Hit, ShardError};
-use crate::search_sort::{KeyKind, Sort, sort_fields};
+use crate::search_sort::{Sort, sort_fields};
 use crate::search_top::{TopOptions, collect_top};
 
 /// `TopHitsAggregationBuilder.DEFAULT_SIZE`.
@@ -218,7 +218,7 @@ impl TopHitsPlan {
     pub(crate) fn numeric(&self) -> bool {
         self.sort
             .as_ref()
-            .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
+            .is_some_and(|(_, kinds)| crate::search_sort::reads_points(kinds))
     }
 }
 

@@ -103,6 +103,11 @@ pub fn server_config() -> ServerConfig {
     }
 }
 
+/// Held by a test that turns the process-wide Painless switch on, so two
+/// such tests of one binary do not flip it under each other.
+#[allow(dead_code)]
+pub static PAINLESS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Starts a reader node over the compat blobs.
 pub fn start() -> Node {
     start_with(store(), &MemoryBudget::new(&budget_config()))

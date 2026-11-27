@@ -14,6 +14,7 @@
 use std::io::Write as _;
 
 use lucene_search::top_field::{FieldDoc, SortField, SortType};
+use lucene_util::numeric_utils::{double_to_sortable_long, float_to_sortable_int};
 
 use crate::aggs::metric::double::write_java_double;
 use crate::date::{DateError, parse_to_millis};
@@ -103,6 +104,10 @@ pub enum AfterKey<'a> {
     Int(&'a str),
     /// A long field: a long, its text parsed as `DocValueFormat.RAW` parses.
     Long(&'a str),
+    /// A `double` field: a double, as its sortable long.
+    Double(&'a str),
+    /// A `float` field: a float, as its sortable int.
+    Float(&'a str),
     /// A date field: a long, its text parsed as a date.
     Date(&'a str),
     /// A keyword field: the value's text.
@@ -117,6 +122,8 @@ impl<'a> AfterKey<'a> {
             SortType::Score => AfterKey::Score,
             SortType::Doc => AfterKey::Doc,
             SortType::Int => AfterKey::Int(name),
+            SortType::Double => AfterKey::Double(name),
+            SortType::Float => AfterKey::Float(name),
             _ if is_date(name) => AfterKey::Date(name),
             SortType::String => AfterKey::Term,
             _ => AfterKey::Long(name),
@@ -126,7 +133,11 @@ impl<'a> AfterKey<'a> {
     /// The field name an error quotes: `null` for `_doc` and `_score`.
     fn name(self) -> &'a str {
         match self {
-            AfterKey::Int(n) | AfterKey::Long(n) | AfterKey::Date(n) => n,
+            AfterKey::Int(n)
+            | AfterKey::Long(n)
+            | AfterKey::Date(n)
+            | AfterKey::Double(n)
+            | AfterKey::Float(n) => n,
             AfterKey::Doc | AfterKey::Score | AfterKey::Term => "null",
         }
     }
@@ -135,7 +146,8 @@ impl<'a> AfterKey<'a> {
     fn unboxed(self) -> Option<(&'static str, &'static str)> {
         match self {
             AfterKey::Doc | AfterKey::Int(_) => Some(("Integer", "intValue")),
-            AfterKey::Score => Some(("Float", "floatValue")),
+            AfterKey::Score | AfterKey::Float(_) => Some(("Float", "floatValue")),
+            AfterKey::Double(_) => Some(("Double", "doubleValue")),
             AfterKey::Long(_) | AfterKey::Date(_) => Some(("Long", "longValue")),
             AfterKey::Term => None,
         }
@@ -278,6 +290,24 @@ fn convert(key: AfterKey<'_>, value: &AfterValue) -> Result<i64, ShardError> {
                 None => java_float(text).map_err(failed)?,
             };
             Ok(i64::from(score.to_bits()))
+        }
+        AfterKey::Double(_) => {
+            let d = match *value {
+                AfterValue::Int(n) => f64::from(n),
+                // Java's `Long.doubleValue`.
+                #[allow(clippy::cast_precision_loss)]
+                AfterValue::Long(n) => n as f64,
+                AfterValue::Double(d) => d,
+                _ => java_double(text).map_err(|_| failed(number_message(text)))?,
+            };
+            Ok(double_to_sortable_long(d))
+        }
+        AfterKey::Float(_) => {
+            let f = match number {
+                Some((_, _, float)) => float,
+                None => java_float(text).map_err(failed)?,
+            };
+            Ok(i64::from(float_to_sortable_int(f)))
         }
         AfterKey::Long(_) => match number {
             Some((_, long, _)) => Ok(long),

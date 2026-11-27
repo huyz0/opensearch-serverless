@@ -10,13 +10,14 @@ repository.workspace = true
 
 [features]
 # `index`: build a shard index with the engine, laid out as the shell's blobs.
-index = ["dep:lucene-index", "dep:lucene-codecs", "dep:lucene-store"]
+index = ["dep:lucene-index", "dep:lucene-codecs", "dep:lucene-store", "dep:lucene-util"]
 
 [dependencies]
 cap = { version = "=0.1.2", features = ["stats"] }
 lucene-index = { workspace = true, optional = true }
 lucene-codecs = { workspace = true, optional = true }
 lucene-store = { workspace = true, optional = true }
+lucene-util = { workspace = true, optional = true }
 
 [lints]
 workspace = true

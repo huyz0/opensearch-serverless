@@ -1,0 +1,5 @@
+shard errors 1,2 bound=3: key10=2 key20=2 key30=1
+shard errors 2,1 bound=3: key10=0 key20=1 key30=2
+shard errors 1,1 bound=2: key10=1 key20=1 key30=1
+shard errors 3,2 bound=5: key10=0 key20=2 key30=3
+shard errors 4,4 bound=8: key10=0 key20=4 key30=4

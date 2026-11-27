@@ -234,7 +234,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
 /// start: `_count` or `_key` or the path of a sub-aggregation, `asc` or
 /// `desc`. A path is read as `AggregationPath.parse` reads it, and its
 /// target is checked when the shard runs.
-fn parse_order(p: &mut Parser<'_>) -> Result<(TermsOrder, Option<SubOrder>), DslError> {
+pub(super) fn parse_order(p: &mut Parser<'_>) -> Result<(TermsOrder, Option<SubOrder>), DslError> {
     let mut by: Option<String> = None;
     let mut ascending = false;
     loop {

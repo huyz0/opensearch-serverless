@@ -16,14 +16,14 @@ fn spec_of(agg: &MetricAgg) -> RangeSpec {
     agg.range.as_deref().cloned().unwrap_or_default()
 }
 
-/// The engine's node for a `range` of the long (or date) field `agg` reads.
-pub fn node(agg: &MetricAgg) -> AggNode {
+/// The engine's node for a `range` of the number field `agg` reads, read as `values`.
+pub fn node(agg: &MetricAgg, values: ValueKind) -> AggNode {
     AggNode::Range {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: agg.field.clone(),
         missing: None,
         script: None,
-        kind: ValueKind::Long,
+        kind: values,
         // ALLOC: one pair a range, which the shard bounds before it runs.
         ranges: spec_of(agg).ranges.iter().map(|r| (r.from, r.to)).collect(),
         // ALLOC: empty; sub-aggregations are refused.

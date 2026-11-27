@@ -21,6 +21,8 @@ src/fetch/highlight_tests.rs	new		tests of highlight.rs
 src/fetch/docvalue_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/DocValueFieldsFetchSubPhase.java@3.10.0	FieldAndFormat.fromXContent, SearchService.parseSource's docvalue_fields limit, getProcessor's resolution and process's values
 src/fetch/docvalue_fields_tests.rs	new		tests of docvalue_fields.rs
 src/fetch/source_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/FieldFetcher.java@3.10.0	FieldFetcher, FetchFieldsPhase, SourceValueFetcher, XContentMapValues.extractValue and the keyword, text, number and date valueFetcher
+src/fetch/stored_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/StoredFieldsPhase.java@3.10.0	the refusal of a stored field name that is an object, and of a field with store true this node does not read
+src/fetch/stored_fields_tests.rs	new		tests of the stored_fields check
 src/fetch/source_fields_tests.rs	new		tests of the fields API's reading of _source
 src/fetch/source_filter.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/FetchSourceContext.java@3.10.0	fromXContent and validateAmbiguousFields; XContentMapValues.filter (set-based and automaton filters); the source map's HashMap order and Jackson's number and string writing
 src/fetch/source_map.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	readMap into HashMaps (key order) and the XContentBuilder's writing of the maps back: Integer, Long and Double numbers, Jackson string escaping
@@ -28,8 +30,14 @@ src/fetch/source_filter_tests.rs	new		tests of source_filter.rs, against sources
 src/dsl/queries/mod.rs	port	server/src/main/java/org/opensearch/common/unit/Fuzziness.java@3.10.0	the module's query enum and dispatch; Fuzziness.asDistance
 src/dsl/queries/single_field.rs	port	server/src/main/java/org/opensearch/index/query/PrefixQueryBuilder.java@3.10.0	the one-field short-or-long form the term-level fromXContent share, and throwParsingExceptionOnMultipleFields
 src/dsl/queries/term_level.rs	port	server/src/main/java/org/opensearch/index/query/TermsQueryBuilder.java@3.10.0	fromXContent and constructor checks of TermsQueryBuilder, PrefixQueryBuilder, WildcardQueryBuilder, RegexpQueryBuilder, FuzzyQueryBuilder (with Fuzziness.parse), ExistsQueryBuilder and IdsQueryBuilder
-src/dsl/queries/compound.rs	port	server/src/main/java/org/opensearch/index/query/DisMaxQueryBuilder.java@3.10.0	fromXContent of DisMaxQueryBuilder, ConstantScoreQueryBuilder and MatchNoneQueryBuilder
+src/dsl/queries/case_insensitive.rs	port	server/src/main/java/org/opensearch/common/lucene/search/AutomatonQueries.java@3.10.0	caseInsensitiveTermQuery, caseInsensitivePrefix and toCaseInsensitiveWildcardQuery
+src/dsl/queries/case_insensitive_tests.rs	new		tests of case_insensitive.rs
+src/dsl/queries/compound.rs	port	server/src/main/java/org/opensearch/index/query/DisMaxQueryBuilder.java@3.10.0	fromXContent of DisMaxQueryBuilder, ConstantScoreQueryBuilder, BoostingQueryBuilder and MatchNoneQueryBuilder
+src/dsl/queries/bool_prefix.rs	port	server/src/main/java/org/opensearch/index/query/MatchBoolPrefixQueryBuilder.java@3.10.0	fromXContent and doToQuery, with MatchQuery.parse of type BOOLEAN_PREFIX
+src/dsl/queries/bool_prefix_tests.rs	new		tests of bool_prefix.rs
 src/dsl/queries/build.rs	port	server/src/main/java/org/opensearch/index/mapper/StringFieldType.java@3.10.0	doRewrite/doToQuery of the module's builders; the field types' termsQuery, prefixQuery, wildcardQuery, regexpQuery, fuzzyQuery and existsQuery; ExistsQueryBuilder.newFilter
+src/dsl/queries/cross_fields.rs	port	server/src/main/java/org/opensearch/index/search/MultiMatchQuery.java@3.10.0	buildCrossFieldQuery, BlendedQueryBuilder and blendTerms
+src/dsl/queries/cross_fields_tests.rs	new		tests of cross_fields.rs
 src/dsl/queries/full_text.rs	port	server/src/main/java/org/opensearch/index/query/MultiMatchQueryBuilder.java@3.10.0	fromXContent and constructor checks of MatchPhraseQueryBuilder and MultiMatchQueryBuilder (with Type.parse and parseFieldAndBoost)
 src/dsl/queries/full_text_build.rs	port	server/src/main/java/org/opensearch/index/search/MultiMatchQuery.java@3.10.0	MatchQuery.parse of the phrase type, MultiMatchQuery.parse with buildFieldQueries and combineGrouped, QueryParserHelper.resolveMappingFields
 src/dsl/queries/simple_string.rs	port	server/src/main/java/org/opensearch/index/query/SimpleQueryStringBuilder.java@3.10.0	fromXContent, flag parsing and constructor checks
@@ -53,6 +61,8 @@ src/dsl/queries/function_score_tests.rs	new		tests of function_score.rs, against
 src/dsl/queries/function_score_build_tests.rs	new		tests of function_score_build.rs, against what the replay cannot name
 src/dsl/queries/simple_string_tests.rs	new		tests of simple_string.rs, against messages recorded from OpenSearch
 src/dsl/queries/simple_string_build_tests.rs	new		tests of simple_string_build.rs and simple_string_leaf.rs, against queries OpenSearch built
+src/dsl/match_parse.rs	port	server/src/main/java/org/opensearch/index/query/MatchQueryBuilder.java@3.10.0	MatchQueryBuilder.fromXContent
+src/dsl/queries/fuzzy_match_tests.rs	new		tests of the fuzziness of a match query
 src/dsl/query.rs	port	server/src/main/java/org/opensearch/index/query/AbstractQueryBuilder.java@3.10.0	parseInnerQueryBuilder, with MatchAllQueryBuilder, TermQueryBuilder, MatchQueryBuilder and RangeQueryBuilder fromXContent
 src/dsl/query_tests.rs	new		tests of query.rs, against messages recorded from OpenSearch
 src/dsl/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@3.10.0	the registered query names, the suggestion candidates
@@ -97,9 +107,9 @@ src/aggs/metric/tdigest.rs	port	server/src/main/java/org/opensearch/search/aggre
 src/aggs/metric/tdigest_tests.rs	new		tests of tdigest.rs against vectors printed by OpenSearch's TDigestState
 src/aggs/metric/tests.rs	new		tests of the metric aggregations, against messages and values recorded from OpenSearch
 src/aggs/metric/collect_tests.rs	new		tests of collect.rs over a real index
-src/overlay/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@429b4cbc	the in-memory segment of the latest version of each pushed id, the ids it replaces or deletes
+src/overlay/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@3.10.0	the in-memory segment of the latest version of each pushed id, the ids it replaces or deletes
 src/overlay/commit.rs	new		finds the commit documents an overlay replaces or deletes by one filter search, which the Java shell does with a per-id version map
-src/overlay/view.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@429b4cbc	the commit hidden by a live-documents mask beside the overlay segment
+src/overlay/view.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@3.10.0	the commit hidden by a live-documents mask beside the overlay segment
 src/overlay/source.rs	new		the overlay a search asks for: finished or nothing, never a build on the search path
 src/response_selected.rs	new		writes chosen hits of a top_hits result, or of a shard's top-level hits, as response.rs writes them, for a coordinator that merged several shards
 src/response_selected_tests.rs	new		tests of response_selected.rs over a real index
@@ -140,7 +150,7 @@ src/prefetch/plan_tests.rs	new		tests of plan.rs over a hand-built file table
 src/prefetch/primed.rs	new		holds the fetched bytes and serves the engine store from them until the open returns
 src/prefetch/tests.rs	new		tests of the open prefetch over a real index on the emulator
 src/aggs/partial.rs	new		the shared shard-level result and the reduce dispatch, lifted out of aggs/metric/partial.rs
-src/frozen.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReaders.java@429b4cbc	openFrozenReader: the incarnation check and the view's own manifest for the shard; the files resolve to blob ranges
+src/frozen.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReaders.java@3.10.0	openFrozenReader: the incarnation check and the view's own manifest for the shard; the files resolve to blob ranges
 src/dsl/pit.rs	port	server/src/main/java/org/opensearch/search/builder/PointInTimeBuilder.java@3.10.0	the parser of a search body's pit: id required, keep_alive kept as written
 src/response_values.rs	port	server/src/main/java/org/opensearch/search/SearchHit.java@3.10.0	Float.toString and Uid.decodeId as the response prints them, split from response.rs
 src/aggs/bucket/range.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/InternalRange.java@3.10.0	RangeAggregator.Range's bounds, InternalRange.Bucket and InternalRange.reduce
@@ -207,6 +217,7 @@ src/aggs/bucket/composite_collect.rs	port	server/src/main/java/org/opensearch/se
 src/aggs/bucket/composite_collect_tests.rs	new		tests of composite on a real index
 src/aggs/bucket/composite_tests.rs	new		tests of the composite parser, reduce and writer
 src/aggs/metric/resolve.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	resolve and ValuesSourceRegistry.getAggregator field checks, moved out of collect.rs
+src/aggs/metric/script_values.rs	new		a metric script as the engine values source Painless runs; the Java compiles the script in core
 src/aggs/metric/sub_rules.rs	new		which bucket aggregations may hold which sub-aggregations, moved out of parse.rs
 src/aggs/bucket/terms_sub_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/BucketSelectionStrategy.java@3.10.0	the shard and reduce ordering of a numeric terms by a sub-aggregation: every bucket kept, ordered by the value, cut to the size
 src/aggs/bucket/keyword_partition_tests.rs	new		tests of a partition-based include of a keyword terms against the reference hash
@@ -265,3 +276,62 @@ src/aggs/bucket/histogram_sub_order_tests.rs	new		tests of histogram and date_hi
 src/aggs/bucket/date_range_tests.rs	new		tests of date_range parsing and running
 src/aggs/bucket/global_tests.rs	new		tests of global parsing and running
 src/aggs/metric/collect_global.rs	new		runs global aggregations under a match_all query beside the others
+src/aggs/bucket/significant.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalSignificantTerms.java@3.10.0	the JLH and percentage heuristics, InternalSignificantTerms.reduce and the response body
+src/aggs/bucket/significant_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/SignificantTermsAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters checks and the factory shard size
+src/aggs/bucket/significant_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/SignificanceLookup.java@3.10.0	the engine node, the background counts and size of SignificanceLookup
+src/aggs/bucket/significant_tests.rs	new		tests of significant_terms parsing, scoring, reduce and running
+src/dsl/queries/function_score_painless.rs	new		sends a Painless script_score to the engine as source, which compiles it in Rust; Java compiles it to bytecode in the script service
+src/painless_switch.rs	new		the process-wide switch for compiling Painless in Rust; Java has no such choice
+src/script_failure.rs	new		turns the engine's encoded script error into a script_exception; Java raises the ScriptException itself
+src/dsl/queries/phrase_prefix.rs	port	server/src/main/java/org/opensearch/index/query/MatchPhrasePrefixQueryBuilder.java@3.10.0	fromXContent and doToQuery, with MatchQuery.parse of type PHRASE_PREFIX and TextFieldMapper.createPhrasePrefixQuery
+src/dsl/queries/phrase_prefix_tests.rs	new		tests of phrase_prefix.rs
+src/ltr/mod.rs	new		the learning to rank evaluators; the stock plugin (o19s) is a separate Java plugin, ported natively by ADR 0071
+src/ltr/json.rs	new		reads a model definition through the search body recorder
+src/ltr/linear.rs	new		model/linear of the plugin
+src/ltr/xgboost.rs	new		model/xgboost+json of the plugin, scored as XGBoost predicts
+src/ltr/ranklib.rs	new		model/ranklib of the plugin (MART, LambdaMART, Random Forests), scored as RankLib evaluates
+src/ltr/tests.rs	new		unit tests of the evaluators
+src/dsl/queries/script_query.rs	port	server/src/main/java/org/opensearch/index/query/ScriptQueryBuilder.java@3.10.0	fromXContent for Painless source only, and the engine filter built from it
+src/dsl/queries/script_switch_tests.rs	new		tests of the Painless switch on script_score and the script query; Java has no such switch
+src/date_pattern.rs	port	server/src/main/java/org/opensearch/common/time/DateFormatter.java@3.10.0	the printing of the names and java.time letters a date_histogram format may carry, held against fixtures/date-format/java-3.10.0.txt
+src/aggs/bucket/date_histogram_format_tests.rs	new		tests of the date_histogram format option
+src/date_pattern_tests.rs	new		tests of the date printer against the recorded Java prints
+src/aggs/bucket/rare.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalRareTerms.java@3.10.0	the shard result of StringRareTermsAggregator (exact, in place of its cuckoo filter), InternalRareTerms.reduce and the body
+src/aggs/bucket/rare_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/RareTermsAggregationBuilder.java@3.10.0	the parser and the setters checks of max_doc_count and precision
+src/aggs/bucket/rare_collect.rs	new		runs a rare_terms on the engine SignificantTerms node and splits the terms at max_doc_count
+src/aggs/bucket/rare_tests.rs	new		tests of rare_terms
+src/mapping_types.rs	new		the name a refusal gives a field type, and the knn_vector space, split out of mapping.rs
+src/aggs/metric/collect_decimal_tests.rs	new		tests of the metric aggregations over float and double fields
+src/numbers_decimal.rs	port	server/src/main/java/org/opensearch/index/mapper/NumberFieldMapper.java@3.10.0	FLOAT and DOUBLE: parse, termQuery, termsQuery and rangeQuery, with DoublePoint and FloatPoint nextUp and nextDown
+src/numbers_decimal_tests.rs	new		tests of numbers_decimal.rs
+src/search_decimal_tests.rs	new		tests of queries, sorts and search_after over float and double fields
+src/aggs/bucket/multi.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalMultiTerms.java@3.10.0	the shard result of MultiTermsAggregator, InternalTerms.reduce over tuple keys and the body with key and key_as_string
+src/aggs/bucket/multi_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/MultiTermsAggregationBuilder.java@3.10.0	the parser and the setters checks of terms, size, shard_size, min_doc_count, shard_min_doc_count and order
+src/aggs/bucket/multi_collect.rs	new		runs a multi_terms on the engine composite node and keeps the best shard_size combinations by the order
+src/aggs/bucket/multi_tests.rs	new		tests of multi_terms, with the bodies recorded from the Java
+src/ltr/models.rs	new		the resolver a search reads a model through, installed by the node
+src/search_ltr.rs	new		the sltr rescore: one feature query a feature, combined with the first pass score
+src/dsl/queries/sltr.rs	new		the sltr query of the learning to rank plugin
+src/dsl/queries/sltr_tests.rs	new		tests of the sltr parser
+src/dsl/ltr_log.rs	new		the ext.ltr_log section of the learning to rank plugin
+src/dsl/ltr_log_tests.rs	new		tests of the ltr_log parser
+src/search_ltr_log.rs	new		feature logging: each hit of the page carries its feature values under fields._ltrlog
+src/aggs/pipeline/mod.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsPipelineAggregator.java@429b4cbc	the sibling pipeline kinds and what a request holds of one
+src/aggs/pipeline/parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsParser.java@429b4cbc	the builders' body parser and AggregatorFactories.Builder.validate over buckets_path
+src/aggs/pipeline/compute.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsPipelineAggregator.java@429b4cbc	doReduce with the avg, sum, min, max and stats collectors, over a rendered body
+src/aggs/pipeline/pipeline_tests.rs	new		tests of the pipeline module against the recorded Java
+src/aggs/metric/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@429b4cbc	the registered aggregation names
+src/search_query_fields.rs	new		what a query reads: point clauses and scored fields
+src/aggs/metric/collect_half_tests.rs	new		tests of the aggregations over a half_float field
+src/search_half_tests.rs	new		tests of queries, sorts and search_after over a half_float field
+src/aggs/metric/collect_scaled_tests.rs	new		tests of the aggregations over a scaled_float field
+src/search_scaled_tests.rs	new		tests of queries, sorts and search_after over a scaled_float field
+src/aggs/metric/scripted_metric.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/ScriptedMetricAggregationBuilder.java@3.10.0	the parser (init, map, combine, reduce scripts and params), the required-script checks of doBuild, and InternalScriptedMetric.reduce running the reduce script over every shard value in order
+src/aggs/pipeline/parent.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/DerivativePipelineAggregator.java@429b4cbc	derivative, cumulative_sum and bucket_sort reduce over a rendered bucket body
+src/aggs/pipeline/parent_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketSortPipelineAggregationBuilder.java@429b4cbc	the three parent builders' body parsers and the validation of a parent pipeline in its host
+src/aggs/pipeline/parent_tests.rs	new		tests of the parent pipelines against the recorded Java
+src/aggs/pipeline/sort_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketSortPipelineAggregationBuilder.java@429b4cbc	the bucket_sort body parser and its error chains
+src/aggs/pipeline/parent_parse_tests.rs	new		tests of the parent pipelines bodies and validation against the recorded Java
+src/stored_scripts.rs	new		re-export of the resolver trait, which lives in oss-types
+src/aggs/pipeline/serial_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/SerialDiffPipelineAggregationBuilder.java@429b4cbc	the builder parse; serial_diff compute is in parent.rs after SerialDiffPipelineAggregator.reduce
+src/aggs/pipeline/serial_tests.rs	new		serial_diff computed, parsed and validated against the bytes Java wrote

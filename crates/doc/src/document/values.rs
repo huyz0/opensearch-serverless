@@ -5,6 +5,7 @@
 
 use crate::mapping::java_parse_double;
 use crate::mapping::{FieldType, Formats, Leaf, MappingError, Num, NumType, Value};
+use lucene_util::half_float::{half_float_to_sortable_short, sortable_short_to_half_float};
 
 use super::reader::{At, Tok};
 
@@ -200,15 +201,15 @@ fn class(ty: NumType) -> &'static str {
         NumType::Byte | NumType::Integer => "Integer",
         NumType::Short => "Short",
         NumType::Long => "Long",
-        NumType::Float => "Float",
-        NumType::Double => "Double",
+        NumType::Float | NumType::HalfFloat => "Float",
+        NumType::Double | NumType::ScaledFloat => "Double",
     }
 }
 
 fn number(leaf: &Leaf, ty: NumType, tok: &Tok, at: At) -> Result<Taken, MappingError> {
     let coerce = leaf.get("coerce").is_none_or(Value::flag);
     let null_value = || match leaf.get("null_value") {
-        Some(Value::Number(n)) => Taken::Value(FieldValue::Number(*n)),
+        Some(Value::Number(n)) => scaled(leaf, ty, *n).map_or(Taken::Nothing, Taken::Value),
         _ => Taken::Nothing,
     };
     let n = match tok {
@@ -236,12 +237,53 @@ fn number(leaf: &Leaf, ty: NumType, tok: &Tok, at: At) -> Result<Taken, MappingE
             ));
         }
     };
-    Ok(Taken::Value(FieldValue::Number(n)))
+    scaled(leaf, ty, n).map(Taken::Value)
+}
+
+/// `Math.round(double * scalingFactor)` of a `scaled_float` value: its
+/// long. Any other type's number as it is.
+fn scaled(leaf: &Leaf, ty: NumType, n: Num) -> Result<FieldValue, MappingError> {
+    let (NumType::ScaledFloat, Num::Double(d)) = (ty, n) else {
+        return Ok(FieldValue::Number(n));
+    };
+    if !d.is_finite() {
+        // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
+        return Err(MappingError::illegal_argument(&format!(
+            "[scaled_float] only supports finite values, but got [{}]",
+            crate::mapping::json::java_double(d)
+        )));
+    }
+    let factor = match leaf.get("scaling_factor") {
+        Some(Value::Double(f)) => *f,
+        _ => 1.0,
+    };
+    Ok(FieldValue::Number(Num::Long(java_round(d * factor))))
+}
+
+/// `Math.round(double)`: the nearest long, ties toward positive infinity,
+/// saturating, and `NaN` as 0.
+fn java_round(x: f64) -> i64 {
+    // `as` saturates and reads NaN as 0, as `Math.round` does.
+    #[allow(clippy::cast_possible_truncation)]
+    let v = (x + 0.5).floor() as i64;
+    v
+}
+
+/// Whether a half-precision float of `f` is finite (`validateParsed`).
+fn half_finite(f: f32) -> bool {
+    sortable_short_to_half_float(half_float_to_sortable_short(f)).is_finite()
 }
 
 fn finite(ty: NumType, n: Num) -> Result<Num, MappingError> {
     let (ok, shown) = match n {
-        Num::Float(f) => (f.is_finite(), n.java_string()),
+        Num::Float(f) => (
+            if ty == NumType::HalfFloat {
+                half_finite(f)
+            } else {
+                f.is_finite()
+            },
+            n.java_string(),
+        ),
         Num::Double(d) => (d.is_finite(), n.java_string()),
         _ => return Ok(n),
     };
@@ -261,7 +303,8 @@ fn from_string(ty: NumType, s: &str) -> Result<Num, MappingError> {
     let nfe = || MappingError::number_format(s);
     match ty {
         NumType::Long => to_long(s).map(Num::Long),
-        NumType::Float => {
+        NumType::ScaledFloat => Ok(Num::Double(java_parse_double(s).ok_or_else(nfe)?)),
+        NumType::Float | NumType::HalfFloat => {
             let d = java_parse_double(s).ok_or_else(nfe)?;
             #[allow(clippy::cast_possible_truncation)]
             finite(ty, Num::Float(d as f32))
@@ -362,12 +405,13 @@ fn from_number(ty: NumType, t: &str, coerce: bool, at: At) -> Result<Num, Mappin
         }
     };
     match ty {
-        NumType::Float =>
+        NumType::Float | NumType::HalfFloat =>
         {
             #[allow(clippy::cast_possible_truncation)]
             finite(ty, Num::Float(full as f32))
         }
         NumType::Double => finite(ty, Num::Double(full)),
+        NumType::ScaledFloat => Ok(Num::Double(full)),
         NumType::Long => {
             let v = if integral {
                 t.parse::<i64>()

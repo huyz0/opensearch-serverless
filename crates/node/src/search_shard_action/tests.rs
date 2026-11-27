@@ -26,6 +26,7 @@ struct Fake {
     wait: Duration,
     fail: Option<u16>,
     now: std::sync::Mutex<Vec<Option<i64>>>,
+    aggs: Vec<oss_reader::aggs::partial::Partial>,
 }
 
 impl Fake {
@@ -37,6 +38,7 @@ impl Fake {
             wait: Duration::ZERO,
             fail: None,
             now: std::sync::Mutex::default(),
+            aggs: Vec::new(),
         }
     }
 }
@@ -77,6 +79,7 @@ impl Shards for Fake {
             exact: true,
             max_score: None,
             terminated_early: None,
+            aggregations: self.aggs.clone(),
             rows: vec![
                 Row {
                     id_json: b"\"a\"".to_vec(),
@@ -256,3 +259,8 @@ fn the_search_runs_at_the_instant_the_request_carries() {
     ask(&h, &message, WireVersion::SHELL).unwrap();
     assert_eq!(*fake.now.lock().unwrap(), vec![Some(asked)]);
 }
+
+mod aggregations;
+mod pipelines;
+mod ranges;
+mod rare_multi;

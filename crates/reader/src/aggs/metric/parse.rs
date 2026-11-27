@@ -11,83 +11,38 @@
 use crate::aggs::bucket::parse_arms::parse_bucket;
 pub(crate) use crate::aggs::metric::long_value::long_value;
 use crate::aggs::metric::percentiles::parse_percentiles_body;
+pub use crate::aggs::metric::registered::REGISTERED_AGGREGATIONS;
 use crate::aggs::metric::sub_rules::{holds_subs, is_scalar, nests_under};
 use crate::aggs::metric::top_hits::parse_top_hits_body;
 use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg, PercentilesOptions};
+use crate::aggs::pipeline::parent_parse;
+use crate::aggs::pipeline::parse as pipeline_parse;
+use crate::aggs::pipeline::{PipelineAgg, PipelineKind};
 use crate::dsl::error::{DslError, parsing_failure};
+use crate::dsl::queries::function_score_script::ScriptScore;
 use crate::dsl::tokens::{Kind, Parser};
+
+use super::script_values;
+use crate::aggs::metric::scripted_metric;
 use crate::dsl::values::suggest;
 use crate::failure::Failure;
-
-/// Every aggregation type the OpenSearch 3.10.0 distribution registers,
-/// pipelines included (`SearchModule.registerAggregations` and
-/// `registerPipelineAggregations`, and the modules' `getAggregations`):
-/// the candidates of "did you mean".
-pub const REGISTERED_AGGREGATIONS: &[&str] = &[
-    "adjacency_matrix",
-    "auto_date_histogram",
-    "avg",
-    "avg_bucket",
-    "bucket_script",
-    "bucket_selector",
-    "bucket_sort",
-    "cardinality",
-    "children",
-    "composite",
-    "cumulative_sum",
-    "date_histogram",
-    "date_range",
-    "derivative",
-    "diversified_sampler",
-    "extended_stats",
-    "extended_stats_bucket",
-    "filter",
-    "filters",
-    "geo_bounds",
-    "geo_centroid",
-    "geo_distance",
-    "geohash_grid",
-    "geotile_grid",
-    "global",
-    "histogram",
-    "ip_range",
-    "matrix_stats",
-    "max",
-    "max_bucket",
-    "median_absolute_deviation",
-    "min",
-    "min_bucket",
-    "missing",
-    "moving_avg",
-    "moving_fn",
-    "multi_terms",
-    "multivalue_doc_count",
-    "parent",
-    "percentile_ranks",
-    "percentiles",
-    "percentiles_bucket",
-    "range",
-    "rare_terms",
-    "sampler",
-    "scripted_metric",
-    "serial_diff",
-    "significant_terms",
-    "significant_text",
-    "stats",
-    "stats_bucket",
-    "sum",
-    "sum_bucket",
-    "terms",
-    "top_hits",
-    "value_count",
-    "variable_width_histogram",
-    "weighted_avg",
-];
 
 /// `parseAggregators(parser, 0)` with the parser on the `aggs` object's
 /// start: the aggregations in the order given, none for an empty object.
 pub fn parse_aggregations(p: &mut Parser<'_>) -> Result<Vec<MetricAgg>, DslError> {
-    parse_level(p, 0)
+    parse_aggregations_with_pipelines(p).map(|(aggs, _)| aggs)
+}
+
+/// [`parse_aggregations`], and the top-level sibling pipeline aggregations,
+/// checked against the aggregations beside them.
+pub fn parse_aggregations_with_pipelines(
+    p: &mut Parser<'_>,
+) -> Result<(Vec<MetricAgg>, Vec<PipelineAgg>), DslError> {
+    // ALLOC: one entry a pipeline aggregation, bounded by the body's recording.
+    let mut pipes = Vec::new();
+    let aggs = parse_level(p, 0, &mut pipes)?;
+    pipeline_parse::validate(&aggs, &pipes)?;
+    Ok((aggs, pipes))
 }
 
 /// The deepest an aggregation holding sub-aggregations may sit (the top level
@@ -98,9 +53,17 @@ const MAX_NESTING: usize = 3;
 struct Definition {
     agg: Option<MetricAgg>,
     subs: Vec<MetricAgg>,
+    /// The definition was a sibling pipeline aggregation, pushed to the sink.
+    piped: bool,
+    /// The parent pipeline aggregations among its `aggs`.
+    parents: Vec<PipelineAgg>,
 }
 
-fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslError> {
+fn parse_level(
+    p: &mut Parser<'_>,
+    level: usize,
+    pipes: &mut Vec<PipelineAgg>,
+) -> Result<Vec<MetricAgg>, DslError> {
     // ALLOC: one entry an aggregation, bounded by the body's recording.
     let mut aggs: Vec<MetricAgg> = Vec::new();
     loop {
@@ -143,7 +106,10 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
                 ),
             ));
         }
-        let definition = parse_definition(p, name, level)?;
+        let definition = parse_definition(p, name, level, pipes)?;
+        if definition.piped {
+            continue;
+        }
         let Some(agg) = definition.agg else {
             return Err(DslError::parsing(
                 p.location(),
@@ -197,6 +163,14 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
             }
             agg.subs = definition.subs;
         }
+        if !definition.parents.is_empty() {
+            if !holds_subs(agg.metric) {
+                return Err(sub_refusal(&agg, name));
+            }
+            let mut parents = definition.parents;
+            parent_parse::validate_parents(&agg, &mut parents)?;
+            pipes.extend(parents);
+        }
         if aggs.iter().any(|a| a.name == agg.name) {
             return Err(DslError::illegal(
                 // ALLOC: error path; one message.
@@ -233,11 +207,19 @@ fn sub_refusal(agg: &MetricAgg, name: &str) -> DslError {
 }
 
 /// One aggregation's object, the parser on its start.
-fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Definition, DslError> {
+fn parse_definition(
+    p: &mut Parser<'_>,
+    name: &str,
+    level: usize,
+    pipes: &mut Vec<PipelineAgg>,
+) -> Result<Definition, DslError> {
     let mut definition = Definition {
         agg: None,
         // ALLOC: empty; the definition's `aggs` fill it.
         subs: Vec::new(),
+        piped: false,
+        // ALLOC: empty; the definition's `aggs` fill it.
+        parents: Vec::new(),
     };
     let mut subs_seen = false;
     loop {
@@ -280,7 +262,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                 }
                 subs_seen = true;
                 // `parseAggregators` gives no factories for an empty object.
-                definition.subs = parse_level(p, level.saturating_add(1))?;
+                definition.subs = parse_level(p, level.saturating_add(1), &mut definition.parents)?;
             }
             ty => {
                 if let Some(agg) = &definition.agg {
@@ -293,7 +275,30 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                         ),
                     ));
                 }
-                let Some(metric) = Metric::from_name(ty) else {
+                if let Some(kind) = PipelineKind::from_name(ty) {
+                    // A parent pipeline sits in a top-level aggregation (level 1).
+                    if level > 0 && !(kind.is_parent() && level == 1) {
+                        // ALLOC: error path; one message.
+                        return Err(DslError::unsupported(&format!(
+                            "a [{ty}] aggregation under another aggregation"
+                        )));
+                    }
+                    if kind.is_parent() {
+                        let pipe = parent_parse::parse_body(p, name, kind)?;
+                        if level == 0 {
+                            return Err(parent_parse::at_top_level(&pipe));
+                        }
+                        pipes.push(pipe);
+                    } else {
+                        pipes.push(pipeline_parse::parse_body(p, name, kind)?);
+                    }
+                    definition.piped = true;
+                    continue;
+                }
+                let named = Metric::from_name(ty).filter(|m| {
+                    *m != Metric::ScriptedMetric || crate::painless_switch::native_compile()
+                });
+                let Some(metric) = named else {
                     if REGISTERED_AGGREGATIONS.contains(&ty) {
                         // ALLOC: error path; one message.
                         return Err(DslError::unsupported(&format!("the [{ty}] aggregation")));
@@ -334,6 +339,10 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     filters: None,
                     nested: None,
                     composite: None,
+                    significant: None,
+                    rare: None,
+                    scripted: None,
+                    script: None,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),
                 };
@@ -347,9 +356,13 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                             // ALLOC: one box a `top_hits`, bounded by the body's recording.
                             agg.top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
                         }
+                        Metric::ScriptedMetric => {
+                            // ALLOC: one box a `scripted_metric`, bounded by the body's recording.
+                            agg.scripted = Some(Box::new(scripted_metric::parse_body(p, name)?));
+                        }
                         _ => {
-                            let (field, options) = parse_metric_body(p, metric, name)?;
-                            (agg.field, agg.cardinality) = (field, options);
+                            let (field, options, script) = parse_metric_body(p, metric, name)?;
+                            (agg.field, agg.cardinality, agg.script) = (field, options, script);
                         }
                     }
                 }
@@ -382,7 +395,7 @@ fn parse_metric_body(
     p: &mut Parser<'_>,
     metric: Metric,
     name: &str,
-) -> Result<(String, CardinalityOptions), DslError> {
+) -> Result<(String, CardinalityOptions, Option<Box<ScriptScore>>), DslError> {
     let ty = metric.name();
     let keys = if metric == Metric::Cardinality {
         CARDINALITY_KEYS
@@ -390,6 +403,7 @@ fn parse_metric_body(
         VALUES_SOURCE_KEYS
     };
     let mut field: Option<String> = None;
+    let mut script: Option<Box<ScriptScore>> = None;
     let mut options = CardinalityOptions::default();
     let mut key = "";
     let mut key_at = p.location();
@@ -411,6 +425,11 @@ fn parse_metric_body(
                 &format!("[{ty}] unknown field [{key}]{}", suggest(key, keys)),
                 None,
             ));
+        }
+        if key == "script" && script_values::takes_script(metric) {
+            // ALLOC: one box a script, bounded by the source's size.
+            script = Some(Box::new(script_values::parse(p, kind)?));
+            continue;
         }
         let accepted = match key {
             "field" | "execution_hint" => kind == Kind::String,
@@ -463,8 +482,18 @@ fn parse_metric_body(
             }
         }
     }
+    if script.is_some() {
+        if field.is_some() {
+            // ALLOC: error path; one message.
+            return Err(DslError::unsupported(&format!(
+                "the [{ty}] aggregation's [script] with a [field]"
+            )));
+        }
+        // ALLOC: empty; a scripted aggregation reads no field.
+        return Ok((String::new(), options, script));
+    }
     let field = field.ok_or_else(|| {
         DslError::illegal("Required one of fields [field, script], but none were specified. ")
     })?;
-    Ok((field, options))
+    Ok((field, options, None))
 }

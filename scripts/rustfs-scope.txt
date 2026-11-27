@@ -1,0 +1,32 @@
+# Every Rust file that reads RUSTFS_BIN, and why RustFS is the right backing.
+# scripts/check-rustfs-scope.py fails on a file that reads it and is not here,
+# and on a line here whose file no longer reads it.
+#
+#   compat  : checks our S3 client or S3 source/target against a real S3
+#             implementation. This is the only reason a new test may use RustFS.
+#   cross   : live Java shell processes beside Rust nodes on one bucket;
+#             only a real S3 server both can reach.
+#   twin    : the hand-run (ignored, or skipped without the binary) RustFS
+#             twin of a test that already runs on the emulator. Perf, scale
+#             and lifecycle tests run on the emulator or the fs store; a new
+#             twin needs a reason in the PR, so none is added casually.
+crates/blob/tests/rustfs.rs                       compat
+crates/node/tests/server/rustfs_rig.rs            compat
+crates/node/tests/server/stock_restore.rs         compat
+crates/node/tests/server/stock_export_budget.rs   compat
+crates/node/tests/mixed_fleet.rs                  cross
+crates/node/tests/mixed_fleet/made_from_nothing.rs cross
+crates/node/tests/mixed_fleet/live_plugins.rs     cross
+crates/node/tests/mixed_fleet/snapshots.rs        cross
+crates/node/tests/mixed_fleet/soak.rs             cross
+crates/node/tests/mixed_fleet/soak_wide.rs        cross
+crates/node/tests/mixed_fleet/warm_peer.rs        cross
+crates/node/tests/suite_rig/mod.rs                twin
+crates/node/tests/cluster_suite.rs                twin
+crates/node/tests/proactive_support/rustfs.rs     twin
+crates/node/tests/proactive_suite.rs              twin
+crates/node/tests/takeover_budgets.rs             twin
+crates/node/tests/takeover_scale.rs               twin
+crates/node/tests/search_slots_cold.rs            twin
+crates/reader/tests/it/knn_requests.rs               twin
+crates/node/tests/warm_scale_evidence.rs   twin

@@ -8,6 +8,7 @@
 
 use super::error::MappingError;
 use super::json::{Json, is_integral, java_double, java_float};
+use lucene_util::half_float::{half_float_to_sortable_short, sortable_short_to_half_float};
 
 /// A numeric field's type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -24,6 +25,10 @@ pub enum NumType {
     Float,
     /// `double`
     Double,
+    /// `half_float`
+    HalfFloat,
+    /// `scaled_float`
+    ScaledFloat,
 }
 
 impl NumType {
@@ -36,6 +41,8 @@ impl NumType {
             NumType::Long => "long",
             NumType::Float => "float",
             NumType::Double => "double",
+            NumType::HalfFloat => "half_float",
+            NumType::ScaledFloat => "scaled_float",
         }
     }
 }
@@ -132,6 +139,23 @@ fn to_double(node: &Json) -> Result<f64, MappingError> {
     java_parse_double(&text).ok_or_else(|| MappingError::number_format(&text))
 }
 
+/// `scaling_factor`: a finite positive double.
+///
+/// # Errors
+///
+/// A value that is no number, or no finite positive one.
+pub fn scaling_factor(node: &Json) -> Result<f64, MappingError> {
+    let v = to_double(node)?;
+    if !v.is_finite() || v <= 0.0 {
+        // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
+        return Err(MappingError::illegal_argument(&format!(
+            "[scaling_factor] must be a positive number, got [{}]",
+            java_double(v)
+        )));
+    }
+    Ok(v)
+}
+
 /// Parses `node` as `type.parse(node, coerce)` does.
 ///
 /// # Errors
@@ -212,6 +236,21 @@ pub fn parse(ty: NumType, node: &Json, coerce: bool) -> Result<Num, MappingError
             }
             Ok(Num::Float(f))
         }
+        NumType::HalfFloat => {
+            let v = to_double(node)?;
+            #[allow(clippy::cast_possible_truncation)]
+            let f = v as f32;
+            let half = sortable_short_to_half_float(half_float_to_sortable_short(f));
+            if !half.is_finite() {
+                // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
+                return Err(MappingError::illegal_argument(&format!(
+                    "[half_float] supports only finite values, but got [{}]",
+                    java_float(f)
+                )));
+            }
+            Ok(Num::Float(f))
+        }
+        NumType::ScaledFloat => Ok(Num::Double(to_double(node)?)),
         NumType::Double => {
             let v = to_double(node)?;
             if !v.is_finite() {

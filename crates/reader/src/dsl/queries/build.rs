@@ -11,6 +11,7 @@
 //! the same documents.
 
 use lucene_search::extended_query::{ExtendedQuery, PointInSetQuery};
+use lucene_search::function::FunctionScoreQuery;
 use lucene_search::query::FieldExistsQuery;
 use lucene_search::{
     BooleanQuery, Clause, ConstantScoreQuery, DisjunctionMaxQuery, FuzzyQuery, PrefixQuery,
@@ -24,6 +25,7 @@ use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build, field_type, match_none, term, unsupported};
 use crate::mapping::FieldType;
 use crate::numbers;
+use crate::numbers_decimal as decimal;
 
 /// `index.max_terms_count`'s default: the most values one `terms` query
 /// may hold.
@@ -71,6 +73,9 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
                 *transpositions,
             )
         }
+        More::CaseInsensitive {
+            kind, field, value, ..
+        } => super::case_insensitive::build(cx, *kind, field, value),
         More::Exists { field, .. } => exists(cx, field),
         More::Ids { values, .. } => ids(values),
         More::ConstantScore { filter, .. } => Ok(constant(build(filter, cx)?)),
@@ -93,6 +98,22 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
                 *tie_breaker,
             ))))
         }
+        More::Boosting {
+            positive,
+            negative,
+            negative_boost,
+            ..
+        } => {
+            let scored = FunctionScoreQuery::boost_by_query(
+                build(positive, cx)?,
+                build(negative, cx)?,
+                *negative_boost,
+            );
+            // ALLOC: one box a boosting query.
+            Ok(Clause::Extended(Box::new(ExtendedQuery::FunctionScore(
+                scored,
+            ))))
+        }
         More::MatchNone { .. } => Ok(match_none()),
         More::MatchPhrase {
             field,
@@ -101,16 +122,31 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             zero_terms_all,
             ..
         } => full_text_build::phrase(cx, field, query, *slop, *zero_terms_all),
+        More::MatchBoolPrefix(m, _) => super::bool_prefix::build(cx, m),
+        More::MatchPhrasePrefix(m, _) => super::phrase_prefix::build(cx, m),
+        More::FuzzyMatch(m, _) => full_text_build::fuzzy_match(cx, m),
         More::MultiMatch(m, _) => full_text_build::multi_match(cx, m),
         More::SimpleQueryString(s, _) => super::simple_string_build::simple_query_string(cx, s),
         More::QueryString(q, _) => super::query_string_build::query_string(cx, q),
         More::FunctionScore(q, _) => super::function_score_build::function_score(cx, q),
+        More::Script(q, _) => super::script_query::build(cx, q),
         More::Knn(q) if matches!(q.mode, super::knn::Mode::TopK(_)) => cx
             .knn
             .and_then(|r| r.get(q))
             .ok_or_else(|| unsupported("the [knn] query here")),
         More::Knn(q) => crate::knn::radial(q, cx),
         More::Nested(q, _) => super::nested_build::nested(q, cx),
+        // A logging query matches every document and adds nothing to a score.
+        More::Sltr(q) if q.featureset.is_some() => {
+            // ALLOC: one box a logging query.
+            Ok(Clause::ConstantScore(Box::new(ConstantScoreQuery::new(
+                crate::lucene_query::match_all(cx),
+                0.0,
+            ))))
+        }
+        More::Sltr(_) => Err(unsupported(
+            "an [sltr] query with a [model] anywhere but as the rescore_query of a rescore",
+        )),
     }
 }
 
@@ -132,13 +168,17 @@ fn constant(inner: Clause) -> Clause {
 }
 
 /// The type name OpenSearch's messages give a field type.
-fn type_name(ty: &FieldType) -> &str {
+pub(super) fn type_name(ty: &FieldType) -> &str {
     match ty {
         FieldType::Text => "text",
         FieldType::Keyword => "keyword",
         FieldType::Int { name, .. } => name,
         FieldType::Long => "long",
         FieldType::Date => "date",
+        FieldType::Float => "float",
+        FieldType::Double => "double",
+        FieldType::HalfFloat => "half_float",
+        FieldType::Scaled(_) => "scaled_float",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -190,7 +230,7 @@ pub(crate) fn regexp_clause(
 
 /// `prefixQuery`, `wildcardQuery` and `regexpQuery`: string fields only;
 /// any other type is a `QueryShardException`.
-fn string_query(
+pub(crate) fn string_query(
     cx: &QueryContext<'_>,
     kind: &str,
     field: &str,
@@ -287,6 +327,9 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
             }
             // ALLOC: one box a bool of a date field's terms.
             Ok(constant(Clause::Boolean(Box::new(q))))
+        }
+        FieldType::Double | FieldType::Float | FieldType::HalfFloat | FieldType::Scaled(_) => {
+            set(decimal::decimal_set(ty, field, values)?)
         }
         FieldType::Unsupported(_) => Err(unsupported("this field type")),
     }

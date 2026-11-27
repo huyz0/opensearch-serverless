@@ -12,6 +12,7 @@ use oss_testkit::index::{Spec, blobs};
 
 use crate::dsl::parse_chunks;
 use crate::{OpenShard, open_shard};
+use lucene_search::{BooleanQuery, Clause};
 
 #[test]
 fn a_count_past_the_tracking_limit_is_reported_at_the_limit() {
@@ -389,3 +390,12 @@ fn post_filter_parses_one_query_and_is_refused_where_it_cannot_be_served() {
         );
     }
 }
+
+#[path = "search_decimal_tests.rs"]
+mod decimal_tests;
+
+#[path = "search_half_tests.rs"]
+mod half_tests;
+
+#[path = "search_scaled_tests.rs"]
+mod scaled_tests;

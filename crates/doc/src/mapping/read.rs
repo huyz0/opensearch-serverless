@@ -56,6 +56,7 @@ pub(super) fn parse_value(
         Kind::KnnDataType => Value::Str(super::knn::parse_data_type(node)?),
         Kind::KnnMethod => Value::Method(Box::new(super::knn::parse_method(node)?)),
         Kind::KnnSpace => Value::Str(super::knn::parse_space(node)?),
+        Kind::ScalingFactor => Value::Double(numbers::scaling_factor(node)?),
         Kind::NullNumber => match ty {
             FieldType::Number(n) => Value::Number(numbers::parse(n, node, false)?),
             _ => Value::Null,

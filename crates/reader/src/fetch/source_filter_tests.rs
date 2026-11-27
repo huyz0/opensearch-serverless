@@ -78,6 +78,7 @@ fn whole_sources_and_none_are_not_filtered() {
         filter(r#"{"include":"a","exclude":["b","b"]}"#),
         Ok(SourceFilter {
             skip: false,
+            no_id: false,
             includes: vec!["a".into()],
             excludes: vec!["b".into()],
         })
@@ -203,6 +204,7 @@ fn deeper_paths_and_nested_arrays_filter_as_opensearch_filters() {
     let run = |source: &str, includes: &[&str], excludes: &[&str]| {
         let f = SourceFilter {
             skip: false,
+            no_id: false,
             includes: includes.iter().map(|s| (*s).to_owned()).collect(),
             excludes: excludes.iter().map(|s| (*s).to_owned()).collect(),
         };

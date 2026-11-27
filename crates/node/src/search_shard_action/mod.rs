@@ -8,8 +8,14 @@
 //! search from its own state, with no request to the store. This is not write
 //! fencing: see ADR 0057.
 
+mod answer_value;
 mod convert;
+mod histogram;
 mod local;
+mod multi;
+mod range;
+mod rare;
+mod terms;
 
 pub use local::{Local, run};
 
@@ -22,7 +28,7 @@ use oss_reader::dsl::SearchSource;
 use oss_reader::failure::SearchError;
 use oss_reader::response::Row;
 use oss_transport::actions::search_shard::{
-    Bounds, Hit, MAX_BYTES, Refusal, Request as Ask, Response,
+    AggAnswer, Bounds, Hit, MAX_BYTES, Refusal, Request as Ask, Response,
 };
 use oss_transport::exception::RemoteException;
 use oss_transport::server::{Handler, Request};
@@ -44,6 +50,8 @@ pub struct Found {
     pub terminated_early: Option<bool>,
     /// The hits in order.
     pub rows: Vec<Row>,
+    /// The aggregations' shard-level results, in request order.
+    pub aggregations: Vec<oss_reader::aggs::partial::Partial>,
 }
 
 /// The shards this node writes, and the search of one.
@@ -231,7 +239,7 @@ impl Handler for SearchShardHandler {
         // The lease is checked again: a search that outlasted it answers
         // nothing.
         self.owns(&uuid, shard)?;
-        write_answer(&found, out)
+        write_answer(&found, &ask.source.aggregations, out)
     }
 }
 
@@ -240,7 +248,32 @@ fn id_of(row: &Row) -> Result<String, RemoteException> {
         .map_err(|_| refuse("a stored id that is not text", "INTERNAL_SERVER_ERROR"))
 }
 
-fn write_answer(found: &Found, out: &mut Output<'_>) -> Result<(), RemoteException> {
+/// The shard's results as the wire writes them: the single-value metrics over
+/// a number or a date, which a Java coordinator reduces.
+fn answers<'a>(
+    parts: &'a [oss_reader::aggs::partial::Partial],
+    asked: &[oss_transport::actions::search_shard::AggRequest],
+) -> Result<Vec<AggAnswer<'a>>, RemoteException> {
+    use oss_reader::aggs::partial::Format;
+    // ALLOC: one answer an aggregation, bounded by the request's.
+    let mut out = Vec::with_capacity(parts.len());
+    for p in parts {
+        let date = p.format == Format::Date;
+        let value = answer_value::value(&p.name, &p.value, p.format, asked)?;
+        out.push(AggAnswer {
+            name: &p.name,
+            value,
+            date,
+        });
+    }
+    Ok(out)
+}
+
+fn write_answer(
+    found: &Found,
+    asked: &[oss_transport::actions::search_shard::AggRequest],
+    out: &mut Output<'_>,
+) -> Result<(), RemoteException> {
     let ids = found
         .rows
         .iter()
@@ -260,6 +293,7 @@ fn write_answer(found: &Found, out: &mut Output<'_>) -> Result<(), RemoteExcepti
             source: &row.source,
         })
         .collect();
+    let aggregations = answers(&found.aggregations, asked)?;
     Response {
         total: i64::try_from(found.total).unwrap_or(i64::MAX),
         total_is_lower_bound: !found.exact,
@@ -267,7 +301,7 @@ fn write_answer(found: &Found, out: &mut Output<'_>) -> Result<(), RemoteExcepti
         timed_out: false,
         terminated_early: found.terminated_early,
     }
-    .write(&hits, out)
+    .write(&hits, &aggregations, out)
     .map_err(|_| {
         refuse(
             "the answer is past the limit of a forwarded search",

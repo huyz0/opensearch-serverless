@@ -20,7 +20,7 @@ Why the user data and not a search for the highest `_seq_no`: a deleted document
 
 ## Test plan
 
-`crates/reader/tests/overlay_checkpoint.rs` for AC-1 and AC-2 over in-memory commits; `crates/reader/tests/it/open.rs` for AC-3; AC-4 is `crates/reader/tests/open_cost_heap.rs`.
+`crates/reader/tests/it/overlay_checkpoint.rs` for AC-1 and AC-2 over in-memory commits; `crates/reader/tests/it/open.rs` for AC-3; AC-4 is `crates/reader/tests/open_cost_heap.rs`.
 
 ## S3 request budget
 

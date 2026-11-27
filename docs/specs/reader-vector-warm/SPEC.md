@@ -23,10 +23,10 @@ Not changed: the files the open reads whole (`open_prefetch`), the query path of
 
 ## Test plan
 
-- AC-1 to AC-4: `crates/reader/tests/vector_warm.rs`, over the emulator behind `Rounds`, a process of its own because the engine's switch is process-wide; seen red against the flag alone (the `knn` search read 136 ranges where the old open and search read 63).
+- AC-1 to AC-4: `crates/reader/tests/it/vector_warm.rs`, over the emulator behind `Rounds`, a process of its own because the engine's switch is process-wide; seen red against the flag alone (the `knn` search read 136 ranges where the old open and search read 63).
 - AC-5: `crates/node/src/vector_warm_setting.rs` unit tests and the boot config test.
 - AC-6: reviewed in code: the batch's result is discarded; a refused range is retried by the page fault.
-- Measurement: `crates/reader/tests/knn_requests.rs` on the emulator and on RustFS, recorded in `VERIFIED.md` and `docs/knn-measurements.md`.
+- Measurement: `crates/reader/tests/it/knn_requests.rs` on the emulator and on RustFS, recorded in `VERIFIED.md` and `docs/knn-measurements.md`.
 
 ## S3 request budget
 

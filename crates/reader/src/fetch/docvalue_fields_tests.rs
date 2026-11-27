@@ -249,6 +249,7 @@ fn field(name: &str, kind: ValueKind, times: usize) -> HitField {
         times,
         script: None,
         source: None,
+        ltr: None,
     }
 }
 

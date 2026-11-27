@@ -35,6 +35,10 @@ pub(crate) fn type_name(ty: &FieldType) -> &str {
         FieldType::Int { name, .. } => name,
         FieldType::Long => "long",
         FieldType::Date => "date",
+        FieldType::Float => "float",
+        FieldType::Double => "double",
+        FieldType::HalfFloat => "half_float",
+        FieldType::Scaled(_) => "scaled_float",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -61,6 +65,44 @@ pub(crate) fn text_fielddata(name: &str) -> ShardError {
     ))
 }
 
+/// Whether `metric` aggregates a `float` or `double` field's values: the
+/// metrics and the `histogram` and `range` buckets, which key by doubles, are served.
+fn reads_decimal(metric: Metric) -> bool {
+    matches!(
+        metric,
+        Metric::Min
+            | Metric::Max
+            | Metric::Sum
+            | Metric::Avg
+            | Metric::Stats
+            | Metric::ValueCount
+            | Metric::Cardinality
+            | Metric::Percentiles
+            | Metric::PercentileRanks
+            | Metric::Histogram
+            | Metric::Range
+            | Metric::Terms
+    )
+}
+
+/// How the engine reads the values of `agg`'s field.
+pub(crate) fn value_kind<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+) -> lucene_aggs::metric_aggs::ValueKind {
+    use lucene_aggs::metric_aggs::ValueKind;
+    if agg.script.is_some() || agg.scripted.is_some() {
+        return ValueKind::Double;
+    }
+    match shard.meta.mapping.get(&agg.field).map(|f| &f.ty) {
+        Some(FieldType::Double) => ValueKind::Double,
+        Some(FieldType::Float) => ValueKind::Float,
+        Some(FieldType::HalfFloat) => ValueKind::HalfFloat,
+        Some(FieldType::Scaled(bits)) => ValueKind::Scaled(*bits),
+        _ => ValueKind::Long,
+    }
+}
+
 /// Resolves `agg`'s field in `shard`'s mapping.
 pub(crate) fn resolve<S: BlobStore + 'static>(
     agg: &MetricAgg,
@@ -73,16 +115,76 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
         return Ok(Resolved::Hits);
     }
     if agg.composite.is_some() {
+        crate::aggs::bucket::multi_collect::check(agg, shard)?;
         return Ok(Resolved::Composite(composite_collect::runs(agg, shard)?));
+    }
+    if agg.script.is_some() || agg.scripted.is_some() {
+        return Ok(Resolved::Numeric(Format::Raw));
     }
     let Some(field) = shard.meta.mapping.get(&agg.field) else {
         return Ok(Resolved::Unmapped);
     };
     let format = match &field.ty {
+        FieldType::Int { .. } | FieldType::Long | FieldType::Date
+            if agg.metric == Metric::SignificantTerms
+                || (agg.metric == Metric::RareTerms && field.ty == FieldType::Date) =>
+        {
+            return Err(bad_request(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "[{}] of the {} field [{}] is not supported by this node yet",
+                    agg.metric.name(),
+                    type_name(&field.ty),
+                    agg.field
+                ),
+            )));
+        }
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_)
+            if agg.metric == Metric::Terms =>
+        {
+            Format::Double
+        }
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_)
+            if reads_decimal(agg.metric) =>
+        {
+            Format::Raw
+        }
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_)
+            if matches!(agg.metric, Metric::DateHistogram | Metric::DateRange) =>
+        {
+            return Err(bad_request(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "Field [{}] of type [{}] is not supported for aggregation [{}]",
+                    agg.field,
+                    type_name(&field.ty),
+                    agg.metric.name()
+                ),
+            )));
+        }
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_) => {
+            return Err(bad_request(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "[{}] of the {} field [{}] is not supported by this node yet",
+                    agg.metric.name(),
+                    type_name(&field.ty),
+                    agg.field
+                ),
+            )));
+        }
         FieldType::Int { .. } | FieldType::Long => Format::Raw,
         FieldType::Date => Format::Date,
         FieldType::Text => return Err(text_fielddata(&agg.field)),
-        FieldType::Keyword if matches!(agg.metric, Metric::Terms | Metric::Cardinality) => {
+        FieldType::Keyword
+            if matches!(
+                agg.metric,
+                Metric::Terms | Metric::Cardinality | Metric::SignificantTerms | Metric::RareTerms
+            ) =>
+        {
             Format::Raw
         }
         FieldType::Keyword if agg.metric == Metric::ValueCount => {
@@ -131,7 +233,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
             ),
         )));
     }
-    if field.ty == FieldType::Keyword {
+    if field.ty == FieldType::Keyword || agg.metric == Metric::RareTerms {
         return Ok(Resolved::Keyword);
     }
     if let Some(option) = agg.terms.as_ref().and_then(|t| t.keyword.first_set()) {

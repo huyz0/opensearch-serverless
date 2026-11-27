@@ -10,7 +10,7 @@ use oss_meta::{PitClock, PointInTimeStore};
 use oss_reader::dsl::SearchSource;
 use oss_reader::failure::{Failure, SearchError, ShardFailure};
 use oss_reader::response::write_response_with;
-use oss_reader::search::{hits_bytes, search};
+use oss_reader::search::{hits_bytes, search_with};
 use oss_reader::{ReaderError, ShardFiles};
 use oss_rest::{JSON, Length, Request, Response, RestError};
 
@@ -118,7 +118,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
             .reserve(hits_bytes(source, &held.shard))
             .map_err(Answer::Rest)?;
         let analyzer = lucene_analysis::Analyzer::standard(None);
-        let mut hits = match search(&held.shard, &view.index, source, &analyzer) {
+        let mut hits = match search_with(
+            &held.shard,
+            &view.index,
+            source,
+            &analyzer,
+            held.pinned.as_deref(),
+        ) {
             Ok(hits) => hits,
             Err(e) => {
                 let failure = ShardFailure {

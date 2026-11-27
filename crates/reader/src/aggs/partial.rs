@@ -25,6 +25,9 @@ pub enum Format {
     /// `DocValueFormat.DateTime` in the default date format: each value also
     /// as `strict_date_optional_time` text.
     Date,
+    /// A `double` or `float` field's `terms`: each key is the sortable long
+    /// the engine counts by, written as the double it encodes.
+    Double,
 }
 
 /// What one shard computed for one aggregation.
@@ -88,12 +91,21 @@ pub enum Value {
     DateHistogram(Box<DateHistogramResult>),
     /// `StringTerms`: a keyword `terms`' buckets.
     KeywordTerms(Box<KeywordTermsResult>),
+    /// `SignificantStringTerms`: a `significant_terms`' buckets.
+    Significant(Box<crate::aggs::bucket::significant::SignificantResult>),
+    /// `StringRareTerms`: a `rare_terms`' buckets.
+    Rare(Box<crate::aggs::bucket::rare::RareResult>),
     /// `InternalRange`: a `range`'s buckets.
     Range(Box<RangeResult>),
     /// `InternalFilters`: a `filters`' buckets.
     Filters(Box<FiltersResult>),
     /// `InternalComposite`: a `composite`'s buckets.
     Composite(Box<CompositeResult>),
+    /// `InternalMultiTerms`: a `multi_terms`' buckets.
+    Multi(Box<crate::aggs::bucket::multi::MultiResult>),
+    /// `InternalScriptedMetric`: the combined value of each shard, kept until
+    /// the reduce script runs.
+    Scripted(Box<crate::aggs::metric::scripted_metric::ScriptedMetricResult>),
 }
 
 /// One aggregation's shard-level result.
@@ -132,9 +144,13 @@ fn reduce_one(parts: &[Value]) -> Option<Value> {
         Value::Histogram(_) => histogram::reduce(parts),
         Value::DateHistogram(_) => date_histogram::reduce(parts),
         Value::KeywordTerms(_) => keyword_terms::reduce(parts),
+        Value::Significant(_) => super::bucket::significant::reduce(parts),
+        Value::Rare(_) => super::bucket::rare::reduce(parts),
         Value::Range(_) => range::reduce(parts),
         Value::Filters(_) => filters::reduce(parts),
         Value::Composite(_) => composite::reduce(parts),
+        Value::Multi(_) => super::bucket::multi::reduce(parts),
+        Value::Scripted(_) => crate::aggs::metric::scripted_metric::reduce(parts),
         // A `top_hits` has no reduce here: merging hits needs them fetched
         // and their shard known, so `reduce_scalar` answers `None` for it.
         _ => reduce_scalar(parts),

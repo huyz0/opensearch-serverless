@@ -1,5 +1,6 @@
 //! The writer crate's integration tests, built as one test binary: each file is a module, and every test still runs as its own process under nextest. One binary links once, where 66 linked 66 times.
 
+mod boot_clock;
 mod bucket_assign;
 mod bucket_commits;
 mod bucket_placement;

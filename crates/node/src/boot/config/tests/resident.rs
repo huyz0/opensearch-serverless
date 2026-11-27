@@ -92,3 +92,18 @@ fn the_queue_refuses_what_the_server_cannot_hold() {
     ])))
     .expect("fits");
 }
+
+// docs/specs/stored-script-ids AC-9
+#[test]
+fn the_stored_script_ttl_defaults_to_ten_seconds_and_is_bounded() {
+    let default = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert_eq!(default.script_cache_ttl_secs, 10);
+    let set =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_SCRIPT_CACHE_TTL", "3600")]))).expect("valid");
+    assert_eq!(set.script_cache_ttl_secs, 3_600);
+    for bad in ["0", "3601", "abc", "-1"] {
+        let err = NodeConfig::from_lookup(lookup(&with(&[("OSS_SCRIPT_CACHE_TTL", bad)])))
+            .expect_err(bad);
+        assert!(err.contains("OSS_SCRIPT_CACHE_TTL"), "{bad}: {err}");
+    }
+}

@@ -3,8 +3,10 @@
 //! expression-script function built from it.
 //!
 //! An expression is loop-free, so a script costs its source size and nothing
-//! it runs allocates per document. Painless source is refused: the native
-//! runtime executes the IR of Java's compiler, which a node does not have.
+//! it runs allocates per document. Painless source is compiled by the Rust
+//! front end when the node's `native_compile` switch is on
+//! ([`crate::painless_switch`]) and refused as an expression-only node does
+//! otherwise.
 
 use std::sync::Arc;
 
@@ -13,6 +15,7 @@ use lucene_engine::painless_score::{EXPR_SCRIPT, PainlessSort, ScriptFunction};
 use lucene_engine::query_blob::Cursor;
 use lucene_expressions::js::compile;
 use lucene_expressions::variable_context::{Type, parse as parse_variable};
+use lucene_painless::ir::Constant;
 
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
@@ -23,18 +26,82 @@ use crate::mapping::{FieldType, Mapping};
 /// The most a script's source is, as core's `script.max_size_in_bytes`.
 const MAX_SOURCE_BYTES: usize = 65_535;
 
+/// A script param's value, as the request's JSON gives it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Param {
+    /// A number without a fraction or exponent that fits an `int`.
+    Int(i32),
+    /// A number without a fraction or exponent that fits a `long`.
+    Long(i64),
+    /// Any other number.
+    Double(f64),
+    /// A string.
+    Str(String),
+    /// A boolean.
+    Bool(bool),
+}
+
+impl Param {
+    /// The number an expression reads, none for a string or a boolean.
+    fn number(&self) -> Option<f64> {
+        match self {
+            // Lossless: an int is exact in a double; a long may round, as a
+            // number does when the expression's JSON is read as a double.
+            Param::Int(v) => Some(f64::from(*v)),
+            #[allow(clippy::cast_precision_loss)]
+            Param::Long(v) => Some(*v as f64),
+            Param::Double(v) => Some(*v),
+            Param::Str(_) | Param::Bool(_) => None,
+        }
+    }
+
+    pub(crate) fn constant(&self) -> Constant {
+        match self {
+            Param::Int(v) => Constant::Int(*v),
+            Param::Long(v) => Constant::Long(*v),
+            Param::Double(v) => Constant::Double(*v),
+            // ALLOC: bounded by the request body.
+            Param::Str(v) => Constant::Str(v.clone()),
+            Param::Bool(v) => Constant::Bool(*v),
+        }
+    }
+
+    fn of_number(text: &str) -> Option<Param> {
+        if !text.contains(['.', 'e', 'E']) {
+            if let Ok(v) = text.parse::<i32>() {
+                return Some(Param::Int(v));
+            }
+            if let Ok(v) = text.parse::<i64>() {
+                return Some(Param::Long(v));
+            }
+        }
+        text.parse::<f64>().ok().map(Param::Double)
+    }
+}
+
+/// The language a script is written in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lang {
+    /// `expression`.
+    Expression,
+    /// `painless`, compiled by this node.
+    Painless,
+}
+
 /// A parsed `script_score` script.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScriptScore {
-    /// The expression's source.
+    /// The script's source.
     pub source: String,
-    /// The numeric params, by name.
-    pub params: Vec<(String, f64)>,
+    /// The language.
+    pub lang: Lang,
+    /// The params, by name.
+    pub params: Vec<(String, Param)>,
 }
 
 fn refuse(what: &str) -> DslError {
     // ALLOC: error path; one message.
-    DslError::unsupported(&format!("[script_score] {what}"))
+    DslError::unsupported(&format!("[script] {what}"))
 }
 
 /// `ScriptScoreFunctionBuilder.fromXContent`: on the function object's start.
@@ -49,7 +116,9 @@ pub fn parse(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
                     "[script_score] runs only lang [expression] on this node, and a script given as text is painless",
                 ));
             }
-            ("script", Some(Kind::StartObject)) => script = Some(object(p)?),
+            ("script", Some(Kind::StartObject)) => {
+                script = Some(object_with(p, crate::painless_switch::native_compile())?);
+            }
             _ => {
                 // ALLOC: error path; one message.
                 return Err(DslError::illegal(format!(
@@ -61,10 +130,34 @@ pub fn parse(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
     script.ok_or_else(|| DslError::illegal("[script_score] requires a [script]"))
 }
 
-/// A script object `{"source","lang","params"}`, on its start.
-pub fn object(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
+/// A script's `params` object, the parser on its start: numbers, strings
+/// and booleans.
+pub(crate) fn parse_params(p: &mut Parser<'_>) -> Result<Vec<(String, Param)>, DslError> {
+    // ALLOC: one entry a param, bounded by the request body.
+    let mut params = Vec::new();
+    while p.next_token() == Some(Kind::FieldName) {
+        // ALLOC: bounded by the script's source, at most 65,535 bytes.
+        let key = p.text().to_owned();
+        match p.next_token() {
+            Some(Kind::Number) => {
+                let v = Param::of_number(p.text())
+                    .ok_or_else(|| DslError::illegal("[script] a param is not a number"))?;
+                params.push((key, v));
+            }
+            // ALLOC: bounded by the script's source, at most 65,535 bytes.
+            Some(Kind::String) => params.push((key, Param::Str(p.text().to_owned()))),
+            Some(Kind::Bool) => params.push((key, Param::Bool(p.text() == "true"))),
+            _ => return Err(refuse("a param that is not a number")),
+        }
+    }
+    Ok(params)
+}
+
+/// A script object, on its start; `painless` says whether `lang: painless`
+/// (the default when `lang` is absent) is served.
+pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, DslError> {
     // ALLOC: bounded by the script's source, at most 65,535 bytes.
-    let (mut source, mut lang, mut params) = (None, None, Vec::new());
+    let (mut source, mut lang, mut params, mut id) = (None, None, Vec::new(), None);
     while p.next_token() == Some(Kind::FieldName) {
         // ALLOC: bounded by the script's source, at most 65,535 bytes.
         let name = p.text().to_owned();
@@ -73,44 +166,87 @@ pub fn object(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
             ("source" | "inline", Some(Kind::String)) => source = Some(p.text().to_owned()),
             // ALLOC: bounded by the script's source, at most 65,535 bytes.
             ("lang", Some(Kind::String)) => lang = Some(p.text().to_owned()),
-            ("params", Some(Kind::StartObject)) => {
-                while p.next_token() == Some(Kind::FieldName) {
-                    // ALLOC: bounded by the script's source, at most 65,535 bytes.
-                    let key = p.text().to_owned();
-                    match p.next_token() {
-                        Some(Kind::Number) => {
-                            let v = p.text().parse::<f64>().map_err(|_| {
-                                DslError::illegal("[script_score] a param is not a number")
-                            })?;
-                            params.push((key, v));
-                        }
-                        _ => return Err(refuse("a param that is not a number")),
-                    }
-                }
-            }
-            ("id", _) => return Err(refuse("a stored script [id]")),
+            ("params", Some(Kind::StartObject)) => params = parse_params(p)?,
+            // ALLOC: bounded by the id, at most the body.
+            ("id", Some(Kind::String)) => id = Some(p.text().to_owned()),
+            ("id", _) => return Err(DslError::illegal("[script] [id] must be a string")),
             ("options", _) => return Err(refuse("script [options]")),
             _ => {
                 // ALLOC: error path; one message.
                 return Err(DslError::illegal(format!(
-                    "[script_score] unknown script field [{name}]"
+                    "[script] unknown script field [{name}]"
                 )));
             }
         }
     }
-    if lang.as_deref() != Some("expression") {
-        return Err(DslError::illegal(
-            "[script_score] runs only lang [expression] on this node",
-        ));
+    if let Some(id) = id {
+        let (resolved, stored_lang) = stored(&id, source.as_deref(), lang.as_deref())?;
+        source = Some(resolved);
+        lang = Some(stored_lang);
     }
-    let source =
-        source.ok_or_else(|| DslError::illegal("[script_score] script requires a [source]"))?;
+    let lang = match lang.as_deref() {
+        Some("expression") => Lang::Expression,
+        None | Some("painless") if painless => Lang::Painless,
+        _ => {
+            return Err(DslError::illegal(
+                "[script] runs only lang [expression] on this node",
+            ));
+        }
+    };
+    if lang == Lang::Expression && params.iter().any(|(_, v)| v.number().is_none()) {
+        return Err(refuse("a param that is not a number"));
+    }
+    let source = source.ok_or_else(|| DslError::illegal("[script] script requires a [source]"))?;
     if source.len() > MAX_SOURCE_BYTES {
         return Err(DslError::illegal(
-            "[script_score] source is over the 65535 byte limit",
+            "[script] source is over the 65535 byte limit",
         ));
     }
-    Ok(ScriptScore { source, params })
+    Ok(ScriptScore {
+        source,
+        lang,
+        params,
+    })
+}
+
+/// The source and language of the stored script `id`, which a script object
+/// names without a `source` or a `lang`.
+fn stored(
+    id: &str,
+    source: Option<&str>,
+    lang: Option<&str>,
+) -> Result<(String, String), DslError> {
+    use crate::stored_scripts::{ResolveError, installed};
+    if source.is_some() || lang.is_some() {
+        return Err(DslError::illegal(
+            "[script] a stored script [id] takes no [source] or [lang]",
+        ));
+    }
+    let Some(scripts) = installed() else {
+        return Err(refuse(
+            "a stored script [id] is not served: send the script as [source]",
+        ));
+    };
+    match scripts.resolve(id) {
+        Ok(found) if matches!(found.lang.as_str(), "painless" | "expression") => {
+            Ok((found.source, found.lang))
+        }
+        // ALLOC: error path; one message.
+        Ok(found) => Err(DslError::illegal(format!(
+            "[script] the stored script [{id}] is lang [{}], which this node does not run here",
+            found.lang
+        ))),
+        Err(ResolveError::Missing) => Err(DslError::Failure(Failure::plain(
+            "resource_not_found_exception",
+            // ALLOC: error path; one message.
+            format!("unable to find script [{id}] in cluster state"),
+        ))),
+        Err(ResolveError::TooBig(m)) => Err(DslError::Failure(Failure::plain(
+            "circuit_breaking_exception",
+            m,
+        ))),
+        Err(ResolveError::Failed(m)) => Err(DslError::Failure(Failure::plain("exception", m))),
+    }
 }
 
 fn script_error(reason: String) -> Failure {
@@ -160,6 +296,9 @@ pub fn sort(cx: &QueryContext<'_>, script: &ScriptScore) -> Result<Arc<PainlessS
 /// The engine's blob for `script`: `context` is the engine's script context
 /// (`0` score, `3` number sort), plus one when the script reads `_score`.
 fn encode(mapping: &Mapping, script: &ScriptScore, context: u8) -> Result<Vec<u8>, Failure> {
+    if script.lang == Lang::Painless {
+        return super::function_score_painless::encode(mapping, script, context);
+    }
     // ALLOC: bounded by the script's source, at most 65,535 bytes.
     let expr = compile(&script.source).map_err(|e| script_error(format!("compile error: {e}")))?;
     // ALLOC: one name a field the script reads, bounded by the source.
@@ -177,7 +316,12 @@ fn encode(mapping: &Mapping, script: &ScriptScore, context: u8) -> Result<Vec<u8
         let text = |i: usize| parts.get(i).and_then(|c| c.text.as_deref());
         match (text(0), parts.first().map(|c| c.kind)) {
             (Some(key), _) if key != "doc" => {
-                let Some((_, v)) = script.params.iter().find(|(k, _)| k == key) else {
+                let Some(v) = script
+                    .params
+                    .iter()
+                    .find(|(k, _)| k == key)
+                    .and_then(|(_, v)| v.number())
+                else {
                     // ALLOC: bounded by the script's source, at most 65,535 bytes.
                     return Err(script_error(format!(
                         "Variable [{name}] is not a number param or a doc value"

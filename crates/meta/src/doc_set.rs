@@ -14,8 +14,7 @@ use std::sync::Arc;
 use oss_blob::register::ABSENT_GENERATION;
 use oss_blob::{BlobError, BlobStore, ByteRange, SliceSource, SwapOutcome};
 use oss_format::{
-    DocKind, DocSetMarker, MAX_DOC_BYTES, MAX_DOC_NAME_BYTES, MAX_DOCS, doc_content_key,
-    doc_set_marker_key,
+    DocKind, DocSetMarker, MAX_DOC_NAME_BYTES, MAX_DOCS, doc_content_key, doc_set_marker_key,
 };
 
 use crate::error::MetaError;
@@ -31,6 +30,18 @@ pub struct DocSet {
     base: String,
     kind: DocKind,
     marker_key: String,
+    /// Whether the set must have been created: a read that finds no marker
+    /// is [`MetaError::NoSuchSet`] and not an empty set.
+    must_exist: bool,
+}
+
+/// What a [`DocSet::put_counted`] did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Put {
+    /// The set's change count after the put.
+    pub version: i64,
+    /// Whether the name was already there.
+    pub replaced: bool,
 }
 
 /// The marker as read, and the generation to swap it from.
@@ -53,11 +64,50 @@ impl DocSet {
             // ALLOC: one copy of the base, once a set.
             base: base.to_owned(),
             kind,
+            must_exist: false,
         })
+    }
+
+    /// As [`DocSet::new`], for a set that is created by [`DocSet::create`]:
+    /// every other call on one that was never created is
+    /// [`MetaError::NoSuchSet`], at no more requests than the marker's read.
+    ///
+    /// # Errors
+    ///
+    /// As [`DocSet::new`].
+    pub fn new_created(
+        store: Arc<dyn BlobStore>,
+        base: &str,
+        kind: DocKind,
+    ) -> Result<Self, MetaError> {
+        let mut set = Self::new(store, base, kind)?;
+        set.must_exist = true;
+        Ok(set)
+    }
+
+    /// Creates the empty set: one marker, version 1. Returns whether it
+    /// was made, `false` when it already existed.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError::Format`]; [`MetaError::Blob`].
+    pub fn create(&self) -> Result<bool, MetaError> {
+        self.swap(&DocSetMarker::new(1), ABSENT_GENERATION)
+    }
+
+    /// Removes the set's marker, which ends the set (its documents must
+    /// have been removed first).
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError::Blob`].
+    pub fn destroy(&self) -> Result<(), MetaError> {
+        Ok(self.store.delete(&self.marker_key)?)
     }
 
     pub(crate) fn read<'a>(&self, buf: &'a mut [u8]) -> Result<Read<'a>, MetaError> {
         match self.store.read_register(&self.marker_key, buf)? {
+            None if self.must_exist => Err(MetaError::NoSuchSet),
             None => Ok(Read {
                 marker: DocSetMarker::new(0),
                 generation: ABSENT_GENERATION,
@@ -211,7 +261,7 @@ impl DocSet {
     /// # Errors
     ///
     /// [`MetaError::InvalidDocName`]; [`MetaError::InvalidArgument`] for a
-    /// document over [`MAX_DOC_BYTES`]; [`MetaError::AlreadyExists`] under
+    /// document over its kind's [`DocKind::max_doc_bytes`]; [`MetaError::AlreadyExists`] under
     /// `require_absent`; [`MetaError::TooManyDocs`] for a new name in a full
     /// set; [`MetaError::Contended`]; [`MetaError::Format`];
     /// [`MetaError::Blob`].
@@ -222,8 +272,26 @@ impl DocSet {
         require_absent: bool,
         marker_buf: &mut [u8],
     ) -> Result<(), MetaError> {
+        self.put_counted(name, source, require_absent, marker_buf)
+            .map(|_| ())
+    }
+
+    /// As [`DocSet::put`], telling the change count after it and whether it
+    /// replaced a document.
+    ///
+    /// # Errors
+    ///
+    /// As [`DocSet::put`], and [`MetaError::NoSuchSet`] for a set made by
+    /// [`DocSet::new_created`] that was never created.
+    pub fn put_counted(
+        &self,
+        name: &str,
+        source: &[u8],
+        require_absent: bool,
+        marker_buf: &mut [u8],
+    ) -> Result<Put, MetaError> {
         validate_doc_name(name, self.kind)?;
-        if source.len() > MAX_DOC_BYTES {
+        if source.len() > self.kind.max_doc_bytes() {
             return Err(MetaError::InvalidArgument(
                 "a document is over its size bound",
             ));
@@ -263,6 +331,7 @@ impl DocSet {
                 }
             };
             let previous = marker.content(name).map(str::to_owned);
+            let replaced = previous.is_some();
             marker.insert(name, &fresh);
             marker.version = marker.version.saturating_add(1);
             let swapped = match self.swap(&marker, generation) {
@@ -279,7 +348,10 @@ impl DocSet {
                 {
                     self.drop_content(&old);
                 }
-                return Ok(());
+                return Ok(Put {
+                    version: marker.version,
+                    replaced,
+                });
             }
         }
         self.drop_unnamed(content.as_deref());
@@ -359,6 +431,9 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::IndexTemplate | DocKind::ComponentTemplate => "template",
         DocKind::IngestPipeline | DocKind::SearchPipeline => "pipeline",
         DocKind::StoredScript => "script",
+        DocKind::LtrStores => "store",
+        DocKind::LtrFeatureSets => "feature set",
+        DocKind::LtrModels => "model",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers

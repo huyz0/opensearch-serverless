@@ -11,7 +11,7 @@ use std::io::{self, Write};
 
 use oss_rest::write_json_str;
 
-use crate::aggs::partial::Value;
+use crate::aggs::partial::{Format, Value};
 
 thread_local! {
     /// Whether the write open on this thread types its keys.
@@ -31,7 +31,7 @@ pub fn scoped<R>(on: bool, write: impl FnOnce() -> R) -> R {
 }
 
 /// The type name `typed_keys` puts before an aggregation's name, for the aggregations served.
-fn type_name(value: &Value) -> Option<&'static str> {
+fn type_name(value: &Value, format: Format) -> Option<&'static str> {
     Some(match value {
         Value::Min(_) => "min",
         Value::Max(_) => "max",
@@ -43,22 +43,43 @@ fn type_name(value: &Value) -> Option<&'static str> {
         Value::Percentiles { ranks: false, .. } => "tdigest_percentiles",
         Value::Percentiles { ranks: true, .. } => "tdigest_percentile_ranks",
         Value::TopHits(_) | Value::TopHitsParts(_) | Value::Rendered(_) => "top_hits",
+        Value::Terms(_) if format == Format::Double => "dterms",
         Value::Terms(_) => "lterms",
         Value::KeywordTerms(_) => "sterms",
+        Value::Significant(_) => "sigsterms",
+        Value::Rare(result) => result.type_name(),
         Value::Histogram(_) => "histogram",
         Value::DateHistogram(_) => "date_histogram",
         Value::Range(_) => "range",
         Value::Filters(result) => result.kind.type_name(),
         Value::Composite(_) => "composite",
+        Value::Multi(_) => "multi_terms",
+        Value::Scripted(_) => "scripted_metric",
     })
 }
 
 /// An aggregation's key: its name, or `type#name` inside a typed scope.
-pub fn write_key(out: &mut dyn Write, name: &str, value: &Value) -> io::Result<()> {
-    match type_name(value).filter(|_| ON.with(Cell::get)) {
+pub fn write_key(out: &mut dyn Write, name: &str, value: &Value, format: Format) -> io::Result<()> {
+    match type_name(value, format).filter(|_| ON.with(Cell::get)) {
         // ALLOC: one key an aggregation, bounded by the request's.
         Some(ty) => write_json_str(out, &format!("{ty}#{name}")),
         None => write_json_str(out, name),
+    }
+}
+
+/// A pipeline aggregation's key: its name, or `type#name` inside a typed scope.
+pub fn write_pipeline_key(
+    out: &mut dyn Write,
+    pipeline: &crate::aggs::pipeline::PipelineAgg,
+) -> io::Result<()> {
+    if ON.with(Cell::get) {
+        // ALLOC: one key an aggregation, bounded by the request's.
+        write_json_str(
+            out,
+            &format!("{}#{}", pipeline.kind.result_type(), pipeline.name),
+        )
+    } else {
+        write_json_str(out, &pipeline.name)
     }
 }
 
@@ -68,7 +89,7 @@ mod tests {
 
     fn key(value: &Value) -> String {
         let mut out = Vec::new();
-        write_key(&mut out, "n", value).unwrap();
+        write_key(&mut out, "n", value, Format::Raw).unwrap();
         String::from_utf8(out).unwrap()
     }
 
@@ -83,6 +104,18 @@ mod tests {
             assert_eq!(key(&min), r#""min#n""#);
         });
         assert_eq!(key(&min), r#""n""#);
+    }
+
+    #[test]
+    fn a_terms_over_a_double_is_a_double_terms() {
+        let terms = Value::Terms(Box::default());
+        let mut out = Vec::new();
+        scoped(true, || {
+            write_key(&mut out, "n", &terms, Format::Double).unwrap();
+            out.push(b' ');
+            write_key(&mut out, "n", &terms, Format::Raw).unwrap();
+        });
+        assert_eq!(String::from_utf8(out).unwrap(), r#""dterms#n" "lterms#n""#);
     }
 
     #[test]

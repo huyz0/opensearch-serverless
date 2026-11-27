@@ -41,7 +41,10 @@ pub fn parse(p: &mut Parser<'_>) -> Result<Vec<(String, ScriptScore)>, DslError>
             let key = p.text().to_owned();
             match (key.as_str(), p.next_token()) {
                 ("script", Some(Kind::StartObject)) => {
-                    script = Some(function_score_script::object(p)?);
+                    script = Some(function_score_script::object_with(
+                        p,
+                        crate::painless_switch::native_compile(),
+                    )?);
                 }
                 ("script", Some(Kind::String)) => {
                     return Err(DslError::illegal(
@@ -81,6 +84,9 @@ pub fn parse(p: &mut Parser<'_>) -> Result<Vec<(String, ScriptScore)>, DslError>
 /// A shard failure from either.
 pub fn all(source: &SearchSource, mapping: &Mapping) -> Result<Vec<HitField>, ShardError> {
     let (docvalues, scripts) = (&source.docvalue_fields, &source.script_fields);
+    if let Some(names) = &source.stored_fields {
+        crate::fetch::stored_fields::check(names, mapping)?;
+    }
     if !source.fields.is_empty() {
         crate::fetch::source_fields::check_alone(
             !docvalues.is_empty() || !scripts.is_empty() || source.collapse.is_some(),
@@ -130,6 +136,7 @@ pub fn resolve(
             times: 1,
             script: Some(function),
             source: None,
+            ltr: None,
         });
     }
     Ok(out)

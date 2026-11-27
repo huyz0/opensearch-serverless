@@ -44,6 +44,7 @@ mod boot_write_concurrency;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod bulk_route;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod by_query_rig;
 mod by_query_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod cluster_assemble;
@@ -61,10 +62,15 @@ mod index_pins;
 mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ltr_cache;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ltr_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod metadata_block;
 #[cfg(feature = "reader")]
 mod newest_ask;
+mod pinned_frozen;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -77,6 +83,7 @@ mod push_read;
 mod read_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
+mod reindex_route;
 mod restore_flags;
 mod restore_settings;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -123,6 +130,10 @@ mod stock_restore;
 mod stock_restore_budget;
 mod stock_restore_search;
 mod stock_restore_settings;
+mod stored_script_route;
 mod stored_search_template;
+mod tasks_forward;
+mod tasks_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod template_route;
+mod update_route;

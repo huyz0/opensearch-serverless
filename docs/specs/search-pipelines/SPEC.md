@@ -32,7 +32,7 @@ Ported from huyz0/OpenSearch (`feature/serverlessshell`): `rest/SearchPipelineHa
 
 ## Test plan
 
-Each AC has a test written first and seen red: AC-1 to AC-3 in `crates/reader/tests/search_pipeline.rs` and `crates/coordinator/tests/it/search_pipeline_admin.rs` (the engine and admin decisions as pure functions); AC-4, AC-5, AC-10, AC-11, AC-12 in `crates/node/tests/server/search_pipeline_route.rs` over a real server and the in-process store with the request meter; AC-6 to AC-9 in the same file through `_search` against indexed documents. AC-13 is a recorded measurement, not a test, per the `rust-performance` skill.
+Each AC has a test written first and seen red: AC-1 to AC-3 in `crates/reader/tests/it/search_pipeline.rs` and `crates/coordinator/tests/it/search_pipeline_admin.rs` (the engine and admin decisions as pure functions); AC-4, AC-5, AC-10, AC-11, AC-12 in `crates/node/tests/server/search_pipeline_route.rs` over a real server and the in-process store with the request meter; AC-6 to AC-9 in the same file through `_search` against indexed documents. AC-13 is a recorded measurement, not a test, per the `rust-performance` skill.
 
 ## S3 request budget
 

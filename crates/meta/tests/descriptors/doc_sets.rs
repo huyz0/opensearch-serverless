@@ -327,3 +327,40 @@ fn names_and_documents_at_their_bounds_are_accepted() {
     assert!(s.put(&"n".repeat(256), b"x", false, &mut marker()).is_err());
     assert_eq!(s.names(&mut marker()).unwrap(), [longest]);
 }
+
+#[test]
+fn a_created_set_is_missing_until_created_and_a_model_may_exceed_the_mebibyte() {
+    for b in all() {
+        let make = |kind| DocSet::new_created(Arc::clone(&b.store), "ltr/s/", kind).unwrap();
+        let models = make(DocKind::LtrModels);
+        assert!(matches!(
+            models.names(&mut marker()),
+            Err(MetaError::NoSuchSet)
+        ));
+        assert!(matches!(
+            models.put("m", b"x", false, &mut marker()),
+            Err(MetaError::NoSuchSet)
+        ));
+        assert!(models.create().unwrap());
+        assert!(!models.create().unwrap(), "a second create is a no-op");
+        assert!(models.names(&mut marker()).unwrap().is_empty());
+        let first = models.put_counted("m", b"x", false, &mut marker()).unwrap();
+        assert!(!first.replaced);
+        let second = models.put_counted("m", b"y", false, &mut marker()).unwrap();
+        assert!(second.replaced && second.version > first.version);
+        // over a mebibyte is allowed for a model, not for a feature set
+        let big = vec![b'x'; MAX_DOC_BYTES + 1];
+        models.put("big", &big, false, &mut marker()).unwrap();
+        let sets = make(DocKind::LtrFeatureSets);
+        sets.create().unwrap();
+        assert!(sets.put("big", &big, false, &mut marker()).is_err());
+        assert!(models.delete("big", &mut marker()).unwrap());
+        assert!(models.delete("m", &mut marker()).unwrap());
+        models.destroy().unwrap();
+        assert!(matches!(
+            models.names(&mut marker()),
+            Err(MetaError::NoSuchSet)
+        ));
+        assert_eq!(MetaError::NoSuchSet.to_string(), "the set does not exist");
+    }
+}

@@ -17,14 +17,14 @@ use oss_blob::BlobStore;
 use oss_rest::write_json_str;
 
 use crate::OpenShard;
-use crate::aggs::metric::{Value, write_aggregations_typed};
+use crate::aggs::metric::{Value, write_aggregations_piped};
 use crate::fetch::docvalue_fields::{self, HitField};
 use crate::fetch::highlight::{self, Highlighters, Plan};
 use crate::fetch::hit_meta::{self, HitMeta};
 use crate::fetch::source_filter::SourceFilter;
 use crate::fetch::{explain, source_fields, source_filter};
 use crate::hits_total;
-use crate::search::{Hit, Hits, SortValue};
+use crate::search::{Hit, Hits};
 use lucene_search::Explanation;
 
 /// A hit's `_id` and `_source`, copied out of its stored fields into buffers
@@ -183,15 +183,21 @@ fn write_scoped<S: BlobStore + 'static>(
     };
     write_hit_list(out, shard, index, node_id, &hits.view(), &mut fetch)?;
     out.write_all(b"]}")?;
-    write_aggregations_typed(out, aggregations, hits.typed_keys, &mut |out, _, top| {
-        out.write_all(b"\"hits\":{")?;
-        hits_total::write_exact(out, top.total)?;
-        out.write_all(b"\"max_score\":")?;
-        write_score(out, top.max_score)?;
-        out.write_all(b",\"hits\":[")?;
-        write_hit_list(out, shard, index, node_id, &top.view(), &mut fetch)?;
-        out.write_all(b"]}")
-    })?;
+    write_aggregations_piped(
+        out,
+        aggregations,
+        &hits.pipelines,
+        hits.typed_keys,
+        &mut |out, _, top| {
+            out.write_all(b"\"hits\":{")?;
+            hits_total::write_exact(out, top.total)?;
+            out.write_all(b"\"max_score\":")?;
+            write_score(out, top.max_score)?;
+            out.write_all(b",\"hits\":[")?;
+            write_hit_list(out, shard, index, node_id, &top.view(), &mut fetch)?;
+            out.write_all(b"]}")
+        },
+    )?;
     out.write_all(b"}")
 }
 
@@ -251,27 +257,6 @@ impl Hits {
     }
 }
 
-/// Writes `,"sort":[...]` for a hit that has sort values.
-fn write_sort(out: &mut dyn Write, sort: &[SortValue]) -> io::Result<()> {
-    if sort.is_empty() {
-        return Ok(());
-    }
-    out.write_all(b",\"sort\":[")?;
-    for (k, value) in sort.iter().enumerate() {
-        if k > 0 {
-            out.write_all(b",")?;
-        }
-        match value {
-            SortValue::Long(n) => write!(out, "{n}")?,
-            SortValue::Score(s) => write_java_float(out, *s)?,
-            SortValue::Double(d) => out.write_all(crate::template::java_double(*d).as_bytes())?,
-            SortValue::Term(Some(t)) => write_json_str(out, &String::from_utf8_lossy(t))?,
-            SortValue::Term(None) => out.write_all(b"null")?,
-        }
-    }
-    out.write_all(b"]")
-}
-
 /// The buffers every list of a response's hits is fetched through: one
 /// hit's stored fields at a time, and the scratch filtering and
 /// highlighting hold, reserved up to the most any hit has needed.
@@ -322,8 +307,10 @@ fn write_hit_list<S: BlobStore + 'static>(
         }
         out.write_all(b"\"_index\":")?;
         write_json_str(out, index)?;
-        out.write_all(b",\"_id\":")?;
-        write_id(out, &stored.id)?;
+        if !view.source.no_id {
+            out.write_all(b",\"_id\":")?;
+            write_id(out, &stored.id)?;
+        }
         hit_meta::write_meta(
             out,
             view.meta,
@@ -396,8 +383,8 @@ mod selected;
 mod values;
 
 pub use selected::{Row, fetch_rows, render_selected_hits, render_selected_result_hits};
-use values::write_score;
 pub use values::{write_id, write_java_float};
+use values::{write_score, write_sort};
 
 #[cfg(test)]
 #[path = "response_hits_tests.rs"]

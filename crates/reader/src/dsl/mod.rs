@@ -10,6 +10,8 @@
 pub mod bool_query;
 pub mod collapse;
 pub mod error;
+pub mod ltr_log;
+pub(crate) mod match_parse;
 pub mod pit;
 pub mod queries;
 pub mod query;
@@ -33,6 +35,8 @@ pub use values::Value;
 
 #[cfg(test)]
 mod collapse_tests;
+#[cfg(test)]
+mod ltr_log_tests;
 #[cfg(test)]
 mod rescore_tests;
 #[cfg(test)]

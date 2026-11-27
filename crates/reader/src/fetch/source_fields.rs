@@ -36,6 +36,14 @@ pub enum SourceType {
     Int(i64, i64),
     /// `long`.
     Long,
+    /// `double`: a finite double.
+    Double,
+    /// `float`: a finite float.
+    Float,
+    /// `half_float`: a float that is finite as a half.
+    HalfFloat,
+    /// `scaled_float` with this scaling factor (its bits): the value rounded at the factor.
+    Scaled(u64),
     /// `date` in the default format.
     Date,
 }
@@ -122,6 +130,7 @@ pub fn resolve(entries: &[DocValueField], mapping: &Mapping) -> Result<Vec<HitFi
                         path: field.fetch.parent.as_deref().unwrap_or(n).to_owned(),
                         ty,
                     }),
+                    ltr: None,
                 });
             }
         }
@@ -164,11 +173,19 @@ fn source_type(
         FieldType::Keyword if format.is_some() => return Err(no_format("keyword")),
         FieldType::Int { name: ty, .. } if format.is_some() => return Err(no_format(ty)),
         FieldType::Long if format.is_some() => return Err(no_format("long")),
+        FieldType::Double if format.is_some() => return Err(no_format("double")),
+        FieldType::Float if format.is_some() => return Err(no_format("float")),
+        FieldType::HalfFloat if format.is_some() => return Err(no_format("half_float")),
+        FieldType::Scaled(_) if format.is_some() => return Err(no_format("scaled_float")),
         FieldType::Date if format.is_some() => return Err(unsupported("a [fields] format")),
         FieldType::Text => SourceType::Text,
         FieldType::Keyword => SourceType::Keyword(field.fetch.ignore_above),
         FieldType::Int { min, max, .. } => SourceType::Int(*min, *max),
         FieldType::Long => SourceType::Long,
+        FieldType::Double => SourceType::Double,
+        FieldType::Float => SourceType::Float,
+        FieldType::HalfFloat => SourceType::HalfFloat,
+        FieldType::Scaled(bits) => SourceType::Scaled(*bits),
         FieldType::Date => SourceType::Date,
     };
     if let Some(option) = field.fetch.unserved {
@@ -185,6 +202,8 @@ fn source_type(
 enum Out {
     Text(String),
     Number(i64),
+    Double(f64),
+    Float(f32),
     Date(i64),
 }
 
@@ -292,6 +311,48 @@ fn float_whole(text: &str) -> io::Result<i64> {
     Ok(d as i64)
 }
 
+/// `Double.parseDouble` of a source number or string.
+fn to_double(v: &Value<'_>) -> io::Result<f64> {
+    let (Value::Num(t) | Value::Str(t)) = v else {
+        return Err(io::Error::other("a [fields] value that is not a number"));
+    };
+    crate::numbers::java_double(t).map_err(|e| io::Error::other(e.reason))
+}
+
+/// `Float.floatValue` of a source number or string: the nearest float, finite.
+fn to_float(v: &Value<'_>) -> io::Result<f32> {
+    // Java's `floatValue` rounds to the nearest float, as `as` does.
+    #[allow(clippy::cast_possible_truncation)]
+    let f = to_double(v)? as f32;
+    finite(f64::from(f), "float")?;
+    Ok(f)
+}
+
+/// `HALF_FLOAT.parse`: a float that is finite as a half.
+fn to_half(v: &Value<'_>) -> io::Result<f32> {
+    // Java's `floatValue` rounds to the nearest float, as `as` does.
+    #[allow(clippy::cast_possible_truncation)]
+    let f = to_double(v)? as f32;
+    let half = lucene_util::half_float::half_float_to_sortable_short(f);
+    finite(
+        f64::from(lucene_util::half_float::sortable_short_to_half_float(half)),
+        "half_float",
+    )?;
+    Ok(f)
+}
+
+/// A value the mapper accepts: `NumberType.parse` refuses infinities and NaN.
+fn finite(d: f64, ty: &str) -> io::Result<f64> {
+    if d.is_finite() {
+        Ok(d)
+    } else {
+        // ALLOC: error path; one message.
+        Err(io::Error::other(format!(
+            "[{ty}] supports only finite values in a [fields] value"
+        )))
+    }
+}
+
 /// `parseSourceValue` of one source value; none when the mapper skips it.
 fn parse(ty: &SourceType, v: &Value<'_>) -> io::Result<Option<Out>> {
     Ok(match ty {
@@ -316,6 +377,20 @@ fn parse(ty: &SourceType, v: &Value<'_>) -> io::Result<Option<Out>> {
                 return Ok(None);
             }
             Some(Out::Number(to_whole(v)?))
+        }
+        SourceType::Double | SourceType::Float | SourceType::HalfFloat | SourceType::Scaled(_)
+            if matches!(v, Value::Str("")) =>
+        {
+            return Ok(None);
+        }
+        SourceType::Double => Some(Out::Double(finite(to_double(v)?, "double")?)),
+        SourceType::Float => Some(Out::Float(to_float(v)?)),
+        SourceType::HalfFloat => Some(Out::Float(to_half(v)?)),
+        SourceType::Scaled(bits) => {
+            let factor = f64::from_bits(*bits);
+            let d = finite(to_double(v)?, "scaled_float")?;
+            // `Math.round(value * factor) / factor`.
+            Some(Out::Double((d * factor + 0.5).floor() / factor))
         }
         SourceType::Date => {
             let millis = parse_to_millis(&to_text(v)?, false)
@@ -390,6 +465,8 @@ pub fn write_fields(out: &mut dyn Write, fields: &[HitField], source: &[u8]) -> 
             match value {
                 Out::Text(t) => write_json_str(out, t)?,
                 Out::Number(n) => write!(out, "{n}")?,
+                Out::Double(d) => out.write_all(crate::template::java_double(*d).as_bytes())?,
+                Out::Float(f) => crate::response::write_java_float(out, *f)?,
                 Out::Date(ms) => {
                     out.write_all(b"\"")?;
                     write_date(out, *ms)?;

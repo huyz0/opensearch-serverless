@@ -37,6 +37,8 @@ src/open_prefetch.rs	new		whether a cold open prefetches (index, cluster, node, 
 src/writer/publishing.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/BackgroundReconciler.java	the publish pass: lazyPublishDue then SegmentPublisher.publish, the manifest remembered as the newest commit; the timer, per-index refresh_interval age and log ordinal are not ported yet
 src/writer/publish_timer.rs	new		one thread running the publish pass on an interval; the Java reconciler is a scheduled executor task
 src/doc_route.rs	new		the _doc, _create and delete routes over the writer role, each one item through the bulk path; the Java has the REST actions in OpenSearch core
+src/update_route.rs	new		the _update route over the writer role: a realtime read, the coordinator plan, one conditional write item, retried on conflict
+src/update_body.rs	new		the update body keys and the merge of a doc into a source
 src/get_route.rs	new		the _doc and _source get routes over the writer role; the Java has the REST actions in OpenSearch core
 src/refresh_route.rs	new		the _refresh route over the writer role's shards; the Java has the REST action in OpenSearch core
 src/writer/get.rs	new		the role's get of a shard it holds and its index lookup
@@ -79,6 +81,7 @@ src/by_query/change.rs	new		the conditional delete a by-query walk makes, throug
 src/by_query/params.rs	new		the request body and parameters of a delete by query
 src/by_query/response.rs	new		the answer of a delete by query
 src/by_query/search.rs	new		the by-query search answered by the node's own reader, sorted by sequence number
+src/by_query/reindex.rs	new		the reindex change: a read from the source, the optional script, a write to the destination, through the bulk machinery
 src/writer/publish_age.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	the per-index publish age: refresh_interval bounds the oldest unpublished write; -1 leaves it to the operation count
 src/search_count.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestCountAction.java	_count as the exact total of a size-0 search of the query
 src/search_uri_query.rs	port	server/src/main/java/org/opensearch/rest/action/RestActions.java	urlParamsToQueryBuilder: the q URL parameter and its companions as one query_string query
@@ -257,3 +260,29 @@ src/pack_holds.rs	new		the live points in time and snapshots as holds on a node 
 src/pack_pass.rs	new		the node's collect pass: the writer's collector over the live membership with commit and view references; stock's NodePackCollector runs on a timer in every node
 src/boot/pack_collect.rs	new		the thread that runs the node's pack collection pass every minute when collection is on; stock's NodePackCollector runs on a timer in every node
 src/boot/pack_collect_tests.rs	new		tests of that thread
+src/search_shard_action/terms.rs	new		a shard terms result as the forwarded answer
+src/search_shard_action/tests/aggregations.rs	new		tests of the forwarded aggregations answered
+src/search_shard_action/answer_value.rs	new		a shard result as the forwarded answer's value
+src/search_shard_action/histogram.rs	new		a shard date histogram result as the forwarded answer's value
+src/search_shard_action/range.rs	new		a shard range result as the forwarded answer's value
+src/search_shard_action/tests/ranges.rs	new		tests of the forwarded range answers
+src/ltr_setting.rs	new		serverless.ltr.enabled
+src/ltr_route/mod.rs	new		the learning to rank feature store service over document sets; the Java plugin (o19s) is ported natively by ADR 0071
+src/ltr_route/objects.rs	new		the feature set and model objects as the plugin shapes them
+src/ltr_route/stores.rs	new		create, delete and list the stores
+src/ltr_route/routes.rs	new		the route table under /_ltr and /_plugins/_ltr
+src/ltr_route/models.rs	new		the node model cache: a TTL, marker version check and byte budget over the stored models
+src/boot/config/ltr.rs	new		the learning to rank bounds read from the environment
+src/search_shard_action/rare.rs	new		a rare_terms partial as the forwarded answer, with the hashes of its filter
+src/search_shard_action/multi.rs	new		a multi_terms partial as the forwarded answer
+src/search_shard_action/tests/rare_multi.rs	new		tests of rare.rs and multi.rs against the bytes Java wrote
+src/ltr_route/stats.rs	new		_stats and _clearcache of the learning to rank plugin, for this node
+src/by_query/plan.rs	new		a validated by-query or reindex request, run inline or as a task
+src/by_query/tasks.rs	new		the node-local task registry, bounded, with no blob request
+src/by_query/tasks_route.rs	new		GET /_tasks, GET /_tasks/{id} and cancel
+src/by_query/tasks/tests.rs	new		the registry bounds, with the clock passed in
+src/by_query/task_forward.rs	new		forwards a task read or cancel to the node that runs the task
+src/boot/tasks.rs	new		the forwarded task call's handler slot and its wiring once the node is assembled
+src/search_shard_action/tests/pipelines.rs	new		tests that a forwarded search with pipeline aggregations is answered as without them
+src/stored_script_source.rs	new		the node's snapshot of the stored-script set, checked once a TTL, behind the reader's resolver
+src/stored_script_source/tests.rs	new		the cache's cost and freshness over a metered emulator

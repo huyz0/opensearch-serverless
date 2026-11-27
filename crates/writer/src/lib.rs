@@ -7,6 +7,7 @@
 //! makes rather than in extra PUTs.
 
 pub mod admission;
+pub mod boot_clock;
 pub mod bucket;
 pub mod bulk;
 pub mod index;

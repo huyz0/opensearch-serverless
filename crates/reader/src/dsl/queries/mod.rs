@@ -8,13 +8,17 @@
 //! messages; [`build`] holds their `doToQuery`. A parameter OpenSearch takes
 //! but this reader does not serve yet is refused rather than ignored.
 
+pub mod bool_prefix;
 pub mod build;
+pub mod case_insensitive;
 pub mod compound;
+pub mod cross_fields;
 pub mod full_text;
 pub mod full_text_build;
 pub mod function_score;
 pub mod function_score_build;
 mod function_score_modes;
+pub(crate) mod function_score_painless;
 pub mod function_score_random;
 pub mod function_score_script;
 pub mod inner_hits;
@@ -22,12 +26,15 @@ pub mod knn;
 mod leaf_common;
 pub mod nested;
 pub mod nested_build;
+pub mod phrase_prefix;
 pub mod query_string;
 pub mod query_string_build;
+pub mod script_query;
 pub mod simple_string;
 pub mod simple_string_build;
 mod simple_string_leaf;
 pub mod single_field;
+pub mod sltr;
 pub mod term_level;
 pub mod uid;
 
@@ -47,14 +54,18 @@ pub const NAMES: &[&str] = &[
     "ids",
     "constant_score",
     "dis_max",
+    "boosting",
     "match_none",
     "match_phrase",
+    "match_bool_prefix",
+    "match_phrase_prefix",
     "multi_match",
     "simple_query_string",
     "query_string",
     "function_score",
     "knn",
     "nested",
+    "sltr",
 ];
 
 /// `Fuzziness`: an edit distance, or `AUTO` with its two length bounds.
@@ -165,6 +176,17 @@ pub enum More {
         /// The boost.
         boost: f32,
     },
+    /// A `term`, `prefix` or `wildcard` query with `case_insensitive: true`.
+    CaseInsensitive {
+        /// Which query.
+        kind: case_insensitive::Kind,
+        /// The field.
+        field: String,
+        /// The term, prefix or pattern.
+        value: String,
+        /// The boost.
+        boost: f32,
+    },
     /// `ConstantScoreQueryBuilder`.
     ConstantScore {
         /// The filter.
@@ -178,6 +200,17 @@ pub enum More {
         queries: Vec<Query>,
         /// How much of the other disjuncts' scores is added to the best.
         tie_breaker: f32,
+        /// The boost.
+        boost: f32,
+    },
+    /// `BoostingQueryBuilder`.
+    Boosting {
+        /// The query that matches.
+        positive: Query,
+        /// The query whose matches have their score scaled.
+        negative: Query,
+        /// The factor a match of `negative` scales the score by.
+        negative_boost: f32,
         /// The boost.
         boost: f32,
     },
@@ -199,6 +232,12 @@ pub enum More {
         /// The boost.
         boost: f32,
     },
+    /// `MatchQueryBuilder` with a `fuzziness`, and its boost.
+    FuzzyMatch(Box<full_text::FuzzyMatch>, f32),
+    /// `MatchBoolPrefixQueryBuilder`, and its boost.
+    MatchBoolPrefix(Box<bool_prefix::BoolPrefix>, f32),
+    /// `MatchPhrasePrefixQueryBuilder`, and its boost.
+    MatchPhrasePrefix(Box<phrase_prefix::PhrasePrefix>, f32),
     /// `MultiMatchQueryBuilder` of the types served, and its boost.
     MultiMatch(Box<full_text::MultiMatch>, f32),
     /// `SimpleQueryStringBuilder`, and its boost.
@@ -209,8 +248,12 @@ pub enum More {
     FunctionScore(Box<function_score::FunctionScore>, f32),
     /// `NestedQueryBuilder`, with its boost.
     Nested(Box<nested::NestedQuery>, f32),
+    /// `ScriptQueryBuilder` over Painless, and its boost.
+    Script(Box<function_score_script::ScriptScore>, f32),
     /// The k-NN plugin's `KNNQueryBuilder`.
     Knn(Box<knn::Knn>),
+    /// The learning to rank plugin's `sltr`, served as a rescore query.
+    Sltr(Box<sltr::Sltr>),
 }
 
 impl More {
@@ -220,20 +263,27 @@ impl More {
             More::Terms { boost, .. }
             | More::Prefix { boost, .. }
             | More::Wildcard { boost, .. }
+            | More::CaseInsensitive { boost, .. }
             | More::Regexp { boost, .. }
             | More::Fuzzy { boost, .. }
             | More::Exists { boost, .. }
             | More::Ids { boost, .. }
             | More::ConstantScore { boost, .. }
             | More::DisMax { boost, .. }
+            | More::Boosting { boost, .. }
             | More::MatchPhrase { boost, .. }
             | More::MultiMatch(_, boost)
+            | More::FuzzyMatch(_, boost)
+            | More::MatchBoolPrefix(_, boost)
+            | More::MatchPhrasePrefix(_, boost)
             | More::SimpleQueryString(_, boost)
             | More::QueryString(_, boost)
             | More::FunctionScore(_, boost)
             | More::Nested(_, boost)
+            | More::Script(_, boost)
             | More::MatchNone { boost } => *boost,
             More::Knn(q) => q.boost,
+            More::Sltr(_) => 1.0,
         }
     }
 }
@@ -251,12 +301,16 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "ids" => term_level::parse_ids(p),
         "constant_score" => compound::parse_constant_score(p),
         "dis_max" => compound::parse_dis_max(p),
+        "boosting" => compound::parse_boosting(p),
         "match_phrase" => full_text::parse_match_phrase(p),
+        "match_bool_prefix" => bool_prefix::parse(p),
+        "match_phrase_prefix" => phrase_prefix::parse(p),
         "multi_match" => full_text::parse_multi_match(p),
         "simple_query_string" => simple_string::parse_simple_query_string(p),
         "query_string" => query_string::parse_query_string(p),
         "function_score" => function_score::parse_function_score(p),
         "knn" => knn::parse_knn(p),
+        "sltr" => sltr::parse_sltr(p),
         "nested" => nested::parse_nested(p),
         _ => compound::parse_match_none(p),
     }
@@ -272,6 +326,9 @@ mod compound_tests;
 mod knn_tests;
 
 #[cfg(test)]
+mod sltr_tests;
+
+#[cfg(test)]
 #[path = "inner_hits_tests.rs"]
 mod inner_hits_tests;
 #[cfg(test)]
@@ -285,9 +342,14 @@ mod full_text_tests;
 
 #[cfg(test)]
 mod function_score_build_tests;
+#[cfg(test)]
+mod fuzzy_match_tests;
 
 #[cfg(test)]
 mod function_score_tests;
+
+#[cfg(test)]
+mod script_switch_tests;
 
 #[cfg(test)]
 mod query_string_build_tests;

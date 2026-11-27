@@ -22,8 +22,11 @@ pub mod long_value;
 pub mod parse;
 pub mod partial;
 pub mod percentiles;
+mod registered;
 pub mod render;
 pub mod resolve;
+pub mod script_values;
+pub mod scripted_metric;
 pub mod sub_rules;
 pub mod tdigest;
 pub mod top_hits;
@@ -35,7 +38,9 @@ pub use collect::collect;
 pub use collect_global::collect_with_global;
 pub use parse::parse_aggregations;
 pub use percentiles::PercentilesOptions;
-pub use render::{write_aggregations, write_aggregations_typed, write_aggregations_with};
+pub use render::{
+    write_aggregations, write_aggregations_piped, write_aggregations_typed, write_aggregations_with,
+};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
 use crate::aggs::bucket::composite::CompositeSpec;
@@ -103,11 +108,22 @@ pub enum Metric {
     Global,
     /// `missing`: the documents counted that have no value for a field.
     Missing,
+    /// `significant_terms`: the terms of a keyword field that the matches
+    /// hold far more often than the whole shard does.
+    SignificantTerms,
+    /// `rare_terms`: the terms of a keyword field held by at most
+    /// `max_doc_count` of the matches.
+    RareTerms,
+    /// `multi_terms`: the documents counted by each combination of the
+    /// values of several keyword or long fields.
+    MultiTerms,
+    /// `scripted_metric`: four Painless scripts over the matched documents.
+    ScriptedMetric,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 22] = [
+    pub const ALL: [Metric; 26] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -130,6 +146,10 @@ impl Metric {
         Metric::Missing,
         Metric::DateRange,
         Metric::Global,
+        Metric::SignificantTerms,
+        Metric::RareTerms,
+        Metric::MultiTerms,
+        Metric::ScriptedMetric,
     ];
 
     /// The aggregation type name.
@@ -157,6 +177,10 @@ impl Metric {
             Metric::Missing => "missing",
             Metric::DateRange => "date_range",
             Metric::Global => "global",
+            Metric::SignificantTerms => "significant_terms",
+            Metric::RareTerms => "rare_terms",
+            Metric::MultiTerms => "multi_terms",
+            Metric::ScriptedMetric => "scripted_metric",
         }
     }
 
@@ -201,6 +225,15 @@ pub struct MetricAgg {
     pub nested: Option<Box<crate::aggs::bucket::nested_agg::NestedSpec>>,
     /// A `composite`'s options; `None` for every other aggregation.
     pub composite: Option<Box<CompositeSpec>>,
+    /// A `significant_terms`' options; `None` for every other aggregation.
+    pub significant: Option<Box<crate::aggs::bucket::significant::SignificantSpec>>,
+    /// A `rare_terms`' options; `None` for every other aggregation.
+    pub rare: Option<Box<crate::aggs::bucket::rare::RareSpec>>,
+    /// A `script` in place of the field, on the metrics that take one and
+    /// only when the node compiles Painless; `None` otherwise.
+    pub script: Option<Box<crate::dsl::queries::function_score_script::ScriptScore>>,
+    /// A `scripted_metric`'s scripts; `None` for every other aggregation.
+    pub scripted: Option<Box<scripted_metric::ScriptedMetricSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -268,7 +301,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                     .saturating_mul(per_range)
                     .saturating_add(keys)
             }),
-            Metric::Composite => agg.composite.as_deref().map_or(0, |spec| {
+            Metric::Composite | Metric::MultiTerms => agg.composite.as_deref().map_or(0, |spec| {
                 crate::aggs::bucket::composite_collect::state_bytes(spec, agg.subs.len())
             }),
             Metric::Filters | Metric::Filter | Metric::Missing | Metric::Global => agg
@@ -286,6 +319,15 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                         .saturating_mul(std::mem::size_of::<[f64; 2]>()),
                 )
             }
+            Metric::SignificantTerms => agg.significant.as_deref().map_or(0, |s| {
+                s.size
+                    .min(crate::aggs::bucket::BUCKET_LIMIT)
+                    .saturating_mul(std::mem::size_of::<
+                        crate::aggs::bucket::significant::SigBucket,
+                    >())
+            }),
+            Metric::RareTerms => crate::aggs::bucket::BUCKET_LIMIT
+                .saturating_mul(std::mem::size_of::<(String, u64)>()),
             _ => 0,
         };
         total

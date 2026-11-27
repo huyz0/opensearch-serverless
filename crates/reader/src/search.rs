@@ -15,10 +15,9 @@ use std::collections::HashMap;
 
 use lucene_analysis::Analyzer;
 use lucene_search::collector::TotalHitsRelation;
-use lucene_search::extended_query::ExtendedQuery;
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::index_searcher::IndexSearcher;
-use lucene_search::{BooleanQuery, Clause, Explanation, top_field::FieldDoc};
+use lucene_search::{Explanation, top_field::FieldDoc};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
@@ -38,7 +37,7 @@ use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
 use crate::search_options;
 use crate::search_post_filter;
-use crate::search_sort::{KeyKind, sort_fields};
+use crate::search_sort::sort_fields;
 use crate::search_top::TopOptions;
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
@@ -56,8 +55,10 @@ pub enum SortValue {
     Term(Option<Vec<u8>>),
     /// The score.
     Score(f32),
-    /// A script's number.
+    /// A script's or a `double` field's number.
     Double(f64),
+    /// A `float` field's number.
+    Float(f32),
 }
 
 /// One hit: the document and what it is ranked by.
@@ -90,6 +91,8 @@ pub struct Hits {
     pub total_as_int: bool,
     /// Whether each aggregation's key carries its type (`typed_keys`).
     pub typed_keys: bool,
+    /// The sibling pipeline aggregations to compute over the aggregations.
+    pub pipelines: Vec<crate::aggs::pipeline::PipelineAgg>,
     /// What of each hit's `_source` to write.
     pub source: SourceFilter,
     /// The fields each hit's `fields` object carries, in its order.
@@ -177,6 +180,14 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
     window_bytes(window, &source.sort, shard)
         .saturating_add(inner)
         .saturating_add(counted)
+        .saturating_add(crate::aggs::bucket::significant_collect::reserved_all(
+            shard,
+            &source.aggs,
+        ))
+        .saturating_add(crate::aggs::bucket::rare_collect::reserved_all(
+            shard,
+            &source.aggs,
+        ))
         .saturating_add(crate::aggs::metric::keyword_cardinality::reserved(
             &source.aggs,
             shard,
@@ -312,13 +323,13 @@ pub fn search_with<S: BlobStore + 'static>(
         .map_err(|f| ShardError::of_plan(shard_failure(f, index, &meta.uuid)))?;
     let numeric_sort = sort
         .as_ref()
-        .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
+        .is_some_and(|(_, kinds)| crate::search_sort::reads_points(kinds))
         || top_plans.iter().any(top_hits::TopHitsPlan::numeric)
         || top_hits_sub::any_numeric_sub(&source.aggs, shard);
     let rescore = crate::search_rescore::plan(source, &cx, shard, index, sort.is_some())?;
-    let rescore_points = rescore
-        .as_ref()
-        .is_some_and(crate::search_rescore::Plan::has_points);
+    let ltr_log = crate::search_ltr_log::plan(source, &cx, shard, index)?;
+    let rescore_points = ltr_log.has_points()
+        || (rescore.as_ref()).is_some_and(crate::search_rescore::Plan::has_points);
     if numeric_sort
         || rescore_points
         || has_points(&query)
@@ -384,6 +395,8 @@ pub fn search_with<S: BlobStore + 'static>(
         tracked: source.track_total_hits.is_some(),
         total_as_int: source.total_as_int,
         typed_keys: source.typed_keys,
+        // ALLOC: one entry a pipeline aggregation, bounded by the request's.
+        pipelines: source.pipelines.clone(),
         source: source.source.clone(),
         // ALLOC: empty; resolved below when there are hits.
         fields: Vec::new(),
@@ -402,6 +415,7 @@ pub fn search_with<S: BlobStore + 'static>(
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() {
         hits.fields = crate::fetch::script_fields::all(source, &meta.mapping)?;
+        ltr_log.attach(shard, &segments, &mut hits)?;
     }
     if let Some(spec) = source.highlight.as_ref().filter(|_| !hits.hits.is_empty()) {
         hits.highlight = highlight::plan(spec, &meta.mapping, &query)?;
@@ -414,74 +428,7 @@ pub fn search_with<S: BlobStore + 'static>(
     Ok(hits)
 }
 
-/// Whether a query has a point clause, which needs the points open.
-pub(crate) fn has_points(query: &BooleanQuery) -> bool {
-    fn walk(c: &Clause) -> bool {
-        match c {
-            // A knn query's answer is fixed documents, not points.
-            Clause::Extended(e) => !matches!(**e, ExtendedQuery::DocAndScore(_)),
-            Clause::Boolean(b) => has_points(b),
-            Clause::Boost(b) => walk(&b.inner),
-            Clause::ConstantScore(c) => walk(&c.inner),
-            Clause::DisjunctionMax(d) => d.disjuncts.iter().any(walk),
-            _ => false,
-        }
-    }
-    query
-        .must
-        .iter()
-        .chain(&query.should)
-        .chain(&query.filter)
-        .chain(&query.must_not)
-        .any(walk)
-}
-
-/// The text fields a query scores, whose norms it reads.
-pub(crate) fn scored_fields(query: &BooleanQuery) -> Vec<String> {
-    fn walk(c: &Clause, out: &mut Vec<String>) {
-        match c {
-            Clause::Term(lucene_search::TermQuery { field, .. })
-            | Clause::Fuzzy(lucene_search::FuzzyQuery { field, .. })
-            | Clause::Phrase(lucene_search::PhraseQuery { field, .. })
-                if !out.contains(field) =>
-            {
-                // ALLOC: one name a scored field, at most the query's terms.
-                out.push(field.clone());
-            }
-            Clause::Boolean(b) => each(b, out),
-            Clause::Boost(b) => walk(&b.inner, out),
-            Clause::Extended(e) => {
-                match &**e {
-                    ExtendedQuery::FunctionScore(q) => walk(q.wrapped_query(), out),
-                    // The child query's fields score the parents.
-                    ExtendedQuery::ToParentBlockJoin(q) => walk(&q.child, out),
-                    _ => {}
-                }
-            }
-            Clause::DisjunctionMax(d) => {
-                for c in &d.disjuncts {
-                    walk(c, out);
-                }
-            }
-            _ => {}
-        }
-    }
-    fn each(q: &BooleanQuery, out: &mut Vec<String>) {
-        for c in q
-            .must
-            .iter()
-            .chain(&q.should)
-            .chain(&q.filter)
-            .chain(&q.must_not)
-        {
-            walk(c, out);
-        }
-    }
-    // ALLOC: one entry a scored field.
-    let mut out = Vec::new();
-    each(query, &mut out);
-    out
-}
+pub(crate) use crate::search_query_fields::{has_points, scored_fields};
 
 #[cfg(test)]
 #[path = "search_tests.rs"]

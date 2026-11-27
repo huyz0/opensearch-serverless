@@ -1,0 +1,41 @@
+serial_diff {} -> org.opensearch.core.common.ParsingException: Missing required field [buckets_path] for derivative aggregation [p]
+serial_diff {"buckets_path":"s"} -> ok {"p":{"serial_diff":{"buckets_path":["s"],"gap_policy":"skip","lag":1}}}
+serial_diff {"buckets_path":1} -> org.opensearch.core.common.ParsingException: Unknown key for a VALUE_NUMBER in [p]: [buckets_path].
+serial_diff {"buckets_path":"s","gap_policy":"insert_zeros"} -> ok {"p":{"serial_diff":{"buckets_path":["s"],"gap_policy":"insert_zeros","lag":1}}}
+serial_diff {"buckets_path":"s","gap_policy":"nope"} -> org.opensearch.core.common.ParsingException: Invalid gap policy: [nope], accepted values: [insert_zeros, skip]
+serial_diff {"buckets_path":"s","gap_policy":"SKIP"} -> org.opensearch.core.common.ParsingException: Invalid gap policy: [SKIP], accepted values: [insert_zeros, skip]
+serial_diff {"buckets_path":"s","gap_policy":1} -> org.opensearch.core.common.ParsingException: Unknown key for a VALUE_NUMBER in [p]: [gap_policy].
+serial_diff {"buckets_path":"s","lag":2} -> ok {"p":{"serial_diff":{"buckets_path":["s"],"gap_policy":"skip","lag":2}}}
+serial_diff {"buckets_path":"s","lag":0} -> org.opensearch.core.common.ParsingException: Lag must be a positive, non-zero integer.  Value supplied was0 in [p]: [lag].
+serial_diff {"buckets_path":"s","lag":-1} -> org.opensearch.core.common.ParsingException: Lag must be a positive, non-zero integer.  Value supplied was-1 in [p]: [lag].
+serial_diff {"buckets_path":"s","lag":"2"} -> org.opensearch.core.common.ParsingException: Unknown key for a VALUE_STRING in [p]: [lag].
+serial_diff {"buckets_path":"s","lag":1.5} -> ok {"p":{"serial_diff":{"buckets_path":["s"],"gap_policy":"skip","lag":1}}}
+serial_diff {"buckets_path":"s","lag":null} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NULL in [p].
+serial_diff {"buckets_path":"s","lag":[1]} -> org.opensearch.core.common.ParsingException: Unknown key for a START_ARRAY in [p]: [lag].
+serial_diff {"buckets_path":"s","lag":true} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_BOOLEAN in [p].
+serial_diff {"buckets_path":"s","lag":3000000000} -> org.opensearch.tools.jackson.core.InputCoercionException: Numeric value (3000000000) out of range of `int` (-2147483648 - 2147483647)  at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #UNKNOWN] <- tools.jackson.core.exc.InputCoercionException: Numeric value (3000000000) out of range of `int` (-2147483648 - 2147483647)  at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #UNKNOWN]
+serial_diff {"buckets_path":"s","format":"0.0"} -> ok {"p":{"serial_diff":{"buckets_path":["s"],"format":"0.0","gap_policy":"skip","lag":1}}}
+serial_diff {"buckets_path":"s","format":1} -> org.opensearch.core.common.ParsingException: Unknown key for a VALUE_NUMBER in [p]: [format].
+serial_diff {"buckets_path":"s","unit":"1d"} -> org.opensearch.core.common.ParsingException: Unknown key for a VALUE_STRING in [p]: [unit].
+serial_diff {"buckets_path":"s","foo":1} -> org.opensearch.core.common.ParsingException: Unknown key for a VALUE_NUMBER in [p]: [foo].
+serial_diff {"buckets_path":"s","foo":"x"} -> org.opensearch.core.common.ParsingException: Unknown key for a VALUE_STRING in [p]: [foo].
+serial_diff {"buckets_path":"s","foo":[1]} -> org.opensearch.core.common.ParsingException: Unknown key for a START_ARRAY in [p]: [foo].
+serial_diff {"buckets_path":["s"]} -> ok {"p":{"serial_diff":{"buckets_path":["s"],"gap_policy":"skip","lag":1}}}
+serial_diff {"buckets_path":["s","a"]} -> ok {"p":{"serial_diff":{"buckets_path":["s"],"gap_policy":"skip","lag":1}}}
+serial_diff {"buckets_path":[]} -> java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0
+serial_diff {"buckets_path":[1]} -> ok {"p":{"serial_diff":{"buckets_path":["1"],"gap_policy":"skip","lag":1}}}
+serial_diff {"buckets_path":{"a":"s"}} -> org.opensearch.core.common.ParsingException: Unexpected token START_OBJECT in [p].
+serial_diff {"buckets_path":null} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NULL in [p].
+serial_diff {"lag":2} -> org.opensearch.core.common.ParsingException: Missing required field [buckets_path] for derivative aggregation [p]
+validate top.serial_diff No aggregation found for path [s]
+validate histogram.serial_diff ok
+validate histogram.serial_diff.bad No aggregation found for path [zz]
+validate histogram.serial_diff.count ok
+validate histogram.serial_diff.key ok
+validate histogram.serial_diff.deep No aggregation [s] found for path [a>s]
+validate histogram.serial_diff.self Cyclical dependency found with pipeline aggregator [p]
+validate histogram.serial_diff.metric ok
+validate histogram.serial_diff.nameclash ok
+validate terms.serial_diff serial_diff aggregation [p] must have a histogram, date_histogram or auto_date_histogram as parent
+validate histogram.serial_diff.after_derivative ok
+validate histogram.dup ok

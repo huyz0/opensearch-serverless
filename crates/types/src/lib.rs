@@ -8,5 +8,9 @@
 //! [`settings`] defines settings: each module declares its own, with the
 //! Java shell's keys, types, defaults and messages, and the node collects
 //! them into one registry.
+//!
+//! [`stored_scripts`] is the resolver a node installs for a script a request
+//! names by `id`, shared by the roles that parse a script.
 
 pub mod settings;
+pub mod stored_scripts;

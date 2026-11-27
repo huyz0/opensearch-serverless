@@ -36,7 +36,9 @@ use crate::aggs::bucket::{
 };
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::resolve::bad_request;
-pub(crate) use crate::aggs::metric::resolve::{Resolved, resolve};
+pub(crate) use crate::aggs::metric::resolve::{Resolved, resolve, value_kind};
+use crate::aggs::metric::script_values;
+use crate::aggs::metric::scripted_metric;
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
@@ -64,6 +66,8 @@ fn needs(metric: Metric) -> u8 {
         | Metric::PercentileRanks
         | Metric::TopHits
         | Metric::Terms
+        | Metric::SignificantTerms
+        | Metric::RareTerms
         | Metric::Histogram
         | Metric::DateHistogram => NEED_COUNT,
         Metric::Range
@@ -73,8 +77,10 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Missing
         | Metric::Global
         | Metric::Composite
+        | Metric::MultiTerms
         | Metric::Nested
-        | Metric::ReverseNested => NEED_COUNT,
+        | Metric::ReverseNested
+        | Metric::ScriptedMetric => NEED_COUNT,
     }
 }
 
@@ -115,9 +121,21 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         | Metric::Nested
         | Metric::ReverseNested => filters_collect::value(agg, &[]),
         Metric::Composite => composite_collect::empty(agg),
+        Metric::MultiTerms => crate::aggs::bucket::multi_collect::empty(agg),
+        Metric::SignificantTerms => crate::aggs::bucket::significant_collect::unmapped(
+            &crate::aggs::bucket::significant_collect::spec_of(agg),
+        ),
+        Metric::RareTerms => crate::aggs::bucket::rare_collect::unmapped(
+            &crate::aggs::bucket::rare_collect::spec_of(agg),
+        ),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
+        Metric::ScriptedMetric => agg.scripted.as_deref().map_or_else(
+            || Value::Min(f64::INFINITY),
+            // ALLOC: one box a `scripted_metric`, bounded by the request's.
+            |spec| Value::Scripted(Box::new(scripted_metric::empty(spec))),
+        ),
     }
 }
 
@@ -152,34 +170,36 @@ fn check_execution_hint(agg: &MetricAgg) -> Result<(), ShardError> {
 }
 
 /// The engine's node for a numeric `agg` at `precision` (a `cardinality`'s).
-pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
+pub(crate) fn node(agg: &MetricAgg, precision: u32, values: ValueKind) -> AggNode {
     // ALLOC: one field name an aggregation, bounded by the request's.
     let field = agg.field.clone();
     // `byte` to `long` and `date` are longs read as they are.
     match agg.metric {
-        Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg)),
-        Metric::Histogram => histogram_collect::node(&agg.field, &histogram_spec(agg)),
+        Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg), values),
+        Metric::Histogram => histogram_collect::node(&agg.field, &histogram_spec(agg), values),
         Metric::DateHistogram => {
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
-        Metric::Range | Metric::DateRange => range_collect::node(agg),
-        Metric::Composite => unreachable!("a composite's node is made by composite_collect::node"),
+        Metric::Range | Metric::DateRange => range_collect::node(agg, values),
+        Metric::Composite | Metric::MultiTerms => {
+            unreachable!("a composite's node is made by composite_collect::node")
+        }
         Metric::Cardinality => AggNode::Cardinality {
             field,
-            kind: CardinalityKind::Numeric(ValueKind::Long),
+            kind: CardinalityKind::Numeric(values),
             precision: Some(precision),
         },
         Metric::Percentiles | Metric::PercentileRanks => AggNode::Percentiles {
             field,
             missing: None,
-            kind: ValueKind::Long,
+            kind: values,
             compression: agg.percentiles.compression,
             hdr: false,
         },
         metric => AggNode::Metric {
             field,
             missing: None,
-            kind: ValueKind::Long,
+            kind: values,
             source: Source::DocValues,
             needs: needs(metric),
             script: None,
@@ -208,7 +228,7 @@ pub(crate) fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<V
                 .map(|h| Value::Cardinality(Some(h)))
                 .ok_or_else(|| engine_error(&"an unreadable cardinality sketch")),
         },
-        // A long or a date is never NaN, which a digest refuses.
+        // A number field never holds a NaN, which a digest refuses.
         Some(AggResult::Digests {
             digests,
             nan: false,
@@ -297,6 +317,8 @@ pub fn collect<S: BlobStore + 'static>(
     let mut nodes = Vec::with_capacity(aggs.len());
     // ALLOC: one entry a keyword `terms`, bounded by the request's.
     let mut ords = HashMap::new();
+    // ALLOC: one entry a `scripted_metric`, bounded by the request's.
+    let mut scripted: HashMap<usize, scripted_metric::Prepared> = HashMap::new();
     for (i, (agg, r)) in aggs.iter().zip(&resolved).enumerate() {
         let precision = match agg.metric {
             Metric::Cardinality => agg
@@ -308,7 +330,19 @@ pub fn collect<S: BlobStore + 'static>(
         let mut queries = filters_collect::Queries::new(filters.get(i));
         match r {
             Resolved::Numeric(_) => {
-                let mut made = node(agg, precision);
+                let mut made = node(agg, precision, value_kind(agg, shard));
+                if let (Some(script), AggNode::Metric { script: slot, .. }) =
+                    (agg.script.as_deref(), &mut made)
+                {
+                    *slot = Some(script_values::values(&shard.meta.mapping, script)?);
+                }
+                if let (Some(spec), AggNode::Metric { script: slot, .. }) =
+                    (scripted_metric::spec_of(agg), &mut made)
+                {
+                    let prepared = scripted_metric::prepare(spec, &shard.meta.mapping)?;
+                    *slot = Some(prepared.source());
+                    scripted.insert(i, prepared);
+                }
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
@@ -364,14 +398,29 @@ pub fn collect<S: BlobStore + 'static>(
     .into_iter();
     // ALLOC: one result an aggregation, as above.
     let mut parts = Vec::with_capacity(aggs.len());
-    for (agg, r) in aggs.iter().zip(resolved) {
+    for (i, (agg, r)) in aggs.iter().zip(resolved).enumerate() {
         let (format, value) = match r {
+            Resolved::Numeric(format) if scripted.contains_key(&i) => {
+                results.next();
+                let value = match (scripted_metric::spec_of(agg), scripted.get(&i)) {
+                    (Some(spec), Some(prepared)) => {
+                        // ALLOC: one box a `scripted_metric`, bounded by the request's.
+                        Value::Scripted(Box::new(scripted_metric::finish(spec, prepared)?))
+                    }
+                    _ => value_of(agg, &MetricState::default()),
+                };
+                (format, value)
+            }
             Resolved::Unmapped if with_subs::is_bucket(agg) => {
                 (Format::Raw, with_subs::value(agg, shard, None)?)
             }
             Resolved::Unmapped | Resolved::Hits | Resolved::Composite(false) => {
                 (Format::Raw, value_of(agg, &MetricState::default()))
             }
+            Resolved::Composite(true) if agg.metric == Metric::MultiTerms => (
+                Format::Raw,
+                crate::aggs::bucket::multi_collect::value(agg, shard, results.next())?,
+            ),
             Resolved::Composite(true) => (
                 Format::Raw,
                 composite_collect::value_from(agg, shard, results.next())?,
@@ -399,3 +448,15 @@ pub fn collect<S: BlobStore + 'static>(
 #[cfg(test)]
 #[path = "collect_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "collect_decimal_tests.rs"]
+mod decimal_tests;
+
+#[cfg(test)]
+#[path = "collect_half_tests.rs"]
+mod half_tests;
+
+#[cfg(test)]
+#[path = "collect_scaled_tests.rs"]
+mod scaled_tests;

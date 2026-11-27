@@ -83,6 +83,34 @@ impl Hll {
         Some(hll)
     }
 
+    /// The bytes `AbstractHyperLogLogPlusPlus.writeTo` writes for this
+    /// sketch, which [`Hll::read`] reads back: `vint p`, the algorithm byte,
+    /// then the encoded hashes in slot order after a `vlong` count, or the
+    /// registers.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        // ALLOC: at most `sketch_bytes(p)`, the sketch's own bound.
+        let mut out = Vec::with_capacity(match &self.repr {
+            Repr::Linear { size, .. } => size.saturating_mul(4).saturating_add(12),
+            Repr::Registers(runs) => runs.len().saturating_add(2),
+        });
+        // `p` is 4 to 18: one `vint` byte.
+        out.push(u8::try_from(self.p).unwrap_or(0));
+        match &self.repr {
+            Repr::Linear { slots, size } => {
+                out.push(0);
+                write_vlong(&mut out, *size as u64);
+                for &encoded in slots.iter().filter(|&&e| e != 0) {
+                    out.extend_from_slice(&encoded.to_be_bytes());
+                }
+            }
+            Repr::Registers(runs) => {
+                out.push(1);
+                out.extend_from_slice(runs);
+            }
+        }
+        out
+    }
+
     /// An empty sketch at `p`, counting linearly.
     fn empty(p: u32) -> Hll {
         Hll {
@@ -372,6 +400,15 @@ fn tables() -> &'static Tables {
         }
         t
     })
+}
+
+/// A `vlong` written: seven bits a byte, low first.
+fn write_vlong(out: &mut Vec<u8>, mut value: u64) {
+    while value >= 0x80 {
+        out.push(u8::try_from(value & 0x7F).unwrap_or(0) | 0x80);
+        value >>= 7;
+    }
+    out.push(u8::try_from(value).unwrap_or(0));
 }
 
 /// A `vlong`: seven bits a byte, low first, the high bit set while more

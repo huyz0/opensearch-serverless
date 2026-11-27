@@ -94,6 +94,11 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         Rule::Index("indices:data/write/index"),
     ),
     (
+        &[Method::Post],
+        "/{index}/_update/{id}",
+        Rule::Index("indices:data/write/update"),
+    ),
+    (
         &[Method::Delete],
         "/{index}/_doc/{id}",
         Rule::Index("indices:data/write/delete"),
@@ -206,6 +211,11 @@ const ALL_ACCESS: &[&str] = &[
     "/{index}/_msearch",
     "/{index}/_msearch/template",
     "/{index}/_delete_by_query",
+    "/{index}/_update_by_query",
+    "/_reindex",
+    "/_tasks",
+    "/_tasks/{task_id}",
+    "/_tasks/{task_id}/_cancel",
     "/_cat",
     "/_cat/health",
     "/_cat/indices",

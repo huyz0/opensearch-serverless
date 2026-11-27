@@ -10,14 +10,14 @@ use crate::aggs::bucket::terms::{TermsResult, TermsSpec};
 use crate::failure::Failure;
 use crate::search::ShardError;
 
-/// The engine's node for a `terms` of the long (or date) field `field`.
-pub fn node(field: &str, spec: &TermsSpec) -> AggNode {
+/// The engine's node for a `terms` of the number field `field`, read as `values`.
+pub fn node(field: &str, spec: &TermsSpec, values: ValueKind) -> AggNode {
     AggNode::NumericTerms {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: field.to_owned(),
         missing: None,
         script: None,
-        kind: ValueKind::Long,
+        kind: values,
         // Ordered by a sub-aggregation, the engine keeps every bucket (up to
         // the limit) for the shard to order and cut.
         shard_size: if spec.sub_order.is_some() {
@@ -75,4 +75,15 @@ pub fn too_many_buckets(made: usize, limit: usize) -> ShardError {
             crate::failure::Meta::Int(u64::try_from(limit).unwrap_or(u64::MAX)),
         ),
     }
+}
+
+/// The double a `double` or `float` field's `terms` bucket key encodes: the
+/// sortable long the engine counts by.
+pub fn double_of_key(key: i64) -> f64 {
+    lucene_util::numeric_utils::sortable_long_to_double(key)
+}
+
+/// The key of a bucket of the double `value`, as [`double_of_key`] reads it.
+pub fn key_of_double(value: f64) -> i64 {
+    lucene_util::numeric_utils::double_to_sortable_long(value)
 }

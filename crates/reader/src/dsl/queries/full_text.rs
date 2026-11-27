@@ -23,6 +23,8 @@ pub enum MultiType {
     MostFields,
     /// `phrase`: each field's phrase, as `best_fields` combines them.
     Phrase,
+    /// `cross_fields`: the fields that share an analyser, blended as one.
+    CrossFields,
 }
 
 impl MultiType {
@@ -30,13 +32,13 @@ impl MultiType {
     pub fn tie_breaker(self) -> f32 {
         match self {
             MultiType::MostFields => 1.0,
-            MultiType::BestFields | MultiType::Phrase => 0.0,
+            MultiType::BestFields | MultiType::Phrase | MultiType::CrossFields => 0.0,
         }
     }
 }
 
 /// `zero_terms_query`: true for `all`.
-fn zero_terms(p: &Parser<'_>) -> Result<bool, DslError> {
+pub(crate) fn zero_terms(p: &Parser<'_>) -> Result<bool, DslError> {
     match p.text() {
         t if t.eq_ignore_ascii_case("none") => Ok(false),
         t if t.eq_ignore_ascii_case("all") => Ok(true),
@@ -133,7 +135,8 @@ pub(crate) fn multi_type(text: &str) -> Result<MultiType, DslError> {
         "best_fields" | "boolean" => Ok(MultiType::BestFields),
         "most_fields" => Ok(MultiType::MostFields),
         "phrase" => Ok(MultiType::Phrase),
-        "cross_fields" | "phrase_prefix" | "bool_prefix" => {
+        "cross_fields" => Ok(MultiType::CrossFields),
+        "phrase_prefix" | "bool_prefix" => {
             // ALLOC: error path; one message.
             Err(DslError::unsupported(&format!(
                 "[multi_match] type [{text}]"
@@ -145,6 +148,29 @@ pub(crate) fn multi_type(text: &str) -> Result<MultiType, DslError> {
             format!("failed to parse [multi_match] query type [{other}]. unknown type."),
         ))),
     }
+}
+
+/// The parameters of a `match` query with a `fuzziness`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FuzzyMatch {
+    /// The field.
+    pub field: String,
+    /// The text.
+    pub query: Value,
+    /// How the terms combine.
+    pub operator: Operator,
+    /// `minimum_should_match`.
+    pub minimum_should_match: Option<String>,
+    /// `zero_terms_query: all`.
+    pub zero_terms_all: bool,
+    /// The edits each term may differ by.
+    pub fuzziness: crate::dsl::queries::Fuzziness,
+    /// `prefix_length`: the leading characters no edit touches.
+    pub prefix_length: i32,
+    /// `max_expansions`: the terms each term expands to, at most.
+    pub max_expansions: i32,
+    /// `fuzzy_transpositions`.
+    pub transpositions: bool,
 }
 
 /// The parameters of a `multi_match` query.

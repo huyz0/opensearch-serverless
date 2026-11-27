@@ -91,7 +91,7 @@ pub fn write_subs(
             continue;
         };
         out.write_all(b",")?;
-        write_key(out, name, value)?;
+        write_key(out, name, value, *format)?;
         out.write_all(b":{")?;
         write_body(out, *format, value)?;
         out.write_all(b"}")?;
