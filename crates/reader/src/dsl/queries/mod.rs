@@ -34,6 +34,7 @@ pub mod simple_string;
 pub mod simple_string_build;
 mod simple_string_leaf;
 pub mod single_field;
+pub mod sltr;
 pub mod term_level;
 pub mod uid;
 
@@ -64,6 +65,7 @@ pub const NAMES: &[&str] = &[
     "function_score",
     "knn",
     "nested",
+    "sltr",
 ];
 
 /// `Fuzziness`: an edit distance, or `AUTO` with its two length bounds.
@@ -250,6 +252,8 @@ pub enum More {
     Script(Box<function_score_script::ScriptScore>, f32),
     /// The k-NN plugin's `KNNQueryBuilder`.
     Knn(Box<knn::Knn>),
+    /// The learning to rank plugin's `sltr`, served as a rescore query.
+    Sltr(Box<sltr::Sltr>),
 }
 
 impl More {
@@ -279,6 +283,7 @@ impl More {
             | More::Script(_, boost)
             | More::MatchNone { boost } => *boost,
             More::Knn(q) => q.boost,
+            More::Sltr(_) => 1.0,
         }
     }
 }
@@ -305,6 +310,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "query_string" => query_string::parse_query_string(p),
         "function_score" => function_score::parse_function_score(p),
         "knn" => knn::parse_knn(p),
+        "sltr" => sltr::parse_sltr(p),
         "nested" => nested::parse_nested(p),
         _ => compound::parse_match_none(p),
     }
@@ -318,6 +324,9 @@ mod compound_tests;
 
 #[cfg(test)]
 mod knn_tests;
+
+#[cfg(test)]
+mod sltr_tests;
 
 #[cfg(test)]
 #[path = "inner_hits_tests.rs"]

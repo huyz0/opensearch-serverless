@@ -5,8 +5,9 @@
 //! the model's feature set, in the set's order; `NaN` marks a feature whose
 //! query did not match.
 
-mod json;
+pub(crate) mod json;
 mod linear;
+pub mod models;
 mod ranklib;
 mod xgboost;
 

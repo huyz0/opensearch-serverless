@@ -87,7 +87,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                8 + 7 * usize::from(reader)
+                11 + 7 * usize::from(reader)
                     + if writer { 51 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + 2 * usize::from(writer && cfg!(feature = "coordinator"))

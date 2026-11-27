@@ -1,6 +1,6 @@
 # Verified
 
-Slices 1 (evaluators, `crates/reader/src/ltr/`) and 2 (store and routes, `crates/node/src/ltr_route/`) are built; slices 3 to 5 are not. `_clearcache` and `_stats` come with slice 5.
+Slices 1 (evaluators, `crates/reader/src/ltr/`), 2 (store and routes, `crates/node/src/ltr_route/`) and 3 (the `sltr` rescore and the model cache) are built; slices 4 and 5 are not. `_clearcache` and `_stats` come with slice 5.
 
 - AC-1: `a_linear_model_scores_the_dot_product_of_its_weights`, `a_linear_model_naming_a_feature_the_set_lacks_is_refused` (the evaluator refuses; the 400 on a put comes with slice 2). Seen red with a stub scoring 0.
 - AC-2: `xgboost_squared_error_scores_as_xgboost_does`, `xgboost_reg_logistic_scores_as_xgboost_does`, `xgboost_binary_logistic_scores_as_xgboost_does`, `xgboost_a_missing_value_follows_its_default_direction`: three models XGBoost 2.1.4 trained and saved (`fixtures/ltr/gen_xgboost.py`) and the scores its predict gave on eight vectors each, two with missing values, equal within 1e-5 relative. Seen red with a stub scoring 0.
@@ -9,9 +9,9 @@ Slices 1 (evaluators, `crates/reader/src/ltr/`) and 2 (store and routes, `crates
 - AC-5: `a_store_a_feature_set_and_a_model_are_created_read_replaced_listed_and_deleted`, `a_named_store_holds_its_own_objects`, `an_invalid_feature_set_or_model_is_a_400` (node, `tests/server/ltr_routes.rs`), over the emulator: shapes follow `shapes.md` and stay provisional (no stock run). Seen red with the routes unregistered (5 of 5 failed). Differences: _version is the set's change count and is absent from a read and a delete; the 400 reasons are this node's own wording.
 - AC-6: `a_put_costs_one_get_and_two_puts_a_read_two_gets_and_nothing_lists`: a put 1 GET and 2 PUT, a read 2 GET, no LIST (emulator counts). A list is the marker plus one GET for each object of its page.
 - AC-7: `addfeatures_extends_a_set_and_createmodel_scores_its_features`: addfeatures makes or extends a set and refuses a duplicate name, createmodel stores a model with its set embedded and checks the definition against the set; a version bump is the set's change count rising (`a_created_set_is_missing_until_created_and_a_model_may_exceed_the_mebibyte` in `oss-meta`).
-- AC-8: NOT-RUN: slice 3 is not built yet
-- AC-9: NOT-RUN: slice 3 is not built yet
-- AC-10: NOT-RUN: slice 3 is not built yet
+- AC-8: `an_sltr_rescore_reorders_the_window_by_the_models_score`, `hits_outside_the_window_keep_their_first_pass_order` (`crates/node/tests/it/ltr_rescore.rs`, a fake resolver with a linear model over feature queries). Differences: an sltr query is served only as a rescore query; `an_sltr_query_anywhere_but_a_rescore_is_refused`.
+- AC-9: `params_reach_the_templates_and_an_inactive_feature_scores_zero`, `a_missing_model_is_404_an_unknown_feature_400_and_a_wide_window_400`; the parser in `malformed_bodies_are_refused_by_name`.
+- AC-10: `a_cold_resolve_reads_the_store_a_warm_one_does_not_and_an_old_one_reads_the_marker` (cold 3 GETs, warm 0, past the TTL 1 marker GET, no LIST), `a_model_replaced_through_the_store_is_seen_after_the_ttl` (`crates/node/tests/server/ltr_cache.rs`, request meter over the emulator). Differences: the check after the TTL is made by the first search itself, not a background GET, and the TTL is the settings's, not a mocked clock. The 1,000-search steady-bill assertion is not written.
 - AC-11: NOT-RUN: slice 4 is not built yet
-- AC-12: NOT-RUN: slice 3 is not built yet
-- AC-13: NOT-RUN: slices 2 and 3 are not built yet
+- AC-12: `a_missing_store_or_model_is_not_found_and_the_window_is_the_settings` (404 for a missing store or model); the setting off is held by the existing route tests. `serverless.ltr.max_window` is enforced through the resolver.
+- AC-13: PARTIAL: `what_the_cache_holds_is_reserved_bounded_and_released` (reservation before holding, 429 past the cache bytes setting, release on eviction). The counting-allocator claim for the evaluators is NOT-RUN.

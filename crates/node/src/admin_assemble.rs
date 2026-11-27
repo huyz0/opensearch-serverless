@@ -101,6 +101,17 @@ pub(crate) fn register(
         crate::script_route::routes(router, &Arc::new(scripts)).map_err(AssembleError::Route)?;
     let router = if config.ltr {
         let ltr = crate::ltr_route::LtrService::new(store, &config.base, config.pit_buffer_bytes);
+        oss_reader::ltr::models::install(Arc::new(crate::ltr_route::StoreModels::new(
+            store,
+            &config.base,
+            crate::ltr_route::ModelCache {
+                buffer_bytes: config.pit_buffer_bytes,
+                max_window: config.ltr_max_window,
+                ttl: std::time::Duration::from_secs(config.ltr_cache_ttl_secs),
+                bytes: config.ltr_cache_bytes,
+            },
+            budget.clone(),
+        )));
         crate::ltr_route::routes(router, &Arc::new(ltr)).map_err(AssembleError::Route)?
     } else {
         router

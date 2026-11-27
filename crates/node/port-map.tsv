@@ -270,3 +270,5 @@ src/ltr_route/mod.rs	new		the learning to rank feature store service over docume
 src/ltr_route/objects.rs	new		the feature set and model objects as the plugin shapes them
 src/ltr_route/stores.rs	new		create, delete and list the stores
 src/ltr_route/routes.rs	new		the route table under /_ltr and /_plugins/_ltr
+src/ltr_route/models.rs	new		the node model cache: a TTL, marker version check and byte budget over the stored models
+src/boot/config/ltr.rs	new		the learning to rank bounds read from the environment

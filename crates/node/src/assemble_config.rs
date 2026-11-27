@@ -34,6 +34,12 @@ pub struct Config {
     pub search_pipelines: bool,
     /// `serverless.ltr.enabled`: serve the learning to rank store and its routes.
     pub ltr: bool,
+    /// `serverless.ltr.max_window`: the most hits an `sltr` rescore scores.
+    pub ltr_max_window: usize,
+    /// `serverless.ltr.cache_ttl`, in seconds.
+    pub ltr_cache_ttl_secs: u64,
+    /// `serverless.ltr.cache_bytes`: what the model cache may hold.
+    pub ltr_cache_bytes: usize,
     /// `serverless.security.enabled`: serve the security configuration API.
     pub security: bool,
     /// The static administrator's name and bcrypt hash, needed with security on.
@@ -150,6 +156,9 @@ impl Config {
             ingest_pipelines: false,
             search_pipelines: false,
             ltr: false,
+            ltr_max_window: 1_000,
+            ltr_cache_ttl_secs: 30,
+            ltr_cache_bytes: 64 << 20,
             security: false,
             security_admin: None,
             security_refresh_millis: 10_000,

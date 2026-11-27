@@ -308,3 +308,7 @@ src/aggs/bucket/multi.rs	port	server/src/main/java/org/opensearch/search/aggrega
 src/aggs/bucket/multi_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/MultiTermsAggregationBuilder.java@3.10.0	the parser and the setters checks of terms, size, shard_size, min_doc_count, shard_min_doc_count and order
 src/aggs/bucket/multi_collect.rs	new		runs a multi_terms on the engine composite node and keeps the best shard_size combinations by the order
 src/aggs/bucket/multi_tests.rs	new		tests of multi_terms, with the bodies recorded from the Java
+src/ltr/models.rs	new		the resolver a search reads a model through, installed by the node
+src/search_ltr.rs	new		the sltr rescore: one feature query a feature, combined with the first pass score
+src/dsl/queries/sltr.rs	new		the sltr query of the learning to rank plugin
+src/dsl/queries/sltr_tests.rs	new		tests of the sltr parser

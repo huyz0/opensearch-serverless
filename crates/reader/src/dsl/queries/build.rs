@@ -136,6 +136,9 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             .ok_or_else(|| unsupported("the [knn] query here")),
         More::Knn(q) => crate::knn::radial(q, cx),
         More::Nested(q, _) => super::nested_build::nested(q, cx),
+        More::Sltr(_) => Err(unsupported(
+            "an [sltr] query anywhere but as the rescore_query of a rescore",
+        )),
     }
 }
 
