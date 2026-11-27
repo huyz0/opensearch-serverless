@@ -9,7 +9,7 @@ The `typed_keys` gap of [compatibility](../../compatibility.md): the official cl
 - `?typed_keys=true` writes each top-level aggregation's key as `type#name`, with the type OpenSearch's `getWriteableName` gives: `min`, `max`, `sum`, `avg`, `stats`, `value_count`, `cardinality`, `tdigest_percentiles`, `tdigest_percentile_ranks` and `top_hits`. Values and the order of the aggregations are the untyped answer's, which orders them by the plain name as OpenSearch's map does.
 - It holds over one index and over several (the coordinator writes the merged result with the same writer). `typed_keys=false`, or none, changes nothing; a search without aggregations answers as without the parameter.
 - A bucket aggregation, whose sub-aggregations are typed too, is [its own spec](../search-typed-keys-buckets/SPEC.md); before that change it answered 400.
-- Not here: `typed_keys` on `_msearch`, which stays refused, and on `_count`, which has no aggregations.
+- Not here: `typed_keys` on `_msearch` ([its own spec](../search-typed-keys-msearch/SPEC.md)), and on `_count`, which has no aggregations.
 
 ## Acceptance criteria
 

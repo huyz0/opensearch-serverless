@@ -239,7 +239,33 @@ fn msearch_url_parameters_that_tune_are_accepted_and_the_total_can_be_a_number()
     assert!(text.contains(r#""hits":{"total":5,"#), "{text}");
     let (status, text) = msearch("?search_type=dfs_query_then_fetch", "{}");
     assert_eq!(status, 400, "{text}");
-    assert_eq!(msearch("?typed_keys=true", "{}").0, 400);
+    assert_eq!(msearch("?no_such_parameter=true", "{}").0, 400);
+}
+
+#[test]
+fn msearch_typed_keys_types_the_aggregations_of_every_item() {
+    let node = start();
+    let aggs =
+        r#"{"size":0,"aggs":{"lo":{"min":{"field":"year"}},"by":{"terms":{"field":"year"}}}}"#;
+    let body = format!("{{}}\n{aggs}\n{{}}\n{aggs}\n");
+    let run = |query: &str| {
+        let r = request(
+            node.addr(),
+            "POST",
+            &format!("/compat-paging-sort/_msearch{query}"),
+            Some(body.as_bytes()),
+        );
+        (r.status, r.text())
+    };
+    let (status, typed) = run("?typed_keys=true");
+    assert_eq!(status, 200, "{typed}");
+    assert_eq!(typed.matches(r#""min#lo":{"#).count(), 2, "{typed}");
+    assert_eq!(typed.matches("#by\":{").count(), 2, "{typed}");
+    let (_, plain) = run("");
+    assert!(!plain.contains('#'), "{plain}");
+    let (_, off) = run("?typed_keys=false");
+    assert!(!off.contains('#'), "{off}");
+    assert_eq!(run("?typed_keys=maybe").0, 400);
 }
 
 #[test]
