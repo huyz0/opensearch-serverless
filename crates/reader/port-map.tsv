@@ -304,3 +304,7 @@ src/aggs/metric/collect_decimal_tests.rs	new		tests of the metric aggregations o
 src/numbers_decimal.rs	port	server/src/main/java/org/opensearch/index/mapper/NumberFieldMapper.java@3.10.0	FLOAT and DOUBLE: parse, termQuery, termsQuery and rangeQuery, with DoublePoint and FloatPoint nextUp and nextDown
 src/numbers_decimal_tests.rs	new		tests of numbers_decimal.rs
 src/search_decimal_tests.rs	new		tests of queries, sorts and search_after over float and double fields
+src/aggs/bucket/multi.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalMultiTerms.java@3.10.0	the shard result of MultiTermsAggregator, InternalTerms.reduce over tuple keys and the body with key and key_as_string
+src/aggs/bucket/multi_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/MultiTermsAggregationBuilder.java@3.10.0	the parser and the setters checks of terms, size, shard_size, min_doc_count, shard_min_doc_count and order
+src/aggs/bucket/multi_collect.rs	new		runs a multi_terms on the engine composite node and keeps the best shard_size combinations by the order
+src/aggs/bucket/multi_tests.rs	new		tests of multi_terms, with the bodies recorded from the Java

@@ -52,6 +52,7 @@ fn type_name(value: &Value) -> Option<&'static str> {
         Value::Range(_) => "range",
         Value::Filters(result) => result.kind.type_name(),
         Value::Composite(_) => "composite",
+        Value::Multi(_) => "multi_terms",
     })
 }
 

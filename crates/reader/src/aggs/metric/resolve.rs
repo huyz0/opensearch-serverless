@@ -105,6 +105,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
         return Ok(Resolved::Hits);
     }
     if agg.composite.is_some() {
+        crate::aggs::bucket::multi_collect::check(agg, shard)?;
         return Ok(Resolved::Composite(composite_collect::runs(agg, shard)?));
     }
     let Some(field) = shard.meta.mapping.get(&agg.field) else {

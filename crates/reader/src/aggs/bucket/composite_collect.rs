@@ -23,8 +23,8 @@ use crate::aggs::bucket::keyword_collect::dictionary;
 use crate::aggs::bucket::keyword_subs;
 use crate::aggs::bucket::sub_values::BucketSubs;
 use crate::aggs::bucket::terms_collect::too_many_buckets;
-use crate::aggs::metric::MetricAgg;
 use crate::aggs::metric::resolve::{text_fielddata, type_name};
+use crate::aggs::metric::{Metric, MetricAgg};
 use crate::aggs::partial::Value;
 use crate::failure::Failure;
 use crate::mapping::FieldType;
@@ -115,7 +115,9 @@ pub fn reserved_all<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[Metric
 /// fails a reduce that makes them.
 pub fn check_limit(agg: &MetricAgg) -> Result<(), ShardError> {
     match agg.composite.as_deref() {
-        Some(spec) if spec.size > BUCKET_LIMIT => Err(too_many_buckets(spec.size, BUCKET_LIMIT)),
+        Some(spec) if agg.metric == Metric::Composite && spec.size > BUCKET_LIMIT => {
+            Err(too_many_buckets(spec.size, BUCKET_LIMIT))
+        }
         _ => Ok(()),
     }
 }
