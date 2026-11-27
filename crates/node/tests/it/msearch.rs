@@ -117,7 +117,7 @@ fn a_failing_item_answers_its_own_error_and_the_others_are_unaffected() {
 fn unsupported_headers_answer_a_refused_item() {
     let node = start();
     for header in [
-        r#"{"index":"compat-term","preference":"_local"}"#,
+        r#"{"index":"compat-term","search_type":"dfs_query_then_fetch"}"#,
         r#"{"index":["compat-term"]}"#,
         r#"{"index":"comp*"}"#,
         r#"{"index":"_all"}"#,

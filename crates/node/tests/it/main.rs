@@ -32,6 +32,7 @@ mod search;
 mod search_alias;
 mod search_hits;
 mod search_pipeline;
+mod search_routing;
 mod search_template;
 mod search_template_stored;
 mod shards;

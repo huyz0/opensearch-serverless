@@ -53,6 +53,8 @@ pub(super) const SEARCH_PARAMS: &[&str] = &[
     "analyzer",
     "analyze_wildcard",
     "lenient",
+    "routing",
+    "preference",
 ];
 
 /// The body and URL parameters of a `_search`, a `q` replacing the body's query.
