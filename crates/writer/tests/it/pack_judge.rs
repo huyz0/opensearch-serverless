@@ -234,3 +234,34 @@ fn tracking_stops_at_the_cap_and_says_so() {
     assert!(out.at_cap);
     assert_eq!(names.asked(), 1);
 }
+
+/// After a restart the judge reads the sidecar once and asks the store about
+/// the live packs only: the 1,022 ordinals already marked cost nothing.
+#[test]
+fn a_restart_reads_the_sidecar_once_and_the_headers_of_live_packs_only() {
+    let e = emulator();
+    pack(&e, 3);
+    pack(&e, 900);
+    let sc = sidecar(&e, 1024);
+    let state = sc.read().expect("read");
+    sc.update(state, |current| {
+        let mut next = current.clone();
+        for epoch in next.epochs_mut() {
+            for ordinal in (0..1024).filter(|o| *o != 3 && *o != 900) {
+                epoch.mark(ordinal);
+            }
+        }
+        next
+    })
+    .expect("marks");
+    let names = Names::default();
+    let (gets, heads) = (e.meter().count(S3Op::Get), e.meter().count(S3Op::Head));
+    let (puts, lists) = (e.meter().count(S3Op::Put), e.meter().count(S3Op::List));
+    let out = judge(&e, 100).pass(&sc, &names, 0).expect("restart pass");
+    assert_eq!(out.young, 2, "both live packs are found and are young");
+    assert_eq!(e.meter().count(S3Op::Get) - gets, 1, "the sidecar, once");
+    assert_eq!(e.meter().count(S3Op::Head) - heads, 2, "one a live pack");
+    assert_eq!(e.meter().count(S3Op::Put), puts);
+    assert_eq!(e.meter().count(S3Op::List), lists);
+    assert_eq!(names.asked(), 0);
+}
