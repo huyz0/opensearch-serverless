@@ -126,6 +126,19 @@ fn refused_as_not_owner(result: &ItemResult) -> bool {
     matches!(result, ItemResult::Failed { error, .. } if error.kind() == NOT_OWNER)
 }
 
+/// The type a refused write answers with: a pinned module that could not run
+/// the shard's open or its replay is named, so a caller can tell it from the
+/// node log's own failures.
+fn unavailable_kind(reason: &str) -> &'static str {
+    if reason.starts_with("extension_replay_failed") {
+        "extension_replay_failed"
+    } else if reason.starts_with("extension_unavailable") {
+        "extension_unavailable"
+    } else {
+        "node_log_exception"
+    }
+}
+
 /// The items of a group as a bulk answers them.
 fn items_of(
     outcomes: Vec<Result<Written, Failure>>,
@@ -147,7 +160,7 @@ fn items_of(
             },
             Err(Failure::Unavailable(reason)) => ItemResult::Failed {
                 status: 503,
-                error: Exception::new("node_log_exception", reason)
+                error: Exception::new(unavailable_kind(&reason), reason)
                     // ALLOC: three short fields an item that failed.
                     .with_meta("index", Meta::Str(index.name.clone()))
                     .with_meta("shard", Meta::Str(shard.to_string()))

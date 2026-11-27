@@ -146,3 +146,37 @@ fn a_write_that_finds_no_room_to_compile_the_module_is_a_retryable_503_and_the_n
     assert!(matches!(again, ItemResult::Written { .. }), "{again:?}");
     assert!(r.role.held("u1", 0));
 }
+
+/// A loader whose refusal is `why`.
+struct Refuses(&'static str);
+
+impl ModuleLoader for Refuses {
+    fn load(&self, _: &[u8], _: &str) -> Result<Option<Arc<dyn PinnedModules>>, String> {
+        Err(self.0.into())
+    }
+}
+
+// docs/specs/extension-analyzer AC-12: a failed replay is a typed 503, and so is an unavailable module
+#[test]
+fn a_refused_open_of_a_pinned_index_is_a_503_typed_by_why() {
+    for (why, kind) in [
+        (
+            "extension_replay_failed: module [m]: out of fuel: applying a record: seq_no 41: x",
+            "extension_replay_failed",
+        ),
+        (
+            "extension_unavailable: module [m] is not in the store",
+            "extension_unavailable",
+        ),
+    ] {
+        let r = rig_with(true, Some(Arc::new(Refuses(why))));
+        create_mapped(&r, "logs", "u1", b"{}", PINNED_MAPPING);
+        let ItemResult::Failed { status, error } =
+            write_doc(&r.role, "logs", "1", r#"{"t":"a b"}"#)
+        else {
+            panic!("refused")
+        };
+        assert_eq!((status, error.kind()), (503, kind), "{why}");
+        assert!(error.reason().contains(why), "the words are kept");
+    }
+}
