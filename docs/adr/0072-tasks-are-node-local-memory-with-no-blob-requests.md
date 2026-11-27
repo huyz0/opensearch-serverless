@@ -1,6 +1,6 @@
 # 0072: Tasks live in node memory, bounded, with no blob requests
 
-**Status:** Proposed
+**Status:** Accepted after independent review, 2026-11-27 (changes folded in)
 
 ## Context
 

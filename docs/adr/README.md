@@ -80,3 +80,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0069](0069-painless-source-compiles-in-rust-with-java-classes-as-functions.md) | Painless source compiles in Rust, and Java classes are Rust functions | Accepted |
 | [0070](0070-each-crate-builds-its-integration-tests-as-one-binary.md) | Each crate builds its integration tests as one binary | Accepted |
 | [0071](0071-learning-to-rank-is-ported-natively.md) | Learning to rank is ported natively to the reader; it is no longer proxied | Accepted |
+| [0072](0072-tasks-are-node-local-memory-with-no-blob-requests.md) | Tasks live in node memory, bounded, with no blob requests | Accepted |
