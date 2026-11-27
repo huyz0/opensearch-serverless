@@ -48,14 +48,14 @@ pub struct DocService {
     ingest: Option<Arc<IngestPipelines>>,
 }
 
-fn now_millis() -> u64 {
+pub(crate) fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 /// A numeric parameter, or the failure OpenSearch answers a bad one with.
-fn number(req: &Request<'_>, name: &str) -> Result<Option<i64>, RestError> {
+pub(crate) fn number(req: &Request<'_>, name: &str) -> Result<Option<i64>, RestError> {
     match req.param(name) {
         None => Ok(None),
         Some(text) => text.parse::<i64>().map(Some).map_err(|_| {
@@ -103,7 +103,7 @@ impl DocService {
     }
 
     /// The request's body, held whole and charged to the request-body pool.
-    fn source(req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
+    pub(crate) fn source(req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
         let declared = req
             .body()
             .declared_length()

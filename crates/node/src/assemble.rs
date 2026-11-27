@@ -25,6 +25,7 @@ use crate::pit_route::{self, PitService};
 use crate::refresh_route::{self, RefreshService};
 use crate::search::{self, SearchService};
 use crate::tail_node::{self, TailError, TailNode, TailParts};
+use crate::update_route::{self, UpdateService};
 use crate::writer::{JanitorPass, JanitorTimer, PassLimits, PublishTimer, WriterRole};
 
 pub use crate::assemble_config::Config;
@@ -255,6 +256,11 @@ pub fn assemble(
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = get_route::routes(router, Arc::new(GetService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
+    let router = update_route::routes(
+        router,
+        Arc::new(UpdateService::new(Arc::clone(&role), config.address)),
+    )
+    .map_err(AssembleError::Route)?;
     let router = refresh_route::routes(router, Arc::new(RefreshService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;

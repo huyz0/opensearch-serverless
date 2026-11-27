@@ -75,7 +75,11 @@ fn want_source(req: &Request<'_>) -> Result<bool, RestError> {
 }
 
 /// The shard of `index` that holds `id`.
-fn shard_of(index: &IndexInfo, id: &str, routing: Option<&str>) -> Result<u32, RestError> {
+pub(crate) fn shard_of(
+    index: &IndexInfo,
+    id: &str,
+    routing: Option<&str>,
+) -> Result<u32, RestError> {
     let missing = || {
         RestError::exception(
             400,
