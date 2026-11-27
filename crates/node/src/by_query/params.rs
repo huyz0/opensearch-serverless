@@ -1,5 +1,6 @@
 //! What a delete-by-query request says: its query and its parameters.
 
+use oss_doc::mapping::json::Json;
 use oss_rest::{Request, RestError};
 
 use crate::bulk_route::refresh;
@@ -31,8 +32,28 @@ pub(super) struct Params {
     pub refresh: bool,
     /// `conflicts=abort`, the default.
     pub abort_on_conflict: bool,
-    /// An update by query's `script`; `None` for a delete.
+    /// An update by query's or a reindex's `script`; `None` for a delete.
     pub script: Option<ScriptDef>,
+    /// A reindex's source and destination; `None` for a by-query.
+    pub reindex: Option<ReindexTarget>,
+}
+
+/// Which request is read.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Mode {
+    Delete,
+    Update,
+    Reindex,
+}
+
+/// What a reindex copies from and to.
+pub(super) struct ReindexTarget {
+    /// The source index.
+    pub source: String,
+    /// The destination index.
+    pub dest: String,
+    /// `dest.op_type` of `create`: an existing document is a conflict.
+    pub create: bool,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -47,10 +68,20 @@ fn unsupported(what: &str) -> RestError {
 impl Params {
     /// Reads the request, refusing what this node does not do.
     ///
-    /// `update`: the request is an update by query, whose `query` may be
-    /// absent and whose `script` is required.
-    pub fn read(req: &mut Request<'_>, update: bool) -> Result<Self, RestError> {
-        let abort_on_conflict = match req.param("conflicts").as_deref() {
+    /// `mode`: an update by query's `query` may be absent and its `script`
+    /// is required; a reindex names its source and destination.
+    pub fn read(req: &mut Request<'_>, mode: Mode) -> Result<Self, RestError> {
+        let update = mode == Mode::Update;
+        let body = read_body(req)?;
+        let value = oss_doc::mapping::json::parse(&body).map_err(|e| {
+            // ALLOC: error path; one message.
+            bad(format!("failed to parse the request body: {}", e.reason))
+        })?;
+        let conflicts = match (mode, value.get("conflicts")) {
+            (Mode::Reindex, Some(Json::Str(c))) => Some(c.clone()), // ALLOC: one small string.
+            _ => req.param("conflicts").map(std::borrow::Cow::into_owned),
+        };
+        let abort_on_conflict = match conflicts.as_deref() {
             None | Some("abort") => true,
             Some("proceed") => false,
             Some(other) => {
@@ -72,24 +103,27 @@ impl Params {
         if req.param("requests_per_second").is_some_and(|v| v != "-1") {
             return Err(unsupported("throttling"));
         }
-        let max_docs = match req.param("max_docs") {
-            None => u64::MAX,
-            Some(text) => match text.parse::<i64>() {
-                Ok(n) if n >= 0 => u64::try_from(n).unwrap_or(u64::MAX),
-                _ => {
-                    // ALLOC: error path; one message.
-                    return Err(bad(format!(
-                        "[max_docs] parameter cannot be negative, found [{text}]"
-                    )));
-                }
-            },
+        let in_body = match (mode, value.get("max_docs")) {
+            (Mode::Reindex, Some(Json::Num(n))) => Some(n.clone()), // ALLOC: one small number.
+            _ => None,
         };
+        let max_docs =
+            match in_body.or_else(|| req.param("max_docs").map(std::borrow::Cow::into_owned)) {
+                None => u64::MAX,
+                Some(text) => match text.parse::<i64>() {
+                    Ok(n) if n >= 0 => u64::try_from(n).unwrap_or(u64::MAX),
+                    _ => {
+                        // ALLOC: error path; one message.
+                        return Err(bad(format!(
+                            "[max_docs] parameter cannot be negative, found [{text}]"
+                        )));
+                    }
+                },
+            };
         let refresh = refresh(req.param("refresh").as_deref())?;
-        let body = read_body(req)?;
-        let value = oss_doc::mapping::json::parse(&body).map_err(|e| {
-            // ALLOC: error path; one message.
-            bad(format!("failed to parse the request body: {}", e.reason))
-        })?;
+        if mode == Mode::Reindex {
+            return Self::reindex(&value, abort_on_conflict, max_docs, refresh);
+        }
         let query = match value.get("query") {
             Some(query) => query.to_json(),
             None if update => String::from(r#"{"match_all":{}}"#),
@@ -106,6 +140,71 @@ impl Params {
             refresh,
             abort_on_conflict,
             script,
+            reindex: None,
+        })
+    }
+
+    /// A reindex body: `source.index`, `source.query`, `dest.index`,
+    /// `dest.op_type` and `script`, nothing else.
+    fn reindex(
+        value: &Json,
+        abort_on_conflict: bool,
+        max_docs: u64,
+        refresh: bool,
+    ) -> Result<Self, RestError> {
+        let Json::Obj(members) = value else {
+            return Err(bad("the request body must be an object"));
+        };
+        for (key, _) in members {
+            if !["source", "dest", "script", "conflicts", "max_docs"].contains(&key.as_str()) {
+                // ALLOC: error path; one message.
+                return Err(unsupported(&format!("the reindex field [{key}]")));
+            }
+        }
+        let name = |part: &str, key: &str| -> Result<String, RestError> {
+            match value.get(part).and_then(|p| p.get(key)) {
+                Some(Json::Str(s)) if !s.is_empty() && !s.contains([',', '*']) => Ok(s.clone()), // ALLOC: one name.
+                Some(_) => Err(unsupported(&format!(
+                    "[{part}.{key}] other than one concrete index"
+                ))),
+                None => Err(bad(format!("[{part}.{key}] is required"))), // ALLOC: error path.
+            }
+        };
+        let source = name("source", "index")?;
+        let dest = name("dest", "index")?;
+        for (part, allowed) in [
+            ("source", ["index", "query"]),
+            ("dest", ["index", "op_type"]),
+        ] {
+            if let Some(Json::Obj(fields)) = value.get(part)
+                && let Some((key, _)) = fields.iter().find(|(k, _)| !allowed.contains(&k.as_str()))
+            {
+                // ALLOC: error path; one message.
+                return Err(unsupported(&format!("[{part}.{key}]")));
+            }
+        }
+        let create = match value.get("dest").and_then(|d| d.get("op_type")) {
+            None => false,
+            Some(Json::Str(t)) if t == "index" => false,
+            Some(Json::Str(t)) if t == "create" => true,
+            Some(_) => return Err(bad("[dest.op_type] must be [index] or [create]")),
+        };
+        let query = value
+            .get("source")
+            .and_then(|s| s.get("query"))
+            .map_or_else(|| String::from(r#"{"match_all":{}}"#), Json::to_json);
+        let script = value.get("script").map(script).transpose()?;
+        Ok(Self {
+            query,
+            max_docs,
+            refresh,
+            abort_on_conflict,
+            script,
+            reindex: Some(ReindexTarget {
+                source,
+                dest,
+                create,
+            }),
         })
     }
 }
