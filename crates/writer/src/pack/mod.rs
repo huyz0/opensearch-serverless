@@ -5,6 +5,7 @@
 //! (huyz0/OpenSearch `feature/serverlessshell`). The publisher's use of a
 //! pack, and the collector that deletes unreferenced ones, are separate.
 
+mod commit_refs;
 mod election;
 mod error;
 mod index;
@@ -14,6 +15,7 @@ mod sidecar;
 mod store;
 mod writer;
 
+pub use commit_refs::{CommitReferences, IndexHolds};
 pub use election::{WINDOW_MILLIS, collector_for, window_of};
 pub use error::PackError;
 pub use index::{IndexState, PackIndexStore, Removal};
