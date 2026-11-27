@@ -23,6 +23,12 @@ fn entry(key: &str, value: Constant) -> (Constant, Constant) {
     (Constant::Str(key.to_owned()), value)
 }
 
+/// Whether the node compiles Painless (`serverless.scripting.painless.native_compile`),
+/// which script updates need.
+pub fn enabled() -> bool {
+    oss_reader::painless_switch::native_compile()
+}
+
 /// Runs `source` with `params` over the document `doc` (the empty object for
 /// a missing one) as an update script does: `ctx._source`, `ctx.op` (`index`
 /// for a found document, `create` for a missing one) and the identity.
@@ -40,7 +46,7 @@ pub fn run_update(
     version: i64,
     doc: &[u8],
 ) -> Result<Outcome, String> {
-    if !oss_reader::painless_switch::native_compile() {
+    if !enabled() {
         // ALLOC: error path; one message.
         return Err("script updates need serverless.scripting.painless.native_compile".to_owned());
     }
