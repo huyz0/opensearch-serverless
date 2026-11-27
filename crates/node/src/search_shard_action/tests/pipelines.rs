@@ -36,6 +36,7 @@ fn pipeline(kind: PipelineKind, name: &str) -> PipelinePlace {
             sorts: Vec::new(),
             from: 0,
             size: None,
+            lag: 1,
         },
     }
 }
@@ -62,6 +63,7 @@ fn pipeline_aggregations_do_not_change_the_shards_answer() {
     let with = answer(vec![
         pipeline(PipelineKind::AvgBucket, "a"),
         pipeline(PipelineKind::Derivative, "d"),
+        pipeline(PipelineKind::SerialDiff, "sd"),
     ]);
     assert_eq!(with, without);
     assert!(!without.is_empty());

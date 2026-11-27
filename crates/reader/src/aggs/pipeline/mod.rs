@@ -10,12 +10,15 @@ pub mod compute;
 pub mod parent;
 pub mod parent_parse;
 pub mod parse;
+mod serial_parse;
 mod sort_parse;
 
 #[cfg(test)]
 mod parent_parse_tests;
 #[cfg(test)]
 mod parent_tests;
+#[cfg(test)]
+mod serial_tests;
 
 #[cfg(test)]
 mod pipeline_tests;
@@ -39,6 +42,8 @@ pub enum PipelineKind {
     CumulativeSum,
     /// `bucket_sort`, a parent pipeline.
     BucketSort,
+    /// `serial_diff`, a parent pipeline.
+    SerialDiff,
 }
 
 impl PipelineKind {
@@ -53,6 +58,7 @@ impl PipelineKind {
             "derivative" => Self::Derivative,
             "cumulative_sum" => Self::CumulativeSum,
             "bucket_sort" => Self::BucketSort,
+            "serial_diff" => Self::SerialDiff,
             _ => return None,
         })
     }
@@ -68,6 +74,7 @@ impl PipelineKind {
             Self::Derivative => "derivative",
             Self::CumulativeSum => "cumulative_sum",
             Self::BucketSort => "bucket_sort",
+            Self::SerialDiff => "serial_diff",
         }
     }
 
@@ -76,7 +83,7 @@ impl PipelineKind {
     pub fn is_parent(self) -> bool {
         matches!(
             self,
-            Self::Derivative | Self::CumulativeSum | Self::BucketSort
+            Self::Derivative | Self::CumulativeSum | Self::BucketSort | Self::SerialDiff
         )
     }
 
@@ -87,7 +94,7 @@ impl PipelineKind {
             Self::Avg | Self::Sum => "simple_value",
             Self::Min | Self::Max => "bucket_metric_value",
             Self::Stats => "stats_bucket",
-            Self::Derivative | Self::CumulativeSum => "simple_value",
+            Self::Derivative | Self::CumulativeSum | Self::SerialDiff => "simple_value",
             Self::BucketSort => "bucket_sort",
         }
     }
@@ -137,6 +144,8 @@ pub struct PipelineAgg {
     /// The bucket aggregation a parent pipeline sits in; `None` for a
     /// sibling.
     pub host: Option<String>,
+    /// A `serial_diff`'s `lag`; 1 for every other pipeline.
+    pub lag: usize,
     /// A `bucket_sort`'s sorts and window; `None` for every other pipeline.
     pub sort: Option<SortSpec>,
 }

@@ -18,7 +18,7 @@ fn value(path: &str) -> BucketValue {
     }
 }
 
-fn request(host: &str, pipes: &str) -> String {
+pub(super) fn request(host: &str, pipes: &str) -> String {
     let host = match host {
         "top" => String::new(),
         "terms" => format!(
@@ -36,12 +36,12 @@ fn request(host: &str, pipes: &str) -> String {
 }
 
 /// `,"p":{"type":{"buckets_path":"path"}}`, or at the top level without the comma.
-fn pipe(host: &str, name: &str, ty: &str, body: &str) -> String {
+pub(super) fn pipe(host: &str, name: &str, ty: &str, body: &str) -> String {
     let comma = if host == "top" { "" } else { "," };
     format!(r#"{comma}"{name}":{{"{ty}":{{{body}}}}}"#)
 }
 
-fn path(p: &str) -> String {
+pub(super) fn path(p: &str) -> String {
     format!(r#""buckets_path":"{p}""#)
 }
 
@@ -213,7 +213,7 @@ fn RECORDED_PARSE_VALIDATION(label: &str) -> String {
 
 /// The messages of an exception chain a recorded line prints
 /// (`Class: message <- Class: message`), the head's class last.
-fn java_chain(text: &str) -> Vec<(String, String)> {
+pub(super) fn java_chain(text: &str) -> Vec<(String, String)> {
     text.split(" <- ")
         .map(|link| {
             let (class, message) = link.split_once(": ").unwrap_or((link, ""));
@@ -225,7 +225,7 @@ fn java_chain(text: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-fn kind_of(class: &str) -> Option<&'static str> {
+pub(super) fn kind_of(class: &str) -> Option<&'static str> {
     Some(match class {
         "ParsingException" => "parsing_exception",
         "XContentParseException" => "x_content_parse_exception",

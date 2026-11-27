@@ -78,11 +78,12 @@ pub fn write_result(out: &mut dyn Write, pipeline: &PipelineAgg, target: &[u8]) 
             }
             out.write_all(b"]")
         }
-        PipelineKind::Derivative | PipelineKind::CumulativeSum | PipelineKind::BucketSort => {
-            Err(io::Error::other(
-                "a parent pipeline aggregation is not computed beside its bucket aggregation",
-            ))
-        }
+        PipelineKind::Derivative
+        | PipelineKind::CumulativeSum
+        | PipelineKind::BucketSort
+        | PipelineKind::SerialDiff => Err(io::Error::other(
+            "a parent pipeline aggregation is not computed beside its bucket aggregation",
+        )),
         PipelineKind::Stats => {
             let count = values.len();
             let sum = values.iter().fold(0.0, |a, b| a + b);

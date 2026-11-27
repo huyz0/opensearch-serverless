@@ -333,3 +333,5 @@ src/aggs/pipeline/parent_tests.rs	new		tests of the parent pipelines against the
 src/aggs/pipeline/sort_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketSortPipelineAggregationBuilder.java@429b4cbc	the bucket_sort body parser and its error chains
 src/aggs/pipeline/parent_parse_tests.rs	new		tests of the parent pipelines bodies and validation against the recorded Java
 src/stored_scripts.rs	new		re-export of the resolver trait, which lives in oss-types
+src/aggs/pipeline/serial_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/SerialDiffPipelineAggregationBuilder.java@429b4cbc	the builder parse; serial_diff compute is in parent.rs after SerialDiffPipelineAggregator.reduce
+src/aggs/pipeline/serial_tests.rs	new		serial_diff computed, parsed and validated against the bytes Java wrote
