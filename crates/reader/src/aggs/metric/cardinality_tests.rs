@@ -194,6 +194,7 @@ fn a_cardinality_reserves_its_sketch_only_once_it_can_have_one() {
         nested: None,
         composite: None,
         significant: None,
+        rare: None,
     };
     let plain = state_bytes(&[MetricAgg {
         metric: Metric::Min,

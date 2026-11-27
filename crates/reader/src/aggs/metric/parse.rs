@@ -335,6 +335,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     nested: None,
                     composite: None,
                     significant: None,
+                    rare: None,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),
                 };

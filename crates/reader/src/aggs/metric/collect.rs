@@ -65,6 +65,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::TopHits
         | Metric::Terms
         | Metric::SignificantTerms
+        | Metric::RareTerms
         | Metric::Histogram
         | Metric::DateHistogram => NEED_COUNT,
         Metric::Range
@@ -118,6 +119,9 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::Composite => composite_collect::empty(agg),
         Metric::SignificantTerms => crate::aggs::bucket::significant_collect::unmapped(
             &crate::aggs::bucket::significant_collect::spec_of(agg),
+        ),
+        Metric::RareTerms => crate::aggs::bucket::rare_collect::unmapped(
+            &crate::aggs::bucket::rare_collect::spec_of(agg),
         ),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.

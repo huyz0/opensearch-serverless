@@ -106,11 +106,14 @@ pub enum Metric {
     /// `significant_terms`: the terms of a keyword field that the matches
     /// hold far more often than the whole shard does.
     SignificantTerms,
+    /// `rare_terms`: the terms of a keyword field held by at most
+    /// `max_doc_count` of the matches.
+    RareTerms,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 23] = [
+    pub const ALL: [Metric; 24] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -134,6 +137,7 @@ impl Metric {
         Metric::DateRange,
         Metric::Global,
         Metric::SignificantTerms,
+        Metric::RareTerms,
     ];
 
     /// The aggregation type name.
@@ -162,6 +166,7 @@ impl Metric {
             Metric::DateRange => "date_range",
             Metric::Global => "global",
             Metric::SignificantTerms => "significant_terms",
+            Metric::RareTerms => "rare_terms",
         }
     }
 
@@ -208,6 +213,8 @@ pub struct MetricAgg {
     pub composite: Option<Box<CompositeSpec>>,
     /// A `significant_terms`' options; `None` for every other aggregation.
     pub significant: Option<Box<crate::aggs::bucket::significant::SignificantSpec>>,
+    /// A `rare_terms`' options; `None` for every other aggregation.
+    pub rare: Option<Box<crate::aggs::bucket::rare::RareSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -300,6 +307,8 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                         crate::aggs::bucket::significant::SigBucket,
                     >())
             }),
+            Metric::RareTerms => crate::aggs::bucket::BUCKET_LIMIT
+                .saturating_mul(std::mem::size_of::<(String, u64)>()),
             _ => 0,
         };
         total

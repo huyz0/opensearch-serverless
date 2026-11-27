@@ -177,6 +177,7 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
         Value::Significant(ref result) => {
             crate::aggs::bucket::significant::write_significant(out, result)
         }
+        Value::Rare(ref result) => crate::aggs::bucket::rare::write_rare(out, result),
         Value::Range(ref result) => write_range(out, format, result),
         Value::Filters(ref result) => write_filters(out, result),
         Value::Composite(ref result) => write_composite(out, result),

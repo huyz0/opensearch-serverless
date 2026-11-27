@@ -174,19 +174,17 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
                 docs.saturating_mul(TERMS_BYTES_PER_VALUE)
             })
         });
-    let significant = source
-        .aggs
-        .iter()
-        .filter(|agg| agg.metric == crate::aggs::metric::Metric::SignificantTerms)
-        .fold(0usize, |total, agg| {
-            total.saturating_add(crate::aggs::bucket::significant_collect::reserved(
-                shard, agg,
-            ))
-        });
     window_bytes(window, &source.sort, shard)
         .saturating_add(inner)
         .saturating_add(counted)
-        .saturating_add(significant)
+        .saturating_add(crate::aggs::bucket::significant_collect::reserved_all(
+            shard,
+            &source.aggs,
+        ))
+        .saturating_add(crate::aggs::bucket::rare_collect::reserved_all(
+            shard,
+            &source.aggs,
+        ))
         .saturating_add(crate::aggs::metric::keyword_cardinality::reserved(
             &source.aggs,
             shard,

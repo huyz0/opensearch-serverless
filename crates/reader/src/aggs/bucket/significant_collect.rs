@@ -139,3 +139,12 @@ pub fn value<S: BlobStore + 'static>(
     // ALLOC: one box a `significant_terms`, bounded by the request's.
     Ok(Value::Significant(Box::new(result)))
 }
+
+/// The most bytes every `significant_terms` of `aggs` holds on `shard`.
+pub fn reserved_all<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]) -> usize {
+    aggs.iter()
+        .filter(|agg| agg.metric == crate::aggs::metric::Metric::SignificantTerms)
+        .fold(0usize, |total, agg| {
+            total.saturating_add(reserved(shard, agg))
+        })
+}

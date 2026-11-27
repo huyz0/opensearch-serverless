@@ -80,7 +80,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
     };
     let format = match &field.ty {
         FieldType::Int { .. } | FieldType::Long | FieldType::Date
-            if agg.metric == Metric::SignificantTerms =>
+            if matches!(agg.metric, Metric::SignificantTerms | Metric::RareTerms) =>
         {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
@@ -98,7 +98,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
         FieldType::Keyword
             if matches!(
                 agg.metric,
-                Metric::Terms | Metric::Cardinality | Metric::SignificantTerms
+                Metric::Terms | Metric::Cardinality | Metric::SignificantTerms | Metric::RareTerms
             ) =>
         {
             Format::Raw
