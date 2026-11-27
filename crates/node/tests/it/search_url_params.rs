@@ -242,6 +242,45 @@ fn msearch_url_parameters_that_tune_are_accepted_and_the_total_can_be_a_number()
     assert_eq!(msearch("?typed_keys=true", "{}").0, 400);
 }
 
+const TOP_HITS: &str = r#"{"size":0,"aggs":{"top":{"top_hits":{"size":1}},"by":{"terms":{"field":"year","size":1},"aggs":{"best":{"top_hits":{"size":1}}}}}}"#;
+
+#[test]
+fn the_total_inside_a_top_hits_is_a_number_too() {
+    let (status, plain) = post("", TOP_HITS);
+    assert_eq!(status, 200, "{plain}");
+    // The response's own total and one in each of the two top_hits.
+    assert_eq!(plain.matches(r#""total":{"value":"#).count(), 3, "{plain}");
+    let (status, number) = post("rest_total_hits_as_int=true", TOP_HITS);
+    assert_eq!(status, 200, "{number}");
+    assert!(!number.contains(r#""total":{"value""#), "{number}");
+    assert!(
+        number.contains(r#""hits":{"total":5,"max_score""#),
+        "{number}"
+    );
+    assert_eq!(number.matches(r#""hits":{"total":"#).count(), 3, "{number}");
+    let (_, off) = post("rest_total_hits_as_int=false", TOP_HITS);
+    assert_eq!(off.matches(r#""total":{"value":"#).count(), 3, "{off}");
+}
+
+#[test]
+fn the_total_inside_a_top_hits_over_several_indexes_is_a_number_too() {
+    let node = start();
+    let run = |query: &str| {
+        let r = request(
+            node.addr(),
+            "POST",
+            &format!("/compat-term,compat-paging-sort/_search?{query}"),
+            Some(TOP_HITS.as_bytes()),
+        );
+        assert_eq!(r.status, 200, "{}", r.text());
+        r.text()
+    };
+    assert_eq!(run("").matches(r#""total":{"value":"#).count(), 3);
+    let number = run("rest_total_hits_as_int=true");
+    assert!(!number.contains(r#""total":{"value""#), "{number}");
+    assert_eq!(number.matches(r#""hits":{"total":"#).count(), 3, "{number}");
+}
+
 #[test]
 fn wildcard_options_are_accepted_when_they_change_nothing() {
     let plain = ok("size=2");

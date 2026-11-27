@@ -146,6 +146,15 @@ pub fn search<T: Shards>(
     shards: usize,
     p: &Params,
 ) -> Result<Vec<u8>, SearchFailure<T::Error>> {
+    oss_reader::hits_total::scoped(p.total_as_int, || search_scoped(t, shards, p))
+}
+
+/// [`search`] inside the scope of its totals.
+fn search_scoped<T: Shards>(
+    t: &T,
+    shards: usize,
+    p: &Params,
+) -> Result<Vec<u8>, SearchFailure<T::Error>> {
     // ALLOC: bounded by the shards, the page or the request's aggregations.
     let numbers: Vec<usize> = (0..shards).collect();
     let outcomes = fanout::run(p.concurrency, &numbers, |&shard| t.query(shard));

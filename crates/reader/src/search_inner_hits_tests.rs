@@ -68,6 +68,30 @@ fn a_parent_carries_the_children_that_matched_under_the_path() {
 }
 
 #[test]
+fn the_total_of_inner_hits_is_a_number_under_rest_total_hits_as_int() {
+    let shard = shard();
+    let body = r#"{"size":20,"query":{"nested":{"path":"c","query":{"term":{"c.w":"w2-1"}},"inner_hits":{}}}}"#;
+    let source = parse_chunks([body.as_bytes()]).expect("parses");
+    let mut hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+    let write = |hits: &crate::search::Hits| {
+        let mut out = Vec::new();
+        write_response(&mut out, &shard, "idx", "node", hits, 0, &mut |_| Ok(())).expect("writes");
+        String::from_utf8(out).expect("utf-8")
+    };
+    let object = write(&hits);
+    assert!(
+        object.contains(r#""inner_hits":{"c":{"hits":{"total":{"value":1,"relation":"eq"},"#),
+        "{object}"
+    );
+    hits.total_as_int = true;
+    let number = write(&hits);
+    assert!(
+        number.contains(r#""inner_hits":{"c":{"hits":{"total":1,"max_score""#),
+        "{number}"
+    );
+}
+
+#[test]
 fn from_and_size_page_the_children_and_the_total_counts_them_all() {
     let all = respond(BOTH, r#","inner_hits":{"size":5}"#).expect("searches");
     assert!(

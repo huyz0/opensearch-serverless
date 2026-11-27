@@ -60,7 +60,9 @@ impl<S: BlobStore + 'static> ShardQuery<S> {
         reserve: &mut dyn FnMut(usize) -> io::Result<()>,
     ) -> io::Result<Vec<Vec<u8>>> {
         let shard = self.view.as_deref().unwrap_or(&self.held.shard);
-        render_selected_result_hits(shard, &self.index, node_id, &self.hits, positions, reserve)
+        oss_reader::hits_total::scoped(self.hits.total_as_int, || {
+            render_selected_result_hits(shard, &self.index, node_id, &self.hits, positions, reserve)
+        })
     }
 
     /// As [`Self::render`], for the hits of a `top_hits` `result` this
@@ -77,14 +79,16 @@ impl<S: BlobStore + 'static> ShardQuery<S> {
         reserve: &mut dyn FnMut(usize) -> io::Result<()>,
     ) -> io::Result<Vec<Vec<u8>>> {
         let shard = self.view.as_deref().unwrap_or(&self.held.shard);
-        oss_reader::response::render_selected_hits(
-            shard,
-            &self.index,
-            node_id,
-            result,
-            positions,
-            reserve,
-        )
+        oss_reader::hits_total::scoped(self.hits.total_as_int, || {
+            oss_reader::response::render_selected_hits(
+                shard,
+                &self.index,
+                node_id,
+                result,
+                positions,
+                reserve,
+            )
+        })
     }
 }
 
