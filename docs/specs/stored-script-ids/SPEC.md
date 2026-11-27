@@ -15,10 +15,13 @@ R14.6's stored-script gap: every Painless site refuses `script: {"id": ..}`. Dec
 
 - AC-1: `script_score` by `id` scores as the same script inline, with its `params`.
 - AC-2: `script_fields`, a `_script` sort, the `script` query and a `scripted_metric` script each run a stored script by `id`.
-- AC-3: `_update`, `_update_by_query` and `_reindex` run a stored script by `id`.
+- AC-3: `_update`, `_update_by_query`, `_reindex` and a bulk `update` item run a stored script by `id`.
 - AC-4: a missing id is 404, an id with `source` or `lang` 400, a stored `mustache` script 400, and an id with no resolver installed refused as before.
 - AC-5: resolving the same id again within the TTL makes no store request; the first resolve past the TTL makes one marker GET and sees a changed script; a node that resolves nothing makes no request.
-- AC-6: a script set past the cache bound is refused 429, not held.
+- AC-6: a script set past the cache bound is refused 429, not held; an unreadable store is 500.
+- AC-7: a search over several shards resolves each id once, so every shard runs one version; concurrent resolves past the TTL make one refresh.
+- AC-8: a `PUT` or `DELETE` is seen by the node that took it at its next resolve, even when a refresh was in flight; another node sees it within the TTL.
+- AC-9: `OSS_SCRIPT_CACHE_TTL` outside 1 to 3,600 stops the node at boot; `docs/compatibility.md` records the stored-script behaviour including the 404 until the TTL ends on another node.
 
 ## Test plan
 
@@ -38,5 +41,5 @@ None beyond the TTL (ADR 0073); Painless still runs only with `serverless.script
 
 ## Risks
 
-- A changed script is stale on another node for up to the TTL.
+- A changed script is stale on another node for up to the TTL, and a new one is 404 there until then (OpenSearch's cluster state would show it at once).
 - The 404 and the lang-with-id refusal are reproduced from OpenSearch's documented behaviour, not recorded from a stock node, so they stay provisional.

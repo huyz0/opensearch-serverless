@@ -54,6 +54,7 @@ mod search_post_filter;
 mod search_query_fields;
 mod search_rescore;
 mod search_sort;
+pub mod stored_scripts;
 pub use search_inner_hits::{InnerResult, ParentInner};
 mod search_sort_nested;
 mod search_terminate;

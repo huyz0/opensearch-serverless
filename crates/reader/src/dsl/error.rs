@@ -56,6 +56,9 @@ impl DslError {
     pub fn status(&self) -> u16 {
         match self {
             DslError::Failure(f) if f.kind == "aggregation_initialization_exception" => 500,
+            DslError::Failure(f) if f.kind == "resource_not_found_exception" => 404,
+            DslError::Failure(f) if f.kind == "circuit_breaking_exception" => 429,
+            DslError::Failure(f) if f.kind == "exception" => 500,
             _ => 400,
         }
     }

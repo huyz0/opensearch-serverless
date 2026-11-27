@@ -157,7 +157,7 @@ pub(crate) fn parse_params(p: &mut Parser<'_>) -> Result<Vec<(String, Param)>, D
 /// (the default when `lang` is absent) is served.
 pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, DslError> {
     // ALLOC: bounded by the script's source, at most 65,535 bytes.
-    let (mut source, mut lang, mut params) = (None, None, Vec::new());
+    let (mut source, mut lang, mut params, mut id) = (None, None, Vec::new(), None);
     while p.next_token() == Some(Kind::FieldName) {
         // ALLOC: bounded by the script's source, at most 65,535 bytes.
         let name = p.text().to_owned();
@@ -167,11 +167,9 @@ pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, Ds
             // ALLOC: bounded by the script's source, at most 65,535 bytes.
             ("lang", Some(Kind::String)) => lang = Some(p.text().to_owned()),
             ("params", Some(Kind::StartObject)) => params = parse_params(p)?,
-            ("id", _) => {
-                return Err(refuse(
-                    "a stored script [id] is not served: send the script as [source]",
-                ));
-            }
+            // ALLOC: bounded by the id, at most the body.
+            ("id", Some(Kind::String)) => id = Some(p.text().to_owned()),
+            ("id", _) => return Err(DslError::illegal("[script] [id] must be a string")),
             ("options", _) => return Err(refuse("script [options]")),
             _ => {
                 // ALLOC: error path; one message.
@@ -180,6 +178,11 @@ pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, Ds
                 )));
             }
         }
+    }
+    if let Some(id) = id {
+        let (resolved, stored_lang) = stored(&id, source.as_deref(), lang.as_deref())?;
+        source = Some(resolved);
+        lang = Some(stored_lang);
     }
     let lang = match lang.as_deref() {
         Some("expression") => Lang::Expression,
@@ -204,6 +207,46 @@ pub fn object_with(p: &mut Parser<'_>, painless: bool) -> Result<ScriptScore, Ds
         lang,
         params,
     })
+}
+
+/// The source and language of the stored script `id`, which a script object
+/// names without a `source` or a `lang`.
+fn stored(
+    id: &str,
+    source: Option<&str>,
+    lang: Option<&str>,
+) -> Result<(String, String), DslError> {
+    use crate::stored_scripts::{ResolveError, installed};
+    if source.is_some() || lang.is_some() {
+        return Err(DslError::illegal(
+            "[script] a stored script [id] takes no [source] or [lang]",
+        ));
+    }
+    let Some(scripts) = installed() else {
+        return Err(refuse(
+            "a stored script [id] is not served: send the script as [source]",
+        ));
+    };
+    match scripts.resolve(id) {
+        Ok(found) if matches!(found.lang.as_str(), "painless" | "expression") => {
+            Ok((found.source, found.lang))
+        }
+        Ok(found) => Err(DslError::illegal(format!(
+            // ALLOC: error path; one message.
+            "[script] the stored script [{id}] is lang [{}], which this node does not run here",
+            found.lang
+        ))),
+        Err(ResolveError::Missing) => Err(DslError::Failure(Failure::plain(
+            "resource_not_found_exception",
+            // ALLOC: error path; one message.
+            format!("unable to find script [{id}] in cluster state"),
+        ))),
+        Err(ResolveError::TooBig(m)) => Err(DslError::Failure(Failure::plain(
+            "circuit_breaking_exception",
+            m,
+        ))),
+        Err(ResolveError::Failed(m)) => Err(DslError::Failure(Failure::plain("exception", m))),
+    }
 }
 
 fn script_error(reason: String) -> Failure {
