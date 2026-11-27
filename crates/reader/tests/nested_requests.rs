@@ -32,7 +32,7 @@ fn cold_requests(body: &str) -> u64 {
     let source = parse_chunks([body.as_bytes()]).expect("parses");
     let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
     assert!(!hits.hits.is_empty(), "{body}");
-    store.store().meter().total() - before
+    store.store().meter().total().saturating_sub(before)
 }
 
 #[test]
