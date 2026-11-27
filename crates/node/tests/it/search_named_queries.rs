@@ -125,3 +125,36 @@ fn a_name_that_is_not_a_string_and_too_many_names_are_refused() {
     assert_eq!(status, 400, "{text}");
     assert!(text.contains("too many named queries"), "{text}");
 }
+
+#[test]
+fn the_compound_and_full_text_queries_are_named_too() {
+    let body = r#"{"query":{"bool":{"should":[
+        {"match_phrase":{"title":{"query":"quick start","_name":"phrase"}}},
+        {"multi_match":{"query":"fox","fields":["title"],"_name":"multi"}},
+        {"query_string":{"query":"title:guide","_name":"qs"}},
+        {"simple_query_string":{"query":"snow","fields":["title"],"_name":"simple"}},
+        {"constant_score":{"filter":{"term":{"tag":"food"}},"_name":"const"}},
+        {"dis_max":{"queries":[{"term":{"tag":"manual"}}],"_name":"dis"}},
+        {"function_score":{"query":{"term":{"tag":"manual"}},"weight":2,"_name":"fs"}}
+    ]}},"size":10}"#;
+    let (status, text) = post(body);
+    assert_eq!(status, 200, "{text}");
+    let hits = matched(&text);
+    let names = |id: &str| -> Vec<String> {
+        hits.iter()
+            .find(|(i, _)| i == id)
+            .and_then(|(_, m)| m.as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .map(|n| n.as_str().unwrap_or_default().to_owned())
+            .collect()
+    };
+    // The manual, "Quick start guide": a phrase, a guide, a manual.
+    let manual = names("3");
+    for want in ["phrase", "dis", "fs"] {
+        assert!(manual.iter().any(|n| n == want), "{manual:?}: {text}");
+    }
+    assert!(!manual.iter().any(|n| n == "const"), "{manual:?}");
+    // The food hit matches only the constant_score over its tag.
+    assert_eq!(names("4"), ["const"], "{text}");
+}

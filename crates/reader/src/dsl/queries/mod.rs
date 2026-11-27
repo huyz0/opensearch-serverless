@@ -317,6 +317,8 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
 }
 
 #[cfg(test)]
+mod named_tests;
+#[cfg(test)]
 mod parse_tests;
 
 #[cfg(test)]

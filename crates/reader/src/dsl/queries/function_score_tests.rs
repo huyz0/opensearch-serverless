@@ -321,7 +321,6 @@ fn what_is_not_served_is_refused() {
             r#"{"random_score":{"_name":"r"}}"#,
             "[function_score] [_name]",
         ),
-        (r#"{"weight":1,"_name":"q"}"#, "[function_score] [_name]"),
         (
             r#"{"weight":1,"boost":-1}"#,
             "[function_score] a negative [boost]",

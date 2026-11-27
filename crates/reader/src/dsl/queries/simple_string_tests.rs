@@ -141,7 +141,6 @@ fn what_is_not_served_is_refused() {
         r#"{"query":"x","analyze_wildcard":true}"#,
         r#"{"query":"x","analyzer":"whitespace"}"#,
         r#"{"query":"x","quote_field_suffix":".exact"}"#,
-        r#"{"query":"x","_name":"n"}"#,
         r#"{"query":"x","boost":-1}"#,
         r#"{"query":"x","fields":["a^-1"]}"#,
         r#"{"query":"x","fields":[""]}"#,

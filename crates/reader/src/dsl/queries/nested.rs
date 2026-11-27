@@ -77,7 +77,7 @@ pub fn parse_nested(p: &mut Parser<'_>) -> Result<More, DslError> {
                 "boost" => boost = float_value(p)?,
                 "ignore_unmapped" => ignore = bool_value(p)?,
                 "score_mode" => mode = score_mode(p.text())?,
-                "_name" => return Err(DslError::unsupported("[nested] [_name]")),
+                "_name" => crate::dsl::values::name_value(p)?,
                 _ => return Err(does_not_support(p, "nested", current)),
             },
             Some(k) => {

@@ -118,15 +118,11 @@ fn match_phrase_refuses_what_opensearch_refuses() {
         reason(r#"{"match_phrase":{"title":{"query":"a","x":1}}}"#),
         "[match_phrase] query does not support [x]"
     );
-    for unsupported in [
-        r#"{"match_phrase":{"title":{"query":"a","analyzer":"whitespace"}}}"#,
-        r#"{"match_phrase":{"title":{"query":"a","_name":"n"}}}"#,
-    ] {
-        assert!(
-            reason(unsupported).ends_with("is not supported by this node yet"),
-            "{unsupported}"
-        );
-    }
+    let unsupported = r#"{"match_phrase":{"title":{"query":"a","analyzer":"whitespace"}}}"#;
+    assert!(
+        reason(unsupported).ends_with("is not supported by this node yet"),
+        "{unsupported}"
+    );
 }
 
 #[test]

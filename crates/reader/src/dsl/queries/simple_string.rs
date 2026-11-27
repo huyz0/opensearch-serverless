@@ -198,7 +198,8 @@ pub fn parse_simple_query_string(p: &mut Parser<'_>) -> Result<More, DslError> {
                 "fuzzy_prefix_length" => q.fuzzy_prefix_length = int_value(p)?,
                 "fuzzy_max_expansions" => q.fuzzy_max_expansions = int_value(p)?,
                 "fuzzy_transpositions" => q.fuzzy_transpositions = bool_value(p)?,
-                "analyzer" | "_name" => return Err(refused(current)),
+                "_name" => crate::dsl::values::name_value(p)?,
+                "analyzer" => return Err(refused(current)),
                 _ => {
                     return Err(DslError::parsing(
                         p.location(),

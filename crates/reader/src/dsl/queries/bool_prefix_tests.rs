@@ -88,7 +88,6 @@ fn bad_bodies_and_unserved_options_fail() {
     for body in [
         r#"{"match_bool_prefix":{"title":{"query":"a","fuzziness":1}}}"#,
         r#"{"match_bool_prefix":{"title":{"query":"a","analyzer":"english"}}}"#,
-        r#"{"match_bool_prefix":{"title":{"query":"a","_name":"n"}}}"#,
         r#"{"match_bool_prefix":{"title":{"query":"a","fuzzy_rewrite":"x"}}}"#,
     ] {
         let r = parsed(body).expect_err(body).reason;

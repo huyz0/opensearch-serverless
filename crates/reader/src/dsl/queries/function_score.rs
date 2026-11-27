@@ -372,7 +372,7 @@ pub fn parse_function_score(p: &mut Parser<'_>) -> Result<More, DslError> {
                 "boost_mode" => out.boost_mode = boost_mode(text_or_null(p).unwrap_or("null"))?,
                 "max_boost" => out.max_boost = float_value(p)?,
                 "min_score" => out.min_score = Some(float_value(p)?),
-                "_name" => return Err(DslError::unsupported("[function_score] [_name]")),
+                "_name" => crate::dsl::values::name_value(p)?,
                 "weight" => {
                     reject_second(p, &single, array, current, true)?;
                     // ALLOC: one name a single function.
