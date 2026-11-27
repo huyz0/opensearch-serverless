@@ -54,6 +54,7 @@ fn type_name(value: &Value, format: Format) -> Option<&'static str> {
         Value::Filters(result) => result.kind.type_name(),
         Value::Composite(_) => "composite",
         Value::Multi(_) => "multi_terms",
+        Value::Scripted(_) => "scripted_metric",
     })
 }
 

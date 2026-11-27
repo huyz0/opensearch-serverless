@@ -91,7 +91,7 @@ pub(crate) fn value_kind<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
 ) -> lucene_aggs::metric_aggs::ValueKind {
     use lucene_aggs::metric_aggs::ValueKind;
-    if agg.script.is_some() {
+    if agg.script.is_some() || agg.scripted.is_some() {
         return ValueKind::Double;
     }
     match shard.meta.mapping.get(&agg.field).map(|f| &f.ty) {
@@ -118,7 +118,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
         crate::aggs::bucket::multi_collect::check(agg, shard)?;
         return Ok(Resolved::Composite(composite_collect::runs(agg, shard)?));
     }
-    if agg.script.is_some() {
+    if agg.script.is_some() || agg.scripted.is_some() {
         return Ok(Resolved::Numeric(Format::Raw));
     }
     let Some(field) = shard.meta.mapping.get(&agg.field) else {

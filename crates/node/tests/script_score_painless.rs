@@ -280,3 +280,91 @@ fn a_metric_aggregation_reads_a_painless_script() {
     let (status, text) = aggregate(&node, r#"{"x":{"cardinality":{"script":{"source":"1"}}}}"#);
     assert!(status >= 400 && text.contains("script"), "{text}");
 }
+
+// AC-2, AC-3, AC-4
+#[test]
+fn a_scripted_metric_folds_the_documents_and_reduces_the_shards() {
+    on();
+    let node = start();
+    let agg = |reduce: &str| {
+        format!(
+            r#"{{"sm":{{"scripted_metric":{{"params":{{"k":1}},"init_script":"state.sum = 0L; state.n = 0","map_script":"state.sum = state.sum + doc['year'].value * params.k; state.n = state.n + 1","combine_script":"return state","reduce_script":"{reduce}"}}}}}}"#
+        )
+    };
+    // Years 2010, 2002, 2002, 2001, 1999.
+    let (status, text) = aggregate(
+        &node,
+        &agg("long s = 0; for (st in states) { s = s + st.sum; } return s;"),
+    );
+    assert_eq!(status, 200, "{text}");
+    assert!(text.contains(r#""sm":{"value":10014}"#), "{text}");
+    let (status, text) = aggregate(
+        &node,
+        &agg(
+            "def total = 0; for (st in states) { total = total + st.n; } return [total, states.size()];",
+        ),
+    );
+    assert_eq!(status, 200, "{text}");
+    assert!(text.contains(r#""sm":{"value":[5,1]}"#), "{text}");
+    // a query narrows what the map script sees
+    let body = r#"{"size":0,"query":{"range":{"year":{"gte":2002}}},"aggs":{"sm":{"scripted_metric":{"map_script":"state.n = (state.n == null ? 0 : state.n) + 1","combine_script":"return state.n","reduce_script":"return states[0]"}}}}"#;
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_search",
+        Some(body.as_bytes()),
+    );
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert!(r.text().contains(r#""sm":{"value":3}"#), "{}", r.text());
+}
+
+// AC-3, AC-5
+#[test]
+fn a_scripted_metric_refuses_what_it_does_not_serve() {
+    on();
+    let node = start();
+    let ok = r#""map_script":"1","combine_script":"return 1","reduce_script":"return 1""#;
+    for (agg, reason) in [
+        (
+            r#"{"x":{"scripted_metric":{"combine_script":"return 1","reduce_script":"return 1"}}}"#.to_owned(),
+            "mapScript",
+        ),
+        (
+            r#"{"x":{"scripted_metric":{"map_script":"1","reduce_script":"return 1"}}}"#.to_owned(),
+            "combineScript",
+        ),
+        (
+            r#"{"x":{"scripted_metric":{"map_script":"1","combine_script":"return 1"}}}"#.to_owned(),
+            "reduceScript",
+        ),
+        (
+            r#"{"x":{"scripted_metric":{"map_script":{"id":"s"},"combine_script":"return 1","reduce_script":"return 1"}}}"#.to_owned(),
+            "stored script",
+        ),
+        (
+            r#"{"x":{"scripted_metric":{"map_script":{"lang":"expression","source":"1"},"combine_script":"return 1","reduce_script":"return 1"}}}"#.to_owned(),
+            "painless",
+        ),
+        (
+            format!(r#"{{"x":{{"scripted_metric":{{{ok},"bogus":1}}}}}}"#),
+            "bogus",
+        ),
+        (
+            r#"{"t":{"terms":{"field":"year"},"aggs":{"x":{"scripted_metric":{OK}}}}}"#
+                .replace("OK", ok),
+            "scripted_metric",
+        ),
+        (
+            r#"{"x":{"scripted_metric":{"map_script":"state.a = doc['year'].value *","combine_script":"return 1","reduce_script":"return 1"}}}"#.to_owned(),
+            "compile error",
+        ),
+        (
+            r#"{"x":{"scripted_metric":{"map_script":"1","combine_script":"return state.nope.x","reduce_script":"return 1"}}}"#.to_owned(),
+            "script_exception",
+        ),
+    ] {
+        let (status, text) = aggregate(&node, &agg);
+        assert!(status >= 400, "{agg}: {text}");
+        assert!(text.contains(reason), "{agg}: {text}");
+    }
+}
