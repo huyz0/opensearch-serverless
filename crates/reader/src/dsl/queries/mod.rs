@@ -29,6 +29,7 @@ pub mod nested_build;
 pub mod phrase_prefix;
 pub mod query_string;
 pub mod query_string_build;
+pub mod script_query;
 pub mod simple_string;
 pub mod simple_string_build;
 mod simple_string_leaf;
@@ -245,6 +246,8 @@ pub enum More {
     FunctionScore(Box<function_score::FunctionScore>, f32),
     /// `NestedQueryBuilder`, with its boost.
     Nested(Box<nested::NestedQuery>, f32),
+    /// `ScriptQueryBuilder` over Painless, and its boost.
+    Script(Box<function_score_script::ScriptScore>, f32),
     /// The k-NN plugin's `KNNQueryBuilder`.
     Knn(Box<knn::Knn>),
 }
@@ -273,6 +276,7 @@ impl More {
             | More::QueryString(_, boost)
             | More::FunctionScore(_, boost)
             | More::Nested(_, boost)
+            | More::Script(_, boost)
             | More::MatchNone { boost } => *boost,
             More::Knn(q) => q.boost,
         }
@@ -334,6 +338,9 @@ mod fuzzy_match_tests;
 
 #[cfg(test)]
 mod function_score_tests;
+
+#[cfg(test)]
+mod script_switch_tests;
 
 #[cfg(test)]
 mod query_string_build_tests;
