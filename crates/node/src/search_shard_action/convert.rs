@@ -235,7 +235,28 @@ fn body(source: &Source) -> Result<Json, ConvertError> {
 /// [`ConvertError`] for a number JSON cannot hold, or a source the reader's
 /// parser refuses.
 pub fn search_source(source: &Source) -> Result<SearchSource, ConvertError> {
-    let text = serde_json::to_vec(&body(source)?).map_err(|_| ConvertError::Number("the body"))?;
+    let mut text =
+        serde_json::to_vec(&body(source)?).map_err(|_| ConvertError::Number("the body"))?;
+    if !source.aggregations.is_empty() {
+        // Written by hand after the rest of the body: a JSON map would sort
+        // the aggregations, and the answer lists them in the request's order.
+        text.pop(); // the closing brace
+        text.extend_from_slice(b",\"aggs\":{");
+        for (i, a) in source.aggregations.iter().enumerate() {
+            if i > 0 {
+                text.push(b',');
+            }
+            let name = serde_json::to_vec(&a.name).map_err(|_| ConvertError::Number("a name"))?;
+            let field =
+                serde_json::to_vec(&a.field).map_err(|_| ConvertError::Number("a field"))?;
+            text.extend_from_slice(&name);
+            text.extend_from_slice(format!(":{{\"{}\":{{\"field\":", a.kind.name()).as_bytes());
+            text.extend_from_slice(&field);
+            text.extend_from_slice(b"}}");
+        }
+        text.push(b'}');
+        text.push(b'}');
+    }
     let mut rec = Recorder::new(MAX_RECORDED_BYTES);
     let mut tokenizer = source::tokenizer();
     tokenizer

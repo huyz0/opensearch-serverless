@@ -8,8 +8,11 @@
 //! messages; [`build`] holds their `doToQuery`. A parameter OpenSearch takes
 //! but this reader does not serve yet is refused rather than ignored.
 
+pub mod bool_prefix;
 pub mod build;
+pub mod case_insensitive;
 pub mod compound;
+pub mod cross_fields;
 pub mod full_text;
 pub mod full_text_build;
 pub mod function_score;
@@ -50,6 +53,7 @@ pub const NAMES: &[&str] = &[
     "boosting",
     "match_none",
     "match_phrase",
+    "match_bool_prefix",
     "multi_match",
     "simple_query_string",
     "query_string",
@@ -166,6 +170,17 @@ pub enum More {
         /// The boost.
         boost: f32,
     },
+    /// A `term`, `prefix` or `wildcard` query with `case_insensitive: true`.
+    CaseInsensitive {
+        /// Which query.
+        kind: case_insensitive::Kind,
+        /// The field.
+        field: String,
+        /// The term, prefix or pattern.
+        value: String,
+        /// The boost.
+        boost: f32,
+    },
     /// `ConstantScoreQueryBuilder`.
     ConstantScore {
         /// The filter.
@@ -211,6 +226,10 @@ pub enum More {
         /// The boost.
         boost: f32,
     },
+    /// `MatchQueryBuilder` with a `fuzziness`, and its boost.
+    FuzzyMatch(Box<full_text::FuzzyMatch>, f32),
+    /// `MatchBoolPrefixQueryBuilder`, and its boost.
+    MatchBoolPrefix(Box<bool_prefix::BoolPrefix>, f32),
     /// `MultiMatchQueryBuilder` of the types served, and its boost.
     MultiMatch(Box<full_text::MultiMatch>, f32),
     /// `SimpleQueryStringBuilder`, and its boost.
@@ -232,6 +251,7 @@ impl More {
             More::Terms { boost, .. }
             | More::Prefix { boost, .. }
             | More::Wildcard { boost, .. }
+            | More::CaseInsensitive { boost, .. }
             | More::Regexp { boost, .. }
             | More::Fuzzy { boost, .. }
             | More::Exists { boost, .. }
@@ -241,6 +261,8 @@ impl More {
             | More::Boosting { boost, .. }
             | More::MatchPhrase { boost, .. }
             | More::MultiMatch(_, boost)
+            | More::FuzzyMatch(_, boost)
+            | More::MatchBoolPrefix(_, boost)
             | More::SimpleQueryString(_, boost)
             | More::QueryString(_, boost)
             | More::FunctionScore(_, boost)
@@ -266,6 +288,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "dis_max" => compound::parse_dis_max(p),
         "boosting" => compound::parse_boosting(p),
         "match_phrase" => full_text::parse_match_phrase(p),
+        "match_bool_prefix" => bool_prefix::parse(p),
         "multi_match" => full_text::parse_multi_match(p),
         "simple_query_string" => simple_string::parse_simple_query_string(p),
         "query_string" => query_string::parse_query_string(p),
@@ -299,6 +322,8 @@ mod full_text_tests;
 
 #[cfg(test)]
 mod function_score_build_tests;
+#[cfg(test)]
+mod fuzzy_match_tests;
 
 #[cfg(test)]
 mod function_score_tests;

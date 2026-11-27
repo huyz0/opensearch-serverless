@@ -26,6 +26,7 @@ struct Fake {
     wait: Duration,
     fail: Option<u16>,
     now: std::sync::Mutex<Vec<Option<i64>>>,
+    aggs: Vec<oss_reader::aggs::partial::Partial>,
 }
 
 impl Fake {
@@ -37,6 +38,7 @@ impl Fake {
             wait: Duration::ZERO,
             fail: None,
             now: std::sync::Mutex::default(),
+            aggs: Vec::new(),
         }
     }
 }
@@ -77,6 +79,7 @@ impl Shards for Fake {
             exact: true,
             max_score: None,
             terminated_early: None,
+            aggregations: self.aggs.clone(),
             rows: vec![
                 Row {
                     id_json: b"\"a\"".to_vec(),
@@ -255,4 +258,107 @@ fn the_search_runs_at_the_instant_the_request_carries() {
     .now_millis;
     ask(&h, &message, WireVersion::SHELL).unwrap();
     assert_eq!(*fake.now.lock().unwrap(), vec![Some(asked)]);
+}
+
+#[test]
+fn aggregations_asked_for_come_back_as_internal_aggregations() {
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    use oss_transport::actions::search_shard::{AggKind, AggRequest, Request as Wire, Source};
+    let mut fake = Fake::held();
+    fake.aggs = vec![
+        Partial {
+            name: "m".to_owned(),
+            format: Format::Raw,
+            value: Part::Max(2.0),
+        },
+        Partial {
+            name: "c".to_owned(),
+            format: Format::Raw,
+            value: Part::ValueCount(7),
+        },
+    ];
+    let h = handler(fake, &fresh(), 10_000);
+    let mut ask_bytes = Wire::read(&fixture("request.match_all"), &Bounds::DEFAULT).unwrap();
+    let source: &mut Source = &mut ask_bytes.source;
+    source.aggregations = vec![
+        AggRequest {
+            name: "m".to_owned(),
+            kind: AggKind::Max,
+            field: "n".to_owned(),
+        },
+        AggRequest {
+            name: "c".to_owned(),
+            kind: AggKind::ValueCount,
+            field: "tag".to_owned(),
+        },
+    ];
+    let mut message = Vec::new();
+    ask_bytes
+        .write(&mut Output::new(&mut message, 1 << 20))
+        .unwrap();
+    let answer = ask(&h, &message, WireVersion::SHELL).unwrap();
+    let mut expected = vec![
+        1, 2, 3, b'm', b'a', b'x', 1, b'm', 0xFF, 3, b'r', b'a', b'w',
+    ];
+    expected.extend_from_slice(&2.0f64.to_bits().to_be_bytes());
+    expected.push(11);
+    expected.extend_from_slice(b"value_count");
+    expected.extend_from_slice(&[1, b'c', 0xFF, 7]);
+    assert!(
+        answer.windows(expected.len()).any(|w| w == &expected[..]),
+        "{answer:?}"
+    );
+}
+
+#[test]
+fn a_date_aggregation_carries_the_date_format_and_another_kind_is_refused() {
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    let mut fake = Fake::held();
+    fake.aggs = vec![Partial {
+        name: "d".to_owned(),
+        format: Format::Date,
+        value: Part::Max(1.0),
+    }];
+    let h = handler(fake, &fresh(), 10_000);
+    let answer = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap();
+    assert!(answer.windows(9).any(|w| w == b"date_time"), "{answer:?}");
+    let mut fake = Fake::held();
+    fake.aggs = vec![Partial {
+        name: "t".to_owned(),
+        format: Format::Raw,
+        value: Part::Cardinality(None),
+    }];
+    let h = handler(fake, &fresh(), 10_000);
+    let e = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap_err();
+    assert!(
+        format!("{e:?}").contains("not supported by this node"),
+        "{e:?}"
+    );
+}
+
+#[test]
+fn a_stats_aggregation_is_answered_with_its_count_min_max_and_sum() {
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    let mut fake = Fake::held();
+    fake.aggs = vec![Partial {
+        name: "st".to_owned(),
+        format: Format::Raw,
+        value: Part::Stats {
+            count: 3,
+            sum: 6.0,
+            min: 1.0,
+            max: 4.0,
+        },
+    }];
+    let h = handler(fake, &fresh(), 10_000);
+    let answer = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap();
+    let mut expected = vec![1, 5, b's', b't', b'a', b't', b's', 2, b's', b't', 0xFF];
+    expected.extend_from_slice(&[3, b'r', b'a', b'w', 3]);
+    for v in [1.0f64, 4.0, 6.0] {
+        expected.extend_from_slice(&v.to_bits().to_be_bytes());
+    }
+    assert!(
+        answer.windows(expected.len()).any(|w| w == &expected[..]),
+        "{answer:?}"
+    );
 }

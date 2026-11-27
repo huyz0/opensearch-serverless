@@ -38,7 +38,12 @@ impl Source {
     ///
     /// As [`Request::write`].
     pub fn write(&self, out: &mut Output<'_>) -> Result<(), Refusal> {
-        out.bool(false)?; // aggregations
+        if self.aggregations.is_empty() {
+            out.bool(false)?;
+        } else {
+            out.bool(true)?;
+            super::aggs::write(&self.aggregations, out)?;
+        }
         out.byte(2)?; // explain: none
         match &self.fetch_source {
             Some((fetch, includes, excludes)) => {

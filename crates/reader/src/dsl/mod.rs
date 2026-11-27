@@ -10,6 +10,7 @@
 pub mod bool_query;
 pub mod collapse;
 pub mod error;
+pub(crate) mod match_parse;
 pub mod pit;
 pub mod queries;
 pub mod query;

@@ -135,9 +135,11 @@ pub fn parse_terms(p: &mut Parser<'_>) -> Result<More, DslError> {
 pub fn parse_prefix(p: &mut Parser<'_>) -> Result<More, DslError> {
     let mut value = None;
     let mut boost = 1.0;
+    let mut ci = false;
     let field = single_field::parse(p, "prefix", |p, param| {
         match param {
             None | Some("value") => value = text_or_null(p).map(owned),
+            Some("case_insensitive") => ci = bool_value(p)?,
             Some(param) => {
                 if !common(p, "prefix", param, &mut boost)? {
                     return Err(does_not_support(p, "prefix", param));
@@ -147,6 +149,14 @@ pub fn parse_prefix(p: &mut Parser<'_>) -> Result<More, DslError> {
         Ok(())
     })?;
     let (field, value) = field_and_value(field, value)?;
+    if ci {
+        return Ok(More::CaseInsensitive {
+            kind: super::case_insensitive::Kind::Prefix,
+            field,
+            value,
+            boost,
+        });
+    }
     Ok(More::Prefix {
         field,
         value,
@@ -158,9 +168,11 @@ pub fn parse_prefix(p: &mut Parser<'_>) -> Result<More, DslError> {
 pub fn parse_wildcard(p: &mut Parser<'_>) -> Result<More, DslError> {
     let mut value = None;
     let mut boost = 1.0;
+    let mut ci = false;
     let field = single_field::parse(p, "wildcard", |p, param| {
         match param {
             None | Some("wildcard" | "value") => value = Some(owned(p.text())),
+            Some("case_insensitive") => ci = bool_value(p)?,
             Some(param) => {
                 if !common(p, "wildcard", param, &mut boost)? {
                     return Err(does_not_support(p, "wildcard", param));
@@ -170,6 +182,14 @@ pub fn parse_wildcard(p: &mut Parser<'_>) -> Result<More, DslError> {
         Ok(())
     })?;
     let (field, value) = field_and_value(field, value)?;
+    if ci {
+        return Ok(More::CaseInsensitive {
+            kind: super::case_insensitive::Kind::Wildcard,
+            field,
+            value,
+            boost,
+        });
+    }
     Ok(More::Wildcard {
         field,
         value,

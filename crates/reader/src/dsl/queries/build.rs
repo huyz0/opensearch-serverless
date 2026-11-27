@@ -72,6 +72,9 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
                 *transpositions,
             )
         }
+        More::CaseInsensitive {
+            kind, field, value, ..
+        } => super::case_insensitive::build(cx, *kind, field, value),
         More::Exists { field, .. } => exists(cx, field),
         More::Ids { values, .. } => ids(values),
         More::ConstantScore { filter, .. } => Ok(constant(build(filter, cx)?)),
@@ -118,6 +121,8 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             zero_terms_all,
             ..
         } => full_text_build::phrase(cx, field, query, *slop, *zero_terms_all),
+        More::MatchBoolPrefix(m, _) => super::bool_prefix::build(cx, m),
+        More::FuzzyMatch(m, _) => full_text_build::fuzzy_match(cx, m),
         More::MultiMatch(m, _) => full_text_build::multi_match(cx, m),
         More::SimpleQueryString(s, _) => super::simple_string_build::simple_query_string(cx, s),
         More::QueryString(q, _) => super::query_string_build::query_string(cx, q),
@@ -207,7 +212,7 @@ pub(crate) fn regexp_clause(
 
 /// `prefixQuery`, `wildcardQuery` and `regexpQuery`: string fields only;
 /// any other type is a `QueryShardException`.
-fn string_query(
+pub(crate) fn string_query(
     cx: &QueryContext<'_>,
     kind: &str,
     field: &str,
