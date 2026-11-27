@@ -3,14 +3,17 @@
 //! (`min`, `max`, `sum`, `avg`, `value_count`, `stats` over one field), and the
 //! shard's `InternalAggregations` answering them.
 //!
-//! Anything past that (a sub-aggregation, a pipeline aggregation, metadata, a
+//! Anything past that (metadata, a
 //! script, a format, a `missing` value, a time zone, another type) is
 //! refused by name.
 
 use super::Refusal;
+pub use super::aggs_answer::write_answers;
+pub(super) use super::aggs_answer::write_one;
 use super::aggs_histogram::{self, DateHistogramAnswer, DateHistogramRequest};
 use super::aggs_multi::{self, MultiAnswer, MultiRequest};
 use super::aggs_percentiles::{self, PercentilesRequest};
+use super::aggs_pipeline::{self, MAX_PIPELINES, PipelinePlace};
 use super::aggs_range::{self, RangeAnswer, RangesRequest};
 use super::aggs_rare::{self, RareAnswer, RareRequest};
 use super::aggs_terms::{self, TermsAnswer, TermsRequest};
@@ -158,58 +161,96 @@ fn empty_builder(input: &mut Input<'_>, what: &'static str) -> Result<(), Refusa
 const MAX_DEPTH: usize = 3;
 
 /// Reads the `AggregatorFactories.Builder` after its presence flag was read
-/// as true.
+/// as true, with its pipeline aggregations.
 ///
 /// # Errors
 ///
 /// [`Refusal`] for malformed bytes or an aggregation this node does not run.
-pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
+pub fn read_with_pipelines(
+    input: &mut Input<'_>,
+) -> Result<(Vec<AggRequest>, Vec<PipelinePlace>), Refusal> {
     let mut budget = MAX_AGGREGATIONS;
-    read_builder(input, 0, &mut budget)
+    let mut pipelines = MAX_PIPELINES;
+    // ALLOC: empty.
+    let mut places = Vec::new();
+    let aggs = read_builder(
+        input,
+        &mut Walk {
+            depth: 0,
+            budget: &mut budget,
+            pipelines: &mut pipelines,
+            // ALLOC: empty.
+            hosts: Vec::new(),
+            places: &mut places,
+        },
+    )?;
+    Ok((aggs, places))
+}
+
+/// [`read_with_pipelines`] for a builder that holds no pipeline aggregation.
+///
+/// # Errors
+///
+/// As it, and [`Refusal::Unsupported`] for a pipeline aggregation.
+pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
+    let (aggs, places) = read_with_pipelines(input)?;
+    if !places.is_empty() {
+        return Err(Refusal::Unsupported("pipeline aggregations"));
+    }
+    Ok(aggs)
+}
+
+/// Where a read of the nested builders stands.
+struct Walk<'a> {
+    depth: usize,
+    /// How many aggregations the whole request may still hold.
+    budget: &'a mut usize,
+    /// How many pipeline aggregations the whole request may still hold.
+    pipelines: &'a mut usize,
+    /// The names of the aggregations holding the builder being read.
+    hosts: Vec<String>,
+    /// The pipeline aggregations read so far.
+    places: &'a mut Vec<PipelinePlace>,
 }
 
 /// One `AggregatorFactories.Builder`: the aggregations, then the pipeline
-/// aggregations, of which there are none. `budget` is how many aggregations
-/// the whole request may still hold.
-fn read_builder(
-    input: &mut Input<'_>,
-    depth: usize,
-    budget: &mut usize,
-) -> Result<Vec<AggRequest>, Refusal> {
+/// aggregations.
+fn read_builder(input: &mut Input<'_>, walk: &mut Walk<'_>) -> Result<Vec<AggRequest>, Refusal> {
     let count = input.vint("aggregations")?;
     let count = usize::try_from(count)
         .ok()
-        .filter(|n| *n <= *budget)
+        .filter(|n| *n <= *walk.budget)
         .ok_or(Refusal::TooLarge("aggregations"))?;
-    *budget = budget.saturating_sub(count);
+    *walk.budget = walk.budget.saturating_sub(count);
     // ALLOC: one entry an aggregation, within the request's budget.
     let mut out = Vec::with_capacity(count);
     for _ in 0..count {
-        out.push(read_one(input, depth, budget)?);
+        out.push(read_one(input, walk)?);
     }
-    // Pipeline aggregations.
-    if input.vint("pipeline aggregations")? != 0 {
-        return Err(Refusal::Unsupported("pipeline aggregations"));
-    }
+    aggs_pipeline::read_list(input, &walk.hosts, walk.pipelines, walk.places)?;
     Ok(out)
 }
 
-fn read_one(
-    input: &mut Input<'_>,
-    depth: usize,
-    budget: &mut usize,
-) -> Result<AggRequest, Refusal> {
+fn read_one(input: &mut Input<'_>, walk: &mut Walk<'_>) -> Result<AggRequest, Refusal> {
     let kind_name = input.string("aggregation type")?;
     let Some(kind) = AggKind::from_name(&kind_name) else {
         return Err(Refusal::Unsupported("an aggregation of another type"));
     };
     let name = input.string("aggregation name")?;
-    let subs = if depth >= MAX_DEPTH {
+    let subs = if walk.depth >= MAX_DEPTH {
         empty_builder(input, "sub-aggregations nested so deep")?;
         // ALLOC: empty.
         Vec::new()
     } else {
-        read_builder(input, depth.saturating_add(1), budget)?
+        let mut inner = Walk {
+            depth: walk.depth.saturating_add(1),
+            budget: &mut *walk.budget,
+            pipelines: &mut *walk.pipelines,
+            // ALLOC: the host names, at most the nesting depth.
+            hosts: walk.hosts.iter().cloned().chain([name.clone()]).collect(),
+            places: &mut *walk.places,
+        };
+        read_builder(input, &mut inner)?
     };
     if !subs.is_empty()
         && !matches!(
@@ -302,17 +343,42 @@ fn read_one(
     })
 }
 
-/// Writes `aggs` as `AggregatorFactories.Builder.writeTo` does.
+/// Writes `aggs` and their pipeline aggregations as
+/// `AggregatorFactories.Builder.writeTo` does.
+///
+/// # Errors
+///
+/// [`WireError::TooLarge`] past the writer's limit.
+pub fn write_with_pipelines(
+    aggs: &[AggRequest],
+    places: &[PipelinePlace],
+    out: &mut Output<'_>,
+) -> Result<(), WireError> {
+    write_builder(aggs, places, &[], out)
+}
+
+/// [`write_with_pipelines`] with no pipeline aggregation.
 ///
 /// # Errors
 ///
 /// [`WireError::TooLarge`] past the writer's limit.
 pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError> {
+    write_with_pipelines(aggs, &[], out)
+}
+
+fn write_builder(
+    aggs: &[AggRequest],
+    places: &[PipelinePlace],
+    hosts: &[String],
+    out: &mut Output<'_>,
+) -> Result<(), WireError> {
     out.count(aggs.len())?;
     for agg in aggs {
         out.string(agg.kind.name())?;
         out.string(&agg.name)?;
-        write(&agg.subs, out)?; // sub-aggregations and their pipelines
+        // ALLOC: the host names, at most the nesting depth.
+        let inner: Vec<String> = hosts.iter().cloned().chain([agg.name.clone()]).collect();
+        write_builder(&agg.subs, places, &inner, out)?; // sub-aggregations and their pipelines
         out.byte(0xFF)?; // metadata: null
         if let Some(m) = &agg.multi {
             aggs_multi::write(m, out)?;
@@ -362,120 +428,7 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
             }
         }
     }
-    out.vint(0) // pipeline aggregations
-}
-
-/// The writeable name of an answer: the aggregation's own, but for the
-/// percentiles, which are named for their t-digest.
-fn answer_name(kind: AggKind, value: &AggValue) -> &'static str {
-    match value {
-        AggValue::Terms(t) => return t.name(),
-        AggValue::Range(r) => return r.name(),
-        AggValue::Rare(r) => return r.name(),
-        _ => {}
-    }
-    match kind {
-        AggKind::Percentiles => "tdigest_percentiles",
-        AggKind::PercentileRanks => "tdigest_percentile_ranks",
-        other => other.name(),
-    }
-}
-
-/// Writes `answers` as `InternalAggregations.writeTo` does: a list of named
-/// writeables, each its type name and its `InternalAggregation.writeTo`.
-///
-/// # Errors
-///
-/// [`WireError::TooLarge`] past the writer's limit.
-pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<(), WireError> {
-    out.count(answers.len())?;
-    for a in answers {
-        write_one(a.name, &a.value, a.date, out)?;
-    }
-    Ok(())
-}
-
-/// One result as a named writeable: its type name, its name, and its
-/// `InternalAggregation.writeTo`.
-pub(super) fn write_one(
-    name: &str,
-    value: &AggValue,
-    date: bool,
-    out: &mut Output<'_>,
-) -> Result<(), WireError> {
-    {
-        let (kind, ()) = match value {
-            AggValue::Min(_) => (AggKind::Min, ()),
-            AggValue::Max(_) => (AggKind::Max, ()),
-            AggValue::Sum(_) => (AggKind::Sum, ()),
-            AggValue::Avg { .. } => (AggKind::Avg, ()),
-            AggValue::ValueCount(_) => (AggKind::ValueCount, ()),
-            AggValue::Stats { .. } => (AggKind::Stats, ()),
-            AggValue::Cardinality(_) => (AggKind::Cardinality, ()),
-            AggValue::Terms(_) => (AggKind::Terms, ()),
-            AggValue::DateHistogram(_) => (AggKind::DateHistogram, ()),
-            AggValue::Range(_) => (AggKind::Range, ()),
-            AggValue::Rare(_) => (AggKind::RareTerms, ()),
-            AggValue::Multi(_) => (AggKind::MultiTerms, ()),
-            AggValue::Percentiles { ranks: false, .. } => (AggKind::Percentiles, ()),
-            AggValue::Percentiles { ranks: true, .. } => (AggKind::PercentileRanks, ()),
-        };
-        out.string(answer_name(kind, value))?;
-        out.string(name)?;
-        out.byte(0xFF)?; // metadata: null
-        match value {
-            AggValue::Min(v) | AggValue::Max(v) | AggValue::Sum(v) => {
-                write_format(out, date)?;
-                out.bytes(&v.to_bits().to_be_bytes())?;
-            }
-            AggValue::Percentiles {
-                keys,
-                digest,
-                keyed,
-                ..
-            } => {
-                write_format(out, date)?;
-                out.count(keys.len())?;
-                for k in keys {
-                    out.bytes(&k.to_bits().to_be_bytes())?;
-                }
-                out.count(digest.len())?; // `writeVInt(byteSize)`
-                out.bytes(digest)?;
-                out.bool(*keyed)?;
-            }
-            AggValue::Terms(t) => t.write(date, out)?,
-            AggValue::DateHistogram(h) => h.write(out)?,
-            AggValue::Range(r) => r.write(date, out)?,
-            AggValue::Rare(r) => r.write(out)?,
-            AggValue::Multi(m) => m.write(out)?,
-            AggValue::Cardinality(sketch) => {
-                write_format(out, date)?;
-                out.bool(sketch.is_some())?;
-                if let Some(bytes) = sketch {
-                    out.bytes(bytes)?;
-                }
-            }
-            AggValue::Avg { sum, count } => {
-                write_format(out, date)?;
-                out.bytes(&sum.to_bits().to_be_bytes())?;
-                out.vlong(*count)?;
-            }
-            AggValue::ValueCount(n) => out.vlong(*n)?,
-            AggValue::Stats {
-                count,
-                min,
-                max,
-                sum,
-            } => {
-                write_format(out, date)?;
-                out.vlong(*count)?;
-                for v in [min, max, sum] {
-                    out.bytes(&v.to_bits().to_be_bytes())?;
-                }
-            }
-        }
-    }
-    Ok(())
+    aggs_pipeline::write_list(places, hosts, out)
 }
 
 #[cfg(test)]

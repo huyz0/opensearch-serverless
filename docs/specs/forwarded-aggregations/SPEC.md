@@ -8,7 +8,7 @@ Roadmap R10.2 and R7: a Java coordinator's last-resort ask (`internal:serverless
 
 `oss-transport` reads the source's `AggregatorFactories.Builder` (`SearchSourceBuilder.aggregations`) as the Java shell writes it: a count, then each aggregation as its writeable name (`min`, `max`, `sum`, `avg`, `value_count`), its name, an empty sub-builder, a null metadata value, `value_count`'s null target value type, the field, and no script, value type, format, `missing` or time zone, then an empty pipeline list. It writes the shard's reply's aggregations as `InternalAggregations.writeTo` does: each result as its type name, its name, null metadata, `raw` (`DocValueFormat.RAW`, which writes nothing more) and its value (`InternalMax`, `InternalMin` and `InternalSum`: a double; `InternalAvg`: a double and a count; `InternalValueCount`: a count). `oss-node` turns the request's aggregations into the `aggs` of the search body the reader runs, and the reader's shard-level results into the reply.
 
-Refused by name, as before: a sub-aggregation, a pipeline aggregation, metadata, a script, a format, a `missing` value, a time zone, any other aggregation type, and any result of another kind.
+Refused by name, as before: a sub-aggregation, a pipeline aggregation (read since [forwarded-pipeline-aggs](../forwarded-pipeline-aggs/SPEC.md)), metadata, a script, a format, a `missing` value, a time zone, any other aggregation type, and any result of another kind.
 
 ## Acceptance criteria
 

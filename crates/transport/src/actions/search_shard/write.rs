@@ -38,11 +38,11 @@ impl Source {
     ///
     /// As [`Request::write`].
     pub fn write(&self, out: &mut Output<'_>) -> Result<(), Refusal> {
-        if self.aggregations.is_empty() {
+        if self.aggregations.is_empty() && self.pipelines.is_empty() {
             out.bool(false)?;
         } else {
             out.bool(true)?;
-            super::aggs::write(&self.aggregations, out)?;
+            super::aggs::write_with_pipelines(&self.aggregations, &self.pipelines, out)?;
         }
         out.byte(2)?; // explain: none
         match &self.fetch_source {
