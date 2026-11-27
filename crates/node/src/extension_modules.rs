@@ -383,10 +383,13 @@ impl oss_reader::pinned::PinnedTokens for ModuleSet {
         };
         // ALLOC: error path; one message.
         tokens.analyze(text).map_err(|e| {
-            format!(
-                "extension_unavailable: analyzer [{analyzer}]: {}",
-                e.detail()
-            )
+            // A call the host had no capacity for is retried, not refused.
+            let kind = if e.kind() == oss_ext::FailureKind::Busy {
+                "extension_busy"
+            } else {
+                "extension_unavailable"
+            };
+            format!("{kind}: analyzer [{analyzer}]: {}", e.detail())
         })
     }
 

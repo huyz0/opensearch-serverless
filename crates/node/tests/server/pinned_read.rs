@@ -96,16 +96,16 @@ pub(crate) fn module() -> Vec<u8> {
     .expect("valid module")
 }
 
-fn descriptor(hash: &str) -> String {
+fn descriptor(hash: &str, fuel: u64, deadline_ms: u64) -> String {
     let pin = Pin {
         name: "ext_a".into(),
         module: hash.into(),
         version: 1,
     };
     let limits = ResolvedLimits {
-        fuel: 10_000_000,
+        fuel,
         memory_bytes: 16 << 20,
-        deadline_ms: 10_000,
+        deadline_ms,
     };
     let settings: Vec<String> = render(&[(pin, limits)])
         .iter()
@@ -125,11 +125,24 @@ pub(crate) struct Rig {
 
 /// A published one-document shard of a pinned index, and a reader on it.
 pub(crate) fn rig(root: &std::path::Path, dir: &ByteBuffersDirectory, wasm: &[u8]) -> Rig {
+    rig_with(root, dir, wasm, (10_000_000, 10_000))
+}
+
+/// As [`rig`], the pin recording `limits` as (fuel, deadline in ms).
+pub(crate) fn rig_with(
+    root: &std::path::Path,
+    dir: &ByteBuffersDirectory,
+    wasm: &[u8],
+    limits: (u64, u64),
+) -> Rig {
     let writer_store = Arc::new(FsStore::new(root).expect("store"));
     let hash = extension_store::hash_of(wasm);
     extension_store::write_once(writer_store.as_ref(), "", &hash, wasm).expect("module");
     writer_store
-        .create_register("indices/logs", descriptor(&hash).as_bytes())
+        .create_register(
+            "indices/logs",
+            descriptor(&hash, limits.0, limits.1).as_bytes(),
+        )
         .expect("descriptor");
     let mapping = Mapping::parse_pinned(MAPPING.as_bytes(), ParseOptions::default()).expect("map");
     let mut w = IndexWriter::open(dir, Vec::new(), "Lucene104", VERSION).expect("writer");
@@ -199,7 +212,7 @@ pub(crate) fn modules(root: &std::path::Path) -> Arc<ModuleSource> {
     ))
 }
 
-fn matched(rig: &Rig) -> support::Reply {
+pub(crate) fn matched(rig: &Rig) -> support::Reply {
     request(
         rig.server.local_addr(),
         "POST",
@@ -349,49 +362,6 @@ fn an_analyze_with_a_pins_name_never_falls_back_when_the_module_cannot_load() {
     );
     assert_eq!(said.status, 503, "{}", said.text());
     assert!(!said.text().contains(r#""tokens""#), "{}", said.text());
-}
-
-/// An opener with no room to compile until `room` is set: the refusal a full extensions pool
-/// gives, which carries the words of a capacity refusal; then the real one.
-struct NoRoomYet {
-    room: Arc<std::sync::atomic::AtomicBool>,
-    then: Arc<ModuleSource>,
-}
-
-impl oss_node::search_modules::ModuleOpener for NoRoomYet {
-    fn open(
-        &self,
-        index: &str,
-        pins: Vec<(Pin, ResolvedLimits)>,
-    ) -> Result<Arc<dyn oss_reader::pinned::PinnedTokens>, String> {
-        if self.room.load(std::sync::atomic::Ordering::SeqCst) {
-            return oss_node::search_modules::ModuleOpener::open(self.then.as_ref(), index, pins);
-        }
-        Err(format!(
-            "extension_unavailable: module [m]: {} (the pool is full)",
-            oss_node::search_modules::NO_CAPACITY
-        ))
-    }
-}
-
-// AC-14 (429 through a running search)
-#[test]
-fn a_search_that_finds_no_room_to_compile_is_a_429_and_the_next_one_opens() {
-    let root = TempDir::new("pinned-busy");
-    let dir = ByteBuffersDirectory::new();
-    let r = rig(root.path(), &dir, &module());
-    let room = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    assert!(r.service.set_modules(Arc::new(NoRoomYet {
-        room: Arc::clone(&room),
-        then: modules(root.path()),
-    })));
-    let busy = matched(&r);
-    assert_eq!(busy.status, 429, "{}", busy.text());
-    assert!(busy.text().contains("extension_busy"), "{}", busy.text());
-    room.store(true, std::sync::atomic::Ordering::SeqCst);
-    let again = matched(&r);
-    assert_eq!(again.status, 200, "{}", again.text());
-    assert!(again.text().contains(r#""value":1"#), "{}", again.text());
 }
 
 // AC-14 (the negative cache on a booted node)

@@ -34,7 +34,14 @@ impl ShardError {
     /// A query that did not build: the client's fault, except a pinned
     /// analyzer that could not run, which is the node's and is retried.
     pub(crate) fn of_query(failure: Failure) -> Self {
-        let status = if failure.kind == "extension_unavailable" {
+        let busy = failure.kind == "extension_busy"
+            || failure
+                .cause
+                .as_ref()
+                .is_some_and(|c| c.kind == "extension_busy");
+        let status = if busy {
+            429
+        } else if failure.kind == "extension_unavailable" {
             503
         } else {
             400
@@ -53,5 +60,34 @@ impl ShardError {
             // ALLOC: error path; one message.
             failure: Failure::opensearch("exception", message),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wrapped(cause: &'static str) -> Failure {
+        Failure::opensearch("query_shard_exception", "failed to create query")
+            .caused_by(Failure::plain(cause, "why"))
+    }
+
+    #[test]
+    fn a_query_that_found_no_capacity_for_a_module_call_is_retryable() {
+        assert_eq!(ShardError::of_query(wrapped("extension_busy")).status, 429);
+        assert_eq!(
+            ShardError::of_query(Failure::plain("extension_busy", "why")).status,
+            429
+        );
+        assert_eq!(
+            ShardError::of_query(Failure::plain("extension_unavailable", "why")).status,
+            503
+        );
+        assert_eq!(
+            ShardError::of_query(wrapped("extension_unavailable")).status,
+            400,
+            "an unavailable module under a wrapped failure answers as before"
+        );
+        assert_eq!(ShardError::of_query(wrapped("other")).status, 400);
     }
 }
