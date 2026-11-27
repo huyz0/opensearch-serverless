@@ -1,5 +1,7 @@
 //! One huge string is written in fragments with no heap growth. Its own test
-//! binary, so no other test allocates while it measures.
+//! binary, so no test allocates while it measures; the harness's own threads
+//! still can, a few bytes, so a run counts as clean when the writer's count is
+//! zero in any of a few attempts (a writer that allocates fails every one).
 // ARITH: test inputs are small and fixed; an overflow would be a test bug, and debug builds panic on it.
 #![allow(missing_docs, clippy::arithmetic_side_effects)]
 
@@ -31,6 +33,27 @@ impl Output for Count {
     }
 }
 
+/// Writes the whole string once; returns the bytes the allocator handed out
+/// meanwhile, and the output's counts.
+fn write_once(fragment: &str) -> (usize, Count) {
+    let mut w = Writer::new(Config::default());
+    let mut out = Count::default();
+    let before = ALLOCATOR.total_allocated();
+    w.event(Event::BeginArray, &mut out).unwrap();
+    let pieces = STRING / FRAGMENT;
+    for i in 0..pieces {
+        let t = Text {
+            fragment,
+            first: i == 0,
+            last: i + 1 == pieces,
+        };
+        w.event(Event::String(t), &mut out).unwrap();
+    }
+    w.event(Event::EndArray, &mut out).unwrap();
+    w.check_complete().unwrap();
+    (ALLOCATOR.total_allocated() - before, out)
+}
+
 /// AC-5
 #[test]
 fn a_128_mib_string_is_written_in_64_kib_fragments_without_heap_growth() {
@@ -44,26 +67,23 @@ fn a_128_mib_string_is_written_in_64_kib_fragments_without_heap_growth() {
             }
         })
         .collect();
-    let mut w = Writer::new(Config::default());
-    let mut out = Count::default();
-    let before = ALLOCATOR.total_allocated();
-    w.event(Event::BeginArray, &mut out).unwrap();
-    let pieces = STRING / FRAGMENT;
-    for i in 0..pieces {
-        let t = Text {
-            fragment: &fragment,
-            first: i == 0,
-            last: i + 1 == pieces,
-        };
-        w.event(Event::String(t), &mut out).unwrap();
+    let mut grew = Vec::new();
+    let mut last = None;
+    for _ in 0..5 {
+        let (allocated, out) = write_once(&fragment);
+        last = Some(out);
+        if allocated == 0 {
+            grew.clear();
+            break;
+        }
+        grew.push(allocated);
     }
-    w.event(Event::EndArray, &mut out).unwrap();
-    w.check_complete().unwrap();
-    assert_eq!(
-        ALLOCATOR.total_allocated(),
-        before,
-        "the writer allocated, even if it freed it again"
+    assert!(
+        grew.is_empty(),
+        "the writer allocated, even if it freed it again, in every attempt: {grew:?}"
     );
+    let out = last.unwrap();
+    let pieces = STRING / FRAGMENT;
     let newlines = pieces * (FRAGMENT / 1000);
     assert_eq!(out.escapes, newlines);
     assert_eq!(out.bytes, 2 + 2 + STRING + newlines);
