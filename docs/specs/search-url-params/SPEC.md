@@ -11,7 +11,7 @@ The URL-parameter gap of [compatibility](../../compatibility.md): clients and th
 - `_source` is `true`, `false` or a comma-separated list of patterns to include; `_source_includes` and `_source_excludes` are lists and replace the includes and excludes of `_source`.
 - `sort` is a comma-separated list of `field` or `field:asc` or `field:desc`; `_score` sorts by score.
 - Accepted and without effect, because the node has one serving path and no shard copies to tune: `timeout`, `request_cache`, `batched_reduce_size`, `pre_filter_shard_size`, `allow_partial_search_results`, `ccs_minimize_roundtrips`, `max_concurrent_shard_requests`, and `search_type=query_then_fetch`.
-- Still refused as an unknown parameter: `typed_keys`, `stored_fields`, `docvalue_fields`. `rest_total_hits_as_int` is [its own spec](../search-total-hits-as-int/SPEC.md). `search_type=dfs_query_then_fetch` answers 400 "not supported by this node yet".
+- Still refused as an unknown parameter: `stored_fields`, `docvalue_fields`. `typed_keys` is [its own spec](../search-typed-keys-metrics/SPEC.md). `rest_total_hits_as_int` is [its own spec](../search-total-hits-as-int/SPEC.md). `search_type=dfs_query_then_fetch` answers 400 "not supported by this node yet".
 - Not here: the parameters of `_msearch` headers, `_count` and point-in-time searches.
 
 ## Acceptance criteria
@@ -22,7 +22,7 @@ The URL-parameter gap of [compatibility](../../compatibility.md): clients and th
 - AC-4: `?_source=false` drops the source, `?_source=title` and `?_source_includes=title` keep only that field, `?_source_excludes=title` drops it.
 - AC-5: `?sort=n:desc` and `?sort=n` order the hits as the body's `sort` does, and the URL sort replaces the body's; `?sort=n:sideways` answers 400 "sort direction [sideways] not supported".
 - AC-6: `?timeout=5s`, `?request_cache=true`, `?batched_reduce_size=512`, `?pre_filter_shard_size=1`, `?allow_partial_search_results=true`, `?ccs_minimize_roundtrips=true`, `?max_concurrent_shard_requests=5` and `?search_type=query_then_fetch` answer what the search without them answers.
-- AC-7: `?search_type=dfs_query_then_fetch` answers 400, and `?typed_keys=true` is still refused.
+- AC-7: `?search_type=dfs_query_then_fetch` answers 400, and `?typed_keys=maybe` answers the boolean-parse 400.
 - AC-8: a boolean parameter that is not `true` or `false`, and a `track_total_hits` that is neither a boolean nor a number, answer 400 with OpenSearch's messages.
 
 ## S3 request budget

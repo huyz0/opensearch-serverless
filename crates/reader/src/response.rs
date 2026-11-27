@@ -17,7 +17,7 @@ use oss_blob::BlobStore;
 use oss_rest::write_json_str;
 
 use crate::OpenShard;
-use crate::aggs::metric::{Value, write_aggregations_with};
+use crate::aggs::metric::{Value, write_aggregations_typed};
 use crate::fetch::docvalue_fields::{self, HitField};
 use crate::fetch::highlight::{self, Highlighters, Plan};
 use crate::fetch::hit_meta::{self, HitMeta};
@@ -165,7 +165,7 @@ pub fn write_response_with<S: BlobStore + 'static>(
     };
     write_hit_list(out, shard, index, node_id, &hits.view(), &mut fetch)?;
     out.write_all(b"]}")?;
-    write_aggregations_with(out, aggregations, &mut |out, _, top| {
+    write_aggregations_typed(out, aggregations, hits.typed_keys, &mut |out, _, top| {
         write!(
             out,
             "\"hits\":{{\"total\":{{\"value\":{},\"relation\":\"eq\"}},\"max_score\":",

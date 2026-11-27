@@ -128,6 +128,8 @@ pub struct SearchSource {
     pub now_millis: Option<i64>,
     /// `rest_total_hits_as_int`: the total is written as a number, not an object with its relation.
     pub total_as_int: bool,
+    /// `typed_keys`: each aggregation's key in the response carries its type, `min#name`.
+    pub typed_keys: bool,
 }
 
 impl SearchSource {
@@ -178,6 +180,7 @@ impl Default for SearchSource {
             search_pipeline: None,
             now_millis: None,
             total_as_int: false,
+            typed_keys: false,
         }
     }
 }

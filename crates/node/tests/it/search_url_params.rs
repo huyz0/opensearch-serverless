@@ -126,7 +126,6 @@ fn what_is_not_served_is_still_refused() {
     let (status, text) = get("search_type=dfs_query_then_fetch");
     assert_eq!(status, 400, "{text}");
     assert!(text.contains("not supported by this node yet"), "{text}");
-    assert_eq!(get("typed_keys=true").0, 400);
 }
 
 #[test]
@@ -269,4 +268,87 @@ fn wildcard_options_are_accepted_when_they_change_nothing() {
         None,
     );
     assert_eq!(r.status, 400, "{}", r.text());
+}
+
+const METRICS: &str = r#"{"size":0,"aggs":{"lo":{"min":{"field":"year"}},"hi":{"max":{"field":"year"}},"n":{"value_count":{"field":"year"}},"avg_y":{"avg":{"field":"year"}},"s":{"stats":{"field":"year"}},"u":{"cardinality":{"field":"year"}},"p":{"percentiles":{"field":"year","percents":[50]}},"r":{"percentile_ranks":{"field":"year","values":[2000]}},"sm":{"sum":{"field":"year"}},"top":{"top_hits":{"size":1}}}}"#;
+
+#[test]
+fn typed_keys_prefixes_a_metric_aggregation_with_its_type() {
+    let (status, plain) = post("", METRICS);
+    assert_eq!(status, 200, "{plain}");
+    let (status, typed) = post("typed_keys=true", METRICS);
+    assert_eq!(status, 200, "{typed}");
+    for (name, prefix) in [
+        ("lo", "min"),
+        ("hi", "max"),
+        ("n", "value_count"),
+        ("avg_y", "avg"),
+        ("s", "stats"),
+        ("u", "cardinality"),
+        ("p", "tdigest_percentiles"),
+        ("r", "tdigest_percentile_ranks"),
+        ("sm", "sum"),
+        ("top", "top_hits"),
+    ] {
+        assert!(
+            typed.contains(&format!(r#""{prefix}#{name}":{{"#)),
+            "{prefix}#{name}: {typed}"
+        );
+        assert!(
+            plain.contains(&format!(r#""{name}":{{"#)),
+            "{name}: {plain}"
+        );
+    }
+    // The values and their order are the plain answer's.
+    let untyped = typed
+        .replace("tdigest_percentile_ranks#", "")
+        .replace("tdigest_percentiles#", "")
+        .replace("value_count#", "")
+        .replace("cardinality#", "")
+        .replace("top_hits#", "")
+        .replace("stats#", "")
+        .replace("min#", "")
+        .replace("max#", "")
+        .replace("avg#", "")
+        .replace("sum#", "");
+    assert_eq!(
+        untyped.split_once(r#""aggregations""#).map(|p| p.1),
+        plain.split_once(r#""aggregations""#).map(|p| p.1)
+    );
+    let (_, off) = post("typed_keys=false", METRICS);
+    assert_eq!(
+        off.split_once(r#""aggregations""#).map(|p| p.1),
+        plain.split_once(r#""aggregations""#).map(|p| p.1)
+    );
+}
+
+#[test]
+fn typed_keys_without_aggregations_changes_nothing_and_a_bucket_one_is_refused() {
+    assert_eq!(ok("typed_keys=true"), ok(""));
+    let (status, text) = post(
+        "typed_keys=true",
+        r#"{"size":0,"aggs":{"t":{"terms":{"field":"year"}}}}"#,
+    );
+    assert_eq!(status, 400, "{text}");
+    assert!(
+        text.contains("[typed_keys]") && text.contains("[terms]"),
+        "{text}"
+    );
+    let (status, text) = get("typed_keys=maybe");
+    assert_eq!(status, 400, "{text}");
+}
+
+#[test]
+fn typed_keys_over_several_indexes_prefixes_the_merged_aggregations() {
+    let node = start();
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term,compat-paging-sort/_search?typed_keys=true",
+        Some(br#"{"size":0,"aggs":{"hi":{"max":{"field":"year"}},"n":{"value_count":{"field":"year"}}}}"#),
+    );
+    let text = r.text();
+    assert_eq!(r.status, 200, "{text}");
+    assert!(text.contains(r#""max#hi":{"#), "{text}");
+    assert!(text.contains(r#""value_count#n":{"#), "{text}");
 }

@@ -32,6 +32,7 @@ fn hits(total: u64, scored: &[f32], aggs: Vec<Partial>) -> Hits {
         aggregations: aggs,
         tracked: true,
         total_as_int: false,
+        typed_keys: false,
         source: SourceFilter::default(),
         fields: Vec::new(),
         explanations: Vec::new(),
@@ -105,6 +106,7 @@ fn params(from: usize, size: usize) -> Params {
         track_total_hits_up_to: Some(10_000),
         show_total: true,
         total_as_int: false,
+        typed_keys: false,
         concurrency: 4,
         took_ms: 7,
     }

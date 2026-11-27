@@ -44,6 +44,34 @@ pub fn write_aggregations_with(
     parts: &[Partial],
     hits: &mut HitsWriter<'_>,
 ) -> io::Result<()> {
+    write_aggregations_typed(out, parts, false, hits)
+}
+
+/// The type name `typed_keys` puts before an aggregation's name
+/// (`InternalAggregation.getWriteableName`), for the metrics that have one here.
+fn type_name(value: &Value) -> Option<&'static str> {
+    Some(match value {
+        Value::Min(_) => "min",
+        Value::Max(_) => "max",
+        Value::Sum(_) => "sum",
+        Value::Avg { .. } => "avg",
+        Value::Stats { .. } => "stats",
+        Value::ValueCount(_) => "value_count",
+        Value::Cardinality(_) => "cardinality",
+        Value::Percentiles { ranks: false, .. } => "tdigest_percentiles",
+        Value::Percentiles { ranks: true, .. } => "tdigest_percentile_ranks",
+        Value::TopHits(_) | Value::TopHitsParts(_) | Value::Rendered(_) => "top_hits",
+        _ => return None,
+    })
+}
+
+/// [`write_aggregations_with`], each key written as `type#name` when `typed` is set.
+pub fn write_aggregations_typed(
+    out: &mut dyn Write,
+    parts: &[Partial],
+    typed: bool,
+    hits: &mut HitsWriter<'_>,
+) -> io::Result<()> {
     if parts.is_empty() {
         return Ok(());
     }
@@ -55,7 +83,11 @@ pub fn write_aggregations_with(
         if i > 0 {
             out.write_all(b",")?;
         }
-        write_json_str(out, &part.name)?;
+        match type_name(&part.value).filter(|_| typed) {
+            // ALLOC: one key an aggregation, bounded by the request's.
+            Some(ty) => write_json_str(out, &format!("{ty}#{}", part.name))?,
+            None => write_json_str(out, &part.name)?,
+        }
         out.write_all(b":{")?;
         match &part.value {
             Value::TopHits(top) => hits(out, &part.name, top)?,

@@ -9,7 +9,7 @@ use std::fmt::Display;
 use std::io::Write;
 
 use oss_doc::mapping::json::write_str;
-use oss_reader::aggs::metric::render::write_aggregations_with;
+use oss_reader::aggs::metric::render::write_aggregations_typed;
 use oss_reader::aggs::partial::Partial;
 use oss_reader::response::write_java_float;
 use oss_reader::search::Hits;
@@ -106,6 +106,8 @@ pub struct Params {
     pub show_total: bool,
     /// Whether the total is written as a bare number (`rest_total_hits_as_int`).
     pub total_as_int: bool,
+    /// Whether each aggregation's key carries its type (`typed_keys`).
+    pub typed_keys: bool,
     /// How many shards are asked at once.
     pub concurrency: usize,
     /// The `took` the response reports.
@@ -460,12 +462,14 @@ fn write_envelope<T: Shards>(
         out.write_all(hit)?;
     }
     out.write_all(b"]}")?;
-    write_aggregations_with(out, parts, &mut |out, name, _| match top_bodies
-        .iter()
-        .find(|(n, _)| n == name)
-    {
-        Some((_, body)) => out.write_all(body),
-        None => Ok(()),
-    })?;
+    write_aggregations_typed(
+        out,
+        parts,
+        p.typed_keys,
+        &mut |out, name, _| match top_bodies.iter().find(|(n, _)| n == name) {
+            Some((_, body)) => out.write_all(body),
+            None => Ok(()),
+        },
+    )?;
     out.write_all(b"}")
 }
