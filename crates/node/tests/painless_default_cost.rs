@@ -11,7 +11,8 @@ mod support;
 
 use std::time::Instant;
 
-use support::{Node, counts, request, start};
+use oss_mem::{MemoryBudget, Pool};
+use support::{Node, budget_config, counts, request, start_with, store};
 
 fn search(node: &Node, function: &str) -> (u16, String) {
     let body = format!(
@@ -87,7 +88,16 @@ fn script(node: &Node, source: &str) -> (u16, String) {
 #[ignore = "measurement; run by hand"]
 fn what_a_painless_script_costs_and_where_its_bounds_hold() {
     oss_reader::painless_switch::set_native_compile(true);
-    let node = start();
+    let budget = MemoryBudget::new(
+        &budget_config()
+            .with_pool(Pool::QueryExecution, 16 << 20)
+            .expect("fits"),
+    );
+    let node = start_with(store(), &budget);
+    println!(
+        "cache bytes reserved: {}",
+        budget.in_use(Pool::QueryExecution)
+    );
     let mut failed: Vec<String> = Vec::new();
     // Warm both paths.
     for _ in 0..50 {

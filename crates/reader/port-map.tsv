@@ -355,3 +355,5 @@ src/aggs/pipeline/moving.rs	port	server/src/main/java/org/opensearch/search/aggr
 src/aggs/pipeline/moving_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/MovFnPipelineAggregationBuilder.java@429b4cbc	the moving_fn parser
 src/aggs/pipeline/moving_tests.rs	new		moving_fn computed and parsed against the bytes Java wrote
 src/aggs/bucket/sub_order_path_tests.rs	new		tests of a terms ordered by a path through single-bucket aggregations
+src/painless_cache.rs	new		a bounded cache of what the node computes from a Painless source; Java caches compiled scripts in ScriptService
+src/painless_cache_tests.rs	new		tests of the compile cache

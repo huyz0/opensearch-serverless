@@ -123,7 +123,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             base: base.to_owned(),
             // ALLOC: startup only.
             node_id: node_id.to_owned(),
-            budget: budget.clone(),
+            budget: crate::painless_setting::installing_compile_cache(budget),
             open: Mutex::default(),
             pushed: Mutex::new(PushedCommits::new(PUSHED_SHARDS, PUSHED_BYTES)),
             epoch: Instant::now(),
