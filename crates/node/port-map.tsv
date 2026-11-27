@@ -39,6 +39,8 @@ src/writer/publish_timer.rs	new		one thread running the publish pass on an inter
 src/doc_route.rs	new		the _doc, _create and delete routes over the writer role, each one item through the bulk path; the Java has the REST actions in OpenSearch core
 src/update_route.rs	new		the _update route over the writer role: a realtime read, the coordinator plan, one conditional write item, retried on conflict
 src/update_body.rs	new		the update body keys and the merge of a doc into a source
+src/update_decide.rs	new		one attempt of an update: read, plan and decide the write, shared by the route and a bulk item
+src/update_bulk.rs	new		the bulk update items resolved over the writer role
 src/get_route.rs	new		the _doc and _source get routes over the writer role; the Java has the REST actions in OpenSearch core
 src/refresh_route.rs	new		the _refresh route over the writer role's shards; the Java has the REST action in OpenSearch core
 src/writer/get.rs	new		the role's get of a shard it holds and its index lookup

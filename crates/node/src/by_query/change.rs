@@ -65,7 +65,7 @@ impl Change for DeleteChange<'_> {
         }])?;
         let items = run.finish()?;
         match items.first().map(|item| &item.result) {
-            Some(ItemResult::Written { .. }) => Ok(Applied::Changed),
+            Some(ItemResult::Written { .. } | ItemResult::Noop { .. }) => Ok(Applied::Changed),
             Some(ItemResult::Failed {
                 status: 409 | 404,
                 error,
@@ -196,7 +196,10 @@ impl Change for UpdateChange<'_> {
                 // ALLOC: error path; one message.
                 format!("[{}] {}", error.kind(), error.reason()),
             )),
-            None => Err(RestError::simple(500, "the update produced no result")),
+            // Only a bulk `update` item is a no-op; this writes an index or a delete.
+            Some(ItemResult::Noop { .. }) | None => {
+                Err(RestError::simple(500, "the update produced no result"))
+            }
         }
     }
 }

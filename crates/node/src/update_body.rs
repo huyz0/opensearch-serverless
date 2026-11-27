@@ -1,7 +1,7 @@
 //! The body of an update request and the merge of its `doc` into a source.
 
+use crate::update_decide::{Failure, bad, fail};
 use oss_doc::mapping::json::{Json, parse};
-use oss_rest::RestError;
 use oss_types::stored_scripts::StoredScripts;
 
 /// A script of an update: its source and params.
@@ -20,32 +20,28 @@ pub(crate) struct UpdateBody {
     pub(crate) detect_noop: bool,
 }
 
-fn flag(value: &Json, key: &str) -> Result<bool, RestError> {
+fn flag(value: &Json, key: &str) -> Result<bool, Failure> {
     match value {
         Json::Bool(b) => Ok(*b),
         // ALLOC: error path; one message.
-        _ => Err(RestError::illegal_argument(format!(
-            "[{key}] must be a boolean"
-        ))),
+        _ => Err(bad(format!("[{key}] must be a boolean"))),
     }
 }
 
-fn object(value: &Json, key: &str) -> Result<Json, RestError> {
+fn object(value: &Json, key: &str) -> Result<Json, Failure> {
     match value {
         Json::Obj(_) => Ok(value.clone()),
         // ALLOC: error path; one message.
-        _ => Err(RestError::illegal_argument(format!(
-            "[{key}] must be an object"
-        ))),
+        _ => Err(bad(format!("[{key}] must be an object"))),
     }
 }
 
 pub(crate) fn script(
     value: &Json,
     scripts: Option<&dyn StoredScripts>,
-) -> Result<ScriptDef, RestError> {
+) -> Result<ScriptDef, Failure> {
     let Json::Obj(members) = value else {
-        return Err(RestError::illegal_argument("[script] must be an object"));
+        return Err(bad("[script] must be an object"));
     };
     let mut source = None;
     let mut id = None;
@@ -56,67 +52,57 @@ pub(crate) fn script(
             // ALLOC: one id; bounded by the request body.
             ("id", Json::Str(s)) => id = Some(s.clone()),
             ("id", _) => {
-                return Err(RestError::illegal_argument(
-                    "[script] [id] must be a string",
-                ));
+                return Err(bad("[script] [id] must be a string"));
             }
             // ALLOC: one script source; bounded by the request body.
             ("source", Json::Str(s)) => source = Some(s.clone()),
             ("lang", Json::Str(l)) if l == "painless" => has_lang = true,
             ("lang", _) => {
-                return Err(RestError::illegal_argument(
-                    "update scripts run only lang [painless]",
-                ));
+                return Err(bad("update scripts run only lang [painless]"));
             }
             ("params", Json::Obj(_)) => params = v.clone(),
             // ALLOC: error path; one message.
             (other, _) => {
-                return Err(RestError::illegal_argument(format!(
-                    "[script] does not support [{other}]"
-                )));
+                return Err(bad(format!("[script] does not support [{other}]")));
             }
         }
     }
     if let Some(id) = id {
         if source.is_some() || has_lang {
-            return Err(RestError::illegal_argument(
-                "a stored script [id] takes no [source] or [lang]",
-            ));
+            return Err(bad("a stored script [id] takes no [source] or [lang]"));
         }
         return Ok(ScriptDef {
             source: stored(&id, scripts)?,
             params,
         });
     }
-    let source = source.ok_or_else(|| RestError::illegal_argument("script [source] is missing"))?;
+    let source = source.ok_or_else(|| bad("script [source] is missing"))?;
     Ok(ScriptDef { source, params })
 }
 
 /// The source of the stored Painless script `id`.
-fn stored(id: &str, scripts: Option<&dyn StoredScripts>) -> Result<String, RestError> {
+fn stored(id: &str, scripts: Option<&dyn StoredScripts>) -> Result<String, Failure> {
     use oss_types::stored_scripts::ResolveError;
     let Some(scripts) = scripts else {
-        return Err(RestError::illegal_argument(
+        return Err(bad(
             "a stored script in [script] is not served on this node: send the script as [source]",
         ));
     };
     match scripts.resolve(id) {
         Ok(found) if found.lang == "painless" => Ok(found.source),
-        Ok(found) => Err(RestError::illegal_argument(format!(
+        Ok(found) => Err(bad(format!(
             // ALLOC: error path; one message.
             "the stored script [{id}] is lang [{}]: update scripts run only lang [painless]",
             found.lang
         ))),
-        Err(ResolveError::Missing) => Err(RestError::exception(
+        Err(ResolveError::Missing) => Err(fail(
             404,
-            oss_rest::Exception::new(
-                "resource_not_found_exception",
-                // ALLOC: error path; one message.
-                format!("unable to find script [{id}] in cluster state"),
-            ),
+            "resource_not_found_exception",
+            // ALLOC: error path; one message.
+            format!("unable to find script [{id}] in cluster state"),
         )),
-        Err(ResolveError::TooBig(m)) => Err(RestError::simple(429, m)),
-        Err(ResolveError::Failed(m)) => Err(RestError::simple(500, m)),
+        Err(ResolveError::TooBig(m)) => Err(fail(429, "es_rejected_execution_exception", m)),
+        Err(ResolveError::Failed(m)) => Err(fail(500, "exception", m)),
     }
 }
 
@@ -129,11 +115,9 @@ fn stored(id: &str, scripts: Option<&dyn StoredScripts>) -> Result<String, RestE
 pub(crate) fn read(
     bytes: &[u8],
     scripts: Option<&dyn StoredScripts>,
-) -> Result<UpdateBody, RestError> {
+) -> Result<UpdateBody, Failure> {
     let Ok(Json::Obj(members)) = parse(bytes) else {
-        return Err(RestError::illegal_argument(
-            "the update body is not a JSON object",
-        ));
+        return Err(bad("the update body is not a JSON object"));
     };
     let mut body = UpdateBody {
         doc: None,
@@ -153,9 +137,7 @@ pub(crate) fn read(
             "script" => body.script = Some(script(v, scripts)?),
             other => {
                 // ALLOC: error path; one message.
-                return Err(RestError::illegal_argument(format!(
-                    "[UpdateRequest] unknown field [{other}]"
-                )));
+                return Err(bad(format!("[UpdateRequest] unknown field [{other}]")));
             }
         }
     }
@@ -226,11 +208,11 @@ mod tests {
             (r#"{"script":{"id":3}}"#, 400),
         ] {
             let error = read(body.as_bytes(), scripts).err().expect(body);
-            assert_eq!(error.status(), status, "{body}");
+            assert_eq!(error.status, status, "{body}");
         }
         let none = read(br#"{"script":{"id":"p"}}"#, None)
             .err()
             .expect("no resolver");
-        assert_eq!(none.status(), 400);
+        assert_eq!(none.status, 400);
     }
 }

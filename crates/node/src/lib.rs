@@ -229,6 +229,10 @@ pub(crate) mod time_value;
 #[cfg(feature = "writer")]
 pub mod update_body;
 #[cfg(feature = "writer")]
+pub mod update_bulk;
+#[cfg(feature = "writer")]
+pub mod update_decide;
+#[cfg(feature = "writer")]
 pub mod update_route;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod usage_extensions;

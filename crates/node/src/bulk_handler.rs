@@ -86,6 +86,18 @@ fn outcome(id: &str, result: ItemResult) -> BulkOutcome {
             version: written.version,
             created: written.outcome == Outcome::Created,
         },
+        // A noop is decided before an item is forwarded, so no owner answers one.
+        ItemResult::Noop {
+            version,
+            seq_no,
+            primary_term,
+        } => BulkOutcome {
+            id: id.to_owned(),
+            seq_no,
+            primary_term,
+            version,
+            ..BulkOutcome::default()
+        },
         ItemResult::Failed { status, error } => BulkOutcome {
             id: id.to_owned(),
             failure: Some(error.reason().to_owned()),

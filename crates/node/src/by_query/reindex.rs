@@ -140,6 +140,11 @@ impl Change for ReindexChange<'_> {
             (oss_writer::bulk::ItemResult::Failed { error, .. }, 409) => {
                 Ok(Applied::Conflict(error.reason().to_owned())) // ALLOC: error path; one message.
             }
+            // Only a bulk `update` item is a no-op; a reindex writes index or delete items.
+            (oss_writer::bulk::ItemResult::Noop { .. }, _) => Err(RestError::simple(
+                500,
+                "the reindex write produced no result",
+            )),
             (oss_writer::bulk::ItemResult::Failed { status, error }, _) => {
                 Err(RestError::simple(
                     *status,
