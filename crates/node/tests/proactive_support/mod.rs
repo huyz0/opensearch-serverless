@@ -33,7 +33,7 @@ mod packed;
 mod rustfs;
 mod sweep;
 #[allow(unused_imports)]
-pub use packed::{node_with_clock, node_with_packs};
+pub use packed::{node_with_clock, node_with_packs, node_with_ttl};
 #[allow(unused_imports)]
 pub use rustfs::{RustFs, cluster_rustfs, cluster_rustfs_rounds};
 #[allow(unused_imports)]

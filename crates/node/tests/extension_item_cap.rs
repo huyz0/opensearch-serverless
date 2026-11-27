@@ -152,9 +152,25 @@ fn a_document_whose_calls_outrun_ten_deadlines_is_refused_and_the_next_item_is_w
     const PROBE_ROUNDS: u32 = 400_000;
     create("probe", &upload(PROBE_ROUNDS));
     let probe = time_call("probe").as_secs_f64().max(0.000_05);
-    let rounds = (f64::from(PROBE_ROUNDS) * 0.006 / probe).clamp(1_000.0, 4_000_000_000.0) as u32;
+    let mut rounds =
+        (f64::from(PROBE_ROUNDS) * 0.006 / probe).clamp(1_000.0, 4_000_000_000.0) as u32;
     create("capped", &upload(rounds));
-    let call = time_call("capped");
+    let mut target = "capped".to_owned();
+    let mut call = time_call(&target);
+    // A noisy probe can leave the first guess far off: rescale from the
+    // module's own measured call, up to three times, until it is in range.
+    for attempt in 0..3 {
+        let in_range =
+            call >= Duration::from_millis(3) && call < Duration::from_millis(DEADLINE_MS / 2);
+        if in_range {
+            break;
+        }
+        rounds = (f64::from(rounds) * 0.006 / call.as_secs_f64().max(0.000_05))
+            .clamp(1_000.0, 4_000_000_000.0) as u32;
+        target = format!("capped{attempt}");
+        create(&target, &upload(rounds));
+        call = time_call(&target);
+    }
     assert!(
         call < Duration::from_millis(DEADLINE_MS / 2),
         "one call takes {call:?}, too near the {DEADLINE_MS} ms deadline to test the cap"
@@ -170,8 +186,8 @@ fn a_document_whose_calls_outrun_ten_deadlines_is_refused_and_the_next_item_is_w
         .clamp(100, 20_000);
     let many = vec!["\"abcd\""; values].join(",");
     let bulk = format!(
-        "{{\"index\":{{\"_index\":\"capped\",\"_id\":\"big\"}}}}\n{{\"t\":[{many}]}}\n\
-         {{\"index\":{{\"_index\":\"capped\",\"_id\":\"small\"}}}}\n{{\"t\":\"abcd\"}}\n"
+        "{{\"index\":{{\"_index\":\"{target}\",\"_id\":\"big\"}}}}\n{{\"t\":[{many}]}}\n\
+         {{\"index\":{{\"_index\":\"{target}\",\"_id\":\"small\"}}}}\n{{\"t\":\"abcd\"}}\n"
     );
     let reply = ok(
         support::request(addr, "POST", "/_bulk", Some(bulk.as_bytes())),
@@ -184,11 +200,11 @@ fn a_document_whose_calls_outrun_ten_deadlines_is_refused_and_the_next_item_is_w
     assert!(text.contains("\"_id\":\"small\""), "{text}");
     // The refused document is not in the shard and the next one is.
     assert_eq!(
-        support::request(addr, "GET", "/capped/_doc/big", None).status,
+        support::request(addr, "GET", &format!("/{target}/_doc/big"), None).status,
         404
     );
     assert_eq!(
-        support::request(addr, "GET", "/capped/_doc/small", None).status,
+        support::request(addr, "GET", &format!("/{target}/_doc/small"), None).status,
         200
     );
 }

@@ -110,6 +110,8 @@ pub mod overlay_builder;
 mod overlay_parts;
 #[cfg(feature = "writer")]
 pub mod pack_holds;
+#[cfg(feature = "writer")]
+pub mod pack_pass;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod page_cache_disk;
 #[cfg(all(feature = "writer", feature = "coordinator"))]

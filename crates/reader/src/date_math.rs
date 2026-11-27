@@ -6,7 +6,7 @@
 //! in UTC. `now` is the instant the caller passes, which a forwarded search
 //! takes from the request, never from this node's clock.
 
-use crate::date::{DateError, days_from_civil, days_in_month, parse_to_millis};
+use crate::date::{DateError, DateSpec, days_from_civil, days_in_month, parse_to_millis_with};
 
 const DAY: i64 = 86_400_000;
 /// The first millisecond of year -9999 and the last of year 9999.
@@ -14,7 +14,7 @@ const MIN: i64 = -377_705_116_800_000;
 const MAX: i64 = 253_402_300_799_999;
 
 /// `text` as epoch milliseconds, with date math evaluated at `now`. Text
-/// without `now` or `||` is read as [`parse_to_millis`] reads it. Rounding a
+/// without `now` or `||` is read as [`parse_to_millis`](crate::date::parse_to_millis) reads it. Rounding a
 /// day, month or year with `/` takes its start, or with `round_up` its last
 /// millisecond.
 ///
@@ -23,14 +23,32 @@ const MAX: i64 = 253_402_300_799_999;
 /// [`DateError::Math`] for `now` when no instant is given;
 /// [`DateError::Unparsable`] for an anchor or an operation that is not valid.
 pub fn parse_at(text: &str, round_up: bool, now: Option<i64>) -> Result<i64, DateError> {
+    parse_at_with(text, round_up, now, DateSpec::default())
+}
+
+/// [`parse_at`] in the format and zone of `spec`: an anchor with no zone of its own is read in
+/// the zone, and the operations (`+1d`, `/d`) run on the calendar of that zone, so `now/d` is the
+/// start of the zone's day.
+///
+/// # Errors
+///
+/// As [`parse_at`].
+pub fn parse_at_with(
+    text: &str,
+    round_up: bool,
+    now: Option<i64>,
+    spec: DateSpec,
+) -> Result<i64, DateError> {
     let (base, math) = if let Some(rest) = text.strip_prefix("now") {
         (now.ok_or(DateError::Math)?, rest)
     } else if let Some((anchor, math)) = text.split_once("||") {
-        (parse_to_millis(anchor, round_up)?, math)
+        (parse_to_millis_with(anchor, round_up, spec)?, math)
     } else {
-        return parse_to_millis(text, round_up);
+        return parse_to_millis_with(text, round_up, spec);
     };
-    apply(base, math, round_up)
+    // ARITH: a zone is at most 18 hours; the saturation keeps an extreme instant in range.
+    let offset = spec.zone.saturating_mul(1_000);
+    apply(base.saturating_add(offset), math, round_up).map(|local| local.saturating_sub(offset))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -67,7 +85,21 @@ impl Unit {
 ///
 /// As [`parse_at`].
 pub fn lower_bound_at(text: &str, include: bool, now: Option<i64>) -> Result<i64, DateError> {
-    let millis = parse_at(text, !include, now)?;
+    lower_bound_with(text, include, now, DateSpec::default())
+}
+
+/// [`lower_bound_at`] in the format and zone of `spec`.
+///
+/// # Errors
+///
+/// As [`parse_at`].
+pub fn lower_bound_with(
+    text: &str,
+    include: bool,
+    now: Option<i64>,
+    spec: DateSpec,
+) -> Result<i64, DateError> {
+    let millis = parse_at_with(text, !include, now, spec)?;
     Ok(if include {
         millis
     } else {
@@ -82,7 +114,21 @@ pub fn lower_bound_at(text: &str, include: bool, now: Option<i64>) -> Result<i64
 ///
 /// As [`parse_at`].
 pub fn upper_bound_at(text: &str, include: bool, now: Option<i64>) -> Result<i64, DateError> {
-    let millis = parse_at(text, include, now)?;
+    upper_bound_with(text, include, now, DateSpec::default())
+}
+
+/// [`upper_bound_at`] in the format and zone of `spec`.
+///
+/// # Errors
+///
+/// As [`parse_at`].
+pub fn upper_bound_with(
+    text: &str,
+    include: bool,
+    now: Option<i64>,
+    spec: DateSpec,
+) -> Result<i64, DateError> {
+    let millis = parse_at_with(text, include, now, spec)?;
     Ok(if include {
         millis
     } else {

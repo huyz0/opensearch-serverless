@@ -29,7 +29,23 @@ pub enum DateError {
 impl DateError {
     /// The exception OpenSearch answers with for `text`.
     pub fn into_failure(self, text: &str) -> Failure {
+        self.into_failure_in(text, DateFormat::Default)
+    }
+
+    /// As [`Self::into_failure`], for a bound read in `format`. The default format's answer is
+    /// recorded; a forced format's is not, so a bound it cannot read is refused by name.
+    pub fn into_failure_in(self, text: &str, format: DateFormat) -> Failure {
         match self {
+            DateError::Unparsable if format != DateFormat::Default => {
+                // ALLOC: error path; one message.
+                Failure::plain(
+                    "illegal_argument_exception",
+                    format!(
+                        "a [range] bound [{text}] that [{}] cannot read is not supported by this node yet",
+                        format.name()
+                    ),
+                )
+            }
             DateError::Unparsable => {
                 // ALLOC: error path; one message.
                 let inner =
@@ -51,14 +67,87 @@ impl DateError {
     }
 }
 
+/// The format a range names with `format`: the date formatters this node
+/// reads, each by its name.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DateFormat {
+    /// `strict_date_optional_time||epoch_millis`, a date field's default.
+    #[default]
+    Default,
+    /// `strict_date_optional_time` alone.
+    Iso,
+    /// `epoch_millis` alone.
+    Epoch,
+}
+
+impl DateFormat {
+    /// The format `name` stands for, when this node reads it.
+    pub fn of(name: &str) -> Option<Self> {
+        match name {
+            DEFAULT_FORMAT => Some(Self::Default),
+            "strict_date_optional_time" => Some(Self::Iso),
+            "epoch_millis" => Some(Self::Epoch),
+            _ => None,
+        }
+    }
+
+    /// The name errors quote.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Default => DEFAULT_FORMAT,
+            Self::Iso => "strict_date_optional_time",
+            Self::Epoch => "epoch_millis",
+        }
+    }
+}
+
+/// How a range reads its bounds: the `format` and the `time_zone` it names.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DateSpec {
+    /// The formats a bound may be written in.
+    pub format: DateFormat,
+    /// The zone a bound with no zone of its own is read in, as seconds east of UTC.
+    pub zone: i64,
+    /// Whether the range named a `format` or a `time_zone`, which only a date field takes.
+    pub named: bool,
+}
+
+/// A fixed `time_zone` as seconds east of UTC: `Z`, `UTC`, `GMT` or `UT`, or an offset of
+/// `+HH`, `+HH:mm` or `+HHmm`. A region (`Asia/Kolkata`) needs a zone database this node has not.
+pub fn parse_zone(text: &str) -> Option<i64> {
+    if matches!(text, "Z" | "UTC" | "GMT" | "UT") {
+        return Some(0);
+    }
+    if !text.starts_with(['+', '-']) {
+        return None;
+    }
+    let mut c = Cursor {
+        bytes: text.as_bytes(),
+        at: 0,
+    };
+    let seconds = zone(&mut c, 0)?;
+    c.done().then_some(seconds)
+}
+
 /// `DateFieldType.parseToLong`: `text` in the default format, as epoch
 /// milliseconds, rounding missing fields up when `round_up`.
 pub fn parse_to_millis(text: &str, round_up: bool) -> Result<i64, DateError> {
+    parse_to_millis_with(text, round_up, DateSpec::default())
+}
+
+/// [`parse_to_millis`] in the format and zone of `spec`: a bound with no zone of its own is read
+/// in `spec.zone`, and an epoch-millisecond one is an instant already.
+pub fn parse_to_millis_with(text: &str, round_up: bool, spec: DateSpec) -> Result<i64, DateError> {
     if text.starts_with("now") || text.contains("||") {
         return Err(DateError::Math);
     }
-    if let Some(millis) = strict_date_optional_time(text.as_bytes(), round_up) {
+    if spec.format != DateFormat::Epoch
+        && let Some(millis) = strict_date_optional_time(text.as_bytes(), round_up, spec.zone)
+    {
         return Ok(millis);
+    }
+    if spec.format == DateFormat::Iso {
+        return Err(DateError::Unparsable);
     }
     epoch_millis(text).ok_or(DateError::Unparsable)
 }
@@ -154,7 +243,7 @@ impl Cursor<'_> {
 /// `HH[:mm[:ss[.S{1,9}]]]` (a comma also separates the fraction), then an
 /// optional zone: `Z`, `+HH`, `+HHmm` or `+HH:mm`. Without a zone the date
 /// is UTC.
-fn strict_date_optional_time(text: &[u8], round_up: bool) -> Option<i64> {
+fn strict_date_optional_time(text: &[u8], round_up: bool, default_zone: i64) -> Option<i64> {
     let mut c = Cursor { bytes: text, at: 0 };
     let year = c.digits(4)?;
     let (mut month, mut day) = (1, 1);
@@ -181,7 +270,7 @@ fn strict_date_optional_time(text: &[u8], round_up: bool) -> Option<i64> {
             }
         }
     }
-    let offset_seconds = zone(&mut c)?;
+    let offset_seconds = zone(&mut c, default_zone)?;
     if !c.done() || !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) {
         return None;
     }
@@ -218,8 +307,8 @@ fn fraction(c: &mut Cursor<'_>) -> Option<i64> {
     Some(nanos * 10i64.pow(9 - n))
 }
 
-/// The zone, as seconds east of UTC; none is UTC.
-fn zone(c: &mut Cursor<'_>) -> Option<i64> {
+/// The zone, as seconds east of UTC; none is `default`.
+fn zone(c: &mut Cursor<'_>, default: i64) -> Option<i64> {
     if c.eat(b'Z') {
         return Some(0);
     }
@@ -228,7 +317,7 @@ fn zone(c: &mut Cursor<'_>) -> Option<i64> {
     } else if c.eat(b'-') {
         -1
     } else {
-        return Some(0);
+        return Some(default);
     };
     let hours = c.digits(2)?;
     let colon = c.eat(b':');
