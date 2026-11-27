@@ -95,7 +95,7 @@ fn bad_order_paths_are_refused_with_opensearchs_messages() {
     ] {
         assert_eq!(validate(&order(path, true), &subs).is_ok(), ok, "{path}");
     }
-    let message = |path: &str| validate(&order(path, true), &subs).expect_err(path);
+    let message = |path: &str| validate(&order(path, true), &subs).expect_err(path).message;
     assert_eq!(
         message("zz"),
         "Invalid aggregation order path [zz]. The provided aggregation [zz] either does not \

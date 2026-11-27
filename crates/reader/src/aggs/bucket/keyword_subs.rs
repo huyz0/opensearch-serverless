@@ -303,15 +303,7 @@ fn order_by_sub(r: &mut KeywordTermsResult) {
     let values: Vec<f64> = r
         .subs
         .iter()
-        .map(|list| {
-            target
-                .as_ref()
-                .and_then(|(at, key)| {
-                    list.get(*at)
-                        .map(|v| sub_order::sort_value(v, key.as_deref()))
-                })
-                .unwrap_or(f64::NAN)
-        })
+        .map(|list| target.as_ref().map_or(f64::NAN, |t| t.sort(list)))
         // ALLOC: as above.
         .collect();
     // ALLOC: one reference a bucket, as above.
@@ -358,9 +350,17 @@ pub fn check_order(agg: &MetricAgg) -> Result<(), ShardError> {
     let Some(order) = order else {
         return Ok(());
     };
-    sub_order::validate(order, &agg.subs).map_err(|message| ShardError {
-        status: 500,
-        failure: Failure::opensearch("aggregation_execution_exception", message),
+    sub_order::validate(order, &agg.subs).map_err(|refusal| {
+        let failure = Failure::opensearch("aggregation_execution_exception", refusal.message);
+        ShardError {
+            status: 500,
+            failure: match refusal.cause {
+                Some(reason) => {
+                    failure.caused_by(Failure::plain("illegal_argument_exception", reason))
+                }
+                None => failure,
+            },
+        }
     })
 }
 
