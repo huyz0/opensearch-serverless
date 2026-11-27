@@ -10,7 +10,7 @@ Roadmap R10.2: OpenSearch's `multi_terms` bucket aggregation over two or more ke
 
 The response is `doc_count_error_upper_bound`, `sum_other_doc_count` and `buckets`, each `{"key":[<term>...],"key_as_string":"<term>|<term>","doc_count":n}`; `typed_keys` names it `multi_terms`.
 
-Not in this change, each refused as "not supported by this node yet": a term's `missing`, `value_type`, `format`, `script`, `time_zone`, `include` and `exclude`; `collect_mode`; `show_term_doc_count_error`; an `order` by a sub-aggregation or of several criteria; a date, float or double term; sub-aggregations; and a `multi_terms` under another aggregation. A shard with more combinations than the bucket limit (65,535) fails with `too_many_buckets_exception`, where OpenSearch's collector would carry on.
+Not in this change, each refused as "not supported by this node yet": a term's `missing`, `value_type`, `format`, `script`, `time_zone`, `include` and `exclude`; `collect_mode`; an `order` by a sub-aggregation or of several criteria; a date, float or double term; sub-aggregations; and a `multi_terms` under another aggregation. A shard with more combinations than the bucket limit (65,535) fails with `too_many_buckets_exception`, where OpenSearch's collector would carry on.
 
 ## Acceptance criteria
 
@@ -19,6 +19,7 @@ Not in this change, each refused as "not supported by this node yet": a term's `
 - AC-3: equal counts order by key, term by term, a keyword by its bytes and a number by value (`ties_text`, `ties_number`, `ties_mixed` of the fixture).
 - AC-4: over an index, a shard's buckets are the combinations of the terms' values of the matches, counted once a document; a document without a value for a term is in none; a term on an unmapped field answers no bucket.
 - AC-5: a shard keeps `shard_size` buckets by the order, and the documents of the others, and of those under `shard_min_doc_count`, are in `sum_other_doc_count`.
+- AC-7: `show_term_doc_count_error` writes `doc_count_error_upper_bound` in each bucket as 3.10.0 leaves it: `InternalMultiTerms.createBucket` builds the reduced bucket with its prototype's error, not the sum `reduceBucket` computed, so a key's bound is that of the first shard holding it less that shard's own error, plus the sum of every shard's error (-1 when unbounded). Recorded in `fixtures/multi-terms` (`show_*`).
 - AC-6: every unserved option above is refused by name, and a date term is refused when the shard runs.
 
 ## Test plan
@@ -35,4 +36,4 @@ None: a `multi_terms` was refused before, and a request without one is unchanged
 
 ## Risks
 
-`show_term_doc_count_error` is refused because the recorded per-bucket error of a key held by several shards (`2` for two shards with errors 1 and 2, where the shared reduce arithmetic of this crate's `terms` gives 0) is not understood yet; the total `doc_count_error_upper_bound` matches. A shard's default `shard_size` for a key order, and the multi-valued field's combinations, are read from the Java and not observed.
+The per-bucket error follows `createBucket`'s use of the prototype's error, which looks like a Java slip and is kept because the recorded bytes show it. A shard's default `shard_size` for a key order, and the multi-valued field's combinations, are read from the Java and not observed.

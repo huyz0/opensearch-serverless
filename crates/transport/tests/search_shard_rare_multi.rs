@@ -100,7 +100,12 @@ fn the_multi_terms_builders_are_the_bytes_java_wrote() {
         },
         show_error: false,
     };
+    let shown = TermsRequest {
+        show_error: true,
+        ..default.clone()
+    };
     round_trips(&recorded("request.multi_terms"), &[multi(default)]);
+    round_trips(&recorded("request.multi_terms_show"), &[multi(shown)]);
     let options = TermsRequest {
         size: 3,
         shard_size: 7,
@@ -227,6 +232,8 @@ fn multi_answer(keys: Vec<Vec<MultiTerm>>, counts: Vec<i64>, other: i64) -> Mult
         terms: 2,
         keys,
         counts,
+        show_error: false,
+        errors: Vec::new(),
     }
 }
 
@@ -235,6 +242,16 @@ fn a_multi_terms_answer_is_the_bytes_java_wrote() {
     let key = |t: &str, n: i64| vec![MultiTerm::Text(t.to_owned()), MultiTerm::Long(n)];
     let two = multi_answer(vec![key("a", 1), key("b", 2)], vec![3, 1], 4);
     assert_eq!(multi_written(two), recorded("response.multi_terms"));
+    let shown = MultiAnswer {
+        doc_count_error: 3,
+        show_error: true,
+        errors: vec![0, 7],
+        ..multi_answer(vec![key("a", 1), key("b", 2)], vec![3, 1], 4)
+    };
+    assert_eq!(
+        multi_written(shown),
+        recorded("response.multi_terms_errors")
+    );
     let none = multi_answer(Vec::new(), Vec::new(), 0);
     assert_eq!(multi_written(none), recorded("response.multi_terms_empty"));
 }

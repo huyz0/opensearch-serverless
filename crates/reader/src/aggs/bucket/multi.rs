@@ -33,6 +33,9 @@ pub struct MultiResult {
     pub doc_count_error: i64,
     /// `(key, doc count)`: by the order of the spec.
     pub buckets: Vec<(MultiKey, u64)>,
+    /// Each bucket's `doc_count_error_upper_bound` after a reduce; empty
+    /// unless the spec shows it.
+    pub bucket_errors: Vec<i64>,
     /// Set by a reduce: the buckets are the answer, to write as they are.
     pub reduced: bool,
 }
@@ -62,6 +65,8 @@ impl MultiResult {
             other_doc_count: other,
             doc_count_error: 0,
             buckets: counted,
+            // ALLOC: empty.
+            bucket_errors: Vec::new(),
             reduced: false,
         }
     }
@@ -101,9 +106,12 @@ pub fn reduce_results(parts: &[&MultiResult]) -> MultiResult {
     let mut sum_error = 0i64;
     // ALLOC: one entry a distinct key of the shards' buckets.
     let mut merged: BTreeMap<&MultiKey, u64> = BTreeMap::new();
+    // ALLOC: one entry a part, bounded by the shards that answered.
+    let mut errors = Vec::with_capacity(parts.len());
     for part in parts {
         other = other.saturating_add(part.other_doc_count);
         let error = shard_error(&part.spec, &part.buckets, part.doc_count_error);
+        errors.push(error);
         sum_error = if sum_error == -1 || error == -1 {
             -1
         } else {
@@ -125,6 +133,12 @@ pub fn reduce_results(parts: &[&MultiResult]) -> MultiResult {
         other = other.saturating_add(count);
     }
     kept.truncate(spec.size);
+    let bucket_errors = if spec.show_error {
+        first_part_errors(sum_error, parts, &errors, &kept)
+    } else {
+        // ALLOC: empty.
+        Vec::new()
+    };
     let doc_count_error = if sum_error == -1 || parts.len() != 1 {
         sum_error
     } else {
@@ -136,8 +150,40 @@ pub fn reduce_results(parts: &[&MultiResult]) -> MultiResult {
         doc_count_error,
         // ALLOC: one key a kept bucket, at most `size`.
         buckets: kept.into_iter().map(|(k, c)| (k.clone(), c)).collect(),
+        bucket_errors,
         reduced: true,
     }
+}
+
+/// The `doc_count_error_upper_bound` of each of `kept`'s buckets after a
+/// reduce. `InternalMultiTerms.createBucket` builds the reduced bucket with
+/// its prototype's error, not the one `reduceBucket` summed, so a key's error
+/// is that of the first part holding it, less that part's own shard error,
+/// plus the sum of every part's error (-1 when unbounded).
+fn first_part_errors(
+    sum_error: i64,
+    parts: &[&MultiResult],
+    shard_errors: &[i64],
+    kept: &[(&MultiKey, u64)],
+) -> Vec<i64> {
+    // ALLOC: one entry a distinct key of the parts' buckets.
+    let mut first: BTreeMap<&MultiKey, i64> = BTreeMap::new();
+    for (part, error) in parts.iter().zip(shard_errors) {
+        for (at, (key, _)) in part.buckets.iter().enumerate() {
+            let held = part.bucket_errors.get(at).copied().unwrap_or(0);
+            first
+                .entry(key)
+                .or_insert_with(|| held.saturating_sub((*error).max(0)));
+        }
+    }
+    kept.iter()
+        .map(|(key, _)| match first.get(key) {
+            _ if sum_error == -1 => -1,
+            Some(held) => held.saturating_add(sum_error),
+            None => sum_error,
+        })
+        // ALLOC: one error a kept bucket, at most `size`.
+        .collect()
 }
 
 /// Writes the body of `result` as the response has it: the error bound, the
@@ -181,7 +227,12 @@ pub fn write_multi(out: &mut dyn Write, result: &MultiResult) -> io::Result<()> 
         }
         out.write_all(b"],\"key_as_string\":")?;
         oss_rest::write_json_str(out, &joined)?;
-        write!(out, ",\"doc_count\":{count}}}")?;
+        write!(out, ",\"doc_count\":{count}")?;
+        if shown.spec.show_error {
+            let error = shown.bucket_errors.get(i).copied().unwrap_or(0);
+            write!(out, ",\"doc_count_error_upper_bound\":{error}")?;
+        }
+        out.write_all(b"}")?;
     }
     out.write_all(b"]")
 }

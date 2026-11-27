@@ -9,7 +9,7 @@ use crate::aggs::bucket::terms_parse::parse_order;
 use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{int_value, suggest};
+use crate::dsl::values::{bool_value, int_value, suggest};
 
 /// Every key `multi_terms` declares.
 const KEYS: &[&str] = &[
@@ -48,6 +48,7 @@ pub fn parse_multi_body(
     let mut shard_size: Option<usize> = None;
     let mut min_doc_count = 1u64;
     let mut shard_min = 0u64;
+    let mut show_error = false;
     let mut order = TermsOrder::CountDesc;
     let mut key = "";
     let mut key_at = p.location();
@@ -69,7 +70,7 @@ pub fn parse_multi_body(
                 None,
             ));
         }
-        if matches!(key, "collect_mode" | "show_term_doc_count_error") {
+        if key == "collect_mode" {
             // ALLOC: error path; one message.
             return Err(DslError::unsupported(&format!(
                 "the [multi_terms] aggregation's [{key}]"
@@ -78,6 +79,7 @@ pub fn parse_multi_body(
         let accepted = match key {
             "terms" => kind == Kind::StartArray,
             "order" => kind == Kind::StartObject,
+            "show_term_doc_count_error" => matches!(kind, Kind::Bool | Kind::String),
             _ => matches!(kind, Kind::Number | Kind::String),
         };
         if !accepted {
@@ -134,6 +136,9 @@ pub fn parse_multi_body(
                 } else {
                     shard_size = Some(n);
                 }
+            }
+            "show_term_doc_count_error" => {
+                show_error = bool_value(p).map_err(|e| failed(p, e))?;
             }
             "min_doc_count" | "shard_min_doc_count" => {
                 let n = long_value(kind, p.text()).map_err(|e| failed(p, e))?;
@@ -215,6 +220,7 @@ pub fn parse_multi_body(
             min_doc_count,
             shard_min_doc_count,
             order,
+            show_error,
             ..TermsSpec::default()
         },
     ))
