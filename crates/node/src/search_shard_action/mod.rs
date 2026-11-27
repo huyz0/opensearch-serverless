@@ -243,7 +243,7 @@ fn id_of(row: &Row) -> Result<String, RemoteException> {
 }
 
 /// The shard's results as the wire writes them: the single-value metrics over
-/// a number, which a Java coordinator reduces.
+/// a number or a date, which a Java coordinator reduces.
 fn answers(
     parts: &[oss_reader::aggs::partial::Partial],
 ) -> Result<Vec<AggAnswer<'_>>, RemoteException> {
@@ -251,12 +251,7 @@ fn answers(
     // ALLOC: one answer an aggregation, bounded by the request's.
     let mut out = Vec::with_capacity(parts.len());
     for p in parts {
-        if p.format != Format::Raw {
-            return Err(refuse(
-                "a forwarded aggregation over a date field is not supported by this node",
-                "BAD_REQUEST",
-            ));
-        }
+        let date = p.format == Format::Date;
         let value = match p.value {
             Part::Min(v) => AggValue::Min(v),
             Part::Max(v) => AggValue::Max(v),
@@ -276,6 +271,7 @@ fn answers(
         out.push(AggAnswer {
             name: &p.name,
             value,
+            date,
         });
     }
     Ok(out)
