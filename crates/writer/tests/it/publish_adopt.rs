@@ -6,7 +6,9 @@
 #![allow(clippy::arithmetic_side_effects)]
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use oss_writer::boot_clock::BootInstant;
 
 use lucene_index::index_writer::IndexWriter;
 use lucene_index::segment_info::LuceneVersion;
@@ -101,7 +103,7 @@ fn an_adopted_commit_is_swapped_in_by_the_successors_publish_with_no_upload() {
     let left = predecessor(&store, &dir, &mut s);
     let (generation, before) = register(&store);
     let mut two = publisher(&store, false);
-    two.adopt_commit(&left.staged, generation, Instant::now())
+    two.adopt_commit(&left.staged, generation, BootInstant::now())
         .expect("adopts");
     let puts_before = puts(&store);
     let done = two
@@ -125,7 +127,7 @@ fn a_swap_lost_after_adopting_is_not_retried_over_the_register_that_moved() {
     let left = predecessor(&store, &dir, &mut s);
     let (generation, _) = register(&store);
     let mut two = publisher(&store, false);
-    two.adopt_commit(&left.staged, generation, Instant::now())
+    two.adopt_commit(&left.staged, generation, BootInstant::now())
         .expect("adopts");
     // The returning predecessor writes its checkpoint first.
     let mut returned = publisher(&store, false);
@@ -149,7 +151,7 @@ fn an_adopted_commit_past_the_pack_deadline_is_not_swapped_in() {
     let (generation, bytes) = register(&store);
     let mut two = publisher(&store, false);
     two.set_swap_deadline(Duration::from_millis(50));
-    let landed = Instant::now();
+    let landed = BootInstant::now();
     two.adopt_commit(&left.staged, generation, landed)
         .expect("adopts");
     std::thread::sleep(Duration::from_millis(80));
@@ -170,7 +172,7 @@ fn staged_sequences_continue_above_the_adopted_commit() {
     assert!(staged_seq >= 0);
     let (generation, _) = register(&store);
     let mut two = publisher(&store, true);
-    two.adopt_commit(&left.staged, generation, Instant::now())
+    two.adopt_commit(&left.staged, generation, BootInstant::now())
         .expect("adopts");
     two.publish(&dir, &left.files, 4, "node-2", -1, 2)
         .expect("publishes");
@@ -213,7 +215,7 @@ fn a_dropped_adoption_builds_on_the_register_as_it_is() {
     let left = predecessor(&store, &dir, &mut s);
     let (generation, _) = register(&store);
     let mut two = publisher(&store, false);
-    two.adopt_commit(&left.staged, generation, Instant::now())
+    two.adopt_commit(&left.staged, generation, BootInstant::now())
         .expect("adopts");
     let mut returned = publisher(&store, false);
     let c = commit(&mut s, "c");

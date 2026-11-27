@@ -97,3 +97,4 @@ src/pack/election.rs	new		the collection window and its collector, chosen by an 
 src/pack/collector.rs	new		the collector's tick: the elected node's pass over the nodes the pack index names, judging each and dropping a node with no live epoch by compare-and-swap (ADR 0025); the Java NodePackCollector scans every node's ledger on a timer
 src/pack/commit_refs.rs	new		the reference source over commits: the pack header names its shards, each shard's latest commit (shard register or bucket member) is read, and an unreadable source is an error; the Java NodePackCollector scans the same commits
 src/pack/judge.rs	new		the collector's judgement of one node's packs: store age past 15 minutes, two unreferenced sightings a minute apart, a doubling recheck of a named pack, deletion and sidecar marks (ADR 0025); the Java NodePackCollector keeps this state in memory per pack
+src/boot_clock.rs	new		the boot-time clock the swap deadline is read on

@@ -86,6 +86,13 @@ pub struct SearchSource {
     pub search_after: Vec<AfterValue>,
     /// `docvalue_fields`: the fields whose doc values each hit carries.
     pub docvalue_fields: Vec<DocValueField>,
+    /// `fields`: the fields each hit carries the `_source` values of.
+    pub fields: Vec<DocValueField>,
+    /// `stored_fields`: the names to fetch; none when the key is absent (`_none_` is an empty
+    /// list that also sets `source.no_id`).
+    pub stored_fields: Option<Vec<String>>,
+    /// Whether the body has a `_source` key.
+    pub source_given: bool,
     /// `script_fields`: a script's number a hit carries, by name.
     pub script_fields: Vec<(
         String,
@@ -163,6 +170,10 @@ impl Default for SearchSource {
             search_after: Vec::new(),
             // ALLOC: empty; parsing pushes one an entry.
             docvalue_fields: Vec::new(),
+            fields: Vec::new(),
+            stored_fields: None,
+            source_given: false,
+            // ALLOC: empty, no allocation.
             script_fields: Vec::new(),
             explain: false,
             min_score: None,
@@ -202,6 +213,20 @@ fn track_total_hits(p: &Parser<'_>) -> Result<Option<u64>, DslError> {
     }
 }
 
+/// The `stored_fields` array's names, the parser on its start.
+fn stored_names(p: &mut Parser<'_>) -> Result<Vec<String>, DslError> {
+    // ALLOC: one name an element, bounded by the recorded body.
+    let mut names = Vec::new();
+    loop {
+        match p.next_token() {
+            Some(Kind::EndArray) | None => return Ok(names),
+            // ALLOC: as above.
+            Some(Kind::String) => names.push(p.text().to_owned()),
+            Some(_) => return Err(unsupported("stored_fields")),
+        }
+    }
+}
+
 /// `from(int)`: refuses a negative value.
 fn non_negative(name: &str, n: i32) -> Result<usize, DslError> {
     usize::try_from(n).map_err(|_| {
@@ -213,6 +238,35 @@ fn non_negative(name: &str, n: i32) -> Result<usize, DslError> {
 }
 
 impl SearchSource {
+    /// `StoredFieldsContext.fromList` and what `FetchPhase.createStoredFieldsVisitor` makes of
+    /// it: `_none_` drops the hit's `_id` and `_source`, and names drop the `_source` unless it
+    /// is named or the body asks for it.
+    fn apply_stored_fields(&mut self) -> Result<(), DslError> {
+        let Some(names) = self.stored_fields.as_mut() else {
+            return Ok(());
+        };
+        if names.iter().any(|n| n == "_none_") {
+            if names.len() > 1 {
+                return Err(DslError::unsupported(
+                    "[stored_fields] of [_none_] with other names",
+                ));
+            }
+            if (self.source_given && !self.source.skip) || !self.fields.is_empty() {
+                return Err(DslError::unsupported(
+                    "[stored_fields] of [_none_] with a [_source] or [fields]",
+                ));
+            }
+            names.clear();
+            self.source.skip = true;
+            self.source.no_id = true;
+        } else if names.iter().any(|n| n == "_source") {
+            self.source.skip = false;
+        } else if !self.source_given {
+            self.source.skip = true;
+        }
+        Ok(())
+    }
+
     /// `SearchSourceBuilder.parseXContent(parser, true)` over a recorded
     /// body; an empty body is the default source.
     pub fn parse(rec: &Recorder) -> Result<Self, DslError> {
@@ -245,6 +299,7 @@ impl SearchSource {
         }
         // The tokenizer refuses anything after the root value, so nothing
         // follows the main object here.
+        source.apply_stored_fields()?;
         Ok(source)
     }
 
@@ -267,7 +322,10 @@ impl SearchSource {
             {
                 return Err(unknown_key(p, kind, name));
             }
-            "_source" => self.source = parse_source(&mut p.clone(), name)?,
+            "_source" => {
+                self.source = parse_source(&mut p.clone(), name)?;
+                self.source_given = true;
+            }
             "track_total_hits" => self.track_total_hits = track_total_hits(p)?,
             "explain" => self.explain = bool_value(p)?,
             "min_score" => self.min_score = Some(float_value(p)?),
@@ -288,6 +346,12 @@ impl SearchSource {
             // A time limit changes nothing here: a search is not cut short.
             "timeout" if matches!(kind, Kind::String | Kind::Number) && is_time_value(p.text()) => {
             }
+            "stored_fields" if kind == Kind::String => {
+                // ALLOC: one name, bounded by the recorded body.
+                self.stored_fields = Some(vec![p.text().to_owned()]);
+            }
+            // A profile is not built, so only the default of no profile is read.
+            "profile" if kind == Kind::Bool && p.text() == "false" => {}
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, kind, name)),
         }
@@ -299,13 +363,18 @@ impl SearchSource {
             "query" => self.query = Some(parse_inner(p)?),
             "sort" => self.sort = parse_sort(p)?,
             "aggregations" | "aggs" => self.aggs = parse_aggregations(p)?,
-            "_source" => self.source = parse_source(p, name)?,
+            "_source" => {
+                self.source = parse_source(p, name)?;
+                self.source_given = true;
+            }
             "highlight" => self.highlight = Some(parse_highlight(p)?),
             "post_filter" => self.post_filter = Some(parse_inner(p)?),
             "pit" => self.pit = Some(parse_pit(p)?),
             "script_fields" => self.script_fields = crate::fetch::script_fields::parse(p)?,
             "rescore" => self.rescore = crate::dsl::rescore::parse_object(p)?,
             "collapse" => self.collapse = Some(crate::dsl::collapse::parse(p)?),
+            // No search extension is registered here, so only the empty object reads.
+            "ext" if p.next_token() == Some(Kind::EndObject) => {}
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }
@@ -315,10 +384,23 @@ impl SearchSource {
     fn array(&mut self, p: &mut Parser<'_>, name: &str) -> Result<(), DslError> {
         match name {
             "sort" => self.sort = parse_sort(p)?,
-            "_source" => self.source = parse_source(p, name)?,
+            "_source" => {
+                self.source = parse_source(p, name)?;
+                self.source_given = true;
+            }
             "search_after" => self.search_after = parse_search_after(p)?,
+            "stored_fields" => self.stored_fields = Some(stored_names(p)?),
             "docvalue_fields" => self.docvalue_fields = parse_docvalue_fields(p)?,
+            "fields" => self.fields = parse_docvalue_fields(p)?,
             "rescore" => self.rescore = crate::dsl::rescore::parse_array(p)?,
+            // Group names for the stats API, which this node does not keep.
+            "stats" => loop {
+                match p.next_token() {
+                    Some(Kind::EndArray) | None => break,
+                    Some(Kind::String) => {}
+                    Some(_) => return Err(unsupported(name)),
+                }
+            },
             known if ARRAY_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartArray, name)),
         }

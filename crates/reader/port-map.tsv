@@ -20,6 +20,10 @@ src/fetch/highlight_parse_tests.rs	new		tests of highlight_parse.rs
 src/fetch/highlight_tests.rs	new		tests of highlight.rs
 src/fetch/docvalue_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/DocValueFieldsFetchSubPhase.java@3.10.0	FieldAndFormat.fromXContent, SearchService.parseSource's docvalue_fields limit, getProcessor's resolution and process's values
 src/fetch/docvalue_fields_tests.rs	new		tests of docvalue_fields.rs
+src/fetch/source_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/FieldFetcher.java@3.10.0	FieldFetcher, FetchFieldsPhase, SourceValueFetcher, XContentMapValues.extractValue and the keyword, text, number and date valueFetcher
+src/fetch/stored_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/StoredFieldsPhase.java@3.10.0	the refusal of a stored field name that is an object, and of a field with store true this node does not read
+src/fetch/stored_fields_tests.rs	new		tests of the stored_fields check
+src/fetch/source_fields_tests.rs	new		tests of the fields API's reading of _source
 src/fetch/source_filter.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/FetchSourceContext.java@3.10.0	fromXContent and validateAmbiguousFields; XContentMapValues.filter (set-based and automaton filters); the source map's HashMap order and Jackson's number and string writing
 src/fetch/source_map.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	readMap into HashMaps (key order) and the XContentBuilder's writing of the maps back: Integer, Long and Double numbers, Jackson string escaping
 src/fetch/source_filter_tests.rs	new		tests of source_filter.rs, against sources written by OpenSearch
@@ -263,3 +267,7 @@ src/aggs/bucket/histogram_sub_order_tests.rs	new		tests of histogram and date_hi
 src/aggs/bucket/date_range_tests.rs	new		tests of date_range parsing and running
 src/aggs/bucket/global_tests.rs	new		tests of global parsing and running
 src/aggs/metric/collect_global.rs	new		runs global aggregations under a match_all query beside the others
+src/aggs/bucket/significant.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalSignificantTerms.java@3.10.0	the JLH and percentage heuristics, InternalSignificantTerms.reduce and the response body
+src/aggs/bucket/significant_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/SignificantTermsAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters checks and the factory shard size
+src/aggs/bucket/significant_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/SignificanceLookup.java@3.10.0	the engine node, the background counts and size of SignificanceLookup
+src/aggs/bucket/significant_tests.rs	new		tests of significant_terms parsing, scoring, reduce and running

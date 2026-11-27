@@ -79,10 +79,28 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
         return Ok(Resolved::Unmapped);
     };
     let format = match &field.ty {
+        FieldType::Int { .. } | FieldType::Long | FieldType::Date
+            if agg.metric == Metric::SignificantTerms =>
+        {
+            return Err(bad_request(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "[significant_terms] of the {} field [{}] is not supported by this node yet",
+                    type_name(&field.ty),
+                    agg.field
+                ),
+            )));
+        }
         FieldType::Int { .. } | FieldType::Long => Format::Raw,
         FieldType::Date => Format::Date,
         FieldType::Text => return Err(text_fielddata(&agg.field)),
-        FieldType::Keyword if matches!(agg.metric, Metric::Terms | Metric::Cardinality) => {
+        FieldType::Keyword
+            if matches!(
+                agg.metric,
+                Metric::Terms | Metric::Cardinality | Metric::SignificantTerms
+            ) =>
+        {
             Format::Raw
         }
         FieldType::Keyword if agg.metric == Metric::ValueCount => {

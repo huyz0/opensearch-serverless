@@ -7,7 +7,9 @@
 //! `cargo test -p oss-node --all-features --test warm_scale_evidence -- --ignored --nocapture`
 //! Knobs: `WARM_SCALE_SHARDS` (default 1000), `WARM_SCALE_DOCS` (default 20
 //! a shard), `WARM_SCALE_RUNS` (default 3), `WARM_SCALE_WINDOW` (seconds of
-//! paced load, default 40), `WARM_SCALE_GAP_MS` (between queries, default 100).
+//! paced load, default 40), `WARM_SCALE_GAP_MS` (between queries, default 100),
+//! `WARM_SCALE_RUSTFS` (set it, with `RUSTFS_BIN`, to run on a RustFS process
+//! and not the emulator).
 
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 // ARITH: sums and means of small test numbers; the clippy.toml method bans
@@ -41,7 +43,9 @@ struct Run {
 fn run(warm: bool, shards: usize, docs: usize, window: Duration, gap: Duration) -> Run {
     let root = std::env::temp_dir().join(format!("oss-warm-scale-{}-{warm}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
-    let mut cluster = Cluster::new(3_000, 1, false).expect("emulator");
+    let rustfs = std::env::var_os("WARM_SCALE_RUSTFS").is_some();
+    let mut cluster =
+        Cluster::new(3_000, 1, rustfs).expect("the emulator, or RUSTFS_BIN for WARM_SCALE_RUSTFS");
     cluster.set("OSS_PAGE_CACHE_BYTES", "1073741824");
     cluster.set("OSS_PAGE_CACHE_DIR", &root.join("n1").display().to_string());
     cluster.set("OSS_WARM_ON_JOIN", "true");
@@ -161,7 +165,12 @@ fn what_warming_costs_a_peer_holding_many_shards() {
     let window = Duration::from_secs(knob("WARM_SCALE_WINDOW", 40) as u64);
     let gap = Duration::from_millis(knob("WARM_SCALE_GAP_MS", 100) as u64);
     println!(
-        "AC-8 scale shards={shards} docs={docs} runs={runs} window={window:?} gap={gap:?} (emulator, Java latency profile; provisional)"
+        "AC-8 scale shards={shards} docs={docs} runs={runs} window={window:?} gap={gap:?} (store: {}; provisional)",
+        if std::env::var_os("WARM_SCALE_RUSTFS").is_some() {
+            "RustFS"
+        } else {
+            "emulator, Java latency profile"
+        }
     );
     // `WARM_SCALE_ARMS=on` or `off` runs one arm.
     let arms = std::env::var("WARM_SCALE_ARMS").unwrap_or_default();

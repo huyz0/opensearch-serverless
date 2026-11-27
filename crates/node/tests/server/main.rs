@@ -65,6 +65,7 @@ mod ingest_run;
 mod metadata_block;
 #[cfg(feature = "reader")]
 mod newest_ask;
+mod pinned_frozen;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_read;
 #[cfg(all(feature = "reader", feature = "writer"))]

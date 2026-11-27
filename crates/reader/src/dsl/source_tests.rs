@@ -84,7 +84,6 @@ fn keys_opensearch_knows_are_refused_as_not_served() {
     for body in [
         r#"{"highlight":{"fields":{"t":{"fragmenter":"span"}}}}"#,
         r#"{"aggs":{"t":{"adjacency_matrix":{"filters":{}}}}}"#,
-        r#"{"stored_fields":["a"]}"#,
     ] {
         assert!(
             reason(body).contains("is not supported by this node yet"),
@@ -331,4 +330,92 @@ fn a_body_timeout_is_read_as_a_time_value_and_changes_nothing() {
         reason(r#"{"timeout":{}}"#),
         "Unknown key for a START_OBJECT in [timeout]."
     );
+}
+
+#[test]
+fn profile_false_and_stats_are_read_and_change_nothing() {
+    for body in [
+        r#"{"profile":false}"#,
+        r#"{"stats":["a","b"]}"#,
+        r#"{"stats":[]}"#,
+        r#"{"profile":false,"stats":["a"],"size":3}"#,
+    ] {
+        let parsed = source(body).unwrap_or_else(|_| panic!("{body} is read"));
+        let mut plain = SearchSource::default();
+        if body.contains("size") {
+            plain.size = 3;
+        }
+        assert_eq!(parsed, plain, "{body}");
+    }
+}
+
+#[test]
+fn profile_true_and_a_stats_element_that_is_not_a_string_are_refused() {
+    for body in [
+        r#"{"profile":true}"#,
+        r#"{"stats":[1]}"#,
+        r#"{"stats":[{"a":1}]}"#,
+    ] {
+        assert!(
+            reason(body).contains("is not supported by this node yet"),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn stored_fields_none_drops_the_id_and_the_source() {
+    for body in [
+        r#"{"stored_fields":"_none_"}"#,
+        r#"{"stored_fields":["_none_"]}"#,
+    ] {
+        let s = source(body).expect("parses");
+        assert!(s.source.skip && s.source.no_id, "{body}");
+    }
+    let s = source(r#"{"stored_fields":"_none_","_source":false}"#).expect("parses");
+    assert!(s.source.skip && s.source.no_id);
+    for body in [
+        r#"{"stored_fields":"_none_","_source":true}"#,
+        r#"{"stored_fields":"_none_","_source":["a"]}"#,
+        r#"{"stored_fields":"_none_","fields":["a"]}"#,
+        r#"{"stored_fields":["_none_","a"]}"#,
+        r#"{"stored_fields":3}"#,
+        r#"{"stored_fields":[1]}"#,
+    ] {
+        assert!(
+            reason(body).contains("is not supported by this node yet"),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn stored_fields_names_keep_the_id_and_drop_the_source_unless_asked_for() {
+    let skipped = |body: &str| {
+        let s = source(body).expect("parses");
+        assert!(!s.source.no_id, "{body}");
+        s.source.skip
+    };
+    assert!(skipped(r#"{"stored_fields":"a"}"#));
+    assert!(skipped(r#"{"stored_fields":["a","b"]}"#));
+    assert!(skipped(r#"{"stored_fields":[]}"#));
+    assert!(skipped(r#"{"stored_fields":["a"],"_source":false}"#));
+    // `_source` as a name, or as a key, keeps the source.
+    assert!(!skipped(r#"{"stored_fields":["a","_source"]}"#));
+    assert!(!skipped(r#"{"stored_fields":["_source"],"_source":false}"#));
+    assert!(!skipped(r#"{"stored_fields":["a"],"_source":true}"#));
+    assert!(!skipped(r#"{"_source":["a"],"stored_fields":["b"]}"#));
+    let s = source(r#"{"stored_fields":["a"],"_source":["a"]}"#).expect("parses");
+    assert_eq!(s.source.includes, ["a"]);
+    // Without the key nothing changes.
+    assert_eq!(
+        source("{}").expect("parses").source,
+        SourceFilter::default()
+    );
+}
+
+#[test]
+fn an_empty_ext_is_read_and_a_section_is_refused() {
+    assert_eq!(source(r#"{"ext":{}}"#).ok(), Some(SearchSource::default()));
+    assert!(reason(r#"{"ext":{"rerank":{"a":1}}}"#).contains("is not supported by this node yet"));
 }

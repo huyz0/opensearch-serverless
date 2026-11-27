@@ -32,6 +32,7 @@ fn agg(name: &str, metric: Metric, field: &str) -> MetricAgg {
         filters: None,
         nested: None,
         composite: None,
+        significant: None,
         name: name.to_owned(),
         metric,
         field: field.to_owned(),

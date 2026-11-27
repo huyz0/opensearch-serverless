@@ -135,6 +135,8 @@ pub enum ValueKind {
     Term,
     /// A script's number, written as a Java double.
     Script,
+    /// Values read from the hit's `_source` (the `fields` API).
+    Source,
 }
 
 /// A resolved field: its name, how it reads, and how many times the request
@@ -149,6 +151,8 @@ pub struct HitField {
     pub times: usize,
     /// The script, for a `script_fields` entry.
     pub script: Option<std::sync::Arc<lucene_engine::painless_score::ScriptFunction>>,
+    /// Where the values sit in `_source`, for a `fields` entry.
+    pub source: Option<crate::fetch::source_fields::SourceFetch>,
 }
 
 fn bad_request(reason: String) -> ShardError {
@@ -220,6 +224,7 @@ pub fn resolve(fields: &[DocValueField], mapping: &Mapping) -> Result<Vec<HitFie
                     kind,
                     times: 1,
                     script: None,
+                    source: None,
                 }),
             }
         }
@@ -291,6 +296,8 @@ pub fn write_fields(
     let mut opened = false;
     for field in fields {
         let values = match field.kind {
+            // Written from the `_source`, by `source_fields`.
+            ValueKind::Source => continue,
             ValueKind::Long | ValueKind::Date => numbers(segment, &field.name, doc)?,
             ValueKind::Term => terms(segment, &field.name, doc)?,
             ValueKind::Script => crate::fetch::script_fields::values(field, segment, doc)?,
