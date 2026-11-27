@@ -187,3 +187,17 @@ fn the_mapping_and_the_source_name_the_levels_that_exist() {
         "{source}"
     );
 }
+
+#[test]
+fn a_nested_child_number_is_ten_times_its_document_plus_its_position() {
+    for (i, j, want) in [
+        (0, 0, 0),
+        (0, 1, 1),
+        (1, 0, 10),
+        (1, 1, 11),
+        (7, 1, 71),
+        (9_999, 1, 99_991),
+    ] {
+        assert_eq!(nested_number(i, j), want, "document {i}, child {j}");
+    }
+}
