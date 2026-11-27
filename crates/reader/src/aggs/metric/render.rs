@@ -8,8 +8,6 @@
 
 use std::io::{self, Write};
 
-use oss_rest::write_json_str;
-
 use crate::aggs::bucket::composite_render::write_composite;
 use crate::aggs::bucket::date_histogram_render::write_date_histogram;
 use crate::aggs::bucket::filters_render::write_filters;
@@ -22,6 +20,7 @@ use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::hash_order::hash_map_order;
 use crate::aggs::metric::percentiles::write_percentiles;
 use crate::aggs::metric::top_hits::TopHitsResult;
+use crate::aggs::metric::typed::{scoped, write_key};
 use crate::aggs::partial::{Format, Partial, Value};
 
 /// Writes a `top_hits` result's body: `"hits":{..}`, with its hits fetched.
@@ -47,29 +46,19 @@ pub fn write_aggregations_with(
     write_aggregations_typed(out, parts, false, hits)
 }
 
-/// The type name `typed_keys` puts before an aggregation's name
-/// (`InternalAggregation.getWriteableName`), for the metrics that have one here.
-fn type_name(value: &Value) -> Option<&'static str> {
-    Some(match value {
-        Value::Min(_) => "min",
-        Value::Max(_) => "max",
-        Value::Sum(_) => "sum",
-        Value::Avg { .. } => "avg",
-        Value::Stats { .. } => "stats",
-        Value::ValueCount(_) => "value_count",
-        Value::Cardinality(_) => "cardinality",
-        Value::Percentiles { ranks: false, .. } => "tdigest_percentiles",
-        Value::Percentiles { ranks: true, .. } => "tdigest_percentile_ranks",
-        Value::TopHits(_) | Value::TopHitsParts(_) | Value::Rendered(_) => "top_hits",
-        _ => return None,
-    })
-}
-
 /// [`write_aggregations_with`], each key written as `type#name` when `typed` is set.
 pub fn write_aggregations_typed(
     out: &mut dyn Write,
     parts: &[Partial],
     typed: bool,
+    hits: &mut HitsWriter<'_>,
+) -> io::Result<()> {
+    scoped(typed, || write_parts(out, parts, hits))
+}
+
+fn write_parts(
+    out: &mut dyn Write,
+    parts: &[Partial],
     hits: &mut HitsWriter<'_>,
 ) -> io::Result<()> {
     if parts.is_empty() {
@@ -83,11 +72,7 @@ pub fn write_aggregations_typed(
         if i > 0 {
             out.write_all(b",")?;
         }
-        match type_name(&part.value).filter(|_| typed) {
-            // ALLOC: one key an aggregation, bounded by the request's.
-            Some(ty) => write_json_str(out, &format!("{ty}#{}", part.name))?,
-            None => write_json_str(out, &part.name)?,
-        }
+        write_key(out, &part.name, &part.value)?;
         out.write_all(b":{")?;
         match &part.value {
             Value::TopHits(top) => hits(out, &part.name, top)?,

@@ -9,6 +9,7 @@ use std::io::{self, Write};
 
 use crate::aggs::metric::hash_order::hash_map_order;
 use crate::aggs::metric::render::write_body;
+use crate::aggs::metric::typed::write_key;
 use crate::aggs::partial::{self, Format, Value};
 
 /// The name and format of each sub-aggregation, in request order, and one
@@ -90,7 +91,7 @@ pub fn write_subs(
             continue;
         };
         out.write_all(b",")?;
-        oss_rest::write_json_str(out, name)?;
+        write_key(out, name, value)?;
         out.write_all(b":{")?;
         write_body(out, *format, value)?;
         out.write_all(b"}")?;

@@ -327,11 +327,11 @@ fn typed_keys_without_aggregations_changes_nothing_and_a_bucket_one_is_refused()
     assert_eq!(ok("typed_keys=true"), ok(""));
     let (status, text) = post(
         "typed_keys=true",
-        r#"{"size":0,"aggs":{"t":{"terms":{"field":"year"}}}}"#,
+        r#"{"size":0,"aggs":{"n":{"nested":{"path":"x"}}}}"#,
     );
     assert_eq!(status, 400, "{text}");
     assert!(
-        text.contains("[typed_keys]") && text.contains("[terms]"),
+        text.contains("[typed_keys]") && text.contains("[nested]"),
         "{text}"
     );
     let (status, text) = get("typed_keys=maybe");
@@ -351,4 +351,62 @@ fn typed_keys_over_several_indexes_prefixes_the_merged_aggregations() {
     assert_eq!(r.status, 200, "{text}");
     assert!(text.contains(r#""max#hi":{"#), "{text}");
     assert!(text.contains(r#""value_count#n":{"#), "{text}");
+}
+
+const BUCKETS: &str = r#"{"size":0,"aggs":{
+  "t":{"terms":{"field":"year"},"aggs":{"m":{"max":{"field":"year"}},"inner":{"terms":{"field":"tag"}}}},
+  "k":{"terms":{"field":"tag"},"aggs":{"c":{"value_count":{"field":"year"}}}},
+  "h":{"histogram":{"field":"year","interval":5},"aggs":{"s":{"sum":{"field":"year"}}}},
+  "d":{"date_histogram":{"field":"published","calendar_interval":"year"}},
+  "r":{"range":{"field":"year","ranges":[{"to":2000},{"from":2000}]}},
+  "fs":{"filters":{"filters":{"a":{"term":{"tag":"animal"}}}},"aggs":{"lo":{"min":{"field":"year"}}}},
+  "f":{"filter":{"term":{"tag":"animal"}},"aggs":{"hi":{"max":{"field":"year"}}}},
+  "cp":{"composite":{"sources":[{"y":{"terms":{"field":"year"}}}]}}}}"#;
+
+#[test]
+fn typed_keys_prefixes_a_bucket_aggregation_and_its_sub_aggregations() {
+    let (status, typed) = post("typed_keys=true", BUCKETS);
+    assert_eq!(status, 200, "{typed}");
+    for key in [
+        "lterms#t",
+        "max#m",
+        "sterms#inner",
+        "sterms#k",
+        "value_count#c",
+        "histogram#h",
+        "sum#s",
+        "date_histogram#d",
+        "range#r",
+        "filters#fs",
+        "min#lo",
+        "filter#f",
+        "max#hi",
+        "composite#cp",
+    ] {
+        assert!(typed.contains(&format!(r#""{key}":"#)), "{key}: {typed}");
+    }
+    let (_, plain) = post("", BUCKETS);
+    for key in [
+        "t", "m", "inner", "k", "c", "h", "s", "d", "r", "fs", "lo", "f", "hi", "cp",
+    ] {
+        assert!(plain.contains(&format!(r#""{key}":"#)), "{key}: {plain}");
+    }
+    assert!(!plain.contains('#'), "{plain}");
+}
+
+#[test]
+fn typed_keys_over_several_indexes_prefixes_a_merged_bucket_aggregation() {
+    let node = start();
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term,compat-paging-sort/_search?typed_keys=true",
+        Some(br#"{"size":0,"aggs":{"t":{"terms":{"field":"year"},"aggs":{"m":{"max":{"field":"year"}}}}}}"#),
+    );
+    let text = r.text();
+    assert_eq!(r.status, 200, "{text}");
+    assert!(
+        text.contains(r#""lterms#t":{"#) && text.contains(r#""max#m":{"#),
+        "{text}"
+    );
 }

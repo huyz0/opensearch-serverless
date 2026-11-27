@@ -27,6 +27,7 @@ pub mod sub_rules;
 pub mod tdigest;
 pub mod top_hits;
 pub mod top_hits_sub;
+pub mod typed;
 
 pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;
