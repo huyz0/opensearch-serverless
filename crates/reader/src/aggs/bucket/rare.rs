@@ -7,6 +7,15 @@ use std::io::{self, Write};
 use crate::aggs::bucket::running;
 use crate::aggs::partial::Value;
 
+/// A term of a `rare_terms`: a keyword's text, or a number.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RareKey {
+    /// `StringRareTerms`' key.
+    Text(String),
+    /// `LongRareTerms`' key.
+    Long(i64),
+}
+
 /// What a `rare_terms` asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RareSpec {
@@ -31,11 +40,24 @@ impl Default for RareSpec {
 pub struct RareResult {
     /// What the aggregation asked for.
     pub spec: RareSpec,
+    /// The field is numeric: `LongRareTerms`, not `StringRareTerms`.
+    pub long: bool,
     /// The terms held by at most `max_doc_count` documents, with their
     /// counts, by term.
-    pub buckets: Vec<(String, u64)>,
+    pub buckets: Vec<(RareKey, u64)>,
     /// The terms held by more: what OpenSearch's filter remembers.
-    pub excluded: Vec<String>,
+    pub excluded: Vec<RareKey>,
+}
+
+impl RareResult {
+    /// The type name `typed_keys` writes.
+    pub fn type_name(&self) -> &'static str {
+        if self.long {
+            "lrareterms"
+        } else {
+            "srareterms"
+        }
+    }
 }
 
 /// `InternalRareTerms.reduce` as a final reduce: `None` unless there is a
@@ -68,29 +90,30 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
 pub fn reduce_results(parts: &[&RareResult]) -> RareResult {
     let spec = parts.first().map(|p| p.spec.clone()).unwrap_or_default();
     // ALLOC: one entry a distinct term of the shards' results.
-    let mut merged: std::collections::BTreeMap<&str, u64> = std::collections::BTreeMap::new();
+    let mut merged: std::collections::BTreeMap<&RareKey, u64> = std::collections::BTreeMap::new();
     for part in parts {
         for (term, count) in &part.buckets {
-            let slot = merged.entry(term.as_str()).or_insert(0);
+            let slot = merged.entry(term).or_insert(0);
             *slot = slot.saturating_add(*count);
         }
     }
     for part in parts {
         for term in &part.excluded {
-            merged.remove(term.as_str());
+            merged.remove(term);
         }
     }
     // ALLOC: one bucket a distinct term, as above.
-    let mut buckets: Vec<(String, u64)> = merged
+    let mut buckets: Vec<(RareKey, u64)> = merged
         .into_iter()
         .filter(|(_, count)| *count <= spec.max_doc_count)
         // ALLOC: one term a distinct term, as above.
-        .map(|(term, count)| (term.to_owned(), count))
+        .map(|(term, count)| (term.clone(), count))
         // ALLOC: as above.
         .collect();
     buckets.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
     RareResult {
         spec,
+        long: parts.iter().any(|p| p.long),
         buckets,
         // ALLOC: empty; a final reduce keeps no filter.
         excluded: Vec::new(),
@@ -107,7 +130,10 @@ pub fn write_rare(out: &mut dyn Write, result: &RareResult) -> io::Result<()> {
             out.write_all(b",")?;
         }
         out.write_all(b"{\"key\":")?;
-        oss_rest::write_json_str(out, term)?;
+        match term {
+            RareKey::Text(text) => oss_rest::write_json_str(out, text)?,
+            RareKey::Long(n) => write!(out, "{n}")?,
+        }
         write!(out, ",\"doc_count\":{count}}}")?;
     }
     out.write_all(b"]")

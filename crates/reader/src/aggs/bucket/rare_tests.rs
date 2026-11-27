@@ -14,7 +14,7 @@ use oss_blob::{Emulator, PooledStore, SliceSource};
 use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_testkit::index::{Spec, blobs};
 
-use crate::aggs::bucket::rare::{RareResult, RareSpec, reduce, write_rare};
+use crate::aggs::bucket::rare::{RareKey, RareResult, RareSpec, reduce, write_rare};
 use crate::aggs::metric::Metric;
 use crate::aggs::partial::{Partial, Value};
 use crate::dsl::parse_chunks;
@@ -108,14 +108,19 @@ fn sub_aggregations_and_nesting_are_refused() {
     assert!(got.contains("sub-aggregation"), "{got}");
 }
 
+fn text(t: &str) -> RareKey {
+    RareKey::Text(t.to_owned())
+}
+
 fn result(max: u64, buckets: &[(&str, u64)], excluded: &[&str]) -> Value {
     Value::Rare(Box::new(RareResult {
         spec: RareSpec {
             max_doc_count: max,
             ..RareSpec::default()
         },
-        buckets: buckets.iter().map(|(t, n)| ((*t).to_owned(), *n)).collect(),
-        excluded: excluded.iter().map(|t| (*t).to_owned()).collect(),
+        long: false,
+        buckets: buckets.iter().map(|(t, n)| (text(t), *n)).collect(),
+        excluded: excluded.iter().map(|t| text(t)).collect(),
     }))
 }
 
@@ -124,6 +129,12 @@ fn reduced(parts: &[Value]) -> Vec<(String, u64)> {
         panic!("not reduced");
     };
     r.buckets
+        .into_iter()
+        .map(|(k, n)| match k {
+            RareKey::Text(t) => (t, n),
+            RareKey::Long(v) => (v.to_string(), n),
+        })
+        .collect()
 }
 
 // AC-3
@@ -199,7 +210,7 @@ fn a_shard_keeps_the_terms_of_few_documents_and_excludes_the_others() {
     };
     assert_eq!(r.buckets.len(), 12);
     assert!(r.buckets.iter().all(|(_, n)| *n == 1));
-    assert_eq!(r.excluded, ["t0", "t1", "t2", "t3"]);
+    assert_eq!(r.excluded, [text("t0"), text("t1"), text("t2"), text("t3")]);
     let wider = body.replace(r#""field":"tag""#, r#""field":"tag","max_doc_count":2"#);
     let parts = run(&shard, &wider).expect("searches");
     let got = reduced(&[parts[0].value.clone()]);
@@ -223,15 +234,34 @@ fn an_unmapped_field_answers_nothing() {
     assert!(r.buckets.is_empty() && r.excluded.is_empty());
 }
 
-// AC-5
+// AC-6
 #[test]
-fn a_numeric_field_is_refused() {
-    let shard = shard("rare-numeric");
-    let e = run(
+fn a_long_field_is_answered_with_numbers_as_lrareterms() {
+    let shard = shard("rare-long");
+    let parts = run(
         &shard,
-        r#"{"size":0,"aggs":{"r":{"rare_terms":{"field":"n"}}}}"#,
+        r#"{"size":0,"query":{"range":{"n":{"lt":3}}},"aggs":{"r":{"rare_terms":{"field":"n"}}}}"#,
     )
-    .expect_err("refused");
-    assert_eq!(e.status, 400);
-    assert!(e.failure.reason.contains("not supported by this node yet"));
+    .expect("searches");
+    let Value::Rare(r) = &parts[0].value else {
+        panic!("not rare");
+    };
+    assert!(r.long && r.excluded.is_empty());
+    assert_eq!(r.type_name(), "lrareterms");
+    let mut out = Vec::new();
+    write_rare(&mut out, r).expect("writes");
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        r#""buckets":[{"key":0,"doc_count":1},{"key":1,"doc_count":1},{"key":2,"doc_count":1}]"#
+    );
+    // A keyword field is `srareterms`, even with no bucket.
+    let parts = run(
+        &shard,
+        r#"{"size":0,"aggs":{"r":{"rare_terms":{"field":"nope"}}}}"#,
+    )
+    .expect("searches");
+    let Value::Rare(r) = &parts[0].value else {
+        panic!("not rare");
+    };
+    assert_eq!(r.type_name(), "srareterms");
 }

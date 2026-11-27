@@ -80,13 +80,15 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
     };
     let format = match &field.ty {
         FieldType::Int { .. } | FieldType::Long | FieldType::Date
-            if matches!(agg.metric, Metric::SignificantTerms | Metric::RareTerms) =>
+            if agg.metric == Metric::SignificantTerms
+                || (agg.metric == Metric::RareTerms && field.ty == FieldType::Date) =>
         {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.
                 format!(
-                    "[significant_terms] of the {} field [{}] is not supported by this node yet",
+                    "[{}] of the {} field [{}] is not supported by this node yet",
+                    agg.metric.name(),
                     type_name(&field.ty),
                     agg.field
                 ),
@@ -149,7 +151,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
             ),
         )));
     }
-    if field.ty == FieldType::Keyword {
+    if field.ty == FieldType::Keyword || agg.metric == Metric::RareTerms {
         return Ok(Resolved::Keyword);
     }
     if let Some(option) = agg.terms.as_ref().and_then(|t| t.keyword.first_set()) {

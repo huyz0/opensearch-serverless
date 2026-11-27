@@ -12,12 +12,13 @@ use oss_blob::BlobStore;
 use crate::OpenShard;
 use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::keyword_collect::{self, Parent};
-use crate::aggs::bucket::rare::{RareResult, RareSpec};
+use crate::aggs::bucket::rare::{RareKey, RareResult, RareSpec};
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::terms_collect::too_many_buckets;
 use crate::aggs::metric::MetricAgg;
 use crate::aggs::partial::Value;
 use crate::failure::Failure;
+use crate::mapping::FieldType;
 use crate::search::ShardError;
 
 /// The spec of `agg`, which is a `rare_terms`.
@@ -43,12 +44,34 @@ pub fn unmapped(spec: &RareSpec) -> Value {
     }))
 }
 
+/// Whether `agg`'s field is a number on `shard`.
+fn is_numeric<S: BlobStore + 'static>(agg: &MetricAgg, shard: &OpenShard<S>) -> bool {
+    shard
+        .meta
+        .mapping
+        .get(&agg.field)
+        .is_some_and(|f| f.ty != FieldType::Keyword)
+}
+
 /// The engine's node for `agg`, building the field's ordinals into `ords`.
 pub fn node<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, Arc<GlobalOrds>>,
 ) -> Result<AggNode, ShardError> {
+    if is_numeric(agg, shard) {
+        return Ok(AggNode::SignificantTerms {
+            // ALLOC: one field name an aggregation, bounded by the request's.
+            field: agg.field.clone(),
+            numeric: true,
+            terms: false,
+            missing_term: None,
+            missing: None,
+            text: None,
+            // ALLOC: empty; sub-aggregations are refused.
+            subs: Vec::new(),
+        });
+    }
     if !ords.contains_key(&agg.field) {
         let built = shard
             .reader
@@ -75,6 +98,12 @@ pub fn node<S: BlobStore + 'static>(
 /// engine's candidates, as a keyword `terms` keeping the bucket limit holds
 /// them.
 pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, agg: &MetricAgg) -> usize {
+    if is_numeric(agg, shard) {
+        // The engine holds a state for each distinct value, at most one a
+        // document.
+        let docs = usize::try_from(shard.reader.max_doc()).unwrap_or(usize::MAX);
+        return docs.saturating_mul(std::mem::size_of::<(i64, u64)>().saturating_mul(4));
+    }
     let terms = TermsSpec {
         size: BUCKET_LIMIT,
         shard_size: BUCKET_LIMIT,
@@ -86,7 +115,12 @@ pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, agg: &MetricAgg) -
 /// The shard-level result of `agg` from the engine's `result`: the terms
 /// held by at most `max_doc_count` documents with their counts, and the
 /// others as excluded.
-pub fn value(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardError> {
+pub fn value<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+    result: Option<AggResult>,
+) -> Result<Value, ShardError> {
+    let long = is_numeric(agg, shard);
     let spec = spec_of(agg);
     let keys = match result {
         Some(AggResult::Significant { buckets, .. }) => {
@@ -105,11 +139,13 @@ pub fn value(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardE
     // ALLOC: as above.
     let mut excluded = Vec::new();
     for (key, count) in keys {
-        let SignificantKey::Term(term) = key else {
-            return Err(engine_error("a rare_terms key that is not a term"));
+        let term = match key {
+            SignificantKey::Term(term) => {
+                // ALLOC: one term a candidate, as above.
+                RareKey::Text(String::from_utf8_lossy(&term).into_owned())
+            }
+            SignificantKey::Long(n) => RareKey::Long(n),
         };
-        // ALLOC: one term a candidate, as above.
-        let term = String::from_utf8_lossy(&term).into_owned();
         if count <= spec.max_doc_count {
             buckets.push((term, count));
         } else {
@@ -120,6 +156,7 @@ pub fn value(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardE
     // ALLOC: one box a `rare_terms`, bounded by the request's.
     Ok(Value::Rare(Box::new(RareResult {
         spec,
+        long,
         buckets,
         excluded,
     })))
