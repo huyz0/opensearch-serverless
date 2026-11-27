@@ -93,6 +93,8 @@ mod date_histogram_region_tests;
 #[cfg(test)]
 mod date_histogram_tests;
 #[cfg(test)]
+mod date_range_tests;
+#[cfg(test)]
 mod filters_collect_tests;
 #[cfg(test)]
 mod filters_tests;

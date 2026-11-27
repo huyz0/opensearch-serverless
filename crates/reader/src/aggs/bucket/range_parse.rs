@@ -20,11 +20,37 @@ const KEYS: &[&str] = &[
     "ranges",
 ];
 
+/// Every key `date_range` declares.
+const DATE_KEYS: &[&str] = &[
+    "field",
+    "missing",
+    "value_type",
+    "format",
+    "script",
+    "time_zone",
+    "keyed",
+    "ranges",
+];
+
 /// Every key a range declares.
 const RANGE_KEYS: &[&str] = &["key", "from", "to"];
 
 /// The field and options of a `range` body, the parser on its start.
 pub fn parse_range_body(p: &mut Parser<'_>, name: &str) -> Result<(String, RangeSpec), DslError> {
+    parse_body(p, name, "range")
+}
+
+/// The field and options of a `date_range` body, the parser on its start:
+/// the `range`'s, each bound a number of epoch milliseconds or a date.
+pub fn parse_date_range_body(
+    p: &mut Parser<'_>,
+    name: &str,
+) -> Result<(String, RangeSpec), DslError> {
+    parse_body(p, name, "date_range")
+}
+
+fn parse_body(p: &mut Parser<'_>, name: &str, agg: &str) -> Result<(String, RangeSpec), DslError> {
+    let keys = if agg == "range" { KEYS } else { DATE_KEYS };
     let mut field: Option<String> = None;
     let mut spec = RangeSpec::default();
     let mut key = "";
@@ -39,18 +65,18 @@ pub fn parse_range_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Range
             }
             Some(kind) => kind,
         };
-        if !KEYS.contains(&key) {
+        if !keys.contains(&key) {
             return Err(DslError::xcontent(
                 key_at,
                 // ALLOC: error path; one message.
-                &format!("[range] unknown field [{key}]{}", suggest(key, KEYS)),
+                &format!("[{agg}] unknown field [{key}]{}", suggest(key, keys)),
                 None,
             ));
         }
         if !matches!(key, "field" | "keyed" | "ranges") {
             // ALLOC: error path; one message.
             return Err(DslError::unsupported(&format!(
-                "the [range] aggregation's [{key}]"
+                "the [{agg}] aggregation's [{key}]"
             )));
         }
         let accepted = match key {
@@ -63,7 +89,7 @@ pub fn parse_range_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Range
                 p.location(),
                 // ALLOC: error path; one message.
                 &format!(
-                    "[range] {key} doesn't support values of type: {}",
+                    "[{agg}] {key} doesn't support values of type: {}",
                     kind.name()
                 ),
                 None,
@@ -76,12 +102,13 @@ pub fn parse_range_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Range
                 spec.keyed = bool_value(p).map_err(|cause| {
                     DslError::xcontent(
                         p.location(),
-                        "[range] failed to parse field [keyed]",
+                        // ALLOC: error path; one message.
+                        &format!("[{agg}] failed to parse field [keyed]"),
                         Some(cause),
                     )
                 })?;
             }
-            _ => parse_ranges(p, kind, &mut spec.ranges)?,
+            _ => parse_ranges(p, kind, &mut spec.ranges, agg)?,
         }
     }
     let field = field.ok_or_else(|| {
@@ -103,16 +130,22 @@ pub fn parse_range_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Range
 }
 
 /// The ranges of a `ranges` value: an array of range objects, or one object.
-fn parse_ranges(p: &mut Parser<'_>, kind: Kind, out: &mut Vec<RangeDef>) -> Result<(), DslError> {
+fn parse_ranges(
+    p: &mut Parser<'_>,
+    kind: Kind,
+    out: &mut Vec<RangeDef>,
+    agg: &str,
+) -> Result<(), DslError> {
     let failed = |p: &Parser<'_>, cause: DslError| {
         DslError::xcontent(
             p.location(),
-            "[range] failed to parse field [ranges]",
+            // ALLOC: error path; one message.
+            &format!("[{agg}] failed to parse field [ranges]"),
             Some(cause),
         )
     };
     if kind == Kind::StartObject {
-        let def = parse_range(p).map_err(|e| failed(p, e))?;
+        let def = parse_range(p, agg).map_err(|e| failed(p, e))?;
         out.push(def);
         return Ok(());
     }
@@ -120,7 +153,7 @@ fn parse_ranges(p: &mut Parser<'_>, kind: Kind, out: &mut Vec<RangeDef>) -> Resu
         match p.next_token() {
             Some(Kind::EndArray) | None => return Ok(()),
             Some(Kind::StartObject) => {
-                let def = parse_range(p).map_err(|e| failed(p, e))?;
+                let def = parse_range(p, agg).map_err(|e| failed(p, e))?;
                 // ALLOC: one range, bounded by the body's recording.
                 out.push(def);
             }
@@ -131,7 +164,7 @@ fn parse_ranges(p: &mut Parser<'_>, kind: Kind, out: &mut Vec<RangeDef>) -> Resu
                         p.location(),
                         // ALLOC: error path; one message.
                         &format!(
-                            "[range] ranges doesn't support values of type: {}",
+                            "[{agg}] ranges doesn't support values of type: {}",
                             other.name()
                         ),
                         None,
@@ -145,7 +178,7 @@ fn parse_ranges(p: &mut Parser<'_>, kind: Kind, out: &mut Vec<RangeDef>) -> Resu
 /// One range object, the parser on its start: `key`, `from` and `to`, each
 /// optional, `from` and `to` a number or null. A bound given as text is
 /// parsed by the field's format, which is not served yet.
-fn parse_range(p: &mut Parser<'_>) -> Result<RangeDef, DslError> {
+fn parse_range(p: &mut Parser<'_>, agg: &str) -> Result<RangeDef, DslError> {
     let mut def = RangeDef {
         key: None,
         from: f64::NEG_INFINITY,
@@ -167,7 +200,7 @@ fn parse_range(p: &mut Parser<'_>) -> Result<RangeDef, DslError> {
             return Err(DslError::xcontent(
                 key_at,
                 // ALLOC: error path; one message.
-                &format!("[range] unknown field [{key}]{}", suggest(key, RANGE_KEYS)),
+                &format!("[{agg}] unknown field [{key}]{}", suggest(key, RANGE_KEYS)),
                 None,
             ));
         }
@@ -181,7 +214,7 @@ fn parse_range(p: &mut Parser<'_>) -> Result<RangeDef, DslError> {
                     DslError::xcontent(
                         p.location(),
                         // ALLOC: error path; one message.
-                        &format!("[range] failed to parse field [{key}]"),
+                        &format!("[{agg}] failed to parse field [{key}]"),
                         Some(cause),
                     )
                 })?;
@@ -191,10 +224,18 @@ fn parse_range(p: &mut Parser<'_>) -> Result<RangeDef, DslError> {
                     def.to = value;
                 }
             }
+            ("from" | "to", Kind::String) if agg == "date_range" => {
+                let value = date_bound(p, key, agg)?;
+                if key == "from" {
+                    def.from = value;
+                } else {
+                    def.to = value;
+                }
+            }
             ("from" | "to", Kind::String) => {
                 // ALLOC: error path; one message.
                 return Err(DslError::unsupported(&format!(
-                    "a [range]'s [{key}] given as text"
+                    "a [{agg}]'s [{key}] given as text"
                 )));
             }
             _ => {
@@ -202,12 +243,34 @@ fn parse_range(p: &mut Parser<'_>) -> Result<RangeDef, DslError> {
                     p.location(),
                     // ALLOC: error path; one message.
                     &format!(
-                        "[range] {key} doesn't support values of type: {}",
+                        "[{agg}] {key} doesn't support values of type: {}",
                         kind.name()
                     ),
                     None,
                 ));
             }
         }
+    }
+}
+
+/// A `date_range` bound given as text, the parser on it: a date in the
+/// default format as epoch milliseconds. Date math (`now`, `||`) needs the
+/// request's instant and is not served.
+fn date_bound(p: &Parser<'_>, key: &str, agg: &str) -> Result<f64, DslError> {
+    let text = p.text();
+    match crate::date::parse_to_millis(text, false) {
+        // ARITH: none; a date's milliseconds are far below 2^53.
+        #[allow(clippy::cast_precision_loss)]
+        Ok(millis) => Ok(millis as f64),
+        Err(crate::date::DateError::Math) => Err(DslError::unsupported(
+            // ALLOC: error path; one message.
+            &format!("date math in the [{agg}] bound [{text}]"),
+        )),
+        Err(e) => Err(DslError::xcontent(
+            p.location(),
+            // ALLOC: error path; one message.
+            &format!("[{agg}] failed to parse field [{key}]"),
+            Some(DslError::Failure(e.into_failure(text))),
+        )),
     }
 }
