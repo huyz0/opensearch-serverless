@@ -11,6 +11,7 @@ use oss_writer::bulk::{Bulk, BulkBudget, Defaults, StreamConfig, stream, write_r
 
 use crate::id_lanes::IdLanes;
 use crate::ingest_run::IngestPipelines;
+use crate::update_bulk::RoleUpdates;
 use crate::writer::{RoleTarget, WriterRole};
 
 /// The least a bulk with a declared length takes from the budget.
@@ -134,7 +135,9 @@ impl BulkService {
             }
             None => None,
         };
-        let mut run = Bulk::new(&mut target, &mut ids, now_millis(), refresh);
+        let mut updates = RoleUpdates::new(&self.role);
+        let mut run =
+            Bulk::new(&mut target, &mut ids, now_millis(), refresh).with_updates(&mut updates);
         if let Some(pipelines) = pipelines.as_mut() {
             run = run.with_ingest(pipelines);
         }

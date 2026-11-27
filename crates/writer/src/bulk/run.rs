@@ -12,12 +12,15 @@ use super::block::WriteBlock;
 
 use crate::index::{Refused, Written, validation_failed};
 
-use super::action::Kind;
+use super::action::{Action, Kind};
 use super::ids::IdGenerator;
 use super::ingest::{Ingest, IngestError};
 use super::reader::Op;
-use super::response::{Item, ItemResult, mapping_failure, mapping_status, shard_failure};
+use super::response::{Item, ItemResult, item_result};
+use super::update::Updates;
 use super::validate;
+
+mod update_item;
 
 /// What the writer knows of an index a bulk names.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,6 +125,9 @@ pub struct Bulk<'t, T: Target> {
     target: &'t mut T,
     ids: &'t mut IdGenerator,
     ingest: Option<&'t mut dyn Ingest>,
+    updates: Option<&'t mut dyn Updates>,
+    /// The documents the slice in progress has addressed, by index and id.
+    touched: Vec<(String, String)>,
     now_millis: u64,
     refresh: bool,
     items: Vec<Item>,
@@ -142,6 +148,9 @@ impl<'t, T: Target> Bulk<'t, T> {
             target,
             ids,
             ingest: None,
+            updates: None,
+            // ALLOC: one entry an item of a slice.
+            touched: Vec::new(),
             now_millis,
             refresh,
             // ALLOC: one item an operation; a few dozen bytes each, bounded by the body.
@@ -158,6 +167,14 @@ impl<'t, T: Target> Bulk<'t, T> {
     #[must_use]
     pub fn with_ingest(mut self, ingest: &'t mut dyn Ingest) -> Self {
         self.ingest = Some(ingest);
+        self
+    }
+
+    /// Resolves the `update` items through `updates`. Without one, an update
+    /// item fails as the shell does when it cannot read the document.
+    #[must_use]
+    pub fn with_updates(mut self, updates: &'t mut dyn Updates) -> Self {
+        self.updates = Some(updates);
         self
     }
 
@@ -178,6 +195,7 @@ impl<'t, T: Target> Bulk<'t, T> {
             }
         }
         let base = self.items.len();
+        self.touched.clear();
         // ALLOC: an id for each operation of the slice.
         let mut ids: Vec<String> = Vec::with_capacity(ops.len());
         // Groups in the order their first item comes: (index, shard) and the
@@ -189,14 +207,15 @@ impl<'t, T: Target> Bulk<'t, T> {
         let mut rewritten: Vec<Option<Op>> = Vec::new();
         for (n, op) in ops.iter().enumerate() {
             let mut source = None;
-            let (item, shard) = self.plan(op, first, &mut source);
-            if let Some(source) = source {
+            let mut action = None;
+            let (item, shard) = self.plan(op, first, &mut source, &mut action);
+            if source.is_some() || action.is_some() {
                 rewritten.resize_with(ops.len(), || None);
                 if let Some(slot) = rewritten.get_mut(n) {
                     *slot = Some(Op {
                         // ALLOC: the rewritten operation; the action is cloned with its source.
-                        action: op.action.clone(),
-                        source,
+                        action: action.unwrap_or_else(|| op.action.clone()),
+                        source: source.unwrap_or_else(|| op.source.clone()),
                     });
                 }
             }
@@ -282,12 +301,14 @@ impl<'t, T: Target> Bulk<'t, T> {
     /// The item for `op` before it is applied, and the shard it goes to
     /// when it passed every check; a failing item carries its failure.
     ///
-    /// `source` is set to the document a pipeline made of the item's.
+    /// `source` is set to the document a pipeline made of the item's, and
+    /// `rewrite` to the write an update item became.
     fn plan(
         &mut self,
         op: &Op,
         first: bool,
         source: &mut Option<Vec<u8>>,
+        rewrite: &mut Option<Action>,
     ) -> (Item, Option<(String, u32)>) {
         let a = &op.action;
         let action = if a.kind == Kind::Index && a.create {
@@ -326,16 +347,6 @@ impl<'t, T: Target> Bulk<'t, T> {
                 );
                 return (item, None);
             }
-        }
-        if a.kind == Kind::Update {
-            item.result = fail(
-                501,
-                Exception::new(
-                    "unsupported_operation_exception",
-                    "[update] is not supported in a bulk here: it merges into the current document, which needs a realtime get",
-                ),
-            );
-            return (item, None);
         }
         if a.id.as_deref() == Some("") && a.kind != Kind::Delete {
             item.result = fail(
@@ -442,6 +453,9 @@ impl<'t, T: Target> Bulk<'t, T> {
         };
         match routed {
             Ok(shard) => {
+                if !self.settle_update(&info, shard, op, &mut item, source, rewrite) {
+                    return (item, None);
+                }
                 let key = (info.name.clone(), shard);
                 (item, Some(key))
             }
@@ -459,30 +473,6 @@ impl<'t, T: Target> Bulk<'t, T> {
                 (item, None)
             }
         }
-    }
-}
-
-/// The engine's answer for one item as its result.
-pub fn item_result(result: Result<Written, Refused>, info: &IndexInfo, shard: u32) -> ItemResult {
-    match result {
-        Ok(written) => ItemResult::Written {
-            written,
-            forced_refresh: false,
-        },
-        Err(Refused::Conflict(reason)) => ItemResult::Failed {
-            status: 409,
-            error: shard_failure(
-                "version_conflict_engine_exception",
-                reason,
-                &info.name,
-                shard,
-                &info.uuid,
-            ),
-        },
-        Err(Refused::Mapping(e)) => ItemResult::Failed {
-            status: mapping_status(&e),
-            error: mapping_failure(&e),
-        },
     }
 }
 

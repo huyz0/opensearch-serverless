@@ -1,7 +1,7 @@
 //! The body of an update request and the merge of its `doc` into a source.
 
+use crate::update_decide::{Failure, bad};
 use oss_doc::mapping::json::{Json, parse};
-use oss_rest::RestError;
 
 /// A script of an update: its source and params.
 pub(crate) struct ScriptDef {
@@ -19,29 +19,25 @@ pub(crate) struct UpdateBody {
     pub(crate) detect_noop: bool,
 }
 
-fn flag(value: &Json, key: &str) -> Result<bool, RestError> {
+fn flag(value: &Json, key: &str) -> Result<bool, Failure> {
     match value {
         Json::Bool(b) => Ok(*b),
         // ALLOC: error path; one message.
-        _ => Err(RestError::illegal_argument(format!(
-            "[{key}] must be a boolean"
-        ))),
+        _ => Err(bad(format!("[{key}] must be a boolean"))),
     }
 }
 
-fn object(value: &Json, key: &str) -> Result<Json, RestError> {
+fn object(value: &Json, key: &str) -> Result<Json, Failure> {
     match value {
         Json::Obj(_) => Ok(value.clone()),
         // ALLOC: error path; one message.
-        _ => Err(RestError::illegal_argument(format!(
-            "[{key}] must be an object"
-        ))),
+        _ => Err(bad(format!("[{key}] must be an object"))),
     }
 }
 
-fn script(value: &Json) -> Result<ScriptDef, RestError> {
+fn script(value: &Json) -> Result<ScriptDef, Failure> {
     let Json::Obj(members) = value else {
-        return Err(RestError::illegal_argument("[script] must be an object"));
+        return Err(bad("[script] must be an object"));
     };
     let mut source = None;
     let mut params = Json::Obj(Vec::new());
@@ -51,20 +47,16 @@ fn script(value: &Json) -> Result<ScriptDef, RestError> {
             ("source", Json::Str(s)) => source = Some(s.clone()),
             ("lang", Json::Str(l)) if l == "painless" => {}
             ("lang", _) => {
-                return Err(RestError::illegal_argument(
-                    "update scripts run only lang [painless]",
-                ));
+                return Err(bad("update scripts run only lang [painless]"));
             }
             ("params", Json::Obj(_)) => params = v.clone(),
             // ALLOC: error path; one message.
             (other, _) => {
-                return Err(RestError::illegal_argument(format!(
-                    "[script] does not support [{other}]"
-                )));
+                return Err(bad(format!("[script] does not support [{other}]")));
             }
         }
     }
-    let source = source.ok_or_else(|| RestError::illegal_argument("script [source] is missing"))?;
+    let source = source.ok_or_else(|| bad("script [source] is missing"))?;
     Ok(ScriptDef { source, params })
 }
 
@@ -74,11 +66,9 @@ fn script(value: &Json) -> Result<ScriptDef, RestError> {
 ///
 /// A body that is not an object, a key this route does not serve, or a value
 /// of the wrong type.
-pub(crate) fn read(bytes: &[u8]) -> Result<UpdateBody, RestError> {
+pub(crate) fn read(bytes: &[u8]) -> Result<UpdateBody, Failure> {
     let Ok(Json::Obj(members)) = parse(bytes) else {
-        return Err(RestError::illegal_argument(
-            "the update body is not a JSON object",
-        ));
+        return Err(bad("the update body is not a JSON object"));
     };
     let mut body = UpdateBody {
         doc: None,
@@ -98,9 +88,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<UpdateBody, RestError> {
             "script" => body.script = Some(script(v)?),
             other => {
                 // ALLOC: error path; one message.
-                return Err(RestError::illegal_argument(format!(
-                    "[UpdateRequest] unknown field [{other}]"
-                )));
+                return Err(bad(format!("[UpdateRequest] unknown field [{other}]")));
             }
         }
     }

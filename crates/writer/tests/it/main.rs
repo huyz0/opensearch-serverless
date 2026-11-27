@@ -15,6 +15,7 @@ mod bulk_forward;
 mod bulk_ingest;
 mod bulk_items;
 mod bulk_parse;
+mod bulk_update;
 mod bulk_write_block;
 mod commit_checkpoint;
 mod common;
