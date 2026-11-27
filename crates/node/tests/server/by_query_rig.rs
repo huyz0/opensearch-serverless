@@ -135,12 +135,18 @@ impl ShardMatches for Matches {
 }
 
 pub(crate) struct Rig {
+    pub(crate) tasks: Arc<Tasks>,
     pub(crate) store: Arc<Emulator>,
     pub(crate) server: Server,
     pub(crate) matches: Arc<Matches>,
 }
 
 pub(crate) fn rig() -> Rig {
+    rig_as("node-1")
+}
+
+/// A rig whose node is called `node`.
+pub(crate) fn rig_as(node: &str) -> Rig {
     let store = Arc::new(Emulator::new(1 << 30, 7));
     let log =
         NodeLogStore::new(Arc::clone(&store) as Arc<dyn BlobStore>, "", "node-1").expect("names");
@@ -173,12 +179,13 @@ pub(crate) fn rig() -> Rig {
     let matches = Arc::new(Matches::default());
     let docs = Arc::new(DocService::new(Arc::clone(&role), [0; 6]));
     let gets = Arc::new(oss_node::get_route::GetService::new(Arc::clone(&role)));
+    let tasks = Arc::new(Tasks::new(node, &budget, 1_000));
     let by_query = Arc::new(ByQueryService::new(
         role,
         Arc::clone(&matches) as Arc<dyn ShardMatches>,
         BulkBudget::new(1 << 20, 4),
         [0; 6],
-        Arc::new(Tasks::new("node-1", &budget, 1_000)),
+        Arc::clone(&tasks),
     ));
     let router = doc_route::routes(Router::new(), docs).expect("routes");
     let router = oss_node::get_route::routes(router, gets).expect("routes");
@@ -187,6 +194,7 @@ pub(crate) fn rig() -> Rig {
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
     Rig {
+        tasks,
         store,
         server,
         matches,

@@ -16,6 +16,7 @@ mod retire;
 mod search_shard;
 mod support;
 mod tail;
+mod tasks;
 mod transport;
 
 use std::net::TcpListener;
@@ -208,6 +209,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     registry
         .add(GET_ACTION, late_get)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
+    let late_tasks_slot = tasks::register(&mut registry)?;
     join::register(&mut registry, &membership).map_err(|e| BootError::Cluster(e.to_string()))?;
     let shard_action = search_shard::register(&mut registry, config)?;
     let mut handlers = registry.into_handlers();
@@ -396,6 +398,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     late_slot.set(handler).ok();
     let get = GetHandler::new(Arc::clone(&assembled.role), &config.node_id);
     late_get_slot.set(Arc::new(get)).ok();
+    tasks::wire(&assembled, &late_tasks_slot, &client, &auth, &membership);
     let push = crate::push::PushHandler::new(Arc::clone(&assembled.search));
     late_push_slot.set(Arc::new(push)).ok();
     shard_action.install(&assembled.role, &assembled.search, config, &budget);

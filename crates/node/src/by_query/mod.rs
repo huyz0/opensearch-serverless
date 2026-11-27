@@ -13,6 +13,7 @@ mod reindex;
 mod response;
 #[cfg(feature = "reader")]
 mod search;
+mod task_forward;
 mod tasks;
 mod tasks_route;
 
@@ -27,6 +28,7 @@ use oss_writer::bulk::{BulkBudget, Grant};
 pub use change::DeleteChange;
 #[cfg(feature = "reader")]
 pub use search::SearchMatches;
+pub use task_forward::{TASK_TIMEOUT, TaskForwarder, TaskHandler, TaskSend};
 pub use tasks::Tasks;
 
 use crate::writer::WriterRole;

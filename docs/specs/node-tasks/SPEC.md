@@ -11,8 +11,9 @@ The by-query and reindex follow-up: `wait_for_completion=false` on `_delete_by_q
 - `POST /_tasks/{id}/_cancel`: sets the flag and answers `{"nodes":{"<node>":{"tasks":{"<id>":{...}}}}}`; a finished task is 404.
 - `GET /_tasks`: this node's running tasks (not the finished ones, not synchronous requests), as `{"nodes":{"<node>":{"tasks":{...}}}}`; `actions` filters by exact action name or `*` suffix. Other parameters are refused 400.
 - A cancelled task finishes with the counts so far and `"canceled":"by user request"` in its response; the task's `completed` is true.
-- Refused: a task id of another node (404 naming it), a malformed id (400), a 33rd running task (429), `wait_for_completion` on `GET /_tasks/{id}` (400, unsupported).
-- Not served: cluster-wide listing, `detailed`, `group_by`, `parent_task_id`, `timeout`, `POST /_tasks/_cancel` without an id, a result after a restart.
+- A task id that names another node is answered by that node: the read or cancel is sent over the transport (`internal:serverless/tasks/call`, signed, to the node's lease this node already holds, so no request to the store) and the node's status and body are relayed. The node that runs the task answers only from its own tasks, so a call is never forwarded twice. With no lease for the node, or no forwarding wired, the id is 404 "cannot reach" naming the node; a failed call is 503.
+- Refused: a malformed id (400), a 33rd running task (429), `wait_for_completion` on `GET /_tasks/{id}` (400, unsupported).
+- Not served: cluster-wide listing (`GET /_tasks` lists this node's tasks), `detailed`, `group_by`, `parent_task_id`, `timeout`, `POST /_tasks/_cancel` without an id, a result after a restart.
 
 ## Acceptance criteria
 
@@ -23,6 +24,7 @@ The by-query and reindex follow-up: `wait_for_completion=false` on `_delete_by_q
 - AC-5: bounds: a 33rd running task is 429, as is one the `RequestBodies` pool cannot reserve for; only the 128 newest finished tasks are kept; a finished task older than the TTL is gone; an entry over 64 KiB keeps its counts and drops its failures, and a long description or error is truncated.
 - AC-6: a task's thread that panics frees its slot and the task reads `completed: true` with `error`; ids start from the process's start time, so a fresh registry never reuses an id of a past one.
 - AC-7: an id of another node is 404 naming it, a malformed id 400, and the blob store's request count after a background task equals that of the same request made synchronously.
+- AC-9: a read and a cancel of a task id of another node are answered by that node over the transport and relayed with its status and body (including its 404 for an unknown or finished task); an id of a node with no live lease, or with no forwarding, is 404 naming it.
 - AC-8: `docs/compatibility.md` records each difference: results kept in memory only and lost at restart, this node's tasks only (no forwarding), running tasks only in the listing, no `status` while running.
 
 ## Test plan

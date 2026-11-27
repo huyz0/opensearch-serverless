@@ -89,14 +89,16 @@ fn a_thread_that_ends_without_a_result_frees_its_slot() {
 
 // docs/specs/node-tasks AC-6, AC-7
 #[test]
-fn ids_start_at_the_start_time_and_other_nodes_are_refused() {
+fn ids_start_at_the_start_time_and_name_their_node() {
     let t = tasks();
     let (id, _) = t.start("a", "d", 0).expect("room");
     assert_eq!(id, 1_000);
-    assert_eq!(t.parse("n1:1000").expect("own"), 1_000);
-    assert_eq!(t.parse("n2:1000").expect_err("other node").status(), 404);
-    assert_eq!(t.parse("junk").expect_err("malformed").status(), 400);
-    assert_eq!(t.parse("n1:x").expect_err("malformed").status(), 400);
+    assert!(matches!(t.route("n1:1000"), Ok(Target::Local(1_000))));
+    assert!(
+        matches!(t.route("n2:1000"), Ok(Target::Remote { node, number: 1_000 }) if node == "n2")
+    );
+    assert_eq!(t.route("junk").err().expect("malformed").status(), 400);
+    assert_eq!(t.route("n1:x").err().expect("malformed").status(), 400);
 }
 
 // docs/specs/node-tasks AC-2
@@ -130,10 +132,48 @@ fn the_compatibility_notes_record_each_difference() {
     for part in [
         "no blob request and no `.tasks` index",
         "lost at a restart",
-        "an id of another node is 404",
+        "forwarded to that node over the transport",
         "running tasks only",
         "shows no `status`",
     ] {
         assert!(notes.contains(part), "{part}");
     }
+}
+
+// docs/specs/node-tasks AC-9
+#[test]
+fn a_call_answers_with_the_rest_status_and_body() {
+    let t = tasks();
+    let (id, _) = t.start("a", "d", 0).expect("room");
+    let read = t.call(
+        TaskRequest {
+            cancel: false,
+            number: id,
+        },
+        1,
+    );
+    assert_eq!(read.status, 200);
+    assert!(read.body.contains(r#""completed":false"#), "{}", read.body);
+    let cancel = t.call(
+        TaskRequest {
+            cancel: true,
+            number: id,
+        },
+        1,
+    );
+    assert_eq!(cancel.status, 200);
+    assert!(t.lock().running[0].cancel.load(Ordering::Relaxed));
+    let missing = t.call(
+        TaskRequest {
+            cancel: false,
+            number: 7,
+        },
+        1,
+    );
+    assert_eq!(missing.status, 404);
+    assert!(
+        missing.body.contains("resource_not_found_exception"),
+        "{}",
+        missing.body
+    );
 }

@@ -281,3 +281,5 @@ src/by_query/plan.rs	new		a validated by-query or reindex request, run inline or
 src/by_query/tasks.rs	new		the node-local task registry, bounded, with no blob request
 src/by_query/tasks_route.rs	new		GET /_tasks, GET /_tasks/{id} and cancel
 src/by_query/tasks/tests.rs	new		the registry bounds, with the clock passed in
+src/by_query/task_forward.rs	new		forwards a task read or cancel to the node that runs the task
+src/boot/tasks.rs	new		the forwarded task call's handler slot and its wiring once the node is assembled
