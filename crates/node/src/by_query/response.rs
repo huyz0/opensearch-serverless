@@ -73,3 +73,19 @@ fn render_with(walk: &Walk, index: &str, took_millis: u64, counts: String) -> (u
     out.push_str("]}");
     (status, out)
 }
+
+/// `answer` with `"canceled"` named in it when `cancel` was set: the walk
+/// ended early and the counts are what it did.
+pub(super) fn mark_cancelled(
+    cancel: &std::sync::atomic::AtomicBool,
+    answer: (u16, String),
+) -> (u16, String) {
+    if !cancel.load(std::sync::atomic::Ordering::Relaxed) {
+        return answer;
+    }
+    let (status, body) = answer;
+    (
+        status,
+        body.replacen(r#""total""#, r#""canceled":"by user request","total""#, 1),
+    )
+}

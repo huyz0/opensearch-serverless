@@ -74,12 +74,6 @@ fn a_request_this_node_cannot_serve_is_refused() {
         ("/docs/_delete_by_query", "{}", 400, "query is missing"),
         ("/docs/_delete_by_query", "{", 400, "failed to parse"),
         (
-            "/docs/_delete_by_query?wait_for_completion=false",
-            QUERY,
-            400,
-            "not supported",
-        ),
-        (
             "/docs/_delete_by_query?conflicts=bad",
             QUERY,
             400,
