@@ -13,3 +13,9 @@ Result: the default stays off. The criteria that fail are the ones ADR 0069 name
 ## Blockers to the flip
 
 The default stays off until: a per-invocation memory bound (ADR 0069's arena, 4 MiB and 1 MiB per string or collection); a compile cache; the IR node cap and the call depth of 128 (painless-front-end AC-4); the AC-5 refusals of that spec; and a decision by the owner on a 4x cost over a weight (3x over an expression) or a release-build run that shows less. No default PR was opened.
+
+## Update after the compile cache and the limits
+
+Re-run with painless-compile-cache and painless-limits in place (same command, debug build, three rounds of 2,000 searches, provisional): p50 (us) weight 588 to 613, expression 767 to 826, Painless 1,636 to 1,659; p99 weight 1,014 to 1,139, Painless 2,662 to 2,800. The Painless script_score is 2.7 times the weight at p50 (was 4.3) and 2.0 times the expression; AC-2 is still NOT MET. AC-3 is now met: the 2 MiB string answers 400 script_exception and the resident memory after 200 requests is 40,520 KiB against 40,016 KiB. AC-1 and AC-4 still hold. AC-5: the source is no longer parsed twice a request, but the engine still parses and lowers it per segment (first request 2,994 us, repeats 1,853 us); a cache there is lucene-rust work and is NOT-RUN.
+
+The default stays off: AC-2 and AC-5 do not hold, and the 5% bound is the owner's to waive.
