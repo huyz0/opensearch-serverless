@@ -22,7 +22,7 @@ Parity plan R7.4, index admin REST, first piece: the decisions in the Java shell
 
 ## Test plan
 
-`crates/coordinator/tests/index_create.rs`: one test per criterion; refusal words asserted exactly.
+`crates/coordinator/tests/it/index_create.rs`: one test per criterion; refusal words asserted exactly.
 
 ## S3 request budget
 

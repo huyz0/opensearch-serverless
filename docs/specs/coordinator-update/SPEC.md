@@ -20,7 +20,7 @@ Parity plan R7.3, document APIs, fourth piece: the decisions in the Java shell's
 
 ## Test plan
 
-`crates/coordinator/tests/update.rs`: one test per criterion; the words asserted exactly.
+`crates/coordinator/tests/it/update.rs`: one test per criterion; the words asserted exactly.
 
 ## S3 request budget
 

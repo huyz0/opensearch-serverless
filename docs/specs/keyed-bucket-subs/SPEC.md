@@ -21,7 +21,7 @@ Roadmap R10.2: sub-aggregations under the bucket aggregations whose buckets come
 
 ## Test plan
 
-Unit tests in `aggs/bucket/keyed_subs_tests.rs` over an `oss-testkit` index and on hand-made results (AC-1 to AC-7), `crates/coordinator/tests/histogram_reduce.rs` (AC-5 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-8). Expected values come from reading `BucketsAggregator`, `InternalHistogram` and `InternalDateHistogram` at 3.10.0; no stock recording exists yet.
+Unit tests in `aggs/bucket/keyed_subs_tests.rs` over an `oss-testkit` index and on hand-made results (AC-1 to AC-7), `crates/coordinator/tests/it/histogram_reduce.rs` (AC-5 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-8). Expected values come from reading `BucketsAggregator`, `InternalHistogram` and `InternalDateHistogram` at 3.10.0; no stock recording exists yet.
 
 ## S3 request budget
 

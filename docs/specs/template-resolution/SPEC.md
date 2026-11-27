@@ -35,7 +35,7 @@ The create-index wiring that calls it, the REST handlers that store templates, a
 
 ## Test plan
 
-`crates/coordinator/tests/templates.rs`. ⚠️ The expectations come from reading `TemplateResolver` and core's `Numbers.toLong`, not from recorded Java output: a fixture recorded from a running shell is the open follow-up.
+`crates/coordinator/tests/it/templates.rs`. ⚠️ The expectations come from reading `TemplateResolver` and core's `Numbers.toLong`, not from recorded Java output: a fixture recorded from a running shell is the open follow-up.
 
 ## S3 request budget
 

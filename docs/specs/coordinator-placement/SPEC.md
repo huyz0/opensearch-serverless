@@ -20,7 +20,7 @@ Parity plan R7.1, request routing, second piece: the Java shell's `RequestRoutin
 
 ## Test plan
 
-`crates/coordinator/tests/place.rs` over an in-memory plane that counts descriptor, hint and head reads and records doubts and forgets; the refusals' wording asserted exactly.
+`crates/coordinator/tests/it/place.rs` over an in-memory plane that counts descriptor, hint and head reads and records doubts and forgets; the refusals' wording asserted exactly.
 
 ## S3 request budget
 

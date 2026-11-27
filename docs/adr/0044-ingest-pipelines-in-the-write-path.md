@@ -24,7 +24,7 @@ Pipeline CRUD stores pipelines as a document set ([ADR 0031](0031-document-sets.
 
 ## Widening the allowlist
 
-A processor is added in three places: its name in `PROCESSORS` (`crates/coordinator/src/ingest/mod.rs`, which also builds the 400 text listing what is supported), its options in `ingest/compile.rs` (every option it does not run is refused there), and its step in `ingest/run.rs`. Each new processor needs a test of its own in `crates/coordinator/tests/ingest.rs` and a line in `docs/specs/ingest-pipelines/SPEC.md`; a processor that reads outside the document (a lookup, an HTTP call) does not belong in this engine.
+A processor is added in three places: its name in `PROCESSORS` (`crates/coordinator/src/ingest/mod.rs`, which also builds the 400 text listing what is supported), its options in `ingest/compile.rs` (every option it does not run is refused there), and its step in `ingest/run.rs`. Each new processor needs a test of its own in `crates/coordinator/tests/it/ingest.rs` and a line in `docs/specs/ingest-pipelines/SPEC.md`; a processor that reads outside the document (a lookup, an HTTP call) does not belong in this engine.
 
 ## Search pipelines
 

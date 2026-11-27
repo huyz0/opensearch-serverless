@@ -20,7 +20,7 @@ Parity plan R7.4, index admin REST: the decisions in the Java shell's `SettingsU
 
 ## Test plan
 
-`crates/coordinator/tests/settings_update.rs`: one test per criterion, a fake `Scope`, words asserted exactly.
+`crates/coordinator/tests/it/settings_update.rs`: one test per criterion, a fake `Scope`, words asserted exactly.
 
 ## S3 request budget
 

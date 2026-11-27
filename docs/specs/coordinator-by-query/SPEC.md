@@ -20,7 +20,7 @@ Parity plan R7.3, document APIs, fifth piece: the walk of the Java shell's `Dele
 
 ## Test plan
 
-`crates/coordinator/tests/by_query.rs`: an in-memory source of sorted shards that records every ask, and a change that records every call; counts and asks asserted exactly.
+`crates/coordinator/tests/it/by_query.rs`: an in-memory source of sorted shards that records every ask, and a change that records every call; counts and asks asserted exactly.
 
 ## S3 request budget
 

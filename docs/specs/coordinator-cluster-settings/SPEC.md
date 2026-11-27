@@ -22,7 +22,7 @@ Parity plan R7.5, cluster REST: the decisions in the Java shell's `ClusterSettin
 
 ## Test plan
 
-`crates/coordinator/tests/cluster_settings.rs`: one test per criterion, words and bodies asserted exactly.
+`crates/coordinator/tests/it/cluster_settings.rs`: one test per criterion, words and bodies asserted exactly.
 
 ## S3 request budget
 
