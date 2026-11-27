@@ -329,6 +329,7 @@ fn a_sibling_pipeline_aggregation_is_computed_over_the_reduced_buckets() {
         insert_zeros: false,
         host: None,
         sort: None,
+        script: None,
         lag: 1,
     };
     let f = fake(vec![

@@ -92,6 +92,7 @@ pub(super) fn parent(name: &str, kind: PipelineKind, path: &str, zeros: bool) ->
         host: Some("h".to_owned()),
         lag: 1,
         sort: None,
+        script: None,
     }
 }
 
