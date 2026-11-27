@@ -19,7 +19,7 @@ Parity plan R7.1, request routing, first piece: the Java shell's `SearchIndexRes
 
 ## Test plan
 
-`crates/coordinator/tests/resolve.rs` over an in-memory `source`; one test for each criterion, the refusals' wording asserted exactly.
+`crates/coordinator/tests/it/resolve.rs` over an in-memory `source`; one test for each criterion, the refusals' wording asserted exactly.
 
 ## S3 request budget
 

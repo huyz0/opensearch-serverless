@@ -28,7 +28,7 @@ The node's create path calling it, and the setting that turns template applicati
 
 ## Test plan
 
-`crates/coordinator/tests/index_create_inherit.rs`, over `templates::resolve`. As for template resolution, the expectations come from reading the Java.
+`crates/coordinator/tests/it/index_create_inherit.rs`, over `templates::resolve`. As for template resolution, the expectations come from reading the Java.
 
 ## S3 request budget
 

@@ -23,7 +23,7 @@ Served keys: `field`, `keyed` and `ranges`, each range with `key`, `from` and `t
 
 ## Test plan
 
-Unit tests in `aggs/bucket/range_tests.rs` (parsing, reduce, writing: AC-1, AC-4 to AC-6), `aggs/bucket/range_collect_tests.rs` over an `oss-testkit` index (AC-2, AC-3, AC-7), `crates/coordinator/tests/range_reduce.rs` (AC-5 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-8). Expected values come from reading `InternalRange`, `RangeAggregator` and `AbstractRangeBuilder` at 3.10.0; no stock recording of these steps exists yet.
+Unit tests in `aggs/bucket/range_tests.rs` (parsing, reduce, writing: AC-1, AC-4 to AC-6), `aggs/bucket/range_collect_tests.rs` over an `oss-testkit` index (AC-2, AC-3, AC-7), `crates/coordinator/tests/it/range_reduce.rs` (AC-5 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-8). Expected values come from reading `InternalRange`, `RangeAggregator` and `AbstractRangeBuilder` at 3.10.0; no stock recording of these steps exists yet.
 
 ## S3 request budget
 

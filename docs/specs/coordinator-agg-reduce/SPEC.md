@@ -19,7 +19,7 @@ Parity plan R7.2, search fan-out and reduce, second piece: the aggregation half 
 
 ## Test plan
 
-`crates/coordinator/tests/agg_reduce.rs`: one test per criterion over hand-built shard answers.
+`crates/coordinator/tests/it/agg_reduce.rs`: one test per criterion over hand-built shard answers.
 
 ## S3 request budget
 

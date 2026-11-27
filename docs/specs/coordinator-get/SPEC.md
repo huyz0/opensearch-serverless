@@ -19,7 +19,7 @@ Parity plan R7.3, document APIs, first piece: the decisions in the Java shell's 
 
 ## Test plan
 
-`crates/coordinator/tests/get.rs`: an in-memory plane, a counting manifest lookup, the words asserted exactly.
+`crates/coordinator/tests/it/get.rs`: an in-memory plane, a counting manifest lookup, the words asserted exactly.
 
 ## S3 request budget
 

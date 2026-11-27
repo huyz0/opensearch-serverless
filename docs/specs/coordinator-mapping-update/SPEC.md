@@ -18,7 +18,7 @@ Parity plan R7.4, index admin REST: the decisions in the Java shell's `MappingUp
 
 ## Test plan
 
-`crates/coordinator/tests/mapping_update.rs`: one test per criterion; the merged JSON and the refusal words asserted exactly.
+`crates/coordinator/tests/it/mapping_update.rs`: one test per criterion; the merged JSON and the refusal words asserted exactly.
 
 ## S3 request budget
 

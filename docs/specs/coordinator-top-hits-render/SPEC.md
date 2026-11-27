@@ -24,7 +24,7 @@ Sending the call to a shard (transport) is the caller's: `fetch` is a closure so
 
 ## Test plan
 
-`crates/reader/src/response_selected_tests.rs` for AC-1 to AC-4 over a real shard; `crates/coordinator/tests/top_hits_render.rs` for AC-5 to AC-7 with a fake `fetch`.
+`crates/reader/src/response_selected_tests.rs` for AC-1 to AC-4 over a real shard; `crates/coordinator/tests/it/top_hits_render.rs` for AC-5 to AC-7 with a fake `fetch`.
 
 ## S3 request budget
 

@@ -19,7 +19,7 @@ Parity plan R7.5, cluster and health REST, first piece: the decisions in the Jav
 
 ## Test plan
 
-`crates/coordinator/tests/cluster_health.rs`: one test per criterion; the refusal words asserted exactly.
+`crates/coordinator/tests/it/cluster_health.rs`: one test per criterion; the refusal words asserted exactly.
 
 ## S3 request budget
 

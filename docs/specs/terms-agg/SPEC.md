@@ -23,7 +23,7 @@ Served keys: `field`, `size`, `shard_size`, `min_doc_count` and `order` (`_count
 
 ## Test plan
 
-Unit tests in `aggs/bucket/terms_tests.rs` (parsing, reduce, writing: AC-1, AC-5, AC-6, AC-4), `aggs/bucket/collect_tests.rs` over an `oss-testkit` index (AC-2, AC-3, AC-7), `crates/coordinator/tests/terms_reduce.rs` (a `terms` across shards, AC-5), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-8). Expected values come from reading `InternalTerms`, `LongTerms` and `NumericTermsAggregator` at 3.10.0; no stock recording of these steps exists yet (the compat replay is a follow-up, see Risks).
+Unit tests in `aggs/bucket/terms_tests.rs` (parsing, reduce, writing: AC-1, AC-5, AC-6, AC-4), `aggs/bucket/collect_tests.rs` over an `oss-testkit` index (AC-2, AC-3, AC-7), `crates/coordinator/tests/it/terms_reduce.rs` (a `terms` across shards, AC-5), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-8). Expected values come from reading `InternalTerms`, `LongTerms` and `NumericTermsAggregator` at 3.10.0; no stock recording of these steps exists yet (the compat replay is a follow-up, see Risks).
 
 ## S3 request budget
 

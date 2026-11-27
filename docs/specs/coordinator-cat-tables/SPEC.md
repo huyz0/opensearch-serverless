@@ -20,7 +20,7 @@ Parity plan R7.5, cat health and list rendering: the shell's `CatTable` (restcor
 
 ## Test plan
 
-`crates/coordinator/tests/cat.rs`: one test per criterion, words and layouts asserted exactly.
+`crates/coordinator/tests/it/cat.rs`: one test per criterion, words and layouts asserted exactly.
 
 ## S3 request budget
 

@@ -1,5 +1,5 @@
-- AC-1: `the_body_is_read_and_its_faults_named` and `an_inline_pipeline_the_node_cannot_run_is_refused` (crates/coordinator/tests/pipeline_simulate.rs): PASS.
-- AC-2: `each_document_is_run_and_a_failing_one_does_not_fail_the_rest` (crates/coordinator/tests/pipeline_simulate.rs): PASS.
+- AC-1: `the_body_is_read_and_its_faults_named` and `an_inline_pipeline_the_node_cannot_run_is_refused` (crates/coordinator/tests/it/pipeline_simulate.rs): PASS.
+- AC-2: `each_document_is_run_and_a_failing_one_does_not_fail_the_rest` (crates/coordinator/tests/it/pipeline_simulate.rs): PASS.
 - AC-3: `a_pipeline_is_simulated_inline_and_by_id_without_storing_anything` (crates/node/tests/server/pipeline_route.rs): PASS.
 - AC-4: `a_simulation_reads_the_set_once_and_an_inline_one_not_at_all` (crates/node/tests/server/pipeline_route.rs): PASS.
 - AC-5: `the_pipeline_routes_are_served_only_when_pipelines_are_on` (crates/node/tests/server/pipeline_assemble.rs): PASS.
