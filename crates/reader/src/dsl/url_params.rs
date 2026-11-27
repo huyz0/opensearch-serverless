@@ -122,6 +122,7 @@ impl SearchSource {
             )
         };
         match self.aggs.iter().find(|a| !metric(a.metric)) {
+            // ALLOC: error path; one message.
             Some(agg) => Err(DslError::unsupported(&format!(
                 "[typed_keys] with a [{}] aggregation",
                 agg.metric.name()
