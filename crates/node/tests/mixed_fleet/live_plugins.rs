@@ -369,6 +369,79 @@ fn the_anomaly_detection_endpoints_of_the_real_plugin_answer_through_a_rust_node
 
 #[test]
 #[ignore = "needs OSS_JAVA_BIN, OSS_JAVA_CP and OSS_PLUGIN_ZIPS (a directory of released plugin zips)"]
+fn a_high_cardinality_anomaly_detector_searches_a_rust_owned_index_with_bucket_aggregations() {
+    let Some(rig) = Rig::start(&["opensearch-job-scheduler", "opensearch-anomaly-detection"])
+    else {
+        return;
+    };
+    // The detector reads an index a Rust node made and owns, so the plugin's
+    // metric aggregations are forwarded to the Rust node.
+    let made = rig.proxied_settled(
+        "PUT",
+        "/ad-source",
+        Some(r#"{"mappings":{"properties":{"ts":{"type":"date"},"cpu":{"type":"long"},"host":{"type":"keyword"}}}}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    for (i, ts) in ["2026-11-27T00:00:00Z", "2026-11-27T00:10:00Z"]
+        .iter()
+        .enumerate()
+    {
+        let doc = format!(
+            "{{\"ts\":\"{ts}\",\"cpu\":{},\"host\":\"h{}\"}}",
+            10 + i,
+            i % 2
+        );
+        let put = rig.proxied_settled(
+            "PUT",
+            &format!("/ad-source/_doc/{i}?refresh=true"),
+            Some(&doc),
+        );
+        assert!(
+            matches!(put.status, 200 | 201),
+            "{} {}",
+            put.status,
+            put.text()
+        );
+    }
+    let detector = r#"{"name":"proxy-probe-hc","description":"probe","time_field":"ts","category_field":["host"],"indices":["ad-source"],"feature_attributes":[{"feature_name":"cpu_avg","feature_enabled":true,"aggregation_query":{"cpu_avg":{"avg":{"field":"cpu"}}}}],"detection_interval":{"period":{"interval":10,"unit":"Minutes"}},"window_delay":{"period":{"interval":1,"unit":"Minutes"}}}"#;
+    let put = rig.proxied_settled(
+        "POST",
+        "/_plugins/_anomaly_detection/detectors",
+        Some(detector),
+    );
+    assert!(
+        matches!(put.status, 200 | 201),
+        "{} {}",
+        put.status,
+        put.text()
+    );
+    let id = put
+        .text()
+        .split("\"_id\":\"")
+        .nth(1)
+        .and_then(|t| t.split('"').next())
+        .expect("a detector id")
+        .to_owned();
+    let path = format!("/_plugins/_anomaly_detection/detectors/{id}");
+    let got = rig.same_both_ways("GET", &path, None);
+    assert_eq!(got.status, 200, "{}", got.text());
+    assert!(got.text().contains("proxy-probe-hc"), "{}", got.text());
+    let found = rig.proxied(
+        "POST",
+        "/_plugins/_anomaly_detection/detectors/_search",
+        Some(r#"{"query":{"match_all":{}}}"#),
+    );
+    assert_eq!(found.status, 200, "{}", found.text());
+    assert!(found.text().contains("proxy-probe-hc"), "{}", found.text());
+    let gone = rig.proxied("DELETE", &path, None);
+    assert_eq!(gone.status, 200, "{}", gone.text());
+    let missing = rig.same_both_ways("GET", &path, None);
+    assert_eq!(missing.status, 404, "{}", missing.text());
+    rig.finish();
+}
+
+#[test]
+#[ignore = "needs OSS_JAVA_BIN, OSS_JAVA_CP and OSS_PLUGIN_ZIPS (a directory of released plugin zips)"]
 fn the_ml_commons_endpoints_of_the_real_plugin_answer_through_a_rust_node() {
     let Some(rig) = Rig::start(&["opensearch-job-scheduler", "opensearch-ml"]) else {
         return;
