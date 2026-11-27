@@ -9,13 +9,13 @@ The second part of [search-typed-keys-metrics](../search-typed-keys-metrics/SPEC
 - A bucket aggregation's key is written `type#name` with the type of its result class: `lterms` (a `terms` of an integer, long or date field), `sterms` (a keyword field), `histogram`, `date_histogram`, `range`, `filters`, `filter` and `composite`.
 - The sub-aggregations of every bucket are typed in the same way, at every depth, metric or bucket (`max#m` inside `lterms#t`).
 - It holds over one index and over several, since both write through the same writer, with the setting held for the one write in a thread-local scope so the bucket writers need no parameter.
-- `nested` and `reverse_nested`, anywhere in the tree, still answer 400 "the [typed_keys] with a [nested] aggregation is not supported by this node yet": their result is held as a `filter`'s is, so its type name cannot be told from it.
+- `nested` and `reverse_nested` are [their own spec](../search-typed-keys-nested/SPEC.md); before it they answered 400 beside `typed_keys`.
 
 ## Acceptance criteria
 
 - AC-1: one request holding each served bucket aggregation, with metric and bucket sub-aggregations, answers every key typed as above, and without `typed_keys` no key holds a `#`.
 - AC-2: over a list of indexes a merged `terms` and its sub-aggregation are typed.
-- AC-3: a `nested` aggregation answers 400 naming it; a `filter` is `filter#name`.
+- AC-3: a `filter` is `filter#name`.
 
 ## S3 request budget
 

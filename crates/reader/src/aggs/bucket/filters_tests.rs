@@ -6,7 +6,7 @@
 // fails it as it should.
 #![allow(clippy::arithmetic_side_effects)]
 
-use super::filters::{FiltersResult, FiltersSpec, reduce};
+use super::filters::{FilterKind, FiltersResult, FiltersSpec, reduce};
 use super::filters_render::write_filters;
 use crate::aggs::partial::Value;
 use crate::dsl::{Query, parse_chunks};
@@ -167,6 +167,22 @@ fn a_reduce_needs_parts_of_one_shape() {
     assert!(reduce(&[one.clone(), other(false, "1")]).is_none());
     assert!(reduce(&[one.clone(), other(true, "0")]).is_none());
     assert!(reduce(&[one.clone(), other(false, "0")]).is_some());
+}
+
+#[test]
+fn results_of_different_kinds_do_not_reduce_together() {
+    let of = |kind| {
+        let mut one = result(false, &[("0", 1)]);
+        one.single = true;
+        one.kind = kind;
+        Value::Filters(Box::new(one))
+    };
+    assert!(reduce(&[of(FilterKind::Filter), of(FilterKind::Missing)]).is_none());
+    let Some(Value::Filters(sum)) = reduce(&[of(FilterKind::Nested), of(FilterKind::Nested)])
+    else {
+        panic!("no reduce");
+    };
+    assert_eq!(sum.kind, FilterKind::Nested);
 }
 
 // AC-6

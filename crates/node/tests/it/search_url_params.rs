@@ -323,17 +323,8 @@ fn typed_keys_prefixes_a_metric_aggregation_with_its_type() {
 }
 
 #[test]
-fn typed_keys_without_aggregations_changes_nothing_and_a_bucket_one_is_refused() {
+fn typed_keys_without_aggregations_changes_nothing_and_a_non_boolean_is_refused() {
     assert_eq!(ok("typed_keys=true"), ok(""));
-    let (status, text) = post(
-        "typed_keys=true",
-        r#"{"size":0,"aggs":{"n":{"nested":{"path":"x"}}}}"#,
-    );
-    assert_eq!(status, 400, "{text}");
-    assert!(
-        text.contains("[typed_keys]") && text.contains("[nested]"),
-        "{text}"
-    );
     let (status, text) = get("typed_keys=maybe");
     assert_eq!(status, 400, "{text}");
 }
@@ -409,4 +400,26 @@ fn typed_keys_over_several_indexes_prefixes_a_merged_bucket_aggregation() {
         text.contains(r#""lterms#t":{"#) && text.contains(r#""max#m":{"#),
         "{text}"
     );
+}
+
+#[test]
+fn typed_keys_tells_missing_nested_and_reverse_nested_from_filter() {
+    let body = r#"{"size":0,"aggs":{
+      "ms":{"missing":{"field":"tag"}},
+      "f":{"filter":{"term":{"tag":"animal"}}},
+      "n":{"nested":{"path":"nowhere"},"aggs":{"back":{"reverse_nested":{}},"m":{"max":{"field":"nowhere.x"}}}}}}"#;
+    let (status, typed) = post("typed_keys=true", body);
+    assert_eq!(status, 200, "{typed}");
+    for key in [
+        "missing#ms",
+        "filter#f",
+        "nested#n",
+        "reverse_nested#back",
+        "max#m",
+    ] {
+        assert!(typed.contains(&format!(r#""{key}":"#)), "{key}: {typed}");
+    }
+    let (status, plain) = post("", body);
+    assert_eq!(status, 200, "{plain}");
+    assert!(!plain.contains('#'), "{plain}");
 }
