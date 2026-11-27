@@ -35,7 +35,7 @@ pub struct Pipeline {
 
 mod compile;
 mod run;
-mod script;
+pub(crate) mod script;
 
 #[derive(Debug, Clone)]
 pub(super) struct Processor {
