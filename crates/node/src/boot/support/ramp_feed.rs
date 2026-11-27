@@ -37,6 +37,9 @@ impl RampFeed {
         })
     }
 
+    /// Every GET-class request on the node's ledger, not only a search's: lease
+    /// and registry reads and background work count too, which can only make a
+    /// window look colder, so the ramp holds and the ceiling still ends it.
     fn totals(&self) -> Totals {
         Totals {
             searches: oss_cluster::placement::searches_total(),

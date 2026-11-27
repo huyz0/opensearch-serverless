@@ -464,15 +464,16 @@ pub(super) fn shared_in(
 /// A node's readiness: warming from its peers' hot pages when the config asks
 /// for it, ready at once otherwise.
 pub(super) fn readiness_for(config: &NodeConfig) -> crate::lifecycle::Readiness {
-    if config
+    let warm = config
         .page_cache
         .as_ref()
-        .is_some_and(|tier| tier.warm.is_some())
-    {
+        .is_some_and(|tier| tier.warm.is_some());
+    let readiness = if warm {
         crate::lifecycle::Readiness::warming()
     } else {
         crate::lifecycle::Readiness::new()
-    }
+    };
+    readiness.stamping_ramp(config.reader_ramp.max > 0)
 }
 
 /// The bytes a takeover's replay buffers before it commits locally.

@@ -34,6 +34,8 @@ pub struct Readiness {
     search_since: AtomicI64,
     /// The joiner's own ramp, 0 to 1000; -1 until it says one.
     ramp: AtomicI32,
+    /// Whether the lease says the slow start's fields; off, a lease is as it always was.
+    stamps_ramp: bool,
 }
 
 impl Default for Readiness {
@@ -43,6 +45,7 @@ impl Default for Readiness {
             warming: AtomicBool::new(false),
             search_since: AtomicI64::new(0),
             ramp: AtomicI32::new(-1),
+            stamps_ramp: false,
         }
     }
 }
@@ -92,6 +95,13 @@ impl Readiness {
         !self.draining.swap(true, Ordering::AcqRel)
     }
 
+    /// A node whose lease says `search_since` and its ramp, for the slow start.
+    #[must_use]
+    pub fn stamping_ramp(mut self, on: bool) -> Self {
+        self.stamps_ramp = on;
+        self
+    }
+
     /// Sets the ramp the lease publishes (the slow start's own judgement of
     /// how warm the node is, 0 to 1000).
     pub fn set_ramp(&self, permille: i32) {
@@ -101,7 +111,7 @@ impl Readiness {
     /// Takes the `search` role out of `lease` once the node drains, and
     /// says since when a node that keeps it has held it, and its ramp.
     pub fn stamp(&self, lease: &mut NodeLease) {
-        if self.ready() && lease.roles().iter().any(|r| r == ROLE_SEARCH) {
+        if self.stamps_ramp && self.ready() && lease.roles().iter().any(|r| r == ROLE_SEARCH) {
             let _ = self.search_since.compare_exchange(
                 0,
                 oss_cluster::placement::now_millis().max(1),

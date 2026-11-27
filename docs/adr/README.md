@@ -82,4 +82,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0071](0071-learning-to-rank-is-ported-natively.md) | Learning to rank is ported natively to the reader; it is no longer proxied | Accepted |
 | [0072](0072-tasks-are-node-local-memory-with-no-blob-requests.md) | Tasks live in node memory, bounded, with no blob requests | Accepted |
 | [0073](0073-stored-painless-scripts-resolve-through-a-ttl-cache.md) | A stored script named by id resolves through a per-node cache checked once a TTL | Accepted |
-| [0074](0074-a-joining-reader-ramps-its-own-share-of-shards.md) | A joining reader ramps its own share of shards, bounded by a floor and a ceiling in time | Proposed |
+| [0074](0074-a-joining-reader-ramps-its-own-share-of-shards.md) | A joining reader ramps its own share of shards, bounded by a floor and a ceiling in time | Accepted |
