@@ -80,12 +80,14 @@ fn the_aggregations_of_a_request_reach_the_source() {
             kind: AggKind::Max,
             field: "n".to_owned(),
             precision_threshold: None,
+            percentiles: None,
         },
         AggRequest {
             name: "c".to_owned(),
             kind: AggKind::ValueCount,
             field: "tag".to_owned(),
             precision_threshold: None,
+            percentiles: None,
         },
     ];
     let s = search_source(&with).expect("a search source");
@@ -106,7 +108,45 @@ fn a_precision_threshold_reaches_the_source() {
         kind: AggKind::Cardinality,
         field: "tag".to_owned(),
         precision_threshold: Some(100),
+        percentiles: None,
     }];
     let s = search_source(&with).expect("a search source");
     assert_eq!(s.aggs[0].cardinality.precision_threshold, Some(100));
+}
+
+#[test]
+fn percentile_keys_and_options_reach_the_source() {
+    use oss_transport::actions::search_shard::{AggKind, AggRequest, PercentilesRequest};
+    let mut with = read("request.match_all");
+    let ask = |name: &str, kind, keys: &[f64]| AggRequest {
+        name: name.to_owned(),
+        kind,
+        field: "n".to_owned(),
+        precision_threshold: None,
+        percentiles: Some(PercentilesRequest {
+            keys: keys.to_vec(),
+            keyed: false,
+            compression: Some(200.0),
+        }),
+    };
+    with.aggregations = vec![
+        ask("p", AggKind::Percentiles, &[50.0, 99.5]),
+        ask("r", AggKind::PercentileRanks, &[10.0]),
+    ];
+    let s = search_source(&with).expect("a search source");
+    let got: Vec<_> = s
+        .aggs
+        .iter()
+        .map(|a| {
+            (
+                a.percentiles.keys.clone(),
+                a.percentiles.keyed,
+                a.percentiles.compression,
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        [(vec![50.0, 99.5], false, 200.0), (vec![10.0], false, 200.0)]
+    );
 }

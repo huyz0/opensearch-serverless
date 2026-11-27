@@ -24,6 +24,7 @@ fn request(name: &str, kind: AggKind, field: &str) -> AggRequest {
         kind,
         field: field.to_owned(),
         precision_threshold: None,
+        percentiles: None,
     }
 }
 
@@ -152,5 +153,116 @@ fn an_execution_hint_is_refused() {
     assert!(matches!(
         aggs::read(&mut oss_transport::stream::Input::new(&wire)),
         Err(Refusal::Unsupported("an execution hint"))
+    ));
+}
+
+const PERCENTILES: &str =
+    include_str!("../../../fixtures/search-shard/java-percentiles-3.10.0.txt");
+
+fn pct(name: &str) -> Vec<u8> {
+    let hex = PERCENTILES
+        .lines()
+        .find_map(|l| l.strip_prefix(name).and_then(|r| r.strip_prefix(' ')))
+        .unwrap_or_else(|| panic!("no fixture {name}"));
+    hex.as_bytes()
+        .chunks(2)
+        .map(|p| u8::from_str_radix(std::str::from_utf8(p).expect("ascii"), 16).expect("hex"))
+        .collect()
+}
+
+fn percentiles(name: &str, kind: AggKind, keys: &[f64], keyed: bool, c: Option<f64>) -> AggRequest {
+    let mut r = request(name, kind, "n");
+    r.percentiles = Some(PercentilesRequest {
+        keys: keys.to_vec(),
+        keyed,
+        compression: c,
+    });
+    r
+}
+
+#[test]
+fn the_percentiles_builders_are_the_bytes_java_wrote() {
+    let wire = pct("request.percentiles");
+    let expected = vec![
+        percentiles(
+            "p",
+            AggKind::Percentiles,
+            &[1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0],
+            true,
+            None,
+        ),
+        percentiles("q", AggKind::Percentiles, &[50.0, 99.5], false, Some(200.0)),
+        percentiles("r", AggKind::PercentileRanks, &[10.0, 20.0], true, None),
+    ];
+    let mut input = oss_transport::stream::Input::new(&wire);
+    assert_eq!(aggs::read(&mut input).expect("reads"), expected);
+    input.finish("aggregations").expect("all read");
+    let mut buf = Vec::new();
+    aggs::write(&expected, &mut Output::new(&mut buf, 1 << 20)).expect("writes");
+    assert_eq!(buf, wire);
+}
+
+/// The type name, the aggregation's name, no metadata and the format `raw`.
+fn answer_parts(java: &[u8]) -> (Vec<f64>, Vec<u8>, bool) {
+    let mut input = oss_transport::stream::Input::new(java);
+    assert_eq!(input.vint("n").expect("one"), 1);
+    input.string("type").expect("type");
+    input.string("name").expect("name");
+    assert_eq!(input.byte("metadata").expect("byte"), 0xFF);
+    assert_eq!(input.string("format").expect("format"), "raw");
+    let n = input.count(8, "keys").expect("keys");
+    let keys = (0..n)
+        .map(|_| f64::from_bits(input.long("key").expect("key").cast_unsigned()))
+        .collect();
+    let digest = input.bytes_reference("digest").expect("digest").to_vec();
+    let keyed = input.bool("keyed").expect("keyed");
+    input.finish("answer").expect("all read");
+    (keys, digest, keyed)
+}
+
+#[test]
+fn a_percentiles_answer_is_the_bytes_java_wrote_around_the_digest() {
+    for (name, ranks) in [
+        ("response.percentiles_small", false),
+        ("response.percentiles_big", false),
+        ("response.percentiles_empty", false),
+        ("response.ranks", true),
+    ] {
+        let java = pct(name);
+        let (keys, digest, keyed) = answer_parts(&java);
+        let got = written(&[answer(
+            if name.ends_with("big") {
+                "q"
+            } else if ranks {
+                "r"
+            } else {
+                "p"
+            },
+            AggValue::Percentiles {
+                ranks,
+                keys,
+                digest,
+                keyed,
+            },
+            false,
+        )]);
+        assert_eq!(got, java, "{name}");
+    }
+}
+
+#[test]
+fn a_percentiles_method_other_than_tdigest_is_refused() {
+    let mut wire = pct("request.percentiles");
+    // The first aggregation's config is absent; make the second's method 1.
+    let at = wire
+        .windows(9)
+        .position(|w| w == [0, 1, 0, 0x40, 0x69, 0, 0, 0, 0])
+        .expect("the second config");
+    wire[at + 2] = 1;
+    assert!(matches!(
+        aggs::read(&mut oss_transport::stream::Input::new(&wire)),
+        Err(Refusal::Unsupported(
+            "a percentiles method other than tdigest"
+        ))
     ));
 }

@@ -276,6 +276,23 @@ fn answers(
                     .as_ref()
                     .map(oss_reader::aggs::metric::hll::Hll::to_bytes),
             ),
+            Part::Percentiles {
+                ranks,
+                keys,
+                keyed,
+                compression,
+                digest,
+            } => {
+                use oss_reader::aggs::metric::tdigest::Digest;
+                AggValue::Percentiles {
+                    ranks: *ranks,
+                    keys: keys.clone(),
+                    keyed: *keyed,
+                    digest: digest
+                        .as_ref()
+                        .map_or_else(|| Digest::new(*compression).to_bytes(), Digest::to_bytes),
+                }
+            }
             Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(*n).unwrap_or(i64::MAX)),
             _ => {
                 return Err(refuse(
