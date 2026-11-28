@@ -18,7 +18,7 @@ type Handler = fn(&MlService, &mut Request<'_>, &mut Response<'_>) -> Result<(),
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<MlService>) -> Result<Router, RouteError> {
-    let table: [(Method, &'static str, Handler); 26] = [
+    let table: [(Method, &'static str, Handler); 28] = [
         (
             Method::Post,
             "/_plugins/_ml/model_groups/_register",
@@ -78,6 +78,16 @@ pub fn routes(router: Router, service: &Arc<MlService>) -> Result<Router, RouteE
             Method::Delete,
             "/_plugins/_ml/connectors/{connector_id}",
             MlService::delete_connector,
+        ),
+        (
+            Method::Post,
+            "/_plugins/_ml/models/meta",
+            MlService::register_meta,
+        ),
+        (
+            Method::Post,
+            "/_plugins/_ml/models/{model_id}/upload_chunk/{chunk_number}",
+            MlService::upload_chunk,
         ),
         (
             Method::Post,

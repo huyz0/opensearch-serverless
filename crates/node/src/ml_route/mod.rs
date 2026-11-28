@@ -8,6 +8,7 @@
 //! marker's read, the content's write and the marker's swap (1 GET and 3 PUTs);
 //! a read the marker's read and the content's; nothing lists.
 
+mod artifacts;
 mod claims;
 mod connectors;
 mod models;

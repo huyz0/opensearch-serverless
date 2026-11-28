@@ -70,7 +70,7 @@ impl MlService {
             .ok_or_else(|| bad("a model id is required"))
     }
 
-    fn stored_model(
+    pub(super) fn stored_model(
         &self,
         id: &str,
         marker: &mut [u8],
@@ -80,7 +80,7 @@ impl MlService {
             .ok_or_else(|| missing(id))
     }
 
-    fn write_model(
+    pub(super) fn write_model(
         &self,
         id: &str,
         model: &Map<String, Value>,

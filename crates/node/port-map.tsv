@@ -415,3 +415,4 @@ src/plugins/jobs.rs	new		the job.* host operations over a registry of the plugin
 src/plugins/jobs_tests.rs	new		job.*: a plugin starts, reads and deletes its own job and no other plugin or tenant sees it
 src/search_stop.rs	new		the question a running search asks between shards to learn it should give up
 src/ism_run/backend.rs	new		the effects the runner asks of the node, a trait so the decision is tested with a fake
+src/ml_route/artifacts.rs	new		a local model's register_meta and upload_chunk: each chunk streamed from the request body into one blob

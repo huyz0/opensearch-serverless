@@ -94,6 +94,7 @@ mod ltr_routes;
 mod metadata_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ml_connectors;
+mod ml_local;
 mod ml_models;
 mod ml_predict;
 mod ml_routes;
