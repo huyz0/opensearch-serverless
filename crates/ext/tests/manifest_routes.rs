@@ -82,3 +82,33 @@ fn a_route_path_may_be_exactly_256_bytes() {
     assert!(parse(&at(256)).is_ok(), "256 bytes");
     assert!(parse(&at(257)).is_err(), "257 bytes");
 }
+
+// docs/specs/plugin-system AC-5: a route's action is 1 to 64 bytes of lowercase letters, digits and `_:/.-`.
+#[test]
+fn an_action_name_is_exact() {
+    let with = |a: &str| GOOD.replace(r#""action":"read""#, &format!(r#""action":"{a}""#));
+    let long = "a".repeat(64);
+    for ok in ["a", "9", "_", ":", "/", ".", "-", "idx:read.v2/x_y-z", long.as_str()] {
+        assert!(parse(&with(ok)).is_ok(), "{ok} accepted");
+    }
+    let too_long = "a".repeat(65);
+    for bad in ["", "A", "a b", "a*", "é", too_long.as_str()] {
+        assert!(parse(&with(bad)).is_err(), "{bad:?} refused");
+    }
+}
+
+// docs/specs/plugin-system AC-5: a manifest has at most 64 routes, inclusive.
+#[test]
+fn a_manifest_may_have_exactly_64_routes() {
+    let with = |n: usize| {
+        let routes: Vec<String> = (0..n)
+            .map(|i| format!(r#"{{"method":"GET","path":"/_plugins/geo/r{i}","action":"read"}}"#))
+            .collect();
+        GOOD.replace(
+            r#"{"method":"GET","path":"/_plugins/geo/{place}","action":"read"}"#,
+            &routes.join(","),
+        )
+    };
+    assert!(parse(&with(64)).is_ok(), "64 routes");
+    assert!(parse(&with(65)).is_err(), "65 routes");
+}
