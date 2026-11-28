@@ -40,6 +40,7 @@ graph TD
     oss-mem
     oss-meta --> oss-blob
     oss-meta --> oss-format
+    oss-node --> oss-anomaly
     oss-node -.-> oss-blob
     oss-node -.-> oss-cluster
     oss-node -.-> oss-coordinator

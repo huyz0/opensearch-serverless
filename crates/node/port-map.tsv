@@ -300,6 +300,9 @@ src/ism_route/mod.rs	new		the index state management policy service over a docum
 src/ism_route/policy.rs	new		policy validation: the actions and conditions a serverless node can run
 src/ism_route/routes.rs	new		the route table under /_plugins/_ism and /_opendistro/_ism
 src/ism_route/managed.rs	new		add, remove and explain: which policy manages which index
+src/ism_route/hook.rs	new		the create hook: attaches the policy whose template matches a new index
+src/ism_route/templates.rs	new		ism_template: the aggregate of every policy's patterns, and the attach on create
+src/index_route/created.rs	new		the hook an index create calls once the index exists
 src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusals (ADR 0080)
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
@@ -312,8 +315,20 @@ src/notifications_route/routes.rs	new		the route table on /_plugins/_notificatio
 src/notifications_route/deliver.rs	new		posting a message to a channel URL: bounded, no redirect, no proxy
 src/notifications_route/egress.rs	new		the address rules and the guarded resolver of a delivery
 src/notifications_route/test_send.rs	new		the plugin test route that sends a test message through a config
+src/search_knn.rs	new		the k-NN plugin node calls (stats, warmup, clear_cache) answered for this node; the plugin source is not in this repository (docs/specs/knn-plugin-api)
 src/ad_setting.rs	new		serverless.ad.enabled
 src/ad_route/mod.rs	new		the anomaly detection detector service over a document set; the Java plugin is ported natively by ADR 0078
 src/ad_route/detector.rs	new		detector validation: the features, filters and bounds a serverless node can run
 src/ad_route/search.rs	new		the _search query a detectors id can answer without reading every detector
 src/ad_route/routes.rs	new		the route table under /_plugins/_anomaly_detection and /_opendistro/_anomaly_detection
+src/ad_route/windows.rs	new		the reader search for a detector's windows and the windows read back from its answer
+src/ad_route/windows_tests.rs	new		tests of windows.rs
+src/ad_route/preview.rs	new		preview: train a model on the windows and render the plugin's anomaly_result
+src/ad_route/preview_tests.rs	new		tests of preview.rs
+src/ad_route/preview_route.rs	new		the _preview routes of a stored or inline detector
+src/ad_route/source.rs	new		the seam a detector's windows are searched through
+src/search_window.rs	new		the node's search as that seam
+src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a request through its guard (ADR 0080)
+src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded, memory only, no blob request (ADR 0084)
+src/jobs/types.rs	new		the registry's limits, caller, context and errors
+src/jobs/tests.rs	new		the registry bounds, with the clock and the search gates passed in

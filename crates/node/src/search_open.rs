@@ -11,8 +11,9 @@ use oss_reader::open_cost::open_bytes;
 use oss_reader::{ReaderError, ShardFiles, open_located_with};
 use oss_rest::RestError;
 
-use super::{Answer, Held, SearchService, lock_pushed};
+use super::{Answer, Held, SearchService};
 use crate::open_indexes::{Found, Lead};
+use oss_reader::commit_push::PushedCommits;
 
 impl<S: BlobStore + 'static> SearchService<S> {
     /// Reserves `bytes` from `open_indexes`, closing the least recently
@@ -376,6 +377,16 @@ impl<S: BlobStore + 'static> SearchService<S> {
     pub fn set_modules(&self, opener: Arc<dyn crate::search_modules::ModuleOpener>) -> bool {
         self.modules.set(opener).is_ok()
     }
+}
+
+/// Locks the pushed commits, taking them over if a push panicked holding
+/// them: every change to them is one whole step.
+pub(crate) fn lock_pushed(
+    pushed: &Mutex<PushedCommits>,
+) -> std::sync::MutexGuard<'_, PushedCommits> {
+    pushed
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 #[cfg(test)]

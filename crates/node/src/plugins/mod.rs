@@ -4,8 +4,10 @@
 
 mod policy;
 mod registry;
+mod routes;
 #[cfg(test)]
 mod tests;
 
 pub use policy::{Entry, Policy, PolicyError, PolicyTier};
 pub use registry::{Plugin, Registry, State, Taken};
+pub use routes::mount;
