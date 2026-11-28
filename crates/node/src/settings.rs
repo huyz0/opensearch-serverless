@@ -36,6 +36,7 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::ml_setting::SETTINGS,
         crate::notifications_setting::SETTINGS,
         crate::ltr_setting::SETTINGS,
+        crate::sql_setting::SETTINGS,
         #[cfg(feature = "extensions")]
         crate::extension_setting::SETTINGS,
         #[cfg(feature = "writer")]

@@ -22,6 +22,7 @@ pub(super) mod roles;
 pub(super) mod search_queue;
 pub(super) mod search_slots;
 pub(super) mod snapshots;
+pub(super) mod sql;
 mod store;
 mod store_debug;
 pub(super) mod write_limit;
@@ -110,6 +111,10 @@ pub struct NodeConfig {
     pub commit_logged: commits::Logged,
     /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
     pub ltr: bool,
+    /// `serverless.sql.enabled` (`OSS_SQL`): serve the SQL endpoint. On by default.
+    pub sql: bool,
+    /// The SQL row and request bounds.
+    pub sql_bounds: sql::Bounds,
     /// The ported plugins' switches (`OSS_ISM`, `OSS_AD`, `OSS_ML`).
     pub plugins: plugins::Switches,
     /// The `sltr` window and model cache bounds.
@@ -320,6 +325,7 @@ impl NodeConfig {
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
         let (ltr, plugins) = (flag("OSS_LTR", "true")?, plugins::read(&flag)?);
         let ltr_bounds = ltr::read(&bounded)?;
+        let (sql, sql_bounds) = (flag("OSS_SQL", "true")?, sql::read(&bounded)?);
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
         let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
@@ -446,6 +452,8 @@ impl NodeConfig {
             commit_logged,
             node_packs: packs::read(&flag, &bounded)?,
             ltr,
+            sql,
+            sql_bounds,
             plugins,
             ltr_bounds,
             script_cache_ttl_secs,

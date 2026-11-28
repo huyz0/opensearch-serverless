@@ -34,6 +34,12 @@ pub struct Config {
     pub search_pipelines: bool,
     /// `serverless.ltr.enabled`: serve the learning to rank store and its routes.
     pub ltr: bool,
+    /// `serverless.sql.enabled`: serve the SQL endpoint.
+    pub sql: bool,
+    /// `serverless.sql.size_limit`: the most rows a statement returns.
+    pub sql_size_limit: usize,
+    /// `serverless.sql.max_request_bytes`: the largest request body.
+    pub sql_max_request_bytes: usize,
     /// `serverless.ism.enabled`: serve the index state management policy routes.
     pub ism: bool,
     /// `serverless.ml.enabled`: serve the ML Commons model group routes.
@@ -166,6 +172,9 @@ impl Config {
             ingest_pipelines: false,
             search_pipelines: false,
             ltr: false,
+            sql: false,
+            sql_size_limit: 200,
+            sql_max_request_bytes: 1 << 20,
             ism: false,
             ml: false,
             notifications: false,
