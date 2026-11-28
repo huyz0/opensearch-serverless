@@ -29,6 +29,7 @@ reader = [
     "dep:oss-meta",
     "dep:oss-doc",
     "dep:bcrypt",
+    "dep:ring",
     "dep:serde_json",
 ]
 writer = [
@@ -47,13 +48,14 @@ writer = [
     "dep:oss-coordinator",
     "dep:oss-doc",
     "dep:bcrypt",
+    "dep:ring",
     "dep:ureq",
     "dep:oss-ml",
 ]
 # The extension module runtime and its upload route (docs/adr/0052). Off by default; with it
 # on, a node still serves nothing until OSS_EXTENSIONS_PERCENT gives it a pool.
 extensions = ["reader", "writer", "dep:oss-ext-wasm", "dep:sha2"]
-coordinator = ["dep:oss-coordinator", "dep:oss-cluster", "dep:oss-blob", "dep:oss-transport", "dep:oss-doc", "dep:bcrypt"]
+coordinator = ["dep:oss-coordinator", "dep:oss-cluster", "dep:oss-blob", "dep:oss-transport", "dep:oss-doc", "dep:bcrypt", "dep:ring"]
 
 [dependencies]
 oss-types = { workspace = true }
@@ -63,6 +65,7 @@ oss-writer = { workspace = true, optional = true }
 oss-ml = { workspace = true, optional = true }
 oss-coordinator = { workspace = true, optional = true }
 bcrypt = { workspace = true, optional = true }
+ring = { workspace = true, optional = true }
 oss-doc = { workspace = true, optional = true }
 # A forwarded search's query as the JSON the reader parses.
 serde_json = { version = "=1.0.145", optional = true }

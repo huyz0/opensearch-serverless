@@ -31,3 +31,14 @@
 - AC-18: `account_answers_the_recorded_shape` and `the_account_of_the_administrator_is_reserved` in crates/node/tests/server/security_account.rs
 - AC-19: `a_user_changes_its_own_password`, `a_wrong_current_password_changes_nothing`, `a_malformed_password_change_is_400` and `the_administrator_cannot_change_a_stored_password` in crates/node/tests/server/security_account.rs; `a_password_change_needs_both_strings` in crates/coordinator/tests/it/security_info.rs
 - AC-20: `a_user_without_admin_access_reads_its_own_account` in crates/node/tests/server/security_account.rs; `every_registered_route_has_an_action_row` in crates/node/tests/server/security_authz.rs
+
+## Slice 5
+
+Tokens are minted by `fixtures/security-jwt/mint.py` (PyJWT and `cryptography`), not by the verifier.
+
+- AC-21: `each_key_type_authenticates_its_tokens`, `a_token_that_is_not_valid_is_401` and `the_key_decides_the_algorithm` in crates/node/tests/server/security_jwt.rs; `every_rule_refuses`, `a_lifetime_over_the_bound_is_refused` and `only_a_plain_algorithm_header_is_read` in crates/coordinator/tests/it/security_jwt.rs
+- AC-22: `a_token_acts_with_the_roles_its_claim_maps_to` and `concurrent_tokens_for_one_subject_do_not_share_roles` in crates/node/tests/server/security_jwt.rs; `a_token_identity_takes_roles_only_from_its_backend_roles` in crates/coordinator/tests/it/security_jwt.rs
+- AC-23: `a_token_cannot_claim_a_stored_users_name` and `a_token_does_not_run_bcrypt_or_read_the_store` in crates/node/tests/server/security_jwt.rs; `a_subject_naming_a_user_or_the_administrator_is_inadmissible` in crates/coordinator/tests/it/security_jwt.rs
+- AC-24: `authinfo_and_account_answer_a_token_identity` and `securityconfig_lists_the_jwt_domain_without_its_key` in crates/node/tests/server/security_jwt.rs; `authinfo_of_a_token_identity_lists_its_roles` and `securityconfig_adds_the_domain_with_the_key_redacted` in crates/coordinator/tests/it/security_jwt.rs
+- AC-25: `without_a_key_a_token_is_401` in crates/node/tests/server/security_jwt.rs, and the existing authn suite for basic
+

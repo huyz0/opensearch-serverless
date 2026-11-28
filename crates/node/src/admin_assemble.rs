@@ -328,15 +328,13 @@ fn security(
     )
     .map_err(|e| AssembleError::Store(e.to_string()))?
     .with_state(Arc::clone(&state));
-    let service = Arc::new(service);
-    let router = security_route::routes(router, &service).map_err(AssembleError::Route)?;
-    let router = security_route::authinfo_route(router, &state).map_err(AssembleError::Route)?;
-    let router =
-        security_route::config_routes(router, &service, &state).map_err(AssembleError::Route)?;
-    let router =
-        security_route::account_routes(router, &service, &state).map_err(AssembleError::Route)?;
+    let service =
+        Arc::new(service.with_jwt_rules(config.security_jwt.as_ref().map(|j| j.rules.clone())));
+    let router = security_route::all(router, &service, &state).map_err(AssembleError::Route)?;
     let authorizer = RouteAuthorizer::new(Arc::clone(&state));
-    let guard = AuthGuard(Arc::new(Authenticator::new(Arc::clone(&state), clock)));
+    let authenticator =
+        Authenticator::new(Arc::clone(&state), clock).with_domain(config.security_jwt.as_ref());
+    let guard = AuthGuard(Arc::new(authenticator));
     let router = router
         .with_guard(Arc::new(guard))
         .with_authorizer(Arc::new(authorizer));

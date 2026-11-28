@@ -31,6 +31,10 @@ pub struct Rig {
 }
 
 pub fn rig_over(store: Arc<Emulator>) -> Rig {
+    rig_with(store, None)
+}
+
+pub fn rig_with(store: Arc<Emulator>, jwt: Option<oss_node::security_setting::JwtSettings>) -> Rig {
     let now = Arc::new(AtomicU64::new(1_000_000));
     let clock: Clock = {
         let now = Arc::clone(&now);
@@ -60,7 +64,26 @@ pub fn rig_over(store: Arc<Emulator>) -> Rig {
             .expect("service")
             .with_state(Arc::clone(&state)),
     );
-    let auth = Arc::new(Authenticator::new(Arc::clone(&state), Arc::clone(&clock)));
+    let (service, auth) = {
+        let plain = Authenticator::new(Arc::clone(&state), Arc::clone(&clock));
+        match jwt {
+            None => (service, plain),
+            Some(jwt) => {
+                let rules = jwt.rules.clone();
+                let service = Arc::try_unwrap(service)
+                    .ok()
+                    .expect("one owner")
+                    .with_jwt_rules(Some(rules));
+                let token_domain = oss_node::security_jwt::Jwt::new(
+                    jwt.key,
+                    jwt.rules,
+                    Arc::new(|| 1_800_000_000),
+                );
+                (Arc::new(service), plain.with_jwt(token_domain))
+            }
+        }
+    };
+    let auth = Arc::new(auth);
     let router = routes(Router::new(), &service).expect("routes");
     let router = config_routes(router, &service, &state).expect("config routes");
     let router = account_routes(router, &service, &state).expect("account routes");

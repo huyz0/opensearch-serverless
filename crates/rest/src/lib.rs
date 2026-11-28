@@ -41,7 +41,7 @@ pub use authorizer::{Authorization, Authorizer};
 pub use body::Body;
 pub use config::{ConfigError, ServerConfig};
 pub use error::{Exception, Meta, RestError};
-pub use guard::{Admission, Denial, Guard, Verdict};
+pub use guard::{Admission, Denial, Guard, Identity, Verdict};
 pub use head::Version;
 pub use json_out::write_str as write_json_str;
 pub use method::{Method, MethodSet};

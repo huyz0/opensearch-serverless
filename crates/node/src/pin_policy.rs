@@ -8,7 +8,7 @@ use oss_ext::pin::{Pin, ResolvedLimits};
 pub trait PinPolicy: Send + Sync {
     /// Whether the user of a request (none when security is off) may pin a
     /// module; the role needed is `all_access`.
-    fn authorised(&self, principal: Option<&str>) -> bool;
+    fn authorised(&self, principal: Option<&oss_rest::Identity>) -> bool;
 
     /// Whether this cluster lets a create carry a pin
     /// (`serverless.extensions.pins.allowed`). Asked only when a create

@@ -55,14 +55,19 @@ pub trait SqlGuard: Send + Sync {
     /// # Errors
     ///
     /// The JSON body of the refusal.
-    fn allow(&self, principal: Option<&str>, action: &str, names: &[&str]) -> Result<(), String>;
+    fn allow(
+        &self,
+        principal: Option<&oss_rest::Identity>,
+        action: &str,
+        names: &[&str],
+    ) -> Result<(), String>;
 }
 
 /// A guard for a node with security off: everything is allowed.
 pub struct AllowAll;
 
 impl SqlGuard for AllowAll {
-    fn allow(&self, _: Option<&str>, _: &str, _: &[&str]) -> Result<(), String> {
+    fn allow(&self, _: Option<&oss_rest::Identity>, _: &str, _: &[&str]) -> Result<(), String> {
         Ok(())
     }
 }

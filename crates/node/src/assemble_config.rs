@@ -72,6 +72,8 @@ pub struct Config {
     pub security: bool,
     /// The static administrator's name and bcrypt hash, needed with security on.
     pub security_admin: Option<(String, String)>,
+    /// The JSON Web Token domain, when a key is set.
+    pub security_jwt: Option<crate::security_setting::JwtSettings>,
     /// How long a snapshot of the security configuration is used.
     pub security_refresh_millis: u64,
     /// The bcrypt cost an internal user's password is hashed at.
@@ -203,6 +205,7 @@ impl Config {
             script_cache_ttl_secs: 10,
             security: false,
             security_admin: None,
+            security_jwt: None,
             security_refresh_millis: 10_000,
             security_bcrypt_cost: crate::security_route::DEFAULT_COST,
             knn: false,

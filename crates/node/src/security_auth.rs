@@ -6,9 +6,10 @@ use std::hash::{BuildHasher, RandomState};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use oss_coordinator::security::basic;
-use oss_rest::{Admission, Denial, Guard, Verdict};
+use oss_coordinator::security::{admissible, basic};
+use oss_rest::{Admission, Denial, Guard, Identity, Verdict};
 
+use crate::security_jwt::Jwt;
 use crate::security_state::{Clock, SecurityState};
 
 /// The most password checks that run at once; the next is refused.
@@ -55,6 +56,10 @@ pub struct Authenticator {
     slots: usize,
     capacity: usize,
     clock: Clock,
+    jwt: Option<Jwt>,
+    /// Failed tokens in the current window: one shared bucket, so forged
+    /// subjects grow nothing.
+    token_failures: Mutex<(u64, u32)>,
 }
 
 /// The cost a bcrypt hash asks for (`$2b$12$...`); past the cap when it is
@@ -93,7 +98,34 @@ impl Authenticator {
             slots: MAX_VERIFICATIONS,
             capacity: MAX_CACHED,
             clock,
+            jwt: None,
+            token_failures: Mutex::new((0, 0)),
         }
+    }
+
+    /// Whether a JSON Web Token domain is configured.
+    pub fn has_jwt(&self) -> bool {
+        self.jwt.is_some()
+    }
+
+    /// Accepts the tokens of `settings`' domain, if there is one.
+    #[must_use]
+    pub fn with_domain(self, settings: Option<&crate::security_setting::JwtSettings>) -> Self {
+        match settings {
+            None => self,
+            Some(s) => self.with_jwt(Jwt::new(
+                s.key.clone(),
+                s.rules.clone(),
+                Arc::new(crate::clock::wall_secs),
+            )),
+        }
+    }
+
+    /// Accepts tokens signed with the domain's key.
+    #[must_use]
+    pub fn with_jwt(mut self, jwt: Jwt) -> Self {
+        self.jwt = Some(jwt);
+        self
     }
 
     /// Limits the checks that run at once to `slots` and the remembered
@@ -198,6 +230,50 @@ impl Authenticator {
         Ok(Arc::from(user))
     }
 
+    /// Admits a bearer `token`, or says why not. A throttled bucket refuses
+    /// before any signature is checked.
+    fn admit_token(&self, token: &str) -> Result<Arc<Identity>, Refusal> {
+        let jwt = self.jwt.as_ref().ok_or(Refusal::Unauthorized)?;
+        let config = self.state.config().map_err(|_| Refusal::Unavailable)?;
+        let now = (self.clock)();
+        {
+            let bucket = lock(&self.token_failures);
+            if now.saturating_sub(bucket.0) < FAILURE_WINDOW_MILLIS && bucket.1 >= MAX_FAILURES {
+                return Err(Refusal::Throttled);
+            }
+        }
+        let slot = self.slot().ok_or(Refusal::Throttled)?;
+        let verified = jwt.verify(token);
+        drop(slot);
+        match verified.filter(|c| admissible(&config, c)) {
+            Some(claims) => Ok(Identity::token(Arc::from(claims.subject), claims.roles)),
+            None => {
+                let mut bucket = lock(&self.token_failures);
+                if now.saturating_sub(bucket.0) >= FAILURE_WINDOW_MILLIS {
+                    *bucket = (now, 0);
+                }
+                bucket.1 = bucket.1.saturating_add(1);
+                Err(Refusal::Unauthorized)
+            }
+        }
+    }
+
+    /// Admits `header`'s user, basic or bearer, or says why not.
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal`].
+    pub fn admit_identity(&self, header: Option<&str>) -> Result<Arc<Identity>, Refusal> {
+        let bearer = header
+            .and_then(|h| h.split_once(' '))
+            .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
+            .map(|(_, token)| token.trim());
+        match bearer {
+            Some(token) => self.admit_token(token),
+            None => self.admit(header).map(Identity::stored),
+        }
+    }
+
     /// Admits `header`'s user or says why not.
     ///
     /// # Errors
@@ -214,13 +290,17 @@ pub struct AuthGuard(pub Arc<Authenticator>);
 
 impl Guard for AuthGuard {
     fn admit(&self, req: &Admission<'_>) -> Verdict {
-        match self.0.admit(req.authorization()) {
-            Ok(user) => Verdict::Allow(Some(user)),
+        match self.0.admit_identity(req.authorization()) {
+            Ok(identity) => Verdict::Allow(Some(identity)),
             Err(Refusal::Unauthorized) => Verdict::Deny(Denial {
                 status: 401,
                 content_type: TEXT,
                 body: "Unauthorized".to_owned(),
-                challenge: Some("Basic realm=\"OpenSearch Security\""),
+                challenge: Some(if self.0.has_jwt() {
+                    "Basic realm=\"OpenSearch Security\", Bearer"
+                } else {
+                    "Basic realm=\"OpenSearch Security\""
+                }),
             }),
             Err(Refusal::Throttled) => Verdict::Deny(Denial {
                 status: 429,

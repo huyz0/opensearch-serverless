@@ -1971,6 +1971,7 @@ dependencies = [
  "prost-reflect",
  "quinn",
  "rcgen",
+ "ring",
  "rustls",
  "self_cell",
  "serde_json",

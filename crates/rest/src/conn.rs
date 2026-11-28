@@ -350,9 +350,8 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
         }
     };
     if let Some(authorizer) = shared.router.authorizer() {
-        let who = principal.as_deref();
         let authorization = Authorization {
-            principal: who,
+            identity: principal.as_deref(),
             method,
             pattern: route.pattern(),
             prefix: route.is_prefix(),

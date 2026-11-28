@@ -77,7 +77,11 @@ pub(crate) fn pin_policy(
         // Security off: every caller is the administrator.
         None => Arc::new(|_| true),
         Some(state) => Arc::new(move |user| {
-            user.is_some_and(|u| state.config().is_ok_and(|c| c.all_access(u)))
+            user.is_some_and(|u| {
+                state
+                    .config()
+                    .is_ok_and(|c| c.all_access(crate::security_who::who(u)))
+            })
         }),
     };
     let policy = crate::extension_pins::ModulePins::new(

@@ -152,7 +152,8 @@ fn a_module_that_cannot_be_an_analyzer_is_refused_in_words() {
 
 #[test]
 fn authority_is_the_policys_own_answer() {
-    assert!(rig(true).policy.authorised(Some("admin")));
+    let admin = oss_rest::Identity::stored(std::sync::Arc::from("admin"));
+    assert!(rig(true).policy.authorised(Some(&admin)));
     assert!(!rig(false).policy.authorised(None));
 }
 

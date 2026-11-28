@@ -213,6 +213,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.script_cache_ttl_secs = config.script_cache_ttl_secs;
     node.security = config.security;
     node.security_admin.clone_from(&config.security_admin);
+    node.security_jwt.clone_from(&config.security_jwt);
     node.security_refresh_millis = config.security_refresh_millis;
     node.evict_headroom_percent = config.evict_headroom_percent;
     node.pinned_indexes.clone_from(&config.pinned_indexes);

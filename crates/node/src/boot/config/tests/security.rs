@@ -114,3 +114,48 @@ fn anomaly_detection_is_on_by_default_and_set_by_its_variable() {
     assert!(!off.expect("valid").plugins.ad);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_AD", "maybe")]))).is_err());
 }
+
+// docs/specs/security-complete AC-21: the JSON Web Token domain is set by its variables
+#[test]
+fn a_jwt_key_sets_the_domain_and_a_bad_one_is_refused() {
+    use crate::security_jwt::Key;
+    let secret = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+    let none = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(none.security_jwt.is_none());
+    let set = [
+        ("OSS_SECURITY_JWT_KEY", secret),
+        ("OSS_SECURITY_JWT_ROLES_KEY", "roles"),
+        ("OSS_SECURITY_JWT_ISSUER", "me"),
+        ("OSS_SECURITY_JWT_SKEW_SECONDS", "5"),
+        ("OSS_SECURITY_JWT_MAX_LIFETIME_SECONDS", "600"),
+    ];
+    let jwt = NodeConfig::from_lookup(lookup(&with(&set)))
+        .expect("valid")
+        .security_jwt
+        .expect("a domain");
+    assert!(matches!(jwt.key, Key::Secret(ref k) if k.len() == 32));
+    assert_eq!(jwt.rules.subject_key, "sub");
+    assert_eq!(jwt.rules.roles_key.as_deref(), Some("roles"));
+    assert_eq!(jwt.rules.issuer.as_deref(), Some("me"));
+    assert_eq!((jwt.rules.skew, jwt.rules.max_lifetime), (5, Some(600)));
+    for bad in [
+        [("OSS_SECURITY_JWT_KEY", "c2hvcnQ=")],
+        [("OSS_SECURITY_JWT_KEY", "!!!")],
+        [("OSS_SECURITY_JWT_PUBLIC_KEY", "not a pem")],
+    ] {
+        assert!(
+            NodeConfig::from_lookup(lookup(&with(&bad))).is_err(),
+            "{bad:?}"
+        );
+    }
+    let both = [
+        ("OSS_SECURITY_JWT_KEY", secret),
+        ("OSS_SECURITY_JWT_PUBLIC_KEY", "x"),
+    ];
+    assert!(NodeConfig::from_lookup(lookup(&with(&both))).is_err());
+    let number = [
+        ("OSS_SECURITY_JWT_KEY", secret),
+        ("OSS_SECURITY_JWT_SKEW_SECONDS", "soon"),
+    ];
+    assert!(NodeConfig::from_lookup(lookup(&with(&number))).is_err());
+}

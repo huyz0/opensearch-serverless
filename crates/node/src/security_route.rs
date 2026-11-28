@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use oss_blob::BlobStore;
 use oss_coordinator::security::{
-    ALL_ACCESS, Answer, Config, Kind, authinfo, builtin, deleted, missing, needs_credentials,
+    ALL_ACCESS, Answer, Config, Kind, Who, authinfo, builtin, deleted, missing, needs_credentials,
     password_ok, protection, read_builtin, render, saved, validate, weak_password, with_hash,
 };
 use oss_doc::mapping::json::{Json, parse};
@@ -49,6 +49,7 @@ pub struct SecurityService {
     buffer_bytes: usize,
     cost: u32,
     state: Option<Arc<SecurityState>>,
+    jwt: Option<oss_coordinator::security::Rules>,
 }
 
 impl SecurityService {
@@ -77,6 +78,7 @@ impl SecurityService {
             buffer_bytes,
             cost,
             state: None,
+            jwt: None,
         })
     }
 
@@ -100,7 +102,18 @@ impl SecurityService {
                 "the security configuration is unavailable",
             )
         })?;
-        Ok(admin_refusal(&config, req.principal().unwrap_or_default()))
+        Ok(admin_refusal(&config, who_of(req)))
+    }
+
+    /// Lists the JSON Web Token domain with `rules`, if any, in `securityconfig`.
+    #[must_use]
+    pub fn with_jwt_rules(mut self, rules: Option<oss_coordinator::security::Rules>) -> Self {
+        self.jwt = rules;
+        self
+    }
+
+    pub(super) fn jwt_rules(&self) -> Option<&oss_coordinator::security::Rules> {
+        self.jwt.as_ref()
     }
 
     pub(super) fn changed(&self) {
@@ -366,6 +379,23 @@ pub fn routes(router: Router, service: &Arc<SecurityService>) -> Result<Router, 
     Ok(router)
 }
 
+/// Every security route: the document API, `authinfo`, the configuration
+/// routes and the account routes.
+///
+/// # Errors
+///
+/// A route registered twice.
+pub fn all(
+    router: Router,
+    service: &Arc<SecurityService>,
+    state: &Arc<SecurityState>,
+) -> Result<Router, RouteError> {
+    let router = routes(router, service)?;
+    let router = authinfo_route(router, state)?;
+    let router = config_routes(router, service, state)?;
+    account_routes(router, service, state)
+}
+
 /// `GET /_plugins/_security/authinfo`: who the caller is, its roles and
 /// tenants, as the plugin answers.
 ///
@@ -386,16 +416,23 @@ pub fn authinfo_route(router: Router, state: &Arc<SecurityState>) -> Result<Rout
                     "the security configuration is unavailable",
                 )
             })?;
-            let body = authinfo(&config, req.principal().unwrap_or_default());
+            let body = authinfo(&config, who_of(req));
             resp.send(200, JSON, body.as_bytes())
         },
     )
 }
 
+/// Who `req` acts as; no one when no guard ran.
+pub(crate) fn who_of<'r>(req: &'r Request<'_>) -> Who<'r> {
+    req.identity()
+        .map_or(Who::stored(""), crate::security_who::who)
+}
+
 /// The plugin's refusal of `name` for a management route, unless `name`
 /// holds `all_access`.
-pub fn admin_refusal(config: &Config, name: &str) -> Option<Answer> {
-    let roles = config.roles_of(name);
+pub fn admin_refusal(config: &Config, who: Who<'_>) -> Option<Answer> {
+    let name = who.name;
+    let roles = config.roles_of(who);
     if roles.iter().any(|r| r == ALL_ACCESS) {
         return None;
     }

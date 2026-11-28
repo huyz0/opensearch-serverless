@@ -6,7 +6,7 @@
 
 use oss_doc::mapping::json::{Json, parse, write_str};
 
-use super::{Answer, Config};
+use super::{Answer, Config, Who};
 
 fn names<'a>(out: &mut String, items: impl Iterator<Item = &'a str>) {
     out.push('[');
@@ -21,19 +21,23 @@ fn names<'a>(out: &mut String, items: impl Iterator<Item = &'a str>) {
 
 /// The body `GET /_plugins/_security/api/account` answers for `name`. The
 /// static administrator is reserved, as the plugin's own administrator is.
-pub fn account(config: &Config, name: &str) -> String {
-    let user = config.user(name);
-    let backend = user.map(|u| u.backend_roles.as_slice()).unwrap_or_default();
+pub fn account<'a>(config: &'a Config, who: impl Into<Who<'a>>) -> String {
+    let who = who.into();
+    let name = who.name;
+    let user = config.user(name).filter(|_| who.token.is_none());
+    let backend = config.backend_roles_of(who);
     // ALLOC: one answer a request.
     let mut out = String::from(r#"{"user_name":"#);
     write_str(&mut out, name);
     out.push_str(r#","is_reserved":"#);
-    out.push_str(if config.is_admin(name) {
+    out.push_str(if config.is_admin(who) {
         "true"
     } else {
         "false"
     });
-    out.push_str(r#","is_hidden":false,"is_internal_user":true,"user_requested_tenant":null,"backend_roles":"#);
+    out.push_str(r#","is_hidden":false,"is_internal_user":"#);
+    out.push_str(if who.token.is_none() { "true" } else { "false" });
+    out.push_str(r#","user_requested_tenant":null,"backend_roles":"#);
     names(&mut out, backend.iter().map(String::as_str));
     out.push_str(r#","custom_attribute_names":"#);
     // ALLOC: one answer a request, bounded by the stored document.
@@ -49,7 +53,7 @@ pub fn account(config: &Config, name: &str) -> String {
         .unwrap_or_default();
     names(&mut out, attributes.iter().map(String::as_str));
     out.push_str(r#","tenants":{"#);
-    for (i, t) in config.tenants_of(name).iter().enumerate() {
+    for (i, t) in config.tenants_of(who).iter().enumerate() {
         if i > 0 {
             out.push(',');
         }
@@ -57,7 +61,7 @@ pub fn account(config: &Config, name: &str) -> String {
         out.push_str(":true");
     }
     out.push_str(r#"},"roles":"#);
-    let roles = config.roles_of(name);
+    let roles = config.roles_of(who);
     names(&mut out, roles.iter().map(String::as_str));
     out.push('}');
     out
@@ -110,5 +114,14 @@ pub fn account_reserved(name: &str) -> Answer {
         status: 403,
         // ALLOC: one answer a request, bounded by the stored document.
         body: format!(r#"{{"status":"FORBIDDEN","message":{text}}}"#),
+    }
+}
+
+/// The `403` for a user a token vouched for, which has no password.
+pub fn account_has_no_password() -> Answer {
+    Answer {
+        status: 403,
+        // ALLOC: one answer a request.
+        body: r#"{"status":"FORBIDDEN","message":"A user authenticated by a token has no password to change."}"#.to_owned(),
     }
 }
