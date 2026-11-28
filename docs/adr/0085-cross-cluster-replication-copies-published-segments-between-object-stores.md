@@ -1,6 +1,6 @@
 # 0085: Cross-cluster replication copies published segments from the leader's object store; it does not pull operations
 
-**Status:** Proposed. Design only: no code, no setting, no route exists. Accepted after an independent review (rule: [ADR README](README.md)); the slices that follow are listed in "Slices" and each needs its own spec.
+**Status:** Accepted, 2026-11-28, by the owner after an independent review (six blocking defects, all folded in). Design only: no code, no setting, no route exists. The slices in "Slices" each need their own spec, and a slice that changes a shared format waits for the owner's go.
 
 ## Context
 
@@ -36,6 +36,7 @@ Forces: requests scale with nodes and bytes, never with records or with elapsed 
 ## Consequences
 
 - Easier: a follower survives a dead leader and bootstraps from a quiet bucket; no leader code path, no task state, no lease to leak; one copy loop for bootstrap and steady state; cost and failure modes are the ones of snapshot restore, which is built and measured.
+- **Lag bound:** a follower is never fresher than the leader's last published commit plus its own poll interval (5 s floor, 60 s ceiling when idle), so a few seconds is the best case, not a promise. **Rust to Rust only:** both ends must be this build.
 - Harder: lag is bounded below by the leader's publish interval; the follower holds no leader sequence numbers, so an operation-level consumer (a stock follower of a Rust leader, `_seq_no` based reads) cannot be served; a leader's document and field security does not travel; a follower more than the janitor grace behind pays a full bootstrap; two buckets under different accounts need the operator's read grant.
 - Rules out: replicating into a stock follower from a Rust leader or the reverse (a Java follower needs translog operations, which a Rust leader does not keep); bidirectional or active-active replication; replicating a single shard or a subset; a retention pin on the leader.
 
