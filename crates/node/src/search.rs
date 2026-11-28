@@ -448,6 +448,10 @@ mod coordinate;
 pub use coordinate::ShardError;
 #[path = "open_prefetch.rs"]
 pub mod open_prefetch;
+#[path = "search_stop.rs"]
+mod stop;
+pub use stop::Stop;
+use stop::cancelled;
 #[path = "search_overlay.rs"]
 mod overlay;
 #[path = "search_pipeline_run.rs"]

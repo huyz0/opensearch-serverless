@@ -46,7 +46,7 @@ impl<S: BlobStore + 'static> WindowSearch for SearchService<S> {
         let source = SearchSource::parse(&rec).map_err(|e| refused(bad_request(e)))?;
         let bytes = match targets.as_slice() {
             [one] => self.search_bytes(one, &source),
-            many => self.search_bytes_many(many, &source, None),
+            many => self.search_bytes_many(many, &source, None, None),
         }
         .map_err(refused)?;
         serde_json::from_slice(&bytes)

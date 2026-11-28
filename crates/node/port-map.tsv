@@ -409,3 +409,4 @@ src/notifications_route/aws.rs	new		SNS Publish and SES SendEmail requests signe
 src/notifications_route/send.rs	new		one message to one config of any type: channels, SNS and email
 src/notifications_route/smtp.rs	new		mail through a declared SMTP relay: STARTTLS or TLS, AUTH over TLS only, per-recipient status
 src/plugins/wasm_load.rs	new		reads the WASM modules a policy names by hash from the store at start, one GET each
+src/search_stop.rs	new		the question a running search asks between shards to learn it should give up

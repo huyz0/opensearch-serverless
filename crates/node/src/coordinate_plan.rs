@@ -60,6 +60,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             shards: plan.0,
             only: plan.1.as_deref(),
             members: None,
+            stop: None,
         };
         self.handle_sharded(resp, index, visit, source, started)
     }
