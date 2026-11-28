@@ -6,6 +6,9 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ad_preview;
+mod ad_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -64,6 +67,16 @@ mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_managed;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_rig;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_routes;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod ism_template;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod knn_api;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_cache;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_routes;
@@ -71,6 +84,8 @@ mod ltr_routes;
 mod metadata_block;
 #[cfg(feature = "reader")]
 mod newest_ask;
+mod notifications_routes;
+mod notifications_send;
 mod pinned_busy;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_cost;

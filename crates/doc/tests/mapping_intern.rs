@@ -95,19 +95,30 @@ fn many_threads_share_one_mapping_and_distinct_texts_do_not_wait() {
 #[test]
 fn a_hit_costs_far_less_than_a_parse() {
     let table = MappingInterner::new();
+    // The fastest of several first parses and of several rounds of hits, so a
+    // preemption inside one sample on a loaded machine does not decide it.
+    let parse = (0..5)
+        .map(|tag| {
+            let text = mapping_of(150, tag);
+            let start = Instant::now();
+            let _first = table.get(Some(&text)).expect("parses");
+            start.elapsed()
+        })
+        .min()
+        .expect("five parses");
     let text = mapping_of(150, 0);
-    let parse = {
-        let start = Instant::now();
-        let _first = table.get(Some(&text)).expect("parses");
-        start.elapsed()
-    };
     let held = table.get(Some(&text)).expect("hit");
     let hits = 100u32;
-    let start = Instant::now();
-    for _ in 0..hits {
-        let _ = table.get(Some(&text)).expect("hit");
-    }
-    let hit = start.elapsed() / hits;
+    let hit = (0..5)
+        .map(|_| {
+            let start = Instant::now();
+            for _ in 0..hits {
+                let _ = table.get(Some(&text)).expect("hit");
+            }
+            start.elapsed() / hits
+        })
+        .min()
+        .expect("five rounds");
     drop(held);
     assert!(hit * 10 < parse, "hit {hit:?}, parse {parse:?}");
 }

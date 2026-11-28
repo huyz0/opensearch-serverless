@@ -6,6 +6,7 @@
 // sums; an overflow panics the test in a debug build, which fails it.
 #![allow(clippy::arithmetic_side_effects)]
 
+mod alert_registry;
 mod alias_mutations;
 mod alias_races;
 mod alias_restore;
@@ -19,6 +20,7 @@ mod doc_sets;
 mod index_lifecycle;
 mod lifecycle;
 mod listing;
+mod monitors;
 mod point_in_time;
 mod point_in_time_bucket;
 mod point_in_time_capture;

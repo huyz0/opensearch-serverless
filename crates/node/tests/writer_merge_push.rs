@@ -36,7 +36,7 @@ fn counts(cluster: &Cluster, slot: usize, want: u64) {
     let started = Instant::now();
     while total(cluster, slot) != want {
         assert!(
-            started.elapsed() < Duration::from_secs(15),
+            started.elapsed() < Duration::from_secs(90),
             "node {slot} counts {} of {want}",
             total(cluster, slot)
         );

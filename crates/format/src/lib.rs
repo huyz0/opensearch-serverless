@@ -36,6 +36,7 @@
 //! bucketed descriptor ([`FormatError::NotFollowable`]); a reader follows it
 //! through the bucket manifest instead.
 
+mod alert_registry;
 mod alias_record;
 mod bucket_manifest;
 mod change_stripe;
@@ -51,6 +52,7 @@ mod keys;
 mod location;
 mod manifest;
 mod members;
+mod monitor_index;
 mod mutf8;
 mod node_lease;
 mod node_log;
@@ -81,6 +83,11 @@ mod transport_secret;
 mod unit_layout;
 mod wal_record;
 
+pub use alert_registry::{
+    MAX_REGISTRY_ENTRIES, MAX_REGISTRY_SHARD_BYTES, MAX_TENANT_ID_BYTES, REGISTRY_SHARDS,
+    RUN_CLAIM_BYTES, RegistryShard, check_tenant_id, decode_run_claim, encode_run_claim,
+    registry_shard_key, registry_shard_of, run_claim_key,
+};
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
 pub use bucket_manifest::{
     BUCKET_OPEN_PREFIX, BUCKETS_PREFIX, BucketEntry, BucketManifest, BucketMember,
@@ -112,6 +119,10 @@ pub use manifest::{CommitManifest, ManifestEntry, ManifestFile, encode as encode
 pub use members::{
     LEASE_PREFIX, LeaseDigest, MAX_NODE_ID_BYTES, MEMBERS_PREFIX, check_node_id, decode_digest,
     decode_members, encode_digest, encode_members, lease_digest_key, lease_key, members_index_key,
+};
+pub use monitor_index::{
+    MAX_MONITOR_BYTES, MAX_MONITOR_ID_BYTES, MAX_MONITOR_INDEX_BYTES, MAX_MONITORS,
+    MAX_SCHEDULE_BYTES, MonitorEntry, MonitorIndex, monitor_content_key, monitor_index_key,
 };
 pub use node_lease::{MAX_LEASE_BYTES, NodeLease, NodeLogEpoch, java_order};
 pub use node_log::{

@@ -18,6 +18,14 @@ use oss_blob::S3Op;
 use suite_rig::{Cluster, wait_for};
 
 const DOCS: usize = 10_000;
+
+/// Documents a index: `NESTED_SOAK_DOCS` overrides the default for a longer run.
+fn docs() -> usize {
+    std::env::var("NESTED_SOAK_DOCS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DOCS)
+}
 const BULK: usize = 50;
 const PROPS: &str =
     r#""properties":{"who":{"type":"keyword"},"n":{"type":"long"},"note":{"type":"text"}}"#;
@@ -77,7 +85,7 @@ fn nested_writes_cost_the_same_acknowledgement_and_requests_as_plain_ones() {
     }
     let mut runs = ["flat", "nest"].map(|n| (n, Vec::<std::time::Duration>::new(), (0u64, 0u64)));
     let started = Instant::now();
-    for (round, from) in (0..DOCS).step_by(BULK).enumerate() {
+    for (round, from) in (0..docs()).step_by(BULK).enumerate() {
         // Alternate which index goes first so neither always runs warmer.
         let order = if round % 2 == 0 { [0, 1] } else { [1, 0] };
         for slot in order {
@@ -93,7 +101,7 @@ fn nested_writes_cost_the_same_acknowledgement_and_requests_as_plain_ones() {
             runs[slot].2.1 += cluster.sent(S3Op::Get) - gets;
         }
     }
-    println!("{DOCS} documents a index in {:?}", started.elapsed());
+    println!("{} documents a index in {:?}", docs(), started.elapsed());
     // Everything published and visible, parents counted once.
     for (name, ..) in &runs {
         let r = cluster.call(0, "POST", &format!("/{name}/_refresh"), None);
@@ -102,7 +110,7 @@ fn nested_writes_cost_the_same_acknowledgement_and_requests_as_plain_ones() {
             cluster
                 .call(0, "GET", &format!("/{name}/_count"), None)
                 .text()
-                .contains(&format!("\"count\":{DOCS}"))
+                .contains(&format!("\"count\":{}", docs()))
         });
     }
     let result: Vec<Run> = runs
@@ -125,6 +133,11 @@ fn nested_writes_cost_the_same_acknowledgement_and_requests_as_plain_ones() {
             run.latencies.last().expect("some"),
             run.puts,
             run.gets,
+        );
+        let tail: Vec<Duration> = run.latencies.iter().rev().take(6).copied().collect();
+        println!(
+            "{name}: slowest bulks {tail:?}; p95 {:?}",
+            percentile(&run.latencies, 0.95)
         );
     }
     let (flat, nest) = (&result[0], &result[1]);

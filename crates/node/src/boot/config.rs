@@ -102,9 +102,7 @@ pub struct NodeConfig {
     pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
     pub hand_off: bool,
-    /// `OSS_COMMIT_STAGING` with `OSS_COMMIT_CHECKPOINT_MS`
-    /// (`serverless.wal.node_log.commits.staging` and `.checkpoint_millis`):
-    /// the checkpoint age when routine commits are staged, else none.
+    /// `OSS_COMMIT_STAGING` with `OSS_COMMIT_CHECKPOINT_MS`: the checkpoint age when commits are staged, else none.
     pub commit_checkpoint_millis: Option<u64>,
     /// `OSS_NODE_PACKS` and its two sizes: how small segment blobs are packed, else none.
     pub node_packs: Option<crate::writer::PackConfig>,
@@ -112,6 +110,10 @@ pub struct NodeConfig {
     pub commit_logged: commits::Logged,
     /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
     pub ltr: bool,
+    /// `serverless.ism.enabled` (`OSS_ISM`): serve the ISM policy routes. Off by default.
+    pub ism: bool,
+    /// `serverless.ad.enabled` (`OSS_AD`): serve the anomaly detection detector routes. Off by default.
+    pub ad: bool,
     /// The `sltr` window and model cache bounds.
     pub ltr_bounds: ltr::Bounds,
     /// `OSS_SCRIPT_CACHE_TTL`: seconds a stored script is trusted before the set is checked.
@@ -257,18 +259,7 @@ impl NodeConfig {
             ));
         }
         let lease_ttl_millis = lease_timing::ttl_millis(&get)?;
-        let lease_refresh_millis = match get("OSS_LEASE_REFRESH_MS").filter(|v| !v.is_empty()) {
-            None => None,
-            Some(v) => {
-                let millis: u64 = v
-                    .parse()
-                    .map_err(|e| format!("OSS_LEASE_REFRESH_MS: {e}"))?;
-                if millis == 0 {
-                    return Err("OSS_LEASE_REFRESH_MS is below 1".to_owned());
-                }
-                Some(millis)
-            }
-        };
+        let lease_refresh_millis = lease_timing::refresh_millis(&get)?;
         let index_confirm_millis: u64 = or("OSS_INDEX_CONFIRM_MS", "5000")
             .parse()
             .map_err(|e| format!("OSS_INDEX_CONFIRM_MS: {e}"))?;
@@ -325,11 +316,11 @@ impl NodeConfig {
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let (commit_checkpoint_millis, commit_logged) = commits::read(&flag, &bounded)?;
         let knn = flag("OSS_KNN", "true")?;
-        let nested = flag("OSS_NESTED", "false")?;
+        let nested = flag("OSS_NESTED", "true")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
-        let ltr = flag("OSS_LTR", "true")?;
+        let (ltr, ism) = (flag("OSS_LTR", "true")?, flag("OSS_ISM", "false")?);
         let ltr_bounds = ltr::read(&bounded)?;
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
         let security = flag("OSS_SECURITY", "false")?;
@@ -457,6 +448,8 @@ impl NodeConfig {
             commit_logged,
             node_packs: packs::read(&flag, &bounded)?,
             ltr,
+            ism,
+            ad: flag("OSS_AD", "false")?,
             ltr_bounds,
             script_cache_ttl_secs,
             security,

@@ -197,4 +197,13 @@ exclude_re = [
     # ignores the doc-values generation a field is registered with.
     "crates/testkit/src/index/nested.rs:.*replace > with >= in register",
     "crates/testkit/src/index/nested.rs:.*delete - in register",
+    # The host speaks plugin API 1.0, the lowest 1.x, so the only accepted
+    # `plugin.api` is 1.0 and `Manifest::api` returning (1, 0) is the same.
+    "crates/ext/src/manifest.rs:.*replace Manifest::api -> \\(u16, u16\\) with \\(1, 0\\)",
+    # The window shift clears the low bit before the new outcome (0 or 1) is
+    # added, so `|` and `^` give the same number.
+    "crates/ext/src/breaker.rs:.*replace \\| with \\^ in Breaker::counted",
+    # Every point is at version 1 today and a manifest naming another is
+    # refused, so `ManifestPoint::version` returning 1 is the same.
+    "crates/ext/src/manifest.rs:.*replace ManifestPoint::version -> u32 with 1",
 ]
