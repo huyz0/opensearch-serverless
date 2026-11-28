@@ -2,6 +2,8 @@
 //! `fixtures/stock-plugins/knn-train.json`: every `_train` step whose answer
 //! the body alone decides.
 
+#![allow(clippy::disallowed_methods)]
+
 use serde_json::Value;
 
 use super::{TrainRequest, parse};

@@ -98,7 +98,7 @@ fn pq_of(encoder: &Value, dimension: u32) -> Result<Option<Pq>, RestError> {
                 .unwrap_or(&empty);
             let m = positive(p, "m", 1)?;
             let code_size = positive(p, "code_size", 8)?;
-            if dimension % m != 0 {
+            if !dimension.is_multiple_of(m) {
                 return Err(invalid(
                     "Training request ENCODER_PARAMETER_PQ_M is not divisible by vector dimensions",
                 ));
