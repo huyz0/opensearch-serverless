@@ -367,6 +367,9 @@ fn write_aggs(aggs: &[AggRequest], text: &mut Vec<u8>) -> Result<(), ConvertErro
         if let Some(r) = &a.rare {
             text.extend_from_slice(format!(",\"max_doc_count\":{}", r.max_doc_count).as_bytes());
         }
+        if a.kind == AggKind::GeoBounds {
+            text.extend_from_slice(format!(",\"wrap_longitude\":{}", a.wrap_longitude).as_bytes());
+        }
         if let Some(p) = &a.percentiles {
             let keys = serde_json::to_string(&p.keys)
                 .map_err(|_| ConvertError::Number("a percentile key"))?;

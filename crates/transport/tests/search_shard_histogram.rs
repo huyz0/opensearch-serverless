@@ -31,6 +31,7 @@ fn histogram(name: &str, h: DateHistogramRequest) -> AggRequest {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }
 }
@@ -87,6 +88,7 @@ fn the_date_histogram_builders_are_the_bytes_java_wrote() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }];
     round_trips(&recorded("request.date_histogram_subs"), &[with_sub]);

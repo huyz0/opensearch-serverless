@@ -25,6 +25,8 @@ pub(crate) enum Resolved {
     Hits,
     /// A `composite`: its sources read their own fields; whether it runs.
     Composite(bool),
+    /// A `geo_point` field's doc values, for `geo_centroid` and `geo_bounds`.
+    Geo,
 }
 
 /// The text of `Field [<name>] of type [<type>]`'s type.
@@ -126,6 +128,32 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
     let Some(field) = shard.meta.mapping.get(&agg.field) else {
         return Ok(Resolved::Unmapped);
     };
+    if matches!(agg.metric, Metric::GeoCentroid | Metric::GeoBounds) {
+        if field.ty != FieldType::GeoPoint {
+            return Err(bad_request(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "Field [{}] of type [{}] is not supported for aggregation [{}]",
+                    agg.field,
+                    type_name(&field.ty),
+                    agg.metric.name()
+                ),
+            )));
+        }
+        if !field.doc_values {
+            return Err(bad_request(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "Can't load fielddata on [{}] because fielddata is unsupported on fields of \
+                     type [geo_point]. Use doc values instead.",
+                    agg.field
+                ),
+            )));
+        }
+        return Ok(Resolved::Geo);
+    }
     let format = match &field.ty {
         FieldType::Int { .. } | FieldType::Long | FieldType::Date
             if agg.metric == Metric::SignificantTerms

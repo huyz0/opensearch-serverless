@@ -38,6 +38,7 @@ fn agg(name: &str, metric: Metric, field: &str) -> MetricAgg {
         rare: None,
         scripted: None,
         script: None,
+        wrap_longitude: true,
         name: name.to_owned(),
         metric,
         field: field.to_owned(),

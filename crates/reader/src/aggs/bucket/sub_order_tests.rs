@@ -37,6 +37,7 @@ fn sub(name: &str, metric: Metric) -> MetricAgg {
         rare: None,
         scripted: None,
         script: None,
+        wrap_longitude: true,
     }
 }
 

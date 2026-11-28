@@ -369,3 +369,7 @@ src/painless_cache_tests.rs	new		tests of the compile cache
 src/knn/stats.rs	new		process-wide counts of knn queries run, for the plugin stats API (docs/specs/knn-plugin-api)
 src/knn/stats_tests.rs	new		tests of knn/stats.rs over a real shard
 src/knn/unmapped_tests.rs	new		tests of knn ignore_unmapped over a real shard
+src/aggs/metric/geo.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/InternalGeoCentroid.java	geo_centroid and geo_bounds: shard values, reduce (InternalGeoCentroid.reduce, InternalGeoBounds.reduce) and bodies (resolveGeoBoundingBox)
+src/aggs/metric/geo_tests.rs	new		tests of geo.rs
+src/aggs/metric/geo_parse.rs	port	modules/geo/src/main/java/org/opensearch/geo/search/aggregations/metrics/GeoBoundsAggregationBuilder.java	the bodies of geo_centroid and geo_bounds: field and wrap_longitude
+src/aggs/metric/collect_needs.rs	new		which parts of the engine's metric state each metric reads

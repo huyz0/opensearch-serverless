@@ -77,6 +77,28 @@ pub(super) fn value(
         Part::Range(r) => AggValue::Range(range::answer(r, format, request(asked, name)?)?),
         Part::Rare(r) => AggValue::Rare(rare::answer(r)?),
         Part::Multi(r) => AggValue::Multi(multi::answer(r, request(asked, name)?)?),
+        Part::GeoCentroid { count, lat, lon } => AggValue::GeoCentroid {
+            count: i64::try_from(*count).unwrap_or(i64::MAX),
+            lat: *lat,
+            lon: *lon,
+        },
+        Part::GeoBounds {
+            top,
+            bottom,
+            pos_left,
+            pos_right,
+            neg_left,
+            neg_right,
+            wrap,
+        } => AggValue::GeoBounds {
+            top: *top,
+            bottom: *bottom,
+            pos_left: *pos_left,
+            pos_right: *pos_right,
+            neg_left: *neg_left,
+            neg_right: *neg_right,
+            wrap: *wrap,
+        },
         Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(*n).unwrap_or(i64::MAX)),
         _ => {
             return Err(refuse(

@@ -15,10 +15,9 @@
 
 use std::collections::HashMap;
 
+use crate::aggs::metric::collect_needs::needs;
 use lucene_aggs::bucket_aggs::{AggNode, AggResult, CardinalityKind, Globals, aggregate_tree};
-use lucene_aggs::metric_aggs::{
-    MetricState, NEED_COUNT, NEED_MAX, NEED_MIN, NEED_MIN_MAX, NEED_SQ, NEED_SUM, Source, ValueKind,
-};
+use lucene_aggs::metric_aggs::{MetricState, Source, ValueKind};
 use lucene_search::BooleanQuery;
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::multi_segment::OpenSegment;
@@ -34,6 +33,7 @@ use crate::aggs::bucket::{
     histogram_collect, histogram_spec, keyword_subs, range_collect, terms_collect, terms_spec,
     with_subs,
 };
+use crate::aggs::metric::geo;
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::resolve::bad_request;
 pub(crate) use crate::aggs::metric::resolve::{Resolved, resolve, value_kind};
@@ -45,50 +45,7 @@ use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
 use crate::aggs::partial::{Format, Partial, Value};
 use crate::failure::Failure;
 use crate::search::ShardError;
-
-/// What `avg` reads: the sum and the count.
-const AVG_NEEDS: u8 = NEED_SUM + NEED_COUNT;
-
-/// What `stats` reads: the count, the sum, the smallest and the largest.
-const STATS_NEEDS: u8 = NEED_COUNT + NEED_SUM + NEED_MIN_MAX;
-
-/// What `extended_stats` reads: `stats`' and the sum of squares.
-const EXTENDED_NEEDS: u8 = STATS_NEEDS + NEED_SQ;
-
-/// What a metric reads of its field's state.
-fn needs(metric: Metric) -> u8 {
-    match metric {
-        Metric::Min => NEED_MIN,
-        Metric::Max => NEED_MAX,
-        Metric::Sum => NEED_SUM,
-        Metric::Avg => AVG_NEEDS,
-        Metric::Stats => STATS_NEEDS,
-        Metric::ExtendedStats => EXTENDED_NEEDS,
-        Metric::ValueCount
-        | Metric::Cardinality
-        | Metric::Percentiles
-        | Metric::PercentileRanks
-        | Metric::TopHits
-        | Metric::Terms
-        | Metric::SignificantTerms
-        | Metric::RareTerms
-        | Metric::Histogram
-        | Metric::DateHistogram
-        | Metric::AutoDateHistogram => NEED_COUNT,
-        Metric::Range
-        | Metric::DateRange
-        | Metric::Filters
-        | Metric::AdjacencyMatrix
-        | Metric::Filter
-        | Metric::Missing
-        | Metric::Global
-        | Metric::Composite
-        | Metric::MultiTerms
-        | Metric::Nested
-        | Metric::ReverseNested
-        | Metric::ScriptedMetric => NEED_COUNT,
-    }
-}
+use lucene_aggs::geo_aggs::GeoState;
 
 /// The shard-level result of `agg` from its field's `state`.
 pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
@@ -117,6 +74,8 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::ValueCount => Value::ValueCount(state.count),
         Metric::Cardinality => Value::Cardinality(None),
         Metric::Percentiles | Metric::PercentileRanks => percentiles_of(agg, None),
+        Metric::GeoCentroid => geo::centroid_of(&GeoState::default()),
+        Metric::GeoBounds => geo::bounds_of(&GeoState::default(), agg.wrap_longitude),
         // ALLOC: one box a `terms`, bounded by the request's.
         Metric::Terms => Value::Terms(Box::new(terms_collect::empty(&terms_spec(agg)))),
         // ALLOC: one box a `histogram`, bounded by the request's.
@@ -248,6 +207,13 @@ fn engine_error(e: &dyn std::fmt::Display) -> ShardError {
 /// The shard-level result of `agg` from the engine's `result`.
 pub(crate) fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardError> {
     match result {
+        Some(AggResult::Geo(states)) => {
+            let state = states.first().copied().unwrap_or_default();
+            Ok(match agg.metric {
+                Metric::GeoBounds => geo::bounds_of(&state, agg.wrap_longitude),
+                _ => geo::centroid_of(&state),
+            })
+        }
         Some(AggResult::Metric(states)) => Ok(value_of(
             agg,
             states.first().unwrap_or(&MetricState::default()),
@@ -379,6 +345,10 @@ pub fn collect<S: BlobStore + 'static>(
             Resolved::Keyword => {
                 nodes.push(keyword_subs::node(agg, shard, &mut ords, &mut queries)?)
             }
+            Resolved::Geo => nodes.push(AggNode::GeoPoints {
+                // ALLOC: one field name an aggregation, bounded by the request's.
+                field: agg.field.clone(),
+            }),
             Resolved::Queries => {
                 let mut made = filters_collect::node(agg, queries.take_own(agg));
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
@@ -459,6 +429,7 @@ pub fn collect<S: BlobStore + 'static>(
                 (format, with_subs::value(agg, shard, results.next())?)
             }
             Resolved::Numeric(format) => (format, value_from(agg, results.next())?),
+            Resolved::Geo => (Format::Raw, value_from(agg, results.next())?),
             Resolved::Queries => (Format::Raw, with_subs::value(agg, shard, results.next())?),
             Resolved::Keyword => (
                 Format::Raw,

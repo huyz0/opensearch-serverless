@@ -48,6 +48,8 @@ pub struct AggRequest {
     pub rare: Option<RareRequest>,
     /// A `multi_terms`' terms and options.
     pub multi: Option<MultiRequest>,
+    /// A `geo_bounds`' `wrap_longitude`; true for every other aggregation.
+    pub wrap_longitude: bool,
     /// The sub-aggregations of a bucket aggregation, in request order.
     pub subs: Vec<AggRequest>,
 }
@@ -93,6 +95,32 @@ pub enum AggValue {
         digest: Vec<u8>,
         /// `keyed`.
         keyed: bool,
+    },
+    /// `InternalGeoCentroid`: the centroid and its point count.
+    GeoCentroid {
+        /// How many points; 0 for none, which has no centroid.
+        count: i64,
+        /// The centroid's latitude.
+        lat: f64,
+        /// The centroid's longitude.
+        lon: f64,
+    },
+    /// `InternalGeoBounds`: the six extremes and `wrap_longitude`.
+    GeoBounds {
+        /// The largest latitude.
+        top: f64,
+        /// The smallest latitude.
+        bottom: f64,
+        /// The smallest longitude at or above 0.
+        pos_left: f64,
+        /// The largest longitude at or above 0.
+        pos_right: f64,
+        /// The smallest longitude below 0.
+        neg_left: f64,
+        /// The largest longitude below 0.
+        neg_right: f64,
+        /// `wrap_longitude`.
+        wrap: bool,
     },
     /// `InternalStats`.
     Stats {
@@ -275,6 +303,7 @@ fn read_one(input: &mut Input<'_>, walk: &mut Walk<'_>) -> Result<AggRequest, Re
             ranges: None,
             rare: None,
             multi: Some(multi),
+            wrap_longitude: true,
             subs,
         });
     }
@@ -304,6 +333,12 @@ fn read_one(input: &mut Input<'_>, walk: &mut Walk<'_>) -> Result<AggRequest, Re
             return Err(Refusal::Unsupported("an execution hint"));
         }
     }
+    // `GeoBoundsAggregationBuilder.innerWriteTo`.
+    let wrap_longitude = if kind == AggKind::GeoBounds {
+        input.bool("wrap_longitude")?
+    } else {
+        true
+    };
     let mut percentiles = None;
     if matches!(kind, AggKind::Percentiles | AggKind::PercentileRanks) {
         percentiles = Some(aggs_percentiles::read(input)?);
@@ -339,6 +374,7 @@ fn read_one(input: &mut Input<'_>, walk: &mut Walk<'_>) -> Result<AggRequest, Re
         ranges,
         rare,
         multi: None,
+        wrap_longitude,
         subs,
     })
 }
@@ -414,6 +450,9 @@ fn write_builder(
         }
         if let Some(r) = &agg.rare {
             aggs_rare::write(r, out)?;
+        }
+        if agg.kind == AggKind::GeoBounds {
+            out.bool(agg.wrap_longitude)?;
         }
         if let Some(p) = &agg.percentiles {
             out.count(p.keys.len())?;
