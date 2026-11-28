@@ -345,6 +345,30 @@ pub(crate) fn ad_routes<S: BlobStore + 'static>(
     crate::ad_route::routes(router, &Arc::new(ad)).map_err(AssembleError::Route)
 }
 
+/// Registers the SQL routes over `search`: always, so a node with the setting
+/// off answers the plugin's disabled error rather than an unknown route.
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub(crate) fn sql_routes<S: BlobStore + 'static>(
+    router: Router,
+    config: &Config,
+    search: &Arc<crate::search::SearchService<S>>,
+    security: Option<&Arc<SecurityState>>,
+) -> Result<Router, AssembleError> {
+    use crate::sql_route::{AllowAll, SqlBackend, SqlGuard, SqlLimits, SqlService};
+    let guard: Arc<dyn SqlGuard> = match security {
+        Some(state) => Arc::new(crate::sql_route::NameGuard::new(Arc::clone(state))),
+        None => Arc::new(AllowAll),
+    };
+    let limits = SqlLimits {
+        enabled: config.sql,
+        size_limit: config.sql_size_limit,
+        max_request_bytes: config.sql_max_request_bytes,
+    };
+    let backend: Arc<dyn SqlBackend> = Arc::clone(search) as _;
+    let service = Arc::new(SqlService::new(backend, guard, limits));
+    crate::sql_route::routes(router, &service).map_err(AssembleError::Route)
+}
+
 #[cfg(test)]
 mod tests {
     /// `super::register` with the script cache a node would give it.

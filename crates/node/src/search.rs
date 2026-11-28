@@ -399,6 +399,8 @@ pub(crate) mod open_shard;
 mod rank_eval;
 #[path = "search_shard.rs"]
 mod shard_query;
+#[path = "search_sql.rs"]
+mod sql;
 #[path = "search_template.rs"]
 mod template;
 #[path = "search_uri_query.rs"]

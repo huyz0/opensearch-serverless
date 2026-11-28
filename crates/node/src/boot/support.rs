@@ -196,6 +196,9 @@ pub(super) fn apply_janitor_and_hibernation(
     node.knn = config.knn;
     node.nested = config.nested;
     node.ltr = config.ltr;
+    node.sql = config.sql;
+    node.sql_size_limit = config.sql_bounds.size_limit;
+    node.sql_max_request_bytes = config.sql_bounds.max_request_bytes;
     node.ism = config.ism;
     node.ad = config.ad;
     node.ltr_max_window = config.ltr_bounds.max_window;

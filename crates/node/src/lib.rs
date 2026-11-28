@@ -199,6 +199,9 @@ pub mod snapshot_restore_route;
 pub mod snapshot_route;
 #[cfg(feature = "writer")]
 pub mod snapshot_take_route;
+#[cfg(feature = "reader")]
+pub mod sql_route;
+pub mod sql_setting;
 #[cfg(feature = "writer")]
 pub mod stock_export_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]

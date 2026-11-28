@@ -324,3 +324,10 @@ src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a reques
 src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded, memory only, no blob request (ADR 0084)
 src/jobs/types.rs	new		the registry's limits, caller, context and errors
 src/jobs/tests.rs	new		the registry bounds, with the clock and the search gates passed in
+src/boot/config/sql.rs	new		the SQL row and request bounds read from the environment
+src/search_sql.rs	new		the SQL backend over the node search service
+src/sql_route/guard.rs	new		the per-name authorisation of the names a SQL statement reads
+src/sql_route/handle.rs	new		the SQL request handler: parse, authorise, plan, search, write
+src/sql_route/mod.rs	new		the SQL service and its backend trait, per ADR 0082
+src/sql_route/routes.rs	new		the SQL and explain routes under the plugin and legacy prefixes
+src/sql_setting.rs	new		serverless.sql.enabled
