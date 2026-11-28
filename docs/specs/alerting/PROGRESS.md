@@ -9,3 +9,10 @@ Slice 1 (the registry and run claims, `oss_format::alert_registry`, `oss_meta::A
 - Bound: a shard past 4,096 tenants refuses a new tenant (`a_full_shard_refuses_a_new_tenant_and_keeps_a_present_one`); a tenant already named still registers.
 
 Not run: the spec's concurrent soak across nodes (slice 5); the registry's bytes read per TTL at 1 million tenants.
+
+## Slice 2a: the monitor index and the store
+
+- `crates/format/tests/monitor_index.rs`: the index format (id order, bounds, damaged indexes refused, keys). Every test of the format was written with the code and then held by mutation: the first run of `cargo mutants` on `monitor_index.rs` missed five mutants (a size bound, three duplicate-field guards, an edge), each now has a test, and all 65 are caught or unviable.
+- `crates/meta/tests/descriptors/monitors.rs` (emulator, S3 on loopback, file store): put, read, replace, delete, `require_absent`, no blob left behind, the tenant registered by an enabled put and removed by the delete or disable of its last enabled monitor and not before, tenants kept apart, bounds. Row `alerting.monitor_put.requests`. All 41 mutants of `monitors.rs` are caught or unviable (three were missed first and got tests: the index's content, the body bound's edge, and that a disabled put beside an enabled monitor makes no registry request).
+- AC-2 as built: a put is the index read, the body's write and the index's swap (1 GET and 2 PUTs), an enabled put adds the registry's shard read and swap (1 GET and 1 PUT), a delete or disable of the last enabled monitor adds the shard read, the index read and the shard swap. The spec's "before and after" shard reads are superseded by the always-swap protocol of slice 5.
+- Not here: the routes (slice 2b), `_search`, `_execute`, alerts.
