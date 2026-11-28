@@ -63,6 +63,7 @@ impl KnnTrainService {
         let options = ParseOptions {
             knn: Some(true),
             nested: true,
+            geo: true,
         };
         let mapping = Mapping::parse_with(text.as_bytes(), options).map_err(|_| missing())?;
         let leaf = mapping

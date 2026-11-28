@@ -8,6 +8,7 @@ use oss_doc::mapping::{Mapping, ParseOptions};
 const ON: ParseOptions = ParseOptions {
     knn: Some(true),
     nested: false,
+    geo: false,
 };
 
 fn parse(extra: &str, dimension: u32) -> Result<Mapping, oss_doc::mapping::MappingError> {

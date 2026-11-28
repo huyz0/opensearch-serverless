@@ -147,6 +147,12 @@ impl Leaf {
                 .unwrap_or(0);
         }
         leaf.follow_unset(set);
+        if ty == FieldType::GeoPoint && !leaf.fields.is_empty() {
+            // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
+            return Err(MappingError::unsupported(&format!(
+                "multi-fields on the geo_point field [{name}]"
+            )));
+        }
         leaf.validate(name)?;
         if ty == FieldType::Knn {
             leaf.resolve_knn(name)?;
