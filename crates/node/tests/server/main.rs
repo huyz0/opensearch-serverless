@@ -16,6 +16,8 @@ mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod async_search_relay;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod async_search_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot;

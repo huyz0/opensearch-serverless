@@ -5,6 +5,7 @@
 //! head's conditional write is what fences a writer, so a late renewal can
 //! cost a handover and never a write.
 
+mod async_search;
 mod config;
 mod edge;
 mod error;
@@ -203,14 +204,11 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mut registry = Registry::new(Arc::clone(&auth));
     registry
         .add(oss_transport::actions::push::PUSH_ACTION, late_push)
-        .map_err(|e| BootError::Cluster(e.to_string()))?;
-    registry
-        .add(BULK_ACTION, late)
-        .map_err(|e| BootError::Cluster(e.to_string()))?;
-    registry
-        .add(GET_ACTION, late_get)
-        .map_err(|e| BootError::Cluster(e.to_string()))?;
+        .map_err(cluster)?;
+    registry.add(BULK_ACTION, late).map_err(cluster)?;
+    registry.add(GET_ACTION, late_get).map_err(cluster)?;
     let late_tasks_slot = tasks::register(&mut registry)?;
+    let late_search = async_search::register(&mut registry)?;
     join::register(&mut registry, &membership).map_err(|e| BootError::Cluster(e.to_string()))?;
     let shard_action = search_shard::register(&mut registry, config)?;
     let mut handlers = registry.into_handlers();
@@ -400,6 +398,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let get = GetHandler::new(Arc::clone(&assembled.role), &config.node_id);
     late_get_slot.set(Arc::new(get)).ok();
     tasks::wire(&assembled, &late_tasks_slot, &client, &auth, &membership);
+    async_search::wire(&assembled, &late_search, &client, &auth, &membership);
     let push = crate::push::PushHandler::new(Arc::clone(&assembled.search));
     late_push_slot.set(Arc::new(push)).ok();
     shard_action.install(&assembled.role, &assembled.search, config, &budget);

@@ -7,6 +7,7 @@
 // panics the test in a debug build, which fails it.
 #![allow(clippy::arithmetic_side_effects)]
 
+mod async_search;
 mod exceptions;
 mod fake_peer;
 mod forwarding;

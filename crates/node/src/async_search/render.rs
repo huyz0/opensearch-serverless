@@ -116,6 +116,32 @@ pub(super) fn not_found(id: &str) -> RestError {
     )
 }
 
+/// An id of a node no live lease names: 404, naming the node.
+pub(super) fn unreachable(node: &str, id: &str) -> RestError {
+    RestError::exception(
+        404,
+        // ALLOC: error path; one message.
+        Exception::new(
+            "resource_not_found_exception",
+            format!(
+                "Either the resource [{id}] does not exist or you do not have access: no live node [{node}] holds it"
+            ),
+        ),
+    )
+}
+
+/// A relayed call that failed on the way: 503.
+pub(super) fn relay_failed(node: &str) -> RestError {
+    RestError::exception(
+        503,
+        // ALLOC: error path; one message.
+        Exception::new(
+            "es_rejected_execution_exception",
+            format!("the call to node [{node}] failed"),
+        ),
+    )
+}
+
 /// A registry refusal as the client sees it.
 pub(super) fn refusal(e: JobError, id: &str) -> RestError {
     match e {
