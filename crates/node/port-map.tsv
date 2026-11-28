@@ -417,3 +417,4 @@ src/search_stop.rs	new		the question a running search asks between shards to lea
 src/ism_run/backend.rs	new		the effects the runner asks of the node, a trait so the decision is tested with a fake
 src/ism_run/node_backend.rs	new		the runner backend over the settings service
 src/settings_route/block.rs	new		the write block as the runner sets it, through the route's own merge and swap
+src/ad_route/results_route.rs	new		POST|GET /detectors/results/_search[/{result_index}]: a search of the result index through the node search; no stock recording exists (AC-15 gap)
