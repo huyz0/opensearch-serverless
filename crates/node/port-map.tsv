@@ -391,6 +391,8 @@ src/reports_route/definition.rs	new		what a report definition must hold: the sto
 src/reports_route/cron.rs	new		the shape of a five-field cron expression
 src/reports_route/routes.rs	new		the route table under /_plugins/_reports/definition
 src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors from the registry, run the ones this node owns that are due; no stock recording exists (AC-15 gap)
+src/ml_route/outbound.rs	new		the guarded outbound HTTPS client for remote model calls: egress guard, bounded concurrency, timeout and response size
+src/ml_route/predict.rs	new		POST _predict for remote models: opens the connector (cached), prepares, calls, parses
 src/boot/ad_loop.rs	new		the thread that ticks the anomaly detection scheduler with the live nodes; no stock recording exists (AC-15 gap)
 src/boot/node_impl.rs	new		the running node's accessors and drop order, moved out of boot/mod.rs to keep it under the module size limit
 src/notifications_route/notifier.rs	new		the in-process sender alerting and ISM call: a config by id through a per-node cache
@@ -411,3 +413,5 @@ src/notifications_route/smtp.rs	new		mail through a declared SMTP relay: STARTTL
 src/plugins/wasm_load.rs	new		reads the WASM modules a policy names by hash from the store at start, one GET each
 src/plugins/jobs.rs	new		the job.* host operations over a registry of the plugins own, reserved from the plugin pool
 src/plugins/jobs_tests.rs	new		job.*: a plugin starts, reads and deletes its own job and no other plugin or tenant sees it
+src/search_stop.rs	new		the question a running search asks between shards to learn it should give up
+src/ism_run/backend.rs	new		the effects the runner asks of the node, a trait so the decision is tested with a fake

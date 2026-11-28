@@ -42,6 +42,26 @@ impl<S: BlobStore + 'static> SqlBackend for SearchService<S> {
     }
 
     fn search(&self, names: &[String], body: &Value) -> Result<Vec<u8>, SqlFailure> {
+        self.run_search(names, body, None)
+    }
+
+    fn search_until(
+        &self,
+        names: &[String],
+        body: &Value,
+        stop: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Vec<u8>, SqlFailure> {
+        self.run_search(names, body, Some(stop))
+    }
+}
+
+impl<S: BlobStore + 'static> SearchService<S> {
+    fn run_search(
+        &self,
+        names: &[String],
+        body: &Value,
+        stop: Option<super::Stop<'_>>,
+    ) -> Result<Vec<u8>, SqlFailure> {
         let bytes = body.to_string().into_bytes();
         let mut source =
             parse_chunks([bytes.as_slice()]).map_err(|e| failure(super::bad_request(e)))?;
@@ -50,8 +70,8 @@ impl<S: BlobStore + 'static> SqlBackend for SearchService<S> {
             .expand_names(names.iter().map(String::as_str))
             .map_err(SqlFailure::Rest)?;
         let answer = match indices.as_slice() {
-            [one] => self.search_bytes(one, &source),
-            many => self.search_bytes_many(many, &source, None),
+            [one] => self.search_bytes_routed(one, &source, None, stop),
+            many => self.search_bytes_many(many, &source, None, stop),
         };
         answer.map_err(failure)
     }

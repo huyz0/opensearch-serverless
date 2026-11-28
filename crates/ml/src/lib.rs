@@ -5,3 +5,4 @@
 
 pub mod connector;
 pub mod credentials;
+pub mod predict;

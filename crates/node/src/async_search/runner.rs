@@ -59,9 +59,11 @@ impl Runner for SearchRunner {
             if ctx.should_stop() {
                 return Err(Failure::Stopped);
             }
-            match backend.search(&names, &body) {
+            match backend.search_until(&names, &body, &|| ctx.should_stop()) {
                 Ok(bytes) if bytes.len() > ctx.max_bytes() => Err(Failure::TooLarge),
                 Ok(bytes) => Ok(bytes),
+                // The search gave up at a shard boundary because it was told to.
+                Err(_) if ctx.should_stop() => Err(Failure::Stopped),
                 Err(SqlFailure::Body(_, body)) => Err(Failure::Error(error_object(&body))),
                 Err(SqlFailure::Rest(e)) => {
                     let mut out = Vec::new();

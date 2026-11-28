@@ -3,3 +3,5 @@ src/lib.rs	new		wraps lucene-ml; no Java source
 src/credentials.rs	port	ml-commons MLEngine (credential encryption)	done by lucene-ml remote::esdk; this module only wraps it
 src/connector.rs	new		the stock connector checks (name, protocol, trusted URLs) from the recorded 3.10.0 answers
 src/connector/tests.rs	new		unit tests of the connector checks
+src/predict.rs	new		the remote predict step: open a stored connector, prepare the call, read the answer
+src/predict/tests.rs	new		unit tests of the remote predict step

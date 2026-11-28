@@ -224,7 +224,7 @@ pub(crate) fn window_bytes<S: BlobStore + 'static>(
                 .mapping
                 .get(field)
                 .is_some_and(|f| f.ty == FieldType::Keyword),
-            SortKey::Score { .. } | SortKey::Script { .. } => false,
+            SortKey::Score { .. } | SortKey::Script { .. } | SortKey::GeoDistance(_) => false,
         })
         .count();
     let per_hit = std::mem::size_of::<Hit>()

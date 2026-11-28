@@ -5,6 +5,7 @@ use oss_format::DocKind;
 use oss_meta::{DocSet, ScheduleRegistry};
 use serde_json::{Value, json};
 
+use super::backend::Unsupported;
 use super::schedule::{NAMESPACE, Scheduler, TENANT};
 
 const DAY: i64 = 86_400_000;
@@ -56,7 +57,7 @@ fn record(s: &Arc<Emulator>, index: &str) -> Value {
 }
 
 fn node(s: &Arc<Emulator>, name: &str) -> Scheduler {
-    Scheduler::new(&dynstore(s), "", name, 60_000, BUF).unwrap()
+    Scheduler::new(&dynstore(s), "", Arc::new(Unsupported), name, 60_000, BUF).unwrap()
 }
 
 #[test]

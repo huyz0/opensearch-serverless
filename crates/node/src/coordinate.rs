@@ -23,7 +23,7 @@ use oss_reader::failure::{Failure, SearchError};
 use oss_reader::search::Hits;
 use oss_rest::{JSON, Length, Response, RestError};
 
-use super::{Answer, SearchService, ShardQuery, send};
+use super::{Answer, SearchService, ShardQuery, Stop, cancelled, send};
 
 #[path = "coordinate_plan.rs"]
 mod plan;
@@ -41,6 +41,9 @@ pub(super) struct Visit<'a> {
     /// The (index, shard) pairs of a search over several indexes, in merge
     /// order; `shards` is their count.
     pub(super) members: Option<&'a [(String, u32)]>,
+    /// Asked before each shard is queried; none for a search that is never
+    /// cancelled.
+    pub(super) stop: Option<Stop<'a>>,
 }
 
 /// A shard's error, as the text a failure lists.
@@ -78,6 +81,8 @@ struct Local<'a, S: BlobStore + 'static> {
     only: Option<&'a [u32]>,
     /// The pairs a search over several indexes queries.
     members: Option<&'a [(String, u32)]>,
+    /// Asked before each shard is queried.
+    stop: Option<Stop<'a>>,
 }
 
 impl<S: BlobStore + 'static> Shards for Local<'_, S> {
@@ -91,6 +96,9 @@ impl<S: BlobStore + 'static> Shards for Local<'_, S> {
     }
 
     fn query(&self, shard: usize) -> Result<ShardQuery<S>, ShardError> {
+        if self.stop.is_some_and(|stop| stop()) {
+            return Err(ShardError(cancelled()));
+        }
         if let Some((view, id)) = self.frozen {
             let number = view.shards.get(shard).map_or(u32::MAX, |s| s.shard);
             return self
@@ -185,6 +193,7 @@ fn sorts(keys: &[SortKey]) -> Option<Vec<SortSpec>> {
                     SortKey::Score { ascending }
                     | SortKey::Field { ascending, .. }
                     | SortKey::Script { ascending, .. } => *ascending,
+                    SortKey::GeoDistance(sort) => sort.ascending,
                 };
                 SortSpec {
                     descending: !ascending,
@@ -220,6 +229,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 shards,
                 only: None,
                 members: None,
+                stop: None,
             },
             source,
             took_ms,
@@ -247,6 +257,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 shards: view.shards.len(),
                 only: None,
                 members: None,
+                stop: None,
             },
             source,
             took_ms,
@@ -267,6 +278,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             shards,
             only,
             members,
+            stop,
         } = visit;
         let params = Params {
             from: source.from,
@@ -298,6 +310,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             frozen,
             only,
             members,
+            stop,
         };
         search(&local, shards, &params)
     }
