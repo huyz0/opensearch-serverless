@@ -7,6 +7,7 @@
 //! body; nothing lists. `_seq_no` and `_version` are the index's change
 //! count.
 
+mod misc;
 mod monitor;
 mod routes;
 mod search;

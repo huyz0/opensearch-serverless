@@ -378,3 +378,40 @@ fn a_search_reads_only_the_page_it_returns_unless_it_must_look_at_every_body() {
     );
     assert_eq!(r.store.meter().count(S3Op::List), 0);
 }
+
+#[test]
+fn the_routes_with_no_state_yet_answer_empty_on_both_prefixes() {
+    let r = rig();
+    for prefix in ["/_plugins/_alerting", "/_opendistro/_alerting"] {
+        let (status, dest) = call(&r, "GET", &format!("{prefix}/destinations"), None);
+        assert_eq!((status, dest["totalDestinations"].as_i64()), (200, Some(0)));
+        let (status, one) = call(&r, "GET", &format!("{prefix}/destinations/nope"), None);
+        assert_eq!(
+            (status, one["destinations"].as_array().map(Vec::len)),
+            (200, Some(0))
+        );
+        for kind in ["email_accounts", "email_groups"] {
+            let (status, hits) = call(
+                &r,
+                "POST",
+                &format!("{prefix}/destinations/{kind}/_search"),
+                None,
+            );
+            assert_eq!(
+                (status, hits["hits"]["total"]["value"].as_i64()),
+                (200, Some(0))
+            );
+        }
+        let (status, found) = call(&r, "GET", &format!("{prefix}/findings/_search"), None);
+        assert_eq!((status, found["total_findings"].as_i64()), (200, Some(0)));
+        let (status, stats) = call(&r, "GET", &format!("{prefix}/stats"), None);
+        assert_eq!(
+            (status, stats["nodes_on_schedule"].as_i64()),
+            (200, Some(1))
+        );
+        assert_eq!(
+            call(&r, "GET", &format!("{prefix}/stats/jobs_info"), None).0,
+            200
+        );
+    }
+}

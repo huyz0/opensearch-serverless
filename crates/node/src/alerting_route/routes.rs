@@ -21,17 +21,60 @@ const PARAMS: &[&str] = &[
     "timeout",
 ];
 
+/// The parameters of the findings search.
+const FINDINGS: &[&str] = &[
+    "findingId",
+    "sortString",
+    "sortOrder",
+    "size",
+    "startIndex",
+    "searchString",
+];
+
 type Handler = fn(&AlertingService, &mut Request<'_>, &mut Response<'_>) -> Result<(), RestError>;
 
-fn table() -> [(Method, &'static str, Handler); 7] {
+type Entry = (Method, &'static str, &'static [&'static str], Handler);
+
+fn table() -> [Entry; 17] {
+    use AlertingService as S;
     [
-        (Method::Post, "/monitors", AlertingService::create),
-        (Method::Post, "/monitors/_search", AlertingService::search),
-        (Method::Get, "/monitors/_search", AlertingService::search),
-        (Method::Put, "/monitors/{id}", AlertingService::update),
-        (Method::Get, "/monitors/{id}", AlertingService::get),
-        (Method::Head, "/monitors/{id}", AlertingService::head),
-        (Method::Delete, "/monitors/{id}", AlertingService::delete),
+        (Method::Post, "/monitors", PARAMS, S::create),
+        (Method::Post, "/monitors/_search", PARAMS, S::search),
+        (Method::Get, "/monitors/_search", PARAMS, S::search),
+        (Method::Put, "/monitors/{id}", PARAMS, S::update),
+        (Method::Get, "/monitors/{id}", PARAMS, S::get),
+        (Method::Head, "/monitors/{id}", PARAMS, S::head),
+        (Method::Delete, "/monitors/{id}", PARAMS, S::delete),
+        (Method::Get, "/destinations", PARAMS, S::destinations),
+        (Method::Get, "/destinations/{id}", PARAMS, S::destinations),
+        (
+            Method::Post,
+            "/destinations/email_accounts/_search",
+            PARAMS,
+            S::email_search,
+        ),
+        (
+            Method::Get,
+            "/destinations/email_accounts/_search",
+            PARAMS,
+            S::email_search,
+        ),
+        (
+            Method::Post,
+            "/destinations/email_groups/_search",
+            PARAMS,
+            S::email_search,
+        ),
+        (
+            Method::Get,
+            "/destinations/email_groups/_search",
+            PARAMS,
+            S::email_search,
+        ),
+        (Method::Get, "/findings/_search", FINDINGS, S::findings),
+        (Method::Get, "/stats", PARAMS, S::stats),
+        (Method::Get, "/stats/{metric}", PARAMS, S::stats),
+        (Method::Get, "/{node}/stats", PARAMS, S::stats),
     ]
 }
 
@@ -43,14 +86,14 @@ fn table() -> [(Method, &'static str, Handler); 7] {
 pub fn routes(router: Router, service: &Arc<AlertingService>) -> Result<Router, RouteError> {
     let mut router = router;
     for root in ["/_plugins/_alerting", "/_opendistro/_alerting"] {
-        for (method, tail, handler) in table() {
+        for (method, tail, params, handler) in table() {
             // ALLOC: the router keeps its patterns for the life of the process.
             let path: &'static str = Box::leak(format!("{root}{tail}").into_boxed_str());
             let service = Arc::clone(service);
             router = router.route(
                 method,
                 path,
-                PARAMS,
+                params,
                 move |q: &mut Request<'_>, r: &mut Response<'_>| handler(&service, q, r),
             )?;
         }
