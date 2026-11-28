@@ -194,9 +194,14 @@ fn what_cannot_be_pushed_is_a_400_and_no_search_runs() {
 #[test]
 fn a_syntax_error_has_the_plugins_shape_and_costs_nothing() {
     let r = rig(true);
-    let reply = post(&r, "/_plugins/_sql", "SELEKT *");
+    let reply = post(&r, "/_plugins/_sql", "select from");
     assert_eq!(reply.status, 400);
-    assert_eq!(json_of(&reply)["error"]["type"], "SyntaxCheckException");
+    assert_eq!(json_of(&reply)["error"]["type"], "ParserException");
+    let reply = post(&r, "/_plugins/_sql", "SELEKT *");
+    assert_eq!(
+        json_of(&reply)["error"]["type"],
+        "SQLFeatureNotSupportedException"
+    );
     assert_eq!(r.backend.mappings.load(Ordering::SeqCst), 0);
     assert_eq!(r.backend.searches.load(Ordering::SeqCst), 0);
 }
