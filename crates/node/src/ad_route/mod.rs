@@ -11,6 +11,7 @@ mod detector;
 mod job;
 mod preview;
 mod preview_route;
+mod profile_route;
 mod results_route;
 mod routes;
 mod run;
