@@ -310,3 +310,6 @@ src/ad_route/detector.rs	new		detector validation: the features, filters and bou
 src/ad_route/search.rs	new		the _search query a detectors id can answer without reading every detector
 src/ad_route/routes.rs	new		the route table under /_plugins/_anomaly_detection and /_opendistro/_anomaly_detection
 src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a request through its guard (ADR 0080)
+src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded, memory only, no blob request (ADR 0084)
+src/jobs/types.rs	new		the registry's limits, caller, context and errors
+src/jobs/tests.rs	new		the registry bounds, with the clock and the search gates passed in
