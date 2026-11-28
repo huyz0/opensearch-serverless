@@ -69,7 +69,7 @@ pub(super) fn total(r: &Rig, op: S3Op) -> u64 {
     r.store.meter().count(op)
 }
 
-fn create(r: &Rig, body: &Value) -> String {
+pub(super) fn create(r: &Rig, body: &Value) -> String {
     let made = call(r, "POST", &format!("{ROOT}/detectors"), Some(body));
     assert_eq!(made.status, 201, "{}", made.text());
     json_of(&made)["_id"].as_str().expect("an id").to_owned()
