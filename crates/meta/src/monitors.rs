@@ -168,6 +168,21 @@ impl Monitors {
         Err(MetaError::MissingContent(id.to_owned()))
     }
 
+    /// Reads the body `entry` names into the front of `body_buf`: one
+    /// request. `None` when the body is gone, which means the monitor was
+    /// replaced since the index was read.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError::Format`]; [`MetaError::Blob`] (a body that does not fit).
+    pub fn body_of(
+        &self,
+        entry: &MonitorEntry,
+        body_buf: &mut [u8],
+    ) -> Result<Option<usize>, MetaError> {
+        self.read_body(&entry.content, body_buf)
+    }
+
     fn read_body(&self, content: &str, body_buf: &mut [u8]) -> Result<Option<usize>, MetaError> {
         let key = monitor_content_key(&self.base, &self.tenant, content)?;
         let mut scratch = [0u8; 4096];

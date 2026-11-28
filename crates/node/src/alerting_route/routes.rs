@@ -14,6 +14,7 @@ use oss_meta::DescriptorStore;
 const PARAMS: &[&str] = &[
     "if_seq_no",
     "if_primary_term",
+    "q",
     "refresh",
     "master_timeout",
     "cluster_manager_timeout",
@@ -22,9 +23,11 @@ const PARAMS: &[&str] = &[
 
 type Handler = fn(&AlertingService, &mut Request<'_>, &mut Response<'_>) -> Result<(), RestError>;
 
-fn table() -> [(Method, &'static str, Handler); 5] {
+fn table() -> [(Method, &'static str, Handler); 7] {
     [
         (Method::Post, "/monitors", AlertingService::create),
+        (Method::Post, "/monitors/_search", AlertingService::search),
+        (Method::Get, "/monitors/_search", AlertingService::search),
         (Method::Put, "/monitors/{id}", AlertingService::update),
         (Method::Get, "/monitors/{id}", AlertingService::get),
         (Method::Head, "/monitors/{id}", AlertingService::head),

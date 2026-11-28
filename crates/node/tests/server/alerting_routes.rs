@@ -6,12 +6,13 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 
-use oss_blob::{BlobStore, Emulator};
+use oss_blob::{BlobStore, Emulator, S3Op};
 use oss_mem::MemoryBudget;
 use oss_meta::{AlertRegistry, DeleteMode, DescriptorStore, PitClock};
 use oss_node::alerting_route::{AlertingService, routes};
 use oss_node::index_route::{IndexService, routes as index_routes};
 use oss_rest::{Router, Server};
+use oss_testkit::budget;
 use serde_json::{Value, json};
 
 pub(crate) struct Rig {
@@ -235,4 +236,145 @@ fn tenants_are_separate_and_an_enabled_monitor_registers_its_tenant() {
         400,
         "a tenant is one path segment"
     );
+}
+
+fn named(r: &Rig, name: &str, enabled: bool) -> String {
+    let (status, made) = call(r, "POST", BASE, Some(&monitor(name, enabled)));
+    assert_eq!(status, 201, "{made}");
+    made["_id"].as_str().expect("an id").to_owned()
+}
+
+fn names(answer: &Value) -> Vec<&str> {
+    answer["hits"]["hits"]
+        .as_array()
+        .expect("hits")
+        .iter()
+        .map(|h| h["_source"]["name"].as_str().expect("a name"))
+        .collect()
+}
+
+#[test]
+fn a_search_filters_sorts_and_pages_a_tenants_monitors() {
+    let r = rig();
+    for (name, enabled) in [("b", false), ("a", false), ("c", true), ("d", false)] {
+        named(&r, name, enabled);
+    }
+    let search = |body: Value| call(&r, "POST", &format!("{BASE}/_search"), Some(&body));
+    let (status, all) =
+        search(json!({"query": {"match_all": {}}, "sort": [{"monitor.name.keyword": "asc"}]}));
+    assert_eq!(status, 200, "{all}");
+    assert_eq!(names(&all), ["a", "b", "c", "d"]);
+    assert_eq!(all["hits"]["total"], json!({"value": 4, "relation": "eq"}));
+    assert_eq!(all["hits"]["hits"][0]["sort"], json!(["a"]));
+    let (_, desc) = search(
+        json!({"sort": [{"monitor.name.keyword": {"order": "desc"}}], "from": 1, "size": 2}),
+    );
+    assert_eq!(names(&desc), ["c", "b"]);
+    assert_eq!(desc["hits"]["total"]["value"], 4);
+    let (_, one) = search(json!({"query": {"term": {"monitor.name.keyword": "b"}}}));
+    assert_eq!(names(&one), ["b"]);
+    let (_, on) =
+        search(json!({"query": {"bool": {"filter": [{"term": {"monitor.enabled": true}}]}}}));
+    assert_eq!(names(&on), ["c"]);
+    let (_, off) = search(
+        json!({"query": {"bool": {"must_not": [{"term": {"monitor.enabled": true}}],
+        "must": [{"prefix": {"monitor.name.keyword": "a"}}]}}}),
+    );
+    assert_eq!(names(&off), ["a"]);
+    let (_, either) = search(json!({"query": {"bool": {"should": [
+        {"terms": {"monitor.name.keyword": ["a", "d"]}}, {"wildcard": {"monitor.name.keyword": "c*"}}]}},
+        "sort": ["monitor.name.keyword"]}));
+    assert_eq!(names(&either), ["a", "c", "d"]);
+    let (_, glob) =
+        search(json!({"query": {"wildcard": {"monitor.name.keyword": "?"}}, "size": 0}));
+    assert_eq!(glob["hits"]["total"]["value"], 4);
+    let (_, glob) = search(json!({"query": {"wildcard": {"monitor.name.keyword": "*x*"}}}));
+    assert_eq!(glob["hits"]["total"]["value"], 0);
+    let (_, glob) = search(json!({"query": {"wildcard": {"monitor.name.keyword": "??"}}}));
+    assert_eq!(glob["hits"]["total"]["value"], 0);
+    let (_, none) = search(json!({"query": {"term": {"monitor.name.keyword": "zzz"}}}));
+    assert_eq!(none["hits"]["total"]["value"], 0);
+    let (_, count) = search(json!({"size": 0, "query": {"match_all": {}}}));
+    assert_eq!(
+        (
+            count["hits"]["total"]["value"].as_i64(),
+            names(&count).len()
+        ),
+        (Some(4), 0)
+    );
+    let (status, other) = send(
+        r.server.local_addr(),
+        "POST",
+        &format!("{BASE}/_search"),
+        Some("other"),
+        Some("{}"),
+    );
+    assert_eq!(
+        (status, other["hits"]["total"]["value"].as_i64()),
+        (200, Some(0))
+    );
+}
+
+#[test]
+fn a_search_without_a_body_or_with_an_unknown_clause_is_a_400() {
+    let r = rig();
+    named(&r, "a", false);
+    for method in ["GET", "POST"] {
+        let (status, e) = call(&r, method, &format!("{BASE}/_search"), None);
+        assert_eq!(
+            (status, e["error"]["type"].as_str()),
+            (400, Some("parse_exception")),
+            "{e}"
+        );
+    }
+    let (status, _) = call(
+        &r,
+        "POST",
+        &format!("{BASE}/_search"),
+        Some(&json!({"query": {"fuzzy": {}}})),
+    );
+    assert_eq!(status, 400);
+    let (status, _) = call(
+        &r,
+        "POST",
+        &format!("{BASE}/_search"),
+        Some(&json!({"size": 10_001})),
+    );
+    assert_eq!(status, 400);
+}
+
+#[test]
+fn a_search_reads_only_the_page_it_returns_unless_it_must_look_at_every_body() {
+    let r = rig();
+    for name in ["a", "b", "c", "d"] {
+        named(&r, name, false);
+    }
+    let gets = || r.store.meter().count(S3Op::Get);
+    let at = gets();
+    let (status, _) = call(
+        &r,
+        "POST",
+        &format!("{BASE}/_search"),
+        Some(&json!({"size": 1})),
+    );
+    assert_eq!(status, 200);
+    budget::check(
+        "alerting.monitor_search_page.requests",
+        gets() - at,
+        "a page of one over four monitors",
+    );
+    let at = gets();
+    let (status, _) = call(
+        &r,
+        "POST",
+        &format!("{BASE}/_search"),
+        Some(&json!({"query": {"term": {"monitor.name.keyword": "c"}}})),
+    );
+    assert_eq!(status, 200);
+    budget::check(
+        "alerting.monitor_search_filtered.requests",
+        gets() - at,
+        "a filtered search over four monitors",
+    );
+    assert_eq!(r.store.meter().count(S3Op::List), 0);
 }

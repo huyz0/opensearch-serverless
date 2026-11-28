@@ -9,6 +9,8 @@
 
 mod monitor;
 mod routes;
+mod search;
+mod search_query;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

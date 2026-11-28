@@ -9,7 +9,7 @@ use std::collections::HashMap;
 /// The steps replayed: the monitor's own routes, the legacy prefix and the
 /// deletes. The rest need a search, the runner or alerts.
 fn replayed(i: usize) -> bool {
-    i <= 24 || (55..=67).contains(&i)
+    i <= 28 || (55..=68).contains(&i)
 }
 
 /// `<volatile>` and `<label>` match anything.

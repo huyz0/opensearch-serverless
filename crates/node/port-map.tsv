@@ -370,3 +370,5 @@ src/jobs/manage.rs	new		extending, deleting and counting jobs
 src/plugins/assemble.rs	new		reading the policy, loading the registry and mounting the plugins and the status route
 src/boot/config/plugin_policy.rs	new		the OSS_PLUGINS variable
 src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins from bounded queues
+src/alerting_route/search.rs	new		the monitor search route over a tenant's monitors (ADR 0075)
+src/alerting_route/search_query.rs	new		the query clauses a monitor search evaluates over one monitor
