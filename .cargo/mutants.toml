@@ -203,4 +203,7 @@ exclude_re = [
     # The window shift clears the low bit before the new outcome (0 or 1) is
     # added, so `|` and `^` give the same number.
     "crates/ext/src/breaker.rs:.*replace \\| with \\^ in Breaker::counted",
+    # Every point is at version 1 today and a manifest naming another is
+    # refused, so `ManifestPoint::version` returning 1 is the same.
+    "crates/ext/src/manifest.rs:.*replace ManifestPoint::version -> u32 with 1",
 ]
