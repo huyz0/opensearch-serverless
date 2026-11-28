@@ -140,7 +140,10 @@ pub(crate) fn register(
         router
     };
     let router = if config.ism {
-        let ism = crate::ism_route::IsmService::new(store, &config.base, config.pit_buffer_bytes);
+        let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
+            .map_err(store_error)?;
+        let ism = crate::ism_route::IsmService::new(store, &config.base, config.pit_buffer_bytes)
+            .with_descriptors(descriptors);
         crate::ism_route::routes(router, &Arc::new(ism)).map_err(AssembleError::Route)?
     } else {
         router

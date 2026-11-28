@@ -7,6 +7,7 @@
 //! is a count kept in the stored document, one per policy, so a change to
 //! another policy never moves it.
 
+mod managed;
 mod policy;
 mod routes;
 
@@ -15,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use oss_blob::BlobStore;
 use oss_format::DocKind;
-use oss_meta::{DocSet, MetaError};
+use oss_meta::{DescriptorStore, DocSet, MetaError};
 use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Value, json};
 
@@ -30,6 +31,7 @@ pub struct IsmService {
     store: Arc<dyn BlobStore>,
     base: String,
     buffer_bytes: usize,
+    descriptors: Option<DescriptorStore>,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -94,12 +96,24 @@ impl IsmService {
             // ALLOC: one copy of the base, once.
             base: base.to_owned(),
             buffer_bytes,
+            descriptors: None,
         }
     }
 
+    /// Looks indices up in `descriptors`, which `add` needs; without them it
+    /// is refused 501.
+    #[must_use]
+    pub fn with_descriptors(mut self, descriptors: DescriptorStore) -> Self {
+        self.descriptors = Some(descriptors);
+        self
+    }
+
     fn set(&self) -> Result<DocSet, RestError> {
-        DocSet::new(Arc::clone(&self.store), &self.base, DocKind::IsmPolicies)
-            .map_err(|e| failed(&e))
+        self.set_of(DocKind::IsmPolicies)
+    }
+
+    fn set_of(&self, kind: DocKind) -> Result<DocSet, RestError> {
+        DocSet::new(Arc::clone(&self.store), &self.base, kind).map_err(|e| failed(&e))
     }
 
     fn marker(&self, req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
@@ -127,7 +141,17 @@ impl IsmService {
         marker: &mut [u8],
         doc: &mut [u8],
     ) -> Result<Option<Value>, RestError> {
-        match self.set()?.get(id, marker, doc) {
+        self.stored_in(DocKind::IsmPolicies, id, marker, doc)
+    }
+
+    fn stored_in(
+        &self,
+        kind: DocKind,
+        id: &str,
+        marker: &mut [u8],
+        doc: &mut [u8],
+    ) -> Result<Option<Value>, RestError> {
+        match self.set_of(kind)?.get(id, marker, doc) {
             Ok(Some(n)) => serde_json::from_slice(doc.get(..n).unwrap_or_default())
                 .map(Some)
                 .map_err(|_| refuse(500, "ism_store_failure", "a stored policy is unreadable")),
