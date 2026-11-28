@@ -23,6 +23,7 @@ pub mod function_score_random;
 pub mod function_score_script;
 pub mod geo_bounding_box;
 pub mod geo_distance;
+pub mod geo_polygon;
 pub mod inner_hits;
 pub mod knn;
 mod leaf_common;
@@ -68,6 +69,7 @@ pub const NAMES: &[&str] = &[
     "knn",
     "geo_bounding_box",
     "geo_distance",
+    "geo_polygon",
     "nested",
     "sltr",
 ];
@@ -258,6 +260,8 @@ pub enum More {
     GeoBoundingBox(Box<geo_bounding_box::GeoBoundingBox>),
     /// `GeoDistanceQueryBuilder`.
     GeoDistance(Box<geo_distance::GeoDistance>),
+    /// `GeoPolygonQueryBuilder`.
+    GeoPolygon(Box<geo_polygon::GeoPolygon>),
     /// The k-NN plugin's `KNNQueryBuilder`.
     Knn(Box<knn::Knn>),
     /// The learning to rank plugin's `sltr`, served as a rescore query.
@@ -293,6 +297,7 @@ impl More {
             More::Knn(q) => q.boost,
             More::GeoBoundingBox(q) => q.boost,
             More::GeoDistance(q) => q.boost,
+            More::GeoPolygon(q) => q.boost,
             More::Sltr(_) => 1.0,
         }
     }
@@ -322,6 +327,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "knn" => knn::parse_knn(p),
         // ALLOC: one boxed query per request, bounded by the body's recording.
         "geo_bounding_box" => geo_bounding_box::parse(p).map(|q| More::GeoBoundingBox(Box::new(q))),
+        "geo_polygon" => geo_polygon::parse(p).map(|q| More::GeoPolygon(Box::new(q))),
         "geo_distance" => geo_distance::parse(p).map(|q| More::GeoDistance(Box::new(q))),
         "sltr" => sltr::parse_sltr(p),
         "nested" => nested::parse_nested(p),
@@ -341,6 +347,8 @@ mod compound_tests;
 mod geo_bounding_box_tests;
 #[cfg(test)]
 mod geo_distance_tests;
+#[cfg(test)]
+mod geo_polygon_tests;
 #[cfg(test)]
 mod knn_tests;
 
