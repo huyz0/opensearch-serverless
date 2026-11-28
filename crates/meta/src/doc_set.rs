@@ -7,7 +7,7 @@
 //! marker and a reader that sees the new marker sees the new set. A blob
 //! written before a crash is never named, so never seen. Nothing lists: the
 //! marker holds the names, and the count is bounded on the way in by
-//! [`MAX_DOCS`].
+//! [`oss_format::MAX_DOCS`].
 
 use std::sync::Arc;
 
@@ -179,7 +179,7 @@ impl DocSet {
     }
 
     /// Visits every document in name order: the marker, then one request a
-    /// document, one after another (one buffer). Bounded by [`MAX_DOCS`] on
+    /// document, one after another (one buffer). Bounded by [`oss_format::MAX_DOCS`] on
     /// the way in, never by truncating an answer. When a change drops a
     /// document mid-way the walk starts again from the marker, so `visit`
     /// may be called twice for a name, the second time from the newer set.
