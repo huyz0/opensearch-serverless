@@ -295,6 +295,9 @@ src/painless_setting.rs	new		the switch that compiles Painless in Rust; Java com
 src/reader_ramp_setting.rs	new		the slow start settings; the shell reads them from ReaderPlacementSettings
 src/boot/config/reader_ramp.rs	new		the slow start variables, split out of the boot config to keep it under the size limit
 src/boot/support/ramp_feed.rs	new		what a joining reader's slow start reads at each lease renewal
+src/search/start_error.rs	new		why a reader node did not start, split out of search.rs
+src/warm_pressure.rs	new		the peer serve rate that follows the slowest search of each second against a quiet baseline: backs off while searches are slowed, climbs back otherwise
+src/warm_pressure/tests.rs	new		tests of the adaptive serve rate on injected instants
 src/ism_setting.rs	new		serverless.ism.enabled
 src/ism_route/mod.rs	new		the index state management policy service over a document set; the Java plugin is ported natively by ADR 0077
 src/ism_route/policy.rs	new		policy validation: the actions and conditions a serverless node can run
@@ -337,4 +340,5 @@ src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a reques
 src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded, memory only, no blob request (ADR 0084)
 src/jobs/types.rs	new		the registry's limits, caller, context and errors
 src/jobs/tests.rs	new		the registry bounds, with the clock and the search gates passed in
+src/knn_model_route.rs	new		the k-NN plugin model store (get, delete, search) over a document set; plugin source not in this repository (docs/specs/knn-plugin-api, ADR 0086)
 src/ad_route/validate_route.rs	new		the _validate route: what a create would refuse, answered without writing

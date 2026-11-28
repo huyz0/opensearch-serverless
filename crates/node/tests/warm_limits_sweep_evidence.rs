@@ -11,7 +11,8 @@
 //! (60000), `WARM_ROUNDS` (2), `WARM_SCALE_WINDOW` (30), `WARM_SCALE_GAP_MS`
 //! (20), `WARM_SCALE_RUSTFS` (with the RustFS binary variable), `WARM_JOINER_CPUS`,
 //! `WARM_PEER_ENV` (`K=V,K=V` for the peer), `WARM_CONFIGS`
-//! (`label:K=V;K=V|label:K=V`, joiner settings per config).
+//! (`label:K=V;K=V|label:K=V`, joiner settings per config),
+//! `WARM_JOINER_TIER_ROOT` (a directory for the joiners' tiers).
 
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 // ARITH: sums and means of small test numbers; the clippy.toml method bans
@@ -29,6 +30,45 @@ use warm_scale_support::{knob, percentile, send, spawn_joiner, used};
 
 /// Environment variables as pairs.
 type Settings = Vec<(String, String)>;
+
+/// This process's user and system CPU time so far, in seconds: the peer runs
+/// in it, with the load client.
+fn cpu_seconds() -> f64 {
+    cpu_seconds_of("self")
+}
+
+/// The same for the process `who` (`self` or a pid).
+fn cpu_seconds_of(who: &str) -> f64 {
+    let stat = std::fs::read_to_string(format!("/proc/{who}/stat")).unwrap_or_default();
+    // The fields after the command's closing parenthesis; utime and stime
+    // are the 12th and 13th of those, in clock ticks of 1/100 s.
+    let rest = stat.rsplit_once(')').map_or("", |(_, r)| r);
+    let f: Vec<f64> = rest
+        .split_whitespace()
+        .skip(11)
+        .take(2)
+        .filter_map(|v| v.parse().ok())
+        .collect();
+    f.iter().sum::<f64>() / 100.0
+}
+
+/// A `Vm...` figure of `/proc/<who>/status` in MiB (`VmHWM` is the peak
+/// resident size, `VmRSS` the current one).
+fn vm_mib(who: &str, field: &str) -> f64 {
+    let status = std::fs::read_to_string(format!("/proc/{who}/status")).unwrap_or_default();
+    status
+        .lines()
+        .find_map(|l| {
+            l.strip_prefix(field)?
+                .trim_start_matches(':')
+                .split_whitespace()
+                .next()?
+                .parse::<f64>()
+                .ok()
+        })
+        .unwrap_or(0.0)
+        / 1024.0
+}
 
 fn query(addr: SocketAddr, i: usize, size: usize) -> f64 {
     let q = format!(
@@ -69,6 +109,9 @@ fn the_warm_copy_limits_against_one_peer() {
         .filter_map(|c| c.split_once(':'))
         .map(|(label, kv)| (label.to_owned(), pairs(kv, ';', '=')))
         .collect();
+    // `WARM_NO_SEARCH=1` sends the peer no searches, so what it spends is the
+    // copy's alone.
+    let no_search = std::env::var("WARM_NO_SEARCH").is_ok_and(|v| v == "1");
     let root = std::env::temp_dir().join(format!("oss-warm-sweep-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let mut cluster = Cluster::new(3_000, 1, rustfs).expect("the emulator, or the RustFS binary");
@@ -126,8 +169,24 @@ fn the_warm_copy_limits_against_one_peer() {
     for round in 0..rounds {
         for (label, warm, extra) in &arms {
             std::thread::sleep(Duration::from_secs(5));
-            let tier = root.join(format!("n2-{round}-{label}"));
+            // `WARM_JOINER_TIER_ROOT` puts the joiners' tiers elsewhere (for
+            // example tmpfs), so what they write does not share the peer's
+            // disk and its page cache.
+            // A config's own `TIER_ROOT` wins over the variable.
+            let tier = extra
+                .iter()
+                .find(|(k, _)| k == "TIER_ROOT")
+                .map(|(_, v)| v.clone())
+                .or_else(|| std::env::var("WARM_JOINER_TIER_ROOT").ok())
+                .map_or_else(|| root.clone(), std::path::PathBuf::from)
+                .join(format!(
+                    "oss-warm-n2-{}-{round}-{label}",
+                    std::process::id()
+                ));
             let started = Instant::now();
+            let cpu_before = cpu_seconds();
+            let rss_before = vm_mib("self", "VmRSS");
+            let hwm_before = vm_mib("self", "VmHWM");
             // `JOINERS=n` in a config starts n joiners together (each with its
             // own tier), and ready is when the last one is.
             let count = extra
@@ -137,7 +196,7 @@ fn the_warm_copy_limits_against_one_peer() {
                 .unwrap_or(1);
             let env: Settings = extra
                 .iter()
-                .filter(|(k, _)| k != "JOINERS")
+                .filter(|(k, _)| k != "JOINERS" && k != "TIER_ROOT")
                 .cloned()
                 .collect();
             let mut joiners = Vec::new();
@@ -155,8 +214,11 @@ fn the_warm_copy_limits_against_one_peer() {
             {
                 let t = Instant::now();
                 i += 1;
-                let took = query(peer, i, 10);
-                ms.push(took);
+                if no_search {
+                    std::thread::sleep(Duration::from_millis(200));
+                } else {
+                    ms.push(query(peer, i, 10));
+                }
                 for (at, j) in ready_at.iter_mut().zip(&joiners) {
                     if *at == 0.0 && send(j.http, "GET", "/_serverless/ready", "").0 == 200 {
                         *at = started.elapsed().as_secs_f64();
@@ -171,9 +233,20 @@ fn the_warm_copy_limits_against_one_peer() {
                 }
             }
             ms.sort_by(f64::total_cmp);
+            let cores = (cpu_seconds() - cpu_before) / started.elapsed().as_secs_f64();
+            let peer_rss = vm_mib("self", "VmRSS") - rss_before;
+            let peer_peak = vm_mib("self", "VmHWM") - hwm_before;
+            let joiner_cpu: f64 = joiners
+                .iter()
+                .map(|j| cpu_seconds_of(&j.child.id().to_string()))
+                .sum();
+            let joiner_peak = joiners
+                .iter()
+                .map(|j| vm_mib(&j.child.id().to_string(), "VmHWM"))
+                .fold(0.0, f64::max);
             let first = query(joiner.http, 0, 10);
             println!(
-                "AC-11 sweep round={round} config={label}: peer during copy+window med={:.1} p99={:.1} max={:.1} (n={}) | ready={ready:.1}s first_search={first:.1}ms joiner_tier_at_ready={held_at_ready}",
+                "AC-11 sweep round={round} config={label}: peer during copy+window med={:.1} p99={:.1} max={:.1} (n={}) | ready={ready:.1}s first_search={first:.1}ms joiner_tier_at_ready={held_at_ready} peer_cores_busy={cores:.2} peer_rss_delta_mib={peer_rss:.0} peer_peak_delta_mib={peer_peak:.0} joiner_cpu_s={joiner_cpu:.1} joiner_peak_mib={joiner_peak:.0}",
                 percentile(&ms, 0.5),
                 percentile(&ms, 0.99),
                 ms.last().copied().unwrap_or(0.0),
