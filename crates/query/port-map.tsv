@@ -9,3 +9,5 @@ src/error.rs	port	common/antlr SyntaxCheckException, SemanticCheckException	the 
 src/mapping.rs	new		flattened leaf fields; Java reads the type env from the index mapping
 src/meta.rs	port	protocol/response and legacy show and describe handlers	SHOW TABLES and DESCRIBE TABLES column sets
 src/parser_pred.rs	port	sql/sql OpenSearchSQLParser.g4 predicates, relevance functions	conditions
+src/dates.rs	new		the plugin's timestamp literal strings as epoch milliseconds
+src/hashorder.rs	new		the column order the plugin gives SELECT *: a Java HashMap over the names
