@@ -224,7 +224,7 @@ fn the_pools_fit_and_every_pool_is_given_bytes() {
     assert!(
         Pool::ALL
             .iter()
-            .filter(|p| **p != Pool::Extensions)
+            .filter(|p| **p != Pool::Extensions && **p != Pool::Models)
             .all(|p| b.pool(*p) > 0)
     );
     assert_eq!(
