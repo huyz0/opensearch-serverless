@@ -18,12 +18,7 @@ use serde_json::{Value, json};
 use super::{AdService, bad, failed, not_found, now_millis, windows};
 use crate::route_util::{read_body, refuse};
 
-/// The registry namespace of anomaly detection.
-const NAMESPACE: &str = "ad";
-
-/// The tenant a detector is scheduled under. Detectors live in one set per
-/// deployment, so there is one entry.
-const TENANT: &str = "_default_";
+use super::run::{NAMESPACE, TENANT};
 
 impl AdService {
     fn registry(&self) -> Result<ScheduleRegistry, RestError> {
