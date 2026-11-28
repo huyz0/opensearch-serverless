@@ -21,6 +21,7 @@ mod function_score_modes;
 pub(crate) mod function_score_painless;
 pub mod function_score_random;
 pub mod function_score_script;
+pub mod geo_bounding_box;
 pub mod geo_distance;
 pub mod inner_hits;
 pub mod knn;
@@ -65,6 +66,7 @@ pub const NAMES: &[&str] = &[
     "query_string",
     "function_score",
     "knn",
+    "geo_bounding_box",
     "geo_distance",
     "nested",
     "sltr",
@@ -252,6 +254,8 @@ pub enum More {
     Nested(Box<nested::NestedQuery>, f32),
     /// `ScriptQueryBuilder` over Painless, and its boost.
     Script(Box<function_score_script::ScriptScore>, f32),
+    /// `GeoBoundingBoxQueryBuilder`.
+    GeoBoundingBox(Box<geo_bounding_box::GeoBoundingBox>),
     /// `GeoDistanceQueryBuilder`.
     GeoDistance(Box<geo_distance::GeoDistance>),
     /// The k-NN plugin's `KNNQueryBuilder`.
@@ -287,6 +291,7 @@ impl More {
             | More::Script(_, boost)
             | More::MatchNone { boost } => *boost,
             More::Knn(q) => q.boost,
+            More::GeoBoundingBox(q) => q.boost,
             More::GeoDistance(q) => q.boost,
             More::Sltr(_) => 1.0,
         }
@@ -316,6 +321,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "function_score" => function_score::parse_function_score(p),
         "knn" => knn::parse_knn(p),
         // ALLOC: one boxed query per request, bounded by the body's recording.
+        "geo_bounding_box" => geo_bounding_box::parse(p).map(|q| More::GeoBoundingBox(Box::new(q))),
         "geo_distance" => geo_distance::parse(p).map(|q| More::GeoDistance(Box::new(q))),
         "sltr" => sltr::parse_sltr(p),
         "nested" => nested::parse_nested(p),
@@ -331,6 +337,8 @@ mod parse_tests;
 #[cfg(test)]
 mod compound_tests;
 
+#[cfg(test)]
+mod geo_bounding_box_tests;
 #[cfg(test)]
 mod geo_distance_tests;
 #[cfg(test)]
