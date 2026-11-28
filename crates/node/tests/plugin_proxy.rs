@@ -336,14 +336,14 @@ fn a_refused_connect_tries_the_next_upstream_and_all_refused_is_502() {
     let (live, seen) = upstream(echo);
     let server = start(vec![dead.clone(), live], 1 << 20, LONG);
     for _ in 0..3 {
-        let (status, ..) = ask(&server, &get("/_ltr/_featureset"));
+        let (status, ..) = ask(&server, &get("/_plugins/_ml/models"));
         assert_eq!(status, 201);
     }
     assert_eq!(seen.lock().expect("seen").len(), 3);
     server.shutdown();
 
     let server = start(vec![dead], 1 << 20, LONG);
-    let (status, _, body) = ask(&server, &get("/_ltr/_featureset"));
+    let (status, _, body) = ask(&server, &get("/_plugins/_ml/models"));
     assert_eq!(status, 502);
     assert!(String::from_utf8_lossy(&body).contains("plugin_upstream_unavailable"));
     server.shutdown();
