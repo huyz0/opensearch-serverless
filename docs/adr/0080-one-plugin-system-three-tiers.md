@@ -97,13 +97,13 @@ Capabilities, v1:
 | `search` | run a search as the calling tenant through the reader | native, wasm | a search; charged to the tenant |
 | `egress:<host>` | bounded HTTP(S) to an allow-listed host | native, wasm | no store request; resolve once, check the resolved address against private, loopback and link-local ranges (refused unless the node's policy allows it), connect to that address (no DNS rebinding), no redirect, body at most 1 MiB, time at most the call's deadline, TLS verified |
 | `identity` | the caller's user name and roles in the request | all | none |
-| `log`, `metrics` | host-rate-limited log lines and plugin-labelled counters | all | none |
+| `log`, `metrics` | host-rate-limited log lines and plugin-labelled counters | native, wasm | none |
 
 A plugin's call that makes a `search` cannot enter a plugin route or point: the depth is 1 and a nested entry is refused, so a plugin cannot recurse through the reader. A `searches` unit in a budget is one search with its own cost (a cold index is 3 GET at depth 3 by [request-budgets](../request-budgets.md)), so the policy's ceiling is stated in searches and the tests count requests.
 
 Never granted: a blob store handle, a LIST, a lock, a thread, a file, a socket, the clock to a `pure` point.
 
-**`grpc` plugins get no host capabilities.** They are services with their own storage, as Envoy's external services are. One that wants this cluster's data calls the node's public API as any client does, under the security layer and request meter ([ADR 0051](0051-authorization-at-the-route-by-action-table.md)). The host never calls out of the sandbox on a plugin's behalf, so the cost of its state is not the node's, and nothing the node holds is reachable through the process boundary.
+**`grpc` plugins get no host capabilities** (only `identity`, which is data in the request, not a call back). They are services with their own storage, as Envoy's external services are. One that wants this cluster's data calls the node's public API as any client does, under the security layer and request meter ([ADR 0051](0051-authorization-at-the-route-by-action-table.md)). The host never calls out of the sandbox on a plugin's behalf, so the cost of its state is not the node's, and nothing the node holds is reachable through the process boundary.
 
 **Routes.** A `rest` route is mounted only if the policy grants it. A plugin owns `/_plugins/<its id>/...` by default; any other path (a ported plugin's stock prefix, say) needs an explicit `claim` in the policy. Precedence is built-in routes, then plugin routes, then the proxy prefixes of ADR 0046, so a plugin can never shadow a built-in and a ported plugin leaves the proxy list as it does today. A collision is a refusal at load, naming both. Every plugin route is `all_access` in the action table of ADR 0051 unless the policy maps it to an action; the row is added at load, and the existing completeness test covers it.
 

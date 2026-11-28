@@ -20,7 +20,7 @@ pub struct DescriptorError {
 }
 
 impl DescriptorError {
-    fn at(key: &str, reason: &'static str) -> Self {
+    pub(crate) fn at(key: &str, reason: &'static str) -> Self {
         Self {
             // ALLOC: one refusal, a key of the descriptor, cut and cleaned as a module's text is.
             key: crate::error::clean(key.as_bytes()),
@@ -183,12 +183,12 @@ impl Descriptor {
 }
 
 /// The members of one object, checked against the keys allowed.
-struct Members {
+pub(crate) struct Members {
     prefix: String,
     items: Vec<(String, Value)>,
 }
 
-fn path(prefix: &str, key: &str) -> String {
+pub(crate) fn path(prefix: &str, key: &str) -> String {
     if prefix.is_empty() {
         // ALLOC: one refusal, a key of the descriptor.
         key.to_owned()
@@ -199,7 +199,7 @@ fn path(prefix: &str, key: &str) -> String {
 }
 
 impl Members {
-    fn new(
+    pub(crate) fn new(
         prefix: &str,
         items: Vec<(String, Value)>,
         allowed: &[&str],
@@ -214,16 +214,16 @@ impl Members {
         })
     }
 
-    fn get(&self, key: &str) -> Option<&Value> {
+    pub(crate) fn get(&self, key: &str) -> Option<&Value> {
         self.items.iter().find(|(k, _)| k == key).map(|(_, v)| v)
     }
 
-    fn require(&self, key: &str) -> Result<&Value, DescriptorError> {
+    pub(crate) fn require(&self, key: &str) -> Result<&Value, DescriptorError> {
         self.get(key)
             .ok_or_else(|| DescriptorError::at(&path(&self.prefix, key), "missing"))
     }
 
-    fn string(&self, key: &str) -> Result<String, DescriptorError> {
+    pub(crate) fn string(&self, key: &str) -> Result<String, DescriptorError> {
         match self.require(key)? {
             // ALLOC: one descriptor, each string at most MAX_DESCRIPTOR_BYTES.
             Value::Str(s) => Ok(s.clone()),
@@ -234,7 +234,7 @@ impl Members {
         }
     }
 
-    fn int(&self, key: &str, min: u64, max: u64) -> Result<u64, DescriptorError> {
+    pub(crate) fn int(&self, key: &str, min: u64, max: u64) -> Result<u64, DescriptorError> {
         let at = path(&self.prefix, key);
         match self.require(key)? {
             Value::Int(n) if (min..=max).contains(n) => Ok(*n),
@@ -245,14 +245,14 @@ impl Members {
 }
 
 /// `x.y` as two numbers.
-fn pair(text: &str, key: &str) -> Result<(u16, u16), DescriptorError> {
+pub(crate) fn pair(text: &str, key: &str) -> Result<(u16, u16), DescriptorError> {
     let bad = || DescriptorError::at(key, "not `major.minor`");
     let (a, b) = text.split_once('.').ok_or_else(bad)?;
     Ok((number(a).ok_or_else(bad)?, number(b).ok_or_else(bad)?))
 }
 
 /// `x.y.z` as three numbers.
-fn triple(text: &str, key: &str) -> Result<(u32, u32, u32), DescriptorError> {
+pub(crate) fn triple(text: &str, key: &str) -> Result<(u32, u32, u32), DescriptorError> {
     let bad = || DescriptorError::at(key, "not `major.minor.patch`");
     let mut parts = text.split('.');
     let (a, b, c) = (parts.next(), parts.next(), parts.next());
@@ -288,7 +288,7 @@ fn name(text: &str, key: &str, dash: bool) -> Result<String, DescriptorError> {
     }
 }
 
-fn limits(members: &Members) -> Result<Limits, DescriptorError> {
+pub(crate) fn limits(members: &Members) -> Result<Limits, DescriptorError> {
     let Some(value) = members.get("limits") else {
         return Ok(Limits::default());
     };
