@@ -13,15 +13,15 @@ mod preview;
 mod preview_route;
 mod routes;
 mod run;
+mod schedule;
 mod search;
-mod sink;
 mod slots;
 mod source;
 mod validate_route;
 pub mod windows;
 
 pub use run::{MAX_HELD_MODELS, Outcome, RunError, Runner};
-pub use sink::{Doc, DocSink, HostError, IndexReport};
+pub use schedule::{Scheduler, TickReport};
 pub use slots::Timing;
 pub use source::WindowSearch;
 

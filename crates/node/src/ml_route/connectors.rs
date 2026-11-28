@@ -133,7 +133,22 @@ impl MlService {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
-        let mut def = Self::body(req)?;
+        let def = Self::body(req)?;
+        let mut marker = self.marker(req)?;
+        let id = self.insert_connector(def, &mut marker)?;
+        resp.send(
+            200,
+            JSON,
+            json!({"connector_id": id}).to_string().as_bytes(),
+        )
+    }
+
+    /// Validates, seals and stores a connector definition under a new id.
+    pub(super) fn insert_connector(
+        &self,
+        mut def: Map<String, Value>,
+        marker: &mut [u8],
+    ) -> Result<String, RestError> {
         refuse_access_parameters(&def)?;
         oss_ml::connector::validate(&def, &self.trusted).map_err(bad)?;
         oss_ml::connector::seal_definition(&mut def, self.master_key()?).map_err(bad)?;
@@ -141,13 +156,8 @@ impl MlService {
         def.insert("created_time".into(), json!(t));
         def.insert("last_updated_time".into(), json!(t));
         let id = fresh_id()?;
-        let mut marker = self.marker(req)?;
-        self.write_connector(&id, &def, true, &mut marker)?;
-        resp.send(
-            200,
-            JSON,
-            json!({"connector_id": id}).to_string().as_bytes(),
-        )
+        self.write_connector(&id, &def, true, marker)?;
+        Ok(id)
     }
 
     /// `GET /connectors/{id}`: the definition without its credential.
@@ -210,6 +220,20 @@ impl MlService {
     ) -> Result<(), RestError> {
         let id = Self::connector_id(req)?;
         let mut marker = self.marker(req)?;
+        let mut doc = Self::doc_buffer(req)?;
+        let using = self.models_using(&id, &mut marker, &mut doc)?;
+        if !using.is_empty() {
+            return Err(refuse(
+                409,
+                "status_exception",
+                format!(
+                    "{} models are still using this connector, please delete or update the \
+                     models first: [{}]",
+                    using.len(),
+                    using.join(", ")
+                ),
+            ));
+        }
         if !self
             .set_of(DocKind::MlConnectors)?
             .delete(&id, &mut marker)

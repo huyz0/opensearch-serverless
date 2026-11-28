@@ -15,6 +15,8 @@ mod ad_run;
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod async_search_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -90,6 +92,7 @@ mod ltr_routes;
 mod metadata_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ml_connectors;
+mod ml_models;
 mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;

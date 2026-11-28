@@ -23,6 +23,7 @@ mod assemble_publishing;
 mod assemble_writer;
 #[cfg(feature = "reader")]
 pub mod async_search;
+pub mod async_search_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]

@@ -46,6 +46,8 @@ pub struct Config {
     pub sql_max_buckets: usize,
     /// `serverless.ism.enabled`: serve the index state management policy routes.
     pub ism: bool,
+    /// `serverless.async_search.enabled`: serve the asynchronous search routes.
+    pub async_search: bool,
     /// `serverless.ml.enabled`: serve the ML Commons model group routes.
     pub ml: bool,
     /// `serverless.notifications.enabled`: serve the notifications config routes.
@@ -188,6 +190,7 @@ impl Config {
             sql_max_request_bytes: 1 << 20,
             sql_max_buckets: 10_000,
             ism: false,
+            async_search: true,
             ml: false,
             notifications: true,
             ad: false,
