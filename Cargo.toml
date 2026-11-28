@@ -5,6 +5,7 @@ resolver = "2"
 # `scripts/check-layering.py` enforces this order.
 members = [
     "crates/types",
+    "crates/anomaly",
     "crates/mem",
     "crates/testkit",
     "crates/blob",
@@ -40,6 +41,7 @@ regex = { version = "=1.13.1", default-features = false, features = ["std", "uni
 oss-types = { path = "crates/types" }
 oss-ext = { path = "crates/ext" }
 oss-ext-wasm = { path = "crates/ext-wasm" }
+oss-anomaly = { path = "crates/anomaly" }
 oss-mem = { path = "crates/mem" }
 oss-edge = { path = "crates/edge" }
 oss-testkit = { path = "crates/testkit" }
@@ -103,6 +105,9 @@ multiple_unsafe_ops_per_block = "deny"
 
 # The engine's segment and vector-graph building runs in the test builds,
 # where unoptimised it dominates the slowest tests.
+[profile.dev.package.oss-anomaly]
+opt-level = 2
+
 [profile.dev.package.lucene-store]
 opt-level = 2
 

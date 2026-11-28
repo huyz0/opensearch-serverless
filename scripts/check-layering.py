@@ -23,6 +23,7 @@ from checklib import ROOT, report
 LAYERS = {
     "oss-types": 0,
     "oss-mem": 0,
+    "oss-anomaly": 0,
     "oss-testkit": 0,
     "oss-blob": 1,
     "oss-format": 1,
