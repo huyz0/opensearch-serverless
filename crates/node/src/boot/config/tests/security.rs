@@ -84,3 +84,13 @@ fn index_state_management_is_on_by_default_and_set_by_its_variable() {
     let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_ISM", "false")])));
     assert!(!off.expect("valid").plugins.ism);
 }
+
+// docs/specs/observability: the object routes are on by default and set by their variable
+#[test]
+fn observability_is_on_by_default_and_set_by_its_variable() {
+    let on = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(on.plugins.observability);
+    let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_OBSERVABILITY", "false")])));
+    assert!(!off.expect("valid").plugins.observability);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_OBSERVABILITY", "maybe")]))).is_err());
+}

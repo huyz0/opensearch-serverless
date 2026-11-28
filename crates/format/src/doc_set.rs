@@ -94,6 +94,9 @@ pub enum DocKind {
     NotificationCatalogue,
     /// The `ism_template` of every policy, one aggregate document, `ism/templates/`.
     IsmTemplates,
+    /// Observability objects (saved queries, visualisations, panels,
+    /// notebooks), one document each, `observability/objects/`.
+    ObservabilityObjects,
 }
 
 impl DocKind {
@@ -121,6 +124,7 @@ impl DocKind {
             Self::NotificationConfigs => "notifications/configs/",
             Self::NotificationCatalogue => "notifications/catalogue/",
             Self::IsmTemplates => "ism/templates/",
+            Self::ObservabilityObjects => "observability/objects/",
         }
     }
 }

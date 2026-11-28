@@ -442,6 +442,7 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::IsmManaged => "managed index",
         DocKind::NotificationConfigs | DocKind::NotificationCatalogue => "notification config",
         DocKind::IsmTemplates => "template",
+        DocKind::ObservabilityObjects => "observability object",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers
