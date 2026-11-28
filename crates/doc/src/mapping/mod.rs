@@ -23,6 +23,7 @@ mod field;
 mod intern;
 pub mod json;
 mod knn;
+mod knn_faiss;
 mod nested;
 mod numbers;
 mod object;

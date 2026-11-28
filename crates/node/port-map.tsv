@@ -351,3 +351,4 @@ src/sql_setting.rs	new		serverless.sql.enabled
 src/knn_model_route.rs	new		the k-NN plugin model store (get, delete, search) over a document set; plugin source not in this repository (docs/specs/knn-plugin-api, ADR 0086)
 src/ad_route/validate_route.rs	new		the _validate route: what a create would refuse, answered without writing
 src/sql_route/mount.rs	new		the SQL routes mounted on the node router
+src/security_authz/tests.rs	new		unit tests of the route rules, moved out of security_authz.rs for its size

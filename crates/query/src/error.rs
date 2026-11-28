@@ -15,14 +15,57 @@ impl Error {
     /// A statement that does not parse: `offending` is the token and `pos` its byte position.
     #[must_use]
     pub fn syntax(offending: &str, pos: usize) -> Self {
+        let (kind, details) = if offending == "<EOF>" {
+            ("EOFParserException", "EOF".to_owned())
+        } else {
+            // ALLOC: one message, bounded by the identifier and token limits.
+            let end = pos.saturating_add(offending.len());
+            (
+                "ParserException",
+                format!("ERROR. token : {}, pos : {end}", offending.to_uppercase()),
+            )
+        };
         Self {
             status: 400,
-            kind: "SyntaxCheckException",
+            kind,
             reason: "Invalid SQL query",
-            // ALLOC: one message, bounded by the identifier and token limits.
-            details: format!(
-                "Failed to parse query due to offending symbol [{offending}] at position {pos}"
-            ),
+            details,
+        }
+    }
+
+    /// A comparison of two types the plugin has no function for.
+    #[must_use]
+    pub fn type_mismatch(func: &str, left: &str, right: &str) -> Self {
+        const SIGNATURES: &str = "[BYTE,BYTE],[SHORT,SHORT],[INTEGER,INTEGER],[LONG,LONG],[FLOAT,FLOAT],[DOUBLE,DOUBLE],[STRING,STRING],[BOOLEAN,BOOLEAN],[DATE,DATE],[TIME,TIME],[TIMESTAMP,TIMESTAMP],[INTERVAL,INTERVAL],[IP,IP],[GEO_POINT,GEO_POINT],[BINARY,BINARY],[STRUCT,STRUCT],[ARRAY,ARRAY]";
+        Self {
+            status: 400,
+            kind: "ExpressionEvaluationException",
+            reason: "Invalid SQL query",
+            // ALLOC: one message, bounded by the type names.
+            details: format!("{func} function expected {{{SIGNATURES}}}, but got [{left},{right}]"),
+        }
+    }
+
+    /// An empty statement.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            status: 400,
+            kind: "IllegalArgumentException",
+            reason: "Invalid SQL query",
+            details: "Query is empty".to_owned(),
+        }
+    }
+
+    /// A statement that is not a `SELECT`, `SHOW` or `DESCRIBE`.
+    #[must_use]
+    pub fn not_a_query(sql: &str) -> Self {
+        Self {
+            status: 400,
+            kind: "SQLFeatureNotSupportedException",
+            reason: "Invalid SQL query",
+            // ALLOC: the statement again, bounded by the statement byte limit.
+            details: format!("Query must start with SELECT, DELETE, SHOW or DESCRIBE: {sql}"),
         }
     }
 

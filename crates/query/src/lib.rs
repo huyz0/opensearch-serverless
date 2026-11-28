@@ -6,7 +6,9 @@
 //! ([ADR 0082](../../../docs/adr/0082-sql-and-ppl-are-ported-natively-with-our-own-parser-and-a-pushdown-planner.md)).
 
 mod ast;
+mod dates;
 mod error;
+mod hashorder;
 mod lexer;
 mod mapping;
 mod meta;
