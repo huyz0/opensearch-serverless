@@ -29,13 +29,20 @@ const LATER: &[&str] = &[
     "union",
     "window",
     "multi-index",
-    "show-tables",
-    "describe",
 ];
 
-/// Statements the node checks: `wildcard-index` runs one search over several indices, and a
-/// function in a `WHERE` is a Painless `script` query that only the reader's compiler runs.
-const NODE: &[&str] = &["wildcard-index", "scalar-where", "where-in-expression"];
+/// Statements the node checks: `wildcard-index` runs one search over several indices, a
+/// function in a `WHERE` is a Painless `script` query that only the reader's compiler runs, and
+/// the metadata statements read the node's name listing.
+const NODE: &[&str] = &[
+    "wildcard-index",
+    "scalar-where",
+    "where-in-expression",
+    "show-tables",
+    "show-tables-all",
+    "describe",
+    "describe-columns",
+];
 
 fn later(name: &str) -> bool {
     LATER.iter().any(|p| name.starts_with(p))

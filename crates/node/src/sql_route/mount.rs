@@ -5,7 +5,9 @@ use std::sync::Arc;
 use oss_blob::BlobStore;
 use oss_rest::Router;
 
-use super::{AllowAll, NameGuard, SqlBackend, SqlGuard, SqlLimits, SqlService};
+use oss_meta::DescriptorStore;
+
+use super::{AllowAll, DescriptorLister, NameGuard, SqlBackend, SqlGuard, SqlLimits, SqlService};
 use crate::assemble::{AssembleError, Config};
 use crate::search::SearchService;
 use crate::security_state::SecurityState;
@@ -16,6 +18,7 @@ pub(crate) fn mount<S: BlobStore + 'static>(
     router: Router,
     config: &Config,
     search: &Arc<SearchService<S>>,
+    store: &Arc<dyn BlobStore>,
     security: Option<&Arc<SecurityState>>,
 ) -> Result<Router, AssembleError> {
     let guard: Arc<dyn SqlGuard> = match security {
@@ -30,6 +33,10 @@ pub(crate) fn mount<S: BlobStore + 'static>(
         max_buckets: config.sql_max_buckets,
     };
     let backend: Arc<dyn SqlBackend> = Arc::clone(search) as _;
-    let service = Arc::new(SqlService::new(backend, guard, limits));
+    let lister = DescriptorLister::new(
+        DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
+            .map_err(|e| AssembleError::Store(e.to_string()))?,
+    );
+    let service = Arc::new(SqlService::new(backend, guard, limits).with_lister(Arc::new(lister)));
     super::routes(router, &service).map_err(AssembleError::Route)
 }
