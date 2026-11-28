@@ -324,3 +324,4 @@ src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a reques
 src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded, memory only, no blob request (ADR 0084)
 src/jobs/types.rs	new		the registry's limits, caller, context and errors
 src/jobs/tests.rs	new		the registry bounds, with the clock and the search gates passed in
+src/ad_route/validate_route.rs	new		the _validate route: what a create would refuse, answered without writing

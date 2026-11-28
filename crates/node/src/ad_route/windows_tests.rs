@@ -93,3 +93,81 @@ fn a_bucket_off_the_interval_is_ignored() {
     ]}}});
     assert_eq!(parse(&answer, &detector(), &SPAN).unwrap(), vec![None; 4]);
 }
+
+fn hc_detector() -> Value {
+    let mut d = detector();
+    d["category_field"] = json!(["host", "az"]);
+    d
+}
+
+#[test]
+fn a_category_field_is_a_terms_level_above_the_features() {
+    let body = request(&hc_detector(), &SPAN).unwrap();
+    let outer = &body["aggs"]["windows"]["aggs"]["entity0"];
+    assert_eq!(outer["terms"], json!({"field": "host", "size": 5}));
+    let inner = &outer["aggs"]["entity1"];
+    assert_eq!(inner["terms"], json!({"field": "az", "size": 5}));
+    assert_eq!(inner["aggs"]["f1"], json!({"max": {"field": "cpu"}}));
+}
+
+fn leaf(host: &str, az: &str, docs: u64, cpu: f64) -> Value {
+    json!({"key": host, "doc_count": docs, "entity1": {"buckets": [
+        {"key": az, "doc_count": docs, "f1": {"value": cpu}, "f3": {"value": 1.0}}
+    ]}})
+}
+
+#[test]
+fn the_entities_with_the_most_documents_are_kept_with_their_own_windows() {
+    // seven hosts over two windows; host h0..h6 has h_i + 1 documents a window
+    let window = |key: i64, upto: u64| {
+        let hosts: Vec<Value> = (0..upto)
+            .map(|i| leaf(&format!("h{i}"), "z", i + 1, i as f64))
+            .collect();
+        json!({"key": key, "doc_count": 1, "entity0": {"buckets": hosts}})
+    };
+    let answer = json!({"aggregations": {"windows": {"buckets": [
+        window(1_200_000, 7),
+        window(1_800_000, 3),
+        window(99_000_000, 7),
+    ]}}});
+    let got = super::parse_entities(&answer, &hc_detector(), &SPAN).unwrap();
+    let keys: Vec<String> = got.iter().map(|e| e.key[0].1.clone()).collect();
+    assert_eq!(
+        keys,
+        ["h6", "h2", "h5", "h4", "h1"],
+        "the five with most documents, most first, ties by key"
+    );
+    assert_eq!(
+        got[0].key,
+        [
+            ("host".to_owned(), "h6".to_owned()),
+            ("az".to_owned(), "z".to_owned())
+        ]
+    );
+    assert_eq!(got[0].docs, 7, "the window outside the span is not counted");
+    assert_eq!(got[0].windows[0], Some(vec![6.0, 1.0]));
+    assert_eq!(
+        got[0].windows[1], None,
+        "h6 is not among the three hosts of the second window"
+    );
+    assert_eq!(
+        got[1].docs,
+        3 + 3,
+        "h2 holds three documents in each of two windows"
+    );
+    assert_eq!(got[1].windows[1], Some(vec![2.0, 1.0]));
+    assert_eq!(got[4].docs, 2 + 2);
+}
+
+#[test]
+fn an_answer_with_no_entities_has_none() {
+    let answer = json!({"aggregations": {"windows": {"buckets": [
+        {"key": 1_200_000, "doc_count": 0, "entity0": {"buckets": []}},
+    ]}}});
+    assert!(
+        super::parse_entities(&answer, &hc_detector(), &SPAN)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(super::parse_entities(&json!({}), &hc_detector(), &SPAN).is_err());
+}

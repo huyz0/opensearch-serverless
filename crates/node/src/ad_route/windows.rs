@@ -6,6 +6,8 @@
 //! it. A bucket with no documents, or a feature with no value, is a missing
 //! window.
 
+use std::collections::BTreeMap;
+
 use serde_json::{Value, json};
 
 /// The windows a search covers: `count` of `interval_ms`, the first starting
@@ -34,6 +36,26 @@ impl Span {
         self.from_ms
             .saturating_add(self.interval_ms.saturating_mul(slot))
     }
+}
+
+/// The most entities a preview of a detector with category fields shows.
+pub const MAX_ENTITIES: usize = 5;
+
+/// The name of the `terms` aggregation of category level `level`.
+fn level_name(level: usize) -> String {
+    format!("entity{level}")
+}
+
+/// The detector's category fields in order.
+pub fn categories(detector: &Value) -> Vec<String> {
+    detector["category_field"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|f| f.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// One enabled feature of a detector.
@@ -99,6 +121,15 @@ pub fn request(detector: &Value, span: &Span) -> Result<Value, String> {
     for f in features(detector)? {
         subs.insert(f.id, f.agg);
     }
+    // Each category field is a `terms` level above the features, the most
+    // significant outermost: a window holds a handful of entities.
+    let mut inner = Value::Object(subs);
+    for (level, field) in categories(detector).iter().enumerate().rev() {
+        inner = json!({level_name(level): {
+            "terms": {"field": field, "size": MAX_ENTITIES},
+            "aggs": inner,
+        }});
+    }
     let end = span.end_ms();
     Ok(json!({
         "size": 0,
@@ -115,7 +146,7 @@ pub fn request(detector: &Value, span: &Span) -> Result<Value, String> {
                 "min_doc_count": 0,
                 "extended_bounds": {"min": span.from_ms, "max": end.saturating_sub(1)},
             },
-            "aggs": Value::Object(subs),
+            "aggs": inner,
         }},
     }))
 }
@@ -161,6 +192,123 @@ pub fn parse(
         }
     }
     Ok(out)
+}
+
+/// One entity of a detector with category fields: its category values and
+/// its windows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Entity {
+    /// Each category field and the entity's value in it.
+    pub key: Vec<(String, String)>,
+    /// How many documents the entity has over the whole span.
+    pub docs: u64,
+    /// The entity's windows, `None` where it had no data.
+    pub windows: Vec<Option<Vec<f32>>>,
+}
+
+/// The text of a `terms` bucket's key, a string or a number.
+fn key_text(key: &Value) -> String {
+    key.as_str().map_or_else(|| key.to_string(), str::to_owned)
+}
+
+/// The key to an entity: each category field and its value.
+type Key = Vec<(String, String)>;
+
+/// What visits a leaf: its key and its bucket.
+type Visit<'a> = dyn FnMut(&[(String, String)], &'a Value) + 'a;
+
+/// Visits every leaf of the `terms` levels under `holder`, with the key to it.
+fn leaves<'a>(
+    holder: &'a Value,
+    fields: &[String],
+    level: usize,
+    key: &mut Key,
+    visit: &mut Visit<'a>,
+) {
+    let Some(field) = fields.get(level) else {
+        visit(key, holder);
+        return;
+    };
+    let Some(buckets) = holder[level_name(level).as_str()]["buckets"].as_array() else {
+        return;
+    };
+    for b in buckets {
+        key.push((field.clone(), key_text(&b["key"])));
+        leaves(b, fields, level.saturating_add(1), key, visit);
+        key.pop();
+    }
+}
+
+/// The entities of `span` read back from a search answer built by
+/// [`request`] for a detector with category fields: the [`MAX_ENTITIES`] with
+/// the most documents, ties by key.
+///
+/// # Errors
+///
+/// An answer that does not hold the histogram.
+pub fn parse_entities(
+    answer: &Value,
+    detector: &Value,
+    span: &Span,
+) -> Result<Vec<Entity>, String> {
+    let buckets = answer["aggregations"]["windows"]["buckets"]
+        .as_array()
+        .ok_or("the search answer has no windows")?;
+    let (features, fields) = (features(detector)?, categories(detector));
+    let slot_of = |b: &Value| -> Option<usize> {
+        b["key"]
+            .as_i64()
+            .map(|k| k.saturating_sub(span.from_ms))
+            .filter(|o| *o >= 0 && o.checked_rem(span.interval_ms) == Some(0))
+            .and_then(|o| o.checked_div(span.interval_ms))
+            .and_then(|s| usize::try_from(s).ok())
+            .filter(|s| *s < span.count)
+    };
+    // First the documents of every entity seen, which holds a key and a count
+    // and no windows; then the windows of the few that are kept.
+    // ALLOC: one entry a distinct entity, at most MAX_ENTITIES a level a window.
+    let mut seen: BTreeMap<Vec<(String, String)>, u64> = BTreeMap::new();
+    for b in buckets.iter().filter(|b| slot_of(b).is_some()) {
+        leaves(b, &fields, 0, &mut Vec::new(), &mut |key, leaf| {
+            let n = leaf["doc_count"].as_u64().unwrap_or(0);
+            let total = seen.entry(key.to_vec()).or_insert(0);
+            *total = total.saturating_add(n);
+        });
+    }
+    let mut docs: Vec<(Vec<(String, String)>, u64)> = seen.into_iter().collect();
+    docs.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    docs.truncate(MAX_ENTITIES);
+    let mut found: Vec<Entity> = docs
+        .into_iter()
+        .map(|(key, docs)| Entity {
+            key,
+            docs,
+            // ALLOC: one entry a window, at most the preview bound, for at most MAX_ENTITIES.
+            windows: vec![None; span.count],
+        })
+        .collect();
+    for b in buckets {
+        let Some(slot) = slot_of(b) else {
+            continue;
+        };
+        leaves(b, &fields, 0, &mut Vec::new(), &mut |key, leaf| {
+            let Some(entity) = found.iter_mut().find(|e| e.key == key) else {
+                return;
+            };
+            if leaf["doc_count"].as_u64().unwrap_or(0) == 0 {
+                return;
+            }
+            // ALLOC: one vector a window with data, one value a feature.
+            let values: Option<Vec<f32>> = features
+                .iter()
+                .map(|f| leaf[f.id.as_str()]["value"].as_f64().map(|v| v as f32))
+                .collect();
+            if let Some(w) = entity.windows.get_mut(slot) {
+                *w = values;
+            }
+        });
+    }
+    Ok(found)
 }
 
 #[cfg(test)]

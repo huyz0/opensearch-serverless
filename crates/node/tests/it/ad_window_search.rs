@@ -67,3 +67,27 @@ fn an_offset_span_and_a_filter_are_honoured() {
     let none = windows_of(json!({"term": {"tag": "no-such-tag"}}), &span);
     assert_eq!(none, vec![None; 4]);
 }
+
+/// A category field is a `terms` level of the same one search, and the reader
+/// answers each entity's windows.
+#[test]
+fn the_reader_answers_each_entitys_windows() {
+    let node = start();
+    let mut d = detector(json!({"match_all": {}}));
+    d["category_field"] = json!(["tag"]);
+    // 1999-12-31T00:00:00Z: the day of the one document with the tag `animal` that year
+    let span = windows::Span {
+        from_ms: 946_598_400_000,
+        interval_ms: DAY,
+        count: 3,
+    };
+    let body = windows::request(&d, &span).expect("a request");
+    let answer = node
+        .service
+        .search(&["compat-paging-sort".to_owned()], &body)
+        .expect("the reader answers");
+    let got = windows::parse_entities(&answer, &d, &span).expect("entities");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(got[0].key, [("tag".to_owned(), "animal".to_owned())]);
+    assert_eq!(got[0].windows, vec![Some(vec![1999.0, 1.0]), None, None]);
+}
