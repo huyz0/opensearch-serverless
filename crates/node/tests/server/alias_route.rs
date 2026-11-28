@@ -18,6 +18,7 @@ const TTL: i64 = 30_000;
 struct Rig {
     server: Server,
     store: Arc<Emulator>,
+    service: Arc<AliasService>,
 }
 
 fn rig() -> Rig {
@@ -34,12 +35,16 @@ fn rig() -> Rig {
     let indices = Arc::new(IndexService::new(descriptors(), Arc::clone(&clock), BUF));
     let aliases = Arc::new(AliasService::new(descriptors(), clock, BUF, TTL));
     let router = index_routes(Router::new(), indices).expect("routes");
-    let router = routes(router, aliases).expect("routes");
+    let router = routes(router, Arc::clone(&aliases)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&support::budget_config());
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
-    let r = Rig { server, store };
+    let r = Rig {
+        server,
+        store,
+        service: aliases,
+    };
     for name in ["a", "b", "c"] {
         assert_eq!(call(&r, "PUT", &format!("/{name}"), None).status, 200);
     }
@@ -223,4 +228,34 @@ fn a_change_costs_requests_that_do_not_grow_with_the_members() {
     let third = cost("/c/_alias/m");
     assert!(second <= first + 6, "{first} {second}");
     assert_eq!(second, third);
+}
+
+// docs/specs/ism AC-15: the runner changes an alias as the route does.
+#[test]
+fn the_runner_adds_and_removes_an_alias_as_the_route_does() {
+    let r = rig();
+    r.service.alter("a", true, "all", Some(true)).expect("add");
+    r.service.alter("b", true, "all", None).expect("add");
+    assert_eq!(
+        members(&r, "all"),
+        serde_json::json!({"a": {"aliases": {"all": {"is_write_index": true}}},
+                           "b": {"aliases": {"all": {}}}})
+    );
+    r.service.alter("a", false, "all", None).expect("remove");
+    assert_eq!(
+        members(&r, "all"),
+        serde_json::json!({"b": {"aliases": {"all": {}}}})
+    );
+    let gone = r
+        .service
+        .alter("zz", true, "all", None)
+        .expect_err("missing");
+    assert!(gone.contains("no such index"), "{gone}");
+    let bad = r.service.alter("a", true, "x*", None).expect_err("literal");
+    assert!(!bad.is_empty());
+    let absent = r
+        .service
+        .alter("a", false, "nope", None)
+        .expect_err("absent");
+    assert!(absent.contains("missing"), "{absent}");
 }

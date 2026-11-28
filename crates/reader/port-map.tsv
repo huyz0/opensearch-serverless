@@ -373,3 +373,5 @@ src/aggs/metric/geo.rs	port	server/src/main/java/org/opensearch/search/aggregati
 src/aggs/metric/geo_tests.rs	new		tests of geo.rs
 src/aggs/metric/geo_parse.rs	port	modules/geo/src/main/java/org/opensearch/geo/search/aggregations/metrics/GeoBoundsAggregationBuilder.java	the bodies of geo_centroid and geo_bounds: field and wrap_longitude
 src/aggs/metric/collect_needs.rs	new		which parts of the engine's metric state each metric reads
+src/knn/sample.rs	new		a bounded uniform sample of a field's vectors over a shard's segments, for training a k-NN model
+src/knn/sample_tests.rs	new		tests of the vector sample; compiled only under cfg(test)
