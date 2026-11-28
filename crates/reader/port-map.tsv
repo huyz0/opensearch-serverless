@@ -357,3 +357,5 @@ src/aggs/pipeline/moving_tests.rs	new		moving_fn computed and parsed against the
 src/aggs/bucket/sub_order_path_tests.rs	new		tests of a terms ordered by a path through single-bucket aggregations
 src/painless_cache.rs	new		a bounded cache of what the node computes from a Painless source; Java caches compiled scripts in ScriptService
 src/painless_cache_tests.rs	new		tests of the compile cache
+src/knn/stats.rs	new		process-wide counts of knn queries run, for the plugin stats API (docs/specs/knn-plugin-api)
+src/knn/stats_tests.rs	new		tests of knn/stats.rs over a real shard

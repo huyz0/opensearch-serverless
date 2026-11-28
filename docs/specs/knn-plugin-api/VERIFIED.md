@@ -1,0 +1,7 @@
+- AC-1: `stats_answer_the_plugins_names_under_this_node` in crates/node/tests/server/knn_api.rs (shapes from the plugin's documentation, provisional: no stock recording yet)
+- AC-2: `a_knn_search_is_counted_and_a_filtered_one_is_counted_as_filtered` in crates/node/tests/server/knn_api.rs, `a_knn_node_run_is_counted_and_a_search_without_one_is_not` in crates/reader/src/knn/stats_tests.rs, `a_filtered_query_counts_as_a_query_and_as_filtered` in crates/reader/src/knn/stats.rs
+- AC-3: `a_named_stat_answers_alone_an_unknown_one_is_400_and_another_node_is_404` in crates/node/tests/server/knn_api.rs
+- AC-4: `warmup_opens_every_shard_and_an_unknown_index_is_404` in crates/node/tests/server/knn_api.rs (the prefetch itself is the reader-vector-warm one; not asserted per range here)
+- AC-5: `clear_cache_closes_the_open_shards_returns_the_charge_and_asks_for_nothing` in crates/node/tests/server/knn_api.rs
+- AC-6: `clear_cache_closes_the_open_shards_returns_the_charge_and_asks_for_nothing` in crates/node/tests/server/knn_api.rs (stats make no GET; clear makes none); the warmup request count is NOT-RUN: not metered separately from the open
+- AC-7: `without_the_routes_every_path_is_an_unknown_route` in crates/node/tests/server/knn_api.rs
