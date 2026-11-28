@@ -119,13 +119,13 @@ fn the_ramp_fixture_is_what_this_implementation_answers() {
             l.set_ramp_permille(said);
             let r = ramp_permille(&l, since + age, cfg);
             let said_text = said.map_or("-".to_owned(), |s| s.to_string());
-            rows.push(format!("R\t{since}\t{said_text}\t{}\t{r}", since + age));
+            rows.push(format!("R {since} {said_text} {} {r}", since + age));
         }
     }
     for node in ["node-0", "node-7", "joiner", "né-ø"] {
         for shard in [0, 1, 7, 255] {
             rows.push(format!(
-                "A\t{node}\tidx\t{shard}\t{}",
+                "A {node} idx {shard} {}",
                 admission(node, ShardKey::new("idx", shard))
             ));
         }
@@ -146,7 +146,7 @@ fn the_ramp_fixture_is_what_this_implementation_answers() {
                 cfg,
                 now,
             );
-            rows.push(format!("K\tidx\t{shard}\t{now}\t{}", ids.join(",")));
+            rows.push(format!("K idx {shard} {now} {}", ids.join(",")));
         }
     }
     let text = rows.join("\n") + "\n";
