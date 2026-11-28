@@ -6,6 +6,8 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod alerting_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -67,7 +69,6 @@ mod ingest_run;
 mod ism_routes;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_cache;
-#[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod metadata_block;

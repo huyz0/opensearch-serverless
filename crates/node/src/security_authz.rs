@@ -255,6 +255,10 @@ const ALL_ACCESS: &[&str] = &[
     "/_pit/{id}",
     "/_serverless/usage",
     "/_prometheus/metrics",
+    "/_plugins/_alerting/monitors",
+    "/_plugins/_alerting/monitors/{id}",
+    "/_opendistro/_alerting/monitors",
+    "/_opendistro/_alerting/monitors/{id}",
 ];
 
 /// The rule for a registered route, or none when the table has no row for

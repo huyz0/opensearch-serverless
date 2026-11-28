@@ -6,6 +6,8 @@
 
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod admin_assemble;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod alerting_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]

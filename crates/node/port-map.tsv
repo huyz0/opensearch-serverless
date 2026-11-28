@@ -304,3 +304,6 @@ src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusal
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
 src/plugins/tests.rs	new		the policy reader and the registry's refusals, tested (ADR 0080)
+src/alerting_route/mod.rs	new		the alerting monitor routes over a tenant's monitor index; the Java plugin is ported natively by ADR 0075
+src/alerting_route/monitor.rs	new		a monitor body as the plugin takes it: checks, schedule text, bookkeeping fields
+src/alerting_route/routes.rs	new		the route table on /_plugins/_alerting and /_opendistro/_alerting

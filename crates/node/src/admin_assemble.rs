@@ -139,6 +139,14 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = crate::alerting_route::routes(
+        router,
+        &Arc::new(crate::alerting_route::AlertingService::new(
+            store,
+            &config.base,
+        )),
+    )
+    .map_err(AssembleError::Route)?;
     let router = if config.ism {
         let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
             .map_err(store_error)?;
