@@ -2,12 +2,12 @@
 
 use oss_types::settings::{BoolSetting, IntSetting, Scope, Setting};
 
-/// `serverless.sql.enabled`: serve `/_plugins/_sql` natively. Off until the
-/// spec's evidence is recorded; with it off the routes answer the plugin's
-/// disabled error.
+/// `serverless.sql.enabled`: serve `/_plugins/_sql` natively. On by default (a
+/// plugin surface with no cost while idle); with it off the routes answer the
+/// plugin's disabled error.
 pub const SQL_ENABLED: BoolSetting = BoolSetting::new(
     "serverless.sql.enabled",
-    false,
+    true,
     Scope::Node,
     "Serve the SQL endpoint, parsed and planned natively into the search path.",
 );

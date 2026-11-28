@@ -44,7 +44,7 @@ Each test is written first and seen red against a stub that returns 501. Unit te
 
 ## Switch
 
-`serverless.sql.enabled` (`OSS_SQL`), default off. It flips on, in the slice that completes the core set, when VERIFIED.md records: the stock-recorded corpus for AC-3 and AC-5 or an owner-accepted gap list; the request rows; and the comparison against the stock plugin on the same data (latency within 5%, peak memory not above). Other settings (node scope, registered with defaults): `max_statement_bytes`, `max_request_bytes`, `max_resolved_indices`, `max_resolved_shards`, `max_scans` (reserved for later slices), `size_limit`.
+`serverless.sql.enabled` (`OSS_SQL`), default on (owner decision: it is a plugin surface and costs nothing idle). Its evidence is still owed, recorded in VERIFIED.md before the slice closes: the stock-recorded corpus for AC-3 and AC-5 or an owner-accepted gap list; the request rows; and the comparison against the stock plugin on the same data (latency within 5%, peak memory not above). Other settings (node scope, registered with defaults): `max_statement_bytes`, `max_request_bytes`, `max_resolved_indices`, `max_resolved_shards`, `max_scans` (reserved for later slices), `size_limit`.
 
 ## Risks
 

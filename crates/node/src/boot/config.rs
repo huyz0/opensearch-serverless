@@ -111,7 +111,7 @@ pub struct NodeConfig {
     pub commit_logged: commits::Logged,
     /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
     pub ltr: bool,
-    /// `serverless.sql.enabled` (`OSS_SQL`): serve the SQL endpoint. Off by default.
+    /// `serverless.sql.enabled` (`OSS_SQL`): serve the SQL endpoint. On by default.
     pub sql: bool,
     /// The SQL row and request bounds.
     pub sql_bounds: sql::Bounds,
@@ -327,7 +327,7 @@ impl NodeConfig {
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
         let (ltr, ism) = (flag("OSS_LTR", "true")?, flag("OSS_ISM", "false")?);
         let ltr_bounds = ltr::read(&bounded)?;
-        let (sql, sql_bounds) = (flag("OSS_SQL", "false")?, sql::read(&bounded)?);
+        let (sql, sql_bounds) = (flag("OSS_SQL", "true")?, sql::read(&bounded)?);
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
         let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
