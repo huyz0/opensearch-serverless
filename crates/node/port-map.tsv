@@ -365,3 +365,5 @@ src/async_search/tests.rs	new		the service against the stock recording
 src/jobs/manage.rs	new		extending, deleting and counting jobs
 src/plugins/assemble.rs	new		reading the policy, loading the registry and mounting the plugins and the status route
 src/boot/config/plugin_policy.rs	new		the OSS_PLUGINS variable
+src/boot/config/plugins.rs	new		the OSS_PLUGINS variable
+src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins from bounded queues
