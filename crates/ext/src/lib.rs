@@ -12,6 +12,7 @@ pub mod breaker;
 mod capability;
 mod catalogue;
 mod descriptor;
+pub mod doc_sink;
 mod error;
 pub mod host;
 mod json;

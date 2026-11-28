@@ -121,8 +121,11 @@ A plugin that holds a capability asks the host through one call, `Host::call(op,
 | `search` | `search` | search |
 | `job.submit` | `job` | search |
 | `job.get`, `job.delete`, `job.stats` | `job` | none |
+| `index.docs` | `index.write` | index op |
 | `egress` | `egress:<host>` (the backend checks the host) | egress |
 | `identity` | `identity` | none |
 | `log`, `metrics` | `log`, `metrics` | none |
 
 A native plugin reaches it by overriding `NativeInstance::call_host`; a plugin that asks for nothing implements `call` only. The backend's operations are bytes in and bytes out, and a port that wants one (asynchronous search's submit, get, delete and stats) implements the `job.*` operations behind `Backend` and keeps its own module a function of bytes.
+
+`index.docs` indexes up to 1,000 documents (each at most 1 MiB, 8 MiB in all) into one named index through the service `_bulk` uses, so a plugin's writes take the writer path, the bulk budget and the same refusals; a document that fails fails alone with its `_bulk` status, a source that is not a JSON object refuses the call (400). `DocSink::index(index, docs)` is the node's side, `DocSinkBackend` serves the operation from it, and the manifest's `budget.index_ops` bounds the calls of one invocation.
