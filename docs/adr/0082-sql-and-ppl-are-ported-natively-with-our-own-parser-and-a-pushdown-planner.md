@@ -1,4 +1,4 @@
-# 0081: SQL and PPL are ported natively, with our own parsers, one logical plan and a planner that pushes down into the search path
+# 0082: SQL and PPL are ported natively, with our own parsers, one logical plan and a planner that pushes down into the search path
 
 **Status:** Accepted after independent review, 2026-11-28. One round, accept with changes: five blocking findings (per-name authorisation, bounded pushed aggregations, per-statement scan and row budgets, index-pattern caps, cursor identity and key source) are written into sections 3 and 4.
 
