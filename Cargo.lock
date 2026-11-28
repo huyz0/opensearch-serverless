@@ -1606,6 +1606,7 @@ dependencies = [
  "h3-quinn",
  "http",
  "lucene-analysis",
+ "lucene-codecs",
  "lucene-index",
  "lucene-search",
  "lucene-store",

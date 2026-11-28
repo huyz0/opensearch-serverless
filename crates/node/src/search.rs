@@ -387,6 +387,8 @@ mod count;
 mod field_caps;
 #[path = "search_frozen.rs"]
 mod frozen;
+#[path = "search_knn.rs"]
+pub mod knn_api;
 #[path = "search_msearch.rs"]
 mod msearch;
 #[path = "search_multi.rs"]
@@ -401,6 +403,7 @@ mod shard_query;
 mod template;
 #[path = "search_uri_query.rs"]
 mod uri_query;
+pub(crate) use open_shard::lock_pushed;
 use uri_query::SEARCH_PARAMS;
 #[path = "search_validate.rs"]
 mod validate;
@@ -485,14 +488,4 @@ pub fn start_reader<S: BlobStore + 'static>(
     let server =
         oss_rest::Server::start(listener, config, router, budget).map_err(StartError::Server)?;
     Ok((server, service))
-}
-
-/// Locks the pushed commits, taking them over if a push panicked holding
-/// them: every change to them is one whole step.
-pub(crate) fn lock_pushed(
-    pushed: &Mutex<PushedCommits>,
-) -> std::sync::MutexGuard<'_, PushedCommits> {
-    pushed
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }

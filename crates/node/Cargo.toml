@@ -109,6 +109,7 @@ serde_json = "=1.0.145"
 # The suite creates a RustFS bucket with one signed request.
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls"] }
 lucene-store = { workspace = true }
+lucene-codecs = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
 oss-testkit = { workspace = true, features = ["index"] }

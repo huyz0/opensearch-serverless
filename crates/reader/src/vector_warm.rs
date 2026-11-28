@@ -25,7 +25,7 @@ pub fn at_open() -> bool {
 /// `knn` search that follows finds them resident. A hint: a range the store
 /// refuses is fetched again by the fault that needs it. Does nothing when
 /// the files were read in at open ([`at_open`]) or are resident already.
-pub(crate) fn warm<S: oss_blob::BlobStore + 'static>(shard: &crate::OpenShard<S>) {
+pub fn warm<S: oss_blob::BlobStore + 'static>(shard: &crate::OpenShard<S>) {
     if at_open() {
         return;
     }

@@ -257,6 +257,11 @@ pub fn assemble(
     let docs = Arc::new(DocService::new(Arc::clone(&role), config.address).with_ingest(ingest));
     let router =
         search::routes(Router::new(), Arc::clone(&search)).map_err(AssembleError::Route)?;
+    let router = if config.knn {
+        search::knn_api::routes(router, &search).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = get_route::routes(router, Arc::new(GetService::new(Arc::clone(&role))))

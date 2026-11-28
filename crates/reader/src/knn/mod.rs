@@ -22,6 +22,8 @@ use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build};
 use crate::mapping::{KnnField, Space};
 
+pub mod stats;
+
 /// The answer of each `knn` node of a query.
 #[derive(Default)]
 pub struct KnnResults {
@@ -175,6 +177,7 @@ pub fn run(
     for knn in nodes {
         check(knn, cx)?;
         let Mode::TopK(k) = knn.mode else { continue };
+        stats::record(knn.filter.is_some());
         let filter = match &knn.filter {
             Some(f) => Some(build(f, cx)?),
             None => None,
@@ -200,6 +203,8 @@ pub fn run(
     Ok(results)
 }
 
+#[cfg(test)]
+mod stats_tests;
 #[cfg(test)]
 mod tests;
 
@@ -231,6 +236,7 @@ fn threshold(mode: Mode, space: Space) -> Result<f32, Failure> {
 pub(crate) fn radial(knn: &Knn, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
     let field = check(knn, cx)?;
     let min_score = threshold(knn.mode, field.space)?;
+    stats::record(knn.filter.is_some());
     let leaf = KnnLeafQuery::new(
         knn.field.clone(),
         KnnTarget::Float(knn.vector.clone()),

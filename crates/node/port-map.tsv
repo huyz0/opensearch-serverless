@@ -307,6 +307,7 @@ src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusal
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
 src/plugins/tests.rs	new		the policy reader and the registry's refusals, tested (ADR 0080)
+src/search_knn.rs	new		the k-NN plugin node calls (stats, warmup, clear_cache) answered for this node; the plugin source is not in this repository (docs/specs/knn-plugin-api)
 src/ad_setting.rs	new		serverless.ad.enabled
 src/ad_route/mod.rs	new		the anomaly detection detector service over a document set; the Java plugin is ported natively by ADR 0078
 src/ad_route/detector.rs	new		detector validation: the features, filters and bounds a serverless node can run

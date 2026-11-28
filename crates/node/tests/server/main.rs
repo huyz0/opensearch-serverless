@@ -75,6 +75,8 @@ mod ism_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod ism_template;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod knn_api;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_cache;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_routes;
