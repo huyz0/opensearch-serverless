@@ -1,6 +1,6 @@
 # 0078: ML Commons is ported natively to Rust; it is no longer proxied
 
-**Status:** Proposed (independent review round 1 folded in; awaiting round 2)
+**Status:** Accepted (independent review, two rounds, 2026-11-28)
 
 ## Context
 
