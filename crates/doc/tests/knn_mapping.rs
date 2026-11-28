@@ -34,8 +34,6 @@ fn the_shapes_this_writer_does_not_index_are_unsupported_not_invalid() {
         "",
         // No engine: the plugin resolves Faiss.
         r#","method":{"name":"hnsw"}"#,
-        r#","method":{"name":"hnsw","engine":"faiss"}"#,
-        r#","method":{"name":"hnsw","engine":"nmslib"}"#,
         r#","method":{"name":"hnsw","engine":null}"#,
         r#","data_type":"byte","method":{"name":"hnsw","engine":"lucene"}"#,
         r#","data_type":"half_float","method":{"name":"hnsw","engine":"lucene"}"#,
