@@ -194,6 +194,12 @@ const RULES: &[(&[Method], &str, Rule)] = &[
 pub const HANDLER: &[&str] = &[
     "/_plugins/_security/api/actiongroups",
     "/_plugins/_security/api/actiongroups/{name}",
+    "/_plugins/_security/api/allowlist",
+    "/_plugins/_security/api/cache",
+    "/_plugins/_security/api/permissionsinfo",
+    "/_plugins/_security/api/securityconfig",
+    "/_plugins/_security/api/securityconfig/config",
+    "/_plugins/_security/api/ssl/certs",
     "/_plugins/_security/api/internalusers",
     "/_plugins/_security/api/internalusers/{name}",
     "/_plugins/_security/api/roles",

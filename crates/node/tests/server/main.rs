@@ -129,6 +129,7 @@ mod security_authn;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authz;
 mod security_builtin;
+mod security_config_api;
 mod security_hardening;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_limits;

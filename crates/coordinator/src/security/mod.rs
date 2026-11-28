@@ -12,6 +12,7 @@ mod authn;
 mod authz;
 mod builtin;
 mod config;
+mod info;
 mod patch;
 mod render;
 mod schema;
@@ -22,6 +23,7 @@ pub use authz::{Authz, IndexPermission, Role};
 use builtin::DATA as BUILTIN_DATA;
 pub use builtin::{Builtin, builtin, builtins, protection, read_builtin};
 pub use config::{ALL_ACCESS, Config, Mapping, User};
+pub use info::{access_denied, cache_flushed, permissionsinfo, securityconfig};
 pub use patch::{Op, apply_ops, bulk_updated, no_updates, patch_document, plan_bulk};
 pub use render::{MAX_LIST_BYTES, deleted, missing, render, render_list, saved};
 pub use validate::{

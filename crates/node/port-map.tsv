@@ -363,3 +363,4 @@ src/async_search/params.rs	new		the request parameters of asynchronous search wi
 src/async_search/render.rs	new		the response envelopes, stats and refusals of asynchronous search
 src/async_search/tests.rs	new		the service against the stock recording
 src/jobs/manage.rs	new		extending, deleting and counting jobs
+src/security_route/admin.rs	new		securityconfig, permissionsinfo, closed routes and the cache flush
