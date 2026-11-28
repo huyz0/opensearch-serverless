@@ -34,7 +34,7 @@ type Handler =
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<NotificationsService>) -> Result<Router, RouteError> {
-    let table: [(Method, &'static str, Handler); 8] = [
+    let table: [(Method, &'static str, Handler); 9] = [
         (Method::Post, "/configs", NotificationsService::create),
         (Method::Get, "/configs", NotificationsService::list),
         (
@@ -51,6 +51,11 @@ pub fn routes(router: Router, service: &Arc<NotificationsService>) -> Result<Rou
         ),
         (Method::Get, "/features", NotificationsService::features),
         (Method::Get, "/channels", NotificationsService::channels),
+        (
+            Method::Post,
+            "/feature/test/{id}",
+            NotificationsService::test_send,
+        ),
     ];
     let mut router = router;
     for (method, tail, handler) in table {

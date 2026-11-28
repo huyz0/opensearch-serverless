@@ -11,8 +11,11 @@
 //! difference. Nothing lists the store.
 
 mod config;
+mod deliver;
+mod egress;
 mod list;
 mod routes;
+mod test_send;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -24,6 +27,8 @@ use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
 
 use crate::route_util::{read_body, refuse};
+pub use deliver::{Deliverer, Delivery, Limits};
+pub use egress::{EgressPolicy, Lookup, permitted, system_lookup};
 pub use routes::routes;
 
 /// The catalogue's one document name.
@@ -37,6 +42,7 @@ pub struct NotificationsService {
     base: String,
     buffer_bytes: usize,
     allowed: Vec<&'static str>,
+    deliverer: Option<std::sync::Arc<Deliverer>>,
 }
 
 pub(crate) fn bad(reason: impl Into<String>) -> RestError {
@@ -133,6 +139,7 @@ impl NotificationsService {
             base: base.to_owned(),
             buffer_bytes,
             allowed: config::TYPES.to_vec(),
+            deliverer: None,
         }
     }
 
@@ -140,6 +147,14 @@ impl NotificationsService {
     #[must_use]
     pub fn with_allowed_types(mut self, allowed: Vec<&'static str>) -> Self {
         self.allowed = allowed;
+        self
+    }
+
+    /// Sends the test route's message through `deliverer`; without one the
+    /// route answers 501.
+    #[must_use]
+    pub fn with_deliverer(mut self, deliverer: std::sync::Arc<Deliverer>) -> Self {
+        self.deliverer = Some(deliverer);
         self
     }
 

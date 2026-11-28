@@ -78,6 +78,7 @@ mod metadata_block;
 #[cfg(feature = "reader")]
 mod newest_ask;
 mod notifications_routes;
+mod notifications_send;
 mod pinned_busy;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_cost;

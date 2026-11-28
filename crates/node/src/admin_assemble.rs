@@ -153,7 +153,12 @@ pub(crate) fn register(
             store,
             &config.base,
             config.pit_buffer_bytes,
-        );
+        )
+        .with_deliverer(Arc::new(crate::notifications_route::Deliverer::new(
+            crate::notifications_route::system_lookup(),
+            crate::notifications_route::EgressPolicy::from_env(),
+            crate::notifications_route::Limits::default(),
+        )));
         crate::notifications_route::routes(router, &Arc::new(service))
             .map_err(AssembleError::Route)?
     } else {
