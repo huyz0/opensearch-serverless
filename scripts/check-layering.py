@@ -28,6 +28,7 @@ LAYERS = {
     "oss-blob": 1,
     "oss-format": 1,
     "oss-rest": 1,
+    "oss-query": 1,
     "oss-edge": 2,
     "oss-transport": 1,
     "oss-meta": 2,

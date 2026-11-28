@@ -7,6 +7,7 @@ members = [
     "crates/types",
     "crates/anomaly",
     "crates/mem",
+    "crates/query",
     "crates/testkit",
     "crates/blob",
     "crates/format",
@@ -43,6 +44,7 @@ oss-ext = { path = "crates/ext" }
 oss-ext-wasm = { path = "crates/ext-wasm" }
 oss-anomaly = { path = "crates/anomaly" }
 oss-mem = { path = "crates/mem" }
+oss-query = { path = "crates/query" }
 oss-edge = { path = "crates/edge" }
 oss-testkit = { path = "crates/testkit" }
 oss-blob = { path = "crates/blob" }

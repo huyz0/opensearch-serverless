@@ -13,6 +13,7 @@ mod preview_route;
 mod routes;
 mod search;
 mod source;
+mod validate_route;
 pub mod windows;
 
 pub use source::WindowSearch;

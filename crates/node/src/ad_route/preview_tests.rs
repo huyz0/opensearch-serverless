@@ -62,7 +62,7 @@ fn the_result_names_each_window_and_its_features_and_is_empty_without_data() {
         count: 2,
     };
     let values = vec![Some(vec![3.0]), None];
-    let out = results(&features, &span, &values, &[None, None]);
+    let out = results(&features, &span, &values, &[None, None], None);
     assert_eq!(out.len(), 2);
     assert_eq!(out[0]["data_start_time"], 1_000);
     assert_eq!(out[0]["data_end_time"], 1_500);
@@ -72,7 +72,7 @@ fn the_result_names_each_window_and_its_features_and_is_empty_without_data() {
     );
     assert_eq!(out[1]["feature_data"][0]["data"], json!(null));
     assert_eq!(out[1]["anomaly_grade"], 0.0);
-    assert!(results(&features, &span, &[None, None], &[None, None]).is_empty());
+    assert!(results(&features, &span, &[None, None], &[None, None], None).is_empty());
 }
 
 #[test]
@@ -80,4 +80,23 @@ fn a_value_the_model_refuses_names_its_window() {
     let p = params(&json!({"shingle_size": 2}), 1).unwrap();
     let err = score(p, &[Some(vec![1.0]), Some(vec![f32::INFINITY])], 0).unwrap_err();
     assert!(err.starts_with("window 1: "), "{err}");
+}
+
+#[test]
+fn an_entity_result_carries_its_key() {
+    let features = [Feature {
+        id: "f1".into(),
+        name: "cpu".into(),
+        agg: json!({}),
+    }];
+    let span = Span {
+        from_ms: 0,
+        interval_ms: 500,
+        count: 1,
+    };
+    let key = [("host".to_owned(), "a".to_owned())];
+    let out = results(&features, &span, &[Some(vec![1.0])], &[None], Some(&key));
+    assert_eq!(out[0]["entity"], json!([{"name": "host", "value": "a"}]));
+    let plain = results(&features, &span, &[Some(vec![1.0])], &[None], None);
+    assert!(plain[0].get("entity").is_none());
 }

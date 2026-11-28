@@ -80,8 +80,8 @@ const FEATURE_BYTES: usize = 256;
 
 /// The bytes a preview holds: its model and workspace, and the windows of the
 /// search answer, their values and the rendered result, at the most a preview
-/// reads.
-pub(crate) fn reserved(params: &Params) -> usize {
+/// reads for each of `entities`.
+pub(crate) fn reserved(params: &Params, entities: usize) -> usize {
     let window = params
         .features
         .saturating_mul(FEATURE_BYTES)
@@ -89,7 +89,11 @@ pub(crate) fn reserved(params: &Params) -> usize {
     params
         .reserved_bytes()
         .saturating_add(params.workspace_bytes())
-        .saturating_add(window.saturating_mul(MAX_PREVIEW_POINTS))
+        .saturating_add(
+            window
+                .saturating_mul(MAX_PREVIEW_POINTS)
+                .saturating_mul(entities),
+        )
 }
 
 /// Feeds every window in order and keeps the scores of those from `history`.
@@ -124,6 +128,7 @@ pub(crate) fn results(
     span: &Span,
     values: &[Option<Vec<f32>>],
     scored: &[Option<Scored>],
+    entity: Option<&[(String, String)]>,
 ) -> Vec<Value> {
     if values.iter().all(Option::is_none) {
         return Vec::new();
@@ -139,7 +144,7 @@ pub(crate) fn results(
             });
             let (grade, score, confidence) =
                 s.map_or((0.0, 0.0, 0.0), |s| (s.grade, s.score, s.confidence));
-            json!({
+            let mut result = json!({
                 "detector_id": null,
                 "anomaly_grade": grade,
                 "anomaly_score": score,
@@ -147,7 +152,15 @@ pub(crate) fn results(
                 "feature_data": data.collect::<Vec<_>>(),
                 "data_start_time": span.start_of(i),
                 "data_end_time": span.start_of(i.saturating_add(1)),
-            })
+            });
+            if let (Some(key), Some(m)) = (entity, result.as_object_mut()) {
+                let entity: Vec<Value> = key
+                    .iter()
+                    .map(|(name, value)| json!({"name": name, "value": value}))
+                    .collect();
+                m.insert("entity".to_owned(), Value::Array(entity));
+            }
+            result
         })
         .collect()
 }
