@@ -101,7 +101,7 @@ pub fn show_tables(cluster: &str, names: &[String], limit: usize) -> Result<Stri
         })
         .collect();
     let mut out = Out::new(usize::MAX);
-    jdbc(&mut out, schema(&SHOW), &rows)?;
+    jdbc(&mut out, schema(&SHOW), &rows, true)?;
     Ok(out.finish())
 }
 
@@ -171,6 +171,6 @@ pub fn describe(
         ]);
     }
     let mut out = Out::new(usize::MAX);
-    jdbc(&mut out, schema(&DESCRIBE), &rows)?;
+    jdbc(&mut out, schema(&DESCRIBE), &rows, true)?;
     Ok(out.finish())
 }

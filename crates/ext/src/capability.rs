@@ -18,6 +18,9 @@ pub enum Capability {
     StateWrite,
     /// Run a search as the calling tenant.
     Search,
+    /// Index documents into the node's own indexes, through the same path as
+    /// `_bulk`.
+    IndexWrite,
     /// Start a search the host runs on a thread of its own and read its
     /// result later ([ADR 0084](../../../docs/adr/0084-asynchronous-search-is-a-native-plugin-over-node-local-jobs.md)).
     Job,
@@ -38,6 +41,7 @@ impl Capability {
             "state.read" => Some(Self::StateRead),
             "state.write" => Some(Self::StateWrite),
             "search" => Some(Self::Search),
+            "index.write" => Some(Self::IndexWrite),
             "job" => Some(Self::Job),
             "identity" => Some(Self::Identity),
             "log" => Some(Self::Log),
@@ -84,4 +88,6 @@ pub struct Budget {
     pub searches: u32,
     /// Outbound HTTP calls.
     pub egress: u32,
+    /// Calls that index documents.
+    pub index_ops: u32,
 }

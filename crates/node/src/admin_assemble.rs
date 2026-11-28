@@ -150,6 +150,7 @@ pub(crate) fn register(
         router
     };
     let router = crate::ml_route::mount(router, store, config)?;
+    let router = crate::observability_route::mount(router, store, config)?;
     let router = if config.notifications {
         let service = crate::notifications_route::NotificationsService::new(
             store,
@@ -166,7 +167,6 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = crate::plugins::install_configured(router, &config.plugin_policy)?;
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,
@@ -327,9 +327,11 @@ fn security(
     )
     .map_err(|e| AssembleError::Store(e.to_string()))?
     .with_state(Arc::clone(&state));
-    let router =
-        security_route::routes(router, &Arc::new(service)).map_err(AssembleError::Route)?;
+    let service = Arc::new(service);
+    let router = security_route::routes(router, &service).map_err(AssembleError::Route)?;
     let router = security_route::authinfo_route(router, &state).map_err(AssembleError::Route)?;
+    let router =
+        security_route::config_routes(router, &service, &state).map_err(AssembleError::Route)?;
     let authorizer = RouteAuthorizer::new(Arc::clone(&state));
     let guard = AuthGuard(Arc::new(Authenticator::new(Arc::clone(&state), clock)));
     let router = router

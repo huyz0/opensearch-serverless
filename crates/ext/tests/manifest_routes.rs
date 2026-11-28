@@ -122,3 +122,22 @@ fn a_manifest_may_have_exactly_64_routes() {
     assert!(parse(&with(64)).is_ok(), "64 routes");
     assert!(parse(&with(65)).is_err(), "65 routes");
 }
+
+// docs/specs/plugin-system AC-4, AC-14: a plugin may ask to index documents, and budgets how many calls.
+#[test]
+fn index_write_is_a_capability_and_index_ops_a_budget() {
+    let with = GOOD
+        .replace(r#""identity"]"#, r#""identity","index.write"]"#)
+        .replace(r#""egress":1}"#, r#""egress":1,"index_ops":3}"#);
+    let m = parse(&with).expect("parses");
+    assert!(m.capabilities().contains(&oss_ext::Capability::IndexWrite));
+    assert_eq!(m.budget().index_ops, 3);
+    assert_eq!(m.budget().state_ops, 2, "the other items are unchanged");
+    let over = with.replace(r#""index_ops":3"#, r#""index_ops":65"#);
+    assert!(parse(&over).is_err(), "over 64");
+    assert_eq!(
+        parse(GOOD).expect("parses").budget().index_ops,
+        0,
+        "zero by default"
+    );
+}

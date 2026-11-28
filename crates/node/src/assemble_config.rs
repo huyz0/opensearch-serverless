@@ -36,6 +36,8 @@ pub struct Config {
     pub ltr: bool,
     /// `serverless.sql.enabled`: serve the SQL endpoint.
     pub sql: bool,
+    /// `serverless.ppl.enabled`: serve the PPL endpoint.
+    pub ppl: bool,
     /// `serverless.sql.size_limit`: the most rows a statement returns.
     pub sql_size_limit: usize,
     /// `serverless.sql.max_request_bytes`: the largest request body.
@@ -50,6 +52,8 @@ pub struct Config {
     pub notifications: bool,
     /// `serverless.ad.enabled`: serve the anomaly detection detector routes.
     pub ad: bool,
+    /// `serverless.observability.enabled`: serve the observability object routes.
+    pub observability: bool,
     /// `OSS_PLUGINS`: the plugin policy text; empty names no plugin.
     pub plugin_policy: String,
     /// `serverless.ltr.max_window`: the most hits an `sltr` rescore scores.
@@ -177,6 +181,7 @@ impl Config {
             search_pipelines: false,
             ltr: false,
             sql: false,
+            ppl: false,
             sql_size_limit: 200,
             sql_max_request_bytes: 1 << 20,
             sql_max_buckets: 10_000,
@@ -184,6 +189,7 @@ impl Config {
             ml: false,
             notifications: true,
             ad: false,
+            observability: false,
             plugin_policy: String::new(),
             ltr_max_window: 1_000,
             ltr_cache_ttl_secs: 30,

@@ -209,6 +209,7 @@ fn name_of(c: &Capability) -> String {
         Capability::Job => "job".to_owned(),
         Capability::Egress(h) => format!("egress:{h}"),
         Capability::Identity => "identity".to_owned(),
+        Capability::IndexWrite => "index.write".to_owned(),
         Capability::Log => "log".to_owned(),
         Capability::Metrics => "metrics".to_owned(),
     }

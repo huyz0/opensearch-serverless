@@ -20,7 +20,7 @@ A sort after `stats` (`stats count() as c by city | sort - c`) orders the bucket
 
 ## Acceptance criteria
 
-- AC-1: over the recorded documents each `ppl-*` statement above gives stock's `datarows` and `schema` (names and PPL types), compared by `crates/query/tests/recorded.rs` with the SQL cases; a statement outside this slice is on its `LATER` list and a listed statement that starts working fails the test.
+- AC-1: over the recorded documents each `ppl-*` statement above gives stock's `datarows` and `schema` (names and PPL types), compared by `crates/query/tests/recorded_ppl.rs`; a statement outside this slice is on its `LATER` list and a listed statement that starts working fails the test.
 - AC-2: a PPL statement and the SQL statement it equals lower to the same search body (`where age > 26 | fields name, age` and `SELECT name, age FROM t WHERE age > 26`); no PPL-only lowering path exists.
 - AC-3: errors: an unknown command is 400 `SyntaxCheckException` with reason `Invalid Query`; a syntax error is 400 `SyntaxCheckException` with the offending token and the position text `[<token>] is not a valid term at this part of the query: '...<tail>' <-- HERE.` (the list of expected tokens that follows in stock is not reproduced: it names 453 grammar tokens); an unknown field is 400 `IllegalArgumentException` `Field [nope] not found.`; an unknown index is 404 `IndexNotFoundException`.
 - AC-4: every parser bound of SQL holds (statement bytes, tokens, nesting, identifier length), a fixed-seed fuzz mutates the PPL corpus and no input panics.

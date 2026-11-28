@@ -5,7 +5,8 @@ use serde_json::{Map, Value, json};
 
 use crate::ast::{Agg, CmpOp, Item, Lit, Select};
 use crate::mapping::Field;
-use crate::plan::{Column, Plan, Shape, Source, exact_name, lookup, query};
+use crate::plan::{Column, Plan, Shape, Source, exact_name, lookup};
+use crate::plan_query::query;
 use crate::{Error, Mapping};
 
 /// The name of the composite aggregation, as the plugin names it.
@@ -47,13 +48,13 @@ fn lower(agg: &Agg, mapping: &Mapping) -> Result<(Value, String), Error> {
     Ok((json!({agg.func.clone(): {"field": field}}), ty.to_owned()))
 }
 
-pub(crate) fn plan(sel: &Select, mapping: &Mapping) -> Result<Plan, Error> {
+pub(crate) fn plan(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, Error> {
     let mut group: Vec<String> = sel.group.clone();
     let mut columns = Vec::new();
     let mut aggs = Map::new();
     for item in &sel.items {
         match item {
-            Item::Star => {
+            Item::Star | Item::StarExcept(_) => {
                 return Err(Error::unsupported(
                     "* cannot be combined with aggregates or GROUP BY",
                 ));
@@ -115,17 +116,24 @@ pub(crate) fn plan(sel: &Select, mapping: &Mapping) -> Result<Plan, Error> {
                 "field": name, "missing_bucket": true, "missing_order": "first",
                 "order": if desc { "desc" } else { "asc" }}}}));
         }
-        if let Some(o) = sel.order.iter().find(|o| !group.contains(&o.field)) {
-            return Err(Error::unsupported(format!(
-                "ORDER BY [{}] is not a GROUP BY field; ordering by an aggregate is a later slice",
-                o.field
-            )));
-        }
         let mut comp = json!({"composite": {"size": PAGE, "sources": sources}});
         if !aggs.is_empty() {
             comp["aggregations"] = Value::Object(aggs);
         }
         body.insert("aggregations".into(), json!({COMPOSITE: comp}));
+    }
+    let mut sort = Vec::new();
+    for o in sel.order.iter().filter(|o| !group.contains(&o.field)) {
+        let Some(i) = columns
+            .iter()
+            .position(|c| c.name == o.field || c.alias.as_deref() == Some(&o.field))
+        else {
+            return Err(Error::semantic(format!(
+                "ORDER BY [{}] must be a GROUP BY field or a column of the select list",
+                o.field
+            )));
+        };
+        sort.push((i, o.desc));
     }
     let having = match &sel.having {
         None => None,
@@ -149,7 +157,13 @@ pub(crate) fn plan(sel: &Select, mapping: &Mapping) -> Result<Plan, Error> {
         shape: Shape::Aggs {
             grouped: !group.is_empty(),
             having,
+            sort,
+            offset: usize::try_from(sel.offset).unwrap_or(usize::MAX),
+            limit: sel
+                .limit
+                .map_or(size_limit, |n| usize::try_from(n).unwrap_or(usize::MAX)),
         },
+        ppl: false,
     })
 }
 
@@ -186,7 +200,10 @@ fn passes(v: &Value, op: CmpOp, lit: &Lit) -> bool {
 }
 
 pub(crate) fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Error> {
-    let Shape::Aggs { grouped, having } = &plan.shape else {
+    let Shape::Aggs {
+        grouped, having, ..
+    } = &plan.shape
+    else {
         return Ok(Vec::new());
     };
     let aggs = response
@@ -231,4 +248,52 @@ pub(crate) fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Err
         out.push(row);
     }
     Ok(out)
+}
+
+fn compare(a: &Value, b: &Value) -> std::cmp::Ordering {
+    match (a.as_f64(), b.as_f64()) {
+        (Some(x), Some(y)) => x.total_cmp(&y),
+        _ => match (a, b) {
+            (Value::Null, Value::Null) => std::cmp::Ordering::Equal,
+            (Value::Null, _) => std::cmp::Ordering::Less,
+            (_, Value::Null) => std::cmp::Ordering::Greater,
+            _ => plain_text(a).cmp(&plain_text(b)),
+        },
+    }
+}
+
+fn plain_text(v: &Value) -> String {
+    match v {
+        Value::String(s) => s.clone(),
+        other => other.to_string(),
+    }
+}
+
+/// Order by the non-key columns, then drop `offset` rows and keep at most `limit`.
+pub(crate) fn finish(shape: &Shape, mut rows: Vec<Vec<Value>>) -> Vec<Vec<Value>> {
+    let Shape::Aggs {
+        sort,
+        offset,
+        limit,
+        ..
+    } = shape
+    else {
+        return rows;
+    };
+    if !sort.is_empty() {
+        rows.sort_by(|a, b| {
+            for (i, desc) in sort {
+                let o = compare(
+                    a.get(*i).unwrap_or(&Value::Null),
+                    b.get(*i).unwrap_or(&Value::Null),
+                );
+                let o = if *desc { o.reverse() } else { o };
+                if o.is_ne() {
+                    return o;
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+    }
+    rows.into_iter().skip(*offset).take(*limit).collect()
 }
