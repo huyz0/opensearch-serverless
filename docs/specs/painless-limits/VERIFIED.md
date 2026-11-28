@@ -1,6 +1,6 @@
 # Painless execution limits: verified
 
-Run on 2026-11-27 (Linux cloud container, debug build, emulator store; provisional). The node test was written first and failed (a 2 MiB string was served with 200); the engine's tests (lucene-rust `tests/arena.rs`) were seen failing with the hook and the cap removed. The engine change is huyz0/lucene-rust#616, pinned here at `fc0990e4` (the same change on the base this repo already pinned); #616's CI is red on checks that are red on lucene-rust main too (lucene-zstd, GenMovingFunctions.java), so it is not merged.
+Run on 2026-11-27 (Linux cloud container, debug build, emulator store; provisional). The node test was written first and failed (a 2 MiB string was served with 200); the engine's tests (lucene-rust `tests/arena.rs`) were seen failing with the hook and the cap removed. The engine change is huyz0/lucene-rust#616, merged with green CI and pinned here at `dbb34e98`; the tests below were re-run on that pin.
 
 - AC-1: `a_script_past_its_limits_is_refused_and_the_node_goes_on` (crates/node/tests/painless_limits.rs): a 2 MiB string answers 400 script_exception, "allocated more than"; a script of 8 KiB is served.
 - AC-2: `a_script_past_its_limits_is_refused_and_the_node_goes_on`: 100 strings of 64 KiB add up past 4 MiB and answer 400.

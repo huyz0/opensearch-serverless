@@ -6,7 +6,7 @@
 
 ## Change
 
-lucene-rust's `lucene_painless::arena` charges every string, array and list a script builds to a per-thread invocation counter and fails the run (a `PainlessError`) at its next loop iteration or its end when it passed a limit; `front::source::compile` refuses a script over the IR node cap. The limits are unlimited until set. A node with `serverless.scripting.painless.native_compile` on sets them when it builds its search service: 4 MiB an invocation, 1 MiB a string or collection, 20,000 IR nodes. With the switch off it sets them back to unlimited. The engine is pinned to a lucene-rust commit that holds them (huyz0/lucene-rust#616, on the e6e974af base).
+lucene-rust's `lucene_painless::arena` charges every string, array and list a script builds to a per-thread invocation counter and fails the run (a `PainlessError`) at its next loop iteration or its end when it passed a limit; `front::source::compile` refuses a script over the IR node cap. The limits are unlimited until set. A node with `serverless.scripting.painless.native_compile` on sets them when it builds its search service: 4 MiB an invocation, 1 MiB a string or collection, 20,000 IR nodes. With the switch off it sets them back to unlimited. The engine is pinned to the lucene-rust commit that holds them (huyz0/lucene-rust#616, `dbb34e98`).
 
 ## Acceptance criteria
 
