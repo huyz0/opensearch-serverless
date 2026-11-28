@@ -12,6 +12,20 @@ pub fn set_native_compile(on: bool) {
     NATIVE_COMPILE.store(on, Ordering::Relaxed);
 }
 
+/// Bounds what a Painless script may allocate and how large it may be (ADR
+/// 0069, docs/specs/painless-limits) when `on`, and lifts the bounds when
+/// not. Process-wide, as the switch is.
+pub fn set_limits(on: bool) {
+    use lucene_painless::arena;
+    if on {
+        arena::set_limits(arena::DEFAULT_INVOCATION, arena::DEFAULT_VALUE);
+        arena::set_ir_nodes(arena::DEFAULT_IR_NODES);
+    } else {
+        arena::set_limits(usize::MAX, usize::MAX);
+        arena::set_ir_nodes(usize::MAX);
+    }
+}
+
 /// Whether Painless source is compiled natively.
 pub fn native_compile() -> bool {
     #[cfg(test)]

@@ -23,6 +23,7 @@ pub static SETTINGS: &[&Setting] = &[NATIVE_COMPILE.setting()];
 /// leaves it off (docs/specs/painless-compile-cache). Returns the budget.
 pub(crate) fn installing_compile_cache(budget: &MemoryBudget) -> MemoryBudget {
     oss_reader::painless_cache::remove();
+    oss_reader::painless_switch::set_limits(oss_reader::painless_switch::native_compile());
     if !oss_reader::painless_switch::native_compile() {
         return budget.clone();
     }
