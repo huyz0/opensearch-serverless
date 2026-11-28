@@ -177,7 +177,7 @@ impl Config {
             sql_max_request_bytes: 1 << 20,
             ism: false,
             ml: false,
-            notifications: false,
+            notifications: true,
             ad: false,
             ltr_max_window: 1_000,
             ltr_cache_ttl_secs: 30,

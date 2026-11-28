@@ -17,7 +17,7 @@ Notifications is native in `oss-format` (two document kinds), `oss-node` (the ro
 - **The sender is an in-process `Notifier`** that alerting and ISM call, plus the stock `feature/test` route. HTTP channels share one egress guard: resolve once and check every address, refuse private, loopback, link-local and mapped ranges, connect to the address checked, no redirect, bounded body, deadline and concurrency, TLS verified. No retry: the caller owns retry. A delivery failure is a status in the answer, as in the stock plugin.
 - **Credentials of email, SNS and SES are the operator's, bound to operator-declared accounts**, never to a tenant-chosen host, role or region, so a tenant cannot aim the node's credentials at a server of its own; a config blob holds no account secret beyond the channel URL the plugin itself stores. The egress guard's switches are node operator settings, not cluster settings.
 - It is written as a service with a `routes()` function and no assembly side effect beyond that, so it moves onto [ADR 0080](0080-one-plugin-system-three-tiers.md)'s linked-in native tier as the ISM and LTR ports will, without a rewrite. It does not wait for that system.
-- It is off by default (`serverless.notifications.enabled`) until the spec's stock recording and request counts are recorded; with it off the routes are absent.
+- It is on by default (`serverless.notifications.enabled`, the owner's rule for every plugin of 2026-11-28); with it off the routes are absent. Idle makes no request, so the default costs nothing until a client uses it.
 
 ## Consequences
 
