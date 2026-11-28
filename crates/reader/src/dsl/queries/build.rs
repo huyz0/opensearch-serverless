@@ -136,6 +136,7 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             .ok_or_else(|| unsupported("the [knn] query here")),
         More::Knn(q) => crate::knn::radial(q, cx),
         More::Nested(q, _) => super::nested_build::nested(q, cx),
+        More::GeoDistance(q) => super::geo_distance::build(cx, q),
         // A logging query matches every document and adds nothing to a score.
         More::Sltr(q) if q.featureset.is_some() => {
             // ALLOC: one box a logging query.
@@ -179,6 +180,7 @@ pub(super) fn type_name(ty: &FieldType) -> &str {
         FieldType::Double => "double",
         FieldType::HalfFloat => "half_float",
         FieldType::Scaled(_) => "scaled_float",
+        FieldType::GeoPoint => "geo_point",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -331,7 +333,7 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
         FieldType::Double | FieldType::Float | FieldType::HalfFloat | FieldType::Scaled(_) => {
             set(decimal::decimal_set(ty, field, values)?)
         }
-        FieldType::Unsupported(_) => Err(unsupported("this field type")),
+        FieldType::GeoPoint | FieldType::Unsupported(_) => Err(unsupported("this field type")),
     }
 }
 

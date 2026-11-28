@@ -217,7 +217,9 @@ pub(crate) fn field_sort<S: BlobStore + 'static>(
             return Ok((f, KeyKind::Float));
         }
         // ALLOC: error path; one message.
-        FieldType::Unsupported(what) => return Err(unsupported(&format!("{what} [{name}]"))),
+        other @ (FieldType::Unsupported(_) | FieldType::GeoPoint) => {
+            return Err(unsupported(&format!("{} [{name}]", other.refusal_name())));
+        }
         FieldType::Text => return Err(unsupported("a text field")),
     };
     let mut f = SortField::numeric(name, ty, reverse);

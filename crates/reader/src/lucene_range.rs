@@ -111,7 +111,7 @@ pub(crate) fn range_in(
                 None => Ok(match_none()),
             }
         }
-        FieldType::Text | FieldType::Keyword | FieldType::Unsupported(_) => {
+        FieldType::Text | FieldType::Keyword | FieldType::GeoPoint | FieldType::Unsupported(_) => {
             // ALLOC: error path; one message.
             Err(unsupported(&format!(
                 "a range query on the string field [{field}]"

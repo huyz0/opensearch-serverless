@@ -218,9 +218,12 @@ pub(crate) fn field_type<'m>(
     let Some(f) = cx.mapping.get(field) else {
         return Ok(None);
     };
-    if let FieldType::Unsupported(what) = &f.ty {
+    if let FieldType::Unsupported(_) | FieldType::GeoPoint = &f.ty {
         // ALLOC: error path; one message.
-        return Err(unsupported(&format!("searching {what} [{field}]")));
+        return Err(unsupported(&format!(
+            "searching {} [{field}]",
+            f.ty.refusal_name()
+        )));
     }
     if !f.indexed {
         // ALLOC: error path; one message.
@@ -283,7 +286,9 @@ pub(crate) fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<
             let s = lucene_util::half_float::half_float_to_sortable_short(v);
             point(decimal::half_points(field, s, s))?
         }
-        FieldType::Unsupported(_) => return Err(unsupported("this field type")),
+        FieldType::GeoPoint | FieldType::Unsupported(_) => {
+            return Err(unsupported("this field type"));
+        }
     })
 }
 
