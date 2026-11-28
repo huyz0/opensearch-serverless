@@ -16,7 +16,7 @@ pub enum Format {
     Raw,
 }
 
-fn dig<'a>(src: &'a Value, path: &str) -> Option<&'a Value> {
+pub(crate) fn dig<'a>(src: &'a Value, path: &str) -> Option<&'a Value> {
     if let Some(v) = src.get(path) {
         return Some(v);
     }
@@ -77,6 +77,7 @@ pub fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Error> {
                 Source::Id => hit.get("_id").cloned().unwrap_or(Value::Null),
                 Source::Index => hit.get("_index").cloned().unwrap_or(Value::Null),
                 Source::Score => hit.get("_score").cloned().unwrap_or(Value::Null),
+                Source::Expr(e) => e.eval(src),
                 Source::Group(_) | Source::Agg(_) => Value::Null,
             })
             .collect();
