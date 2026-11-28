@@ -265,3 +265,11 @@ fn a_condition_reads_its_fields_once_each_and_a_long_stays_long() {
     assert_eq!(ty("SELECT age + age FROM t"), json!("integer"));
     assert_eq!(ty("SELECT score + balance FROM t"), json!("double"));
 }
+
+#[test]
+fn a_null_literal_is_a_value_not_a_field() {
+    let d = doc();
+    assert_eq!(cell("SELECT ifnull(none, null) FROM t", &d), Value::Null);
+    assert_eq!(cell("SELECT ifnull(none, NULL) FROM t", &d), Value::Null);
+    assert_eq!(cell("SELECT ifnull(age, NULL) FROM t", &d), json!(30));
+}
