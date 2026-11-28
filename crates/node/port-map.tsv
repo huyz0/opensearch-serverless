@@ -410,3 +410,5 @@ src/notifications_route/send.rs	new		one message to one config of any type: chan
 src/notifications_route/smtp.rs	new		mail through a declared SMTP relay: STARTTLS or TLS, AUTH over TLS only, per-recipient status
 src/plugins/wasm_load.rs	new		reads the WASM modules a policy names by hash from the store at start, one GET each
 src/ism_run/backend.rs	new		the effects the runner asks of the node, a trait so the decision is tested with a fake
+src/knn_trainer.rs	new		k-means and product-quantizer training of a k-NN model from a vector sample: Faiss Clustering as lucene-faiss ports it, PQ on residuals
+src/knn_trainer_tests.rs	new		tests of the trainer; compiled only under cfg(test)
