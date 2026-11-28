@@ -11,7 +11,8 @@
 //! (60000), `WARM_ROUNDS` (2), `WARM_SCALE_WINDOW` (30), `WARM_SCALE_GAP_MS`
 //! (20), `WARM_SCALE_RUSTFS` (with the RustFS binary variable), `WARM_JOINER_CPUS`,
 //! `WARM_PEER_ENV` (`K=V,K=V` for the peer), `WARM_CONFIGS`
-//! (`label:K=V;K=V|label:K=V`, joiner settings per config).
+//! (`label:K=V;K=V|label:K=V`, joiner settings per config),
+//! `WARM_JOINER_TIER_ROOT` (a directory for the joiners' tiers).
 
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 // ARITH: sums and means of small test numbers; the clippy.toml method bans
@@ -126,7 +127,15 @@ fn the_warm_copy_limits_against_one_peer() {
     for round in 0..rounds {
         for (label, warm, extra) in &arms {
             std::thread::sleep(Duration::from_secs(5));
-            let tier = root.join(format!("n2-{round}-{label}"));
+            // `WARM_JOINER_TIER_ROOT` puts the joiners' tiers elsewhere (for
+            // example tmpfs), so what they write does not share the peer's
+            // disk and its page cache.
+            let tier = std::env::var("WARM_JOINER_TIER_ROOT")
+                .map_or_else(|_| root.clone(), std::path::PathBuf::from)
+                .join(format!(
+                    "oss-warm-n2-{}-{round}-{label}",
+                    std::process::id()
+                ));
             let started = Instant::now();
             // `JOINERS=n` in a config starts n joiners together (each with its
             // own tier), and ready is when the last one is.
