@@ -17,6 +17,7 @@ pub(crate) fn index_service(
     clock: &PitClock,
     bucket_wiring: Option<&Arc<crate::writer::BucketWiring>>,
     pins: Option<Arc<dyn crate::pin_policy::PinPolicy>>,
+    events: &crate::lifecycle_bus::Bus,
 ) -> Result<Arc<IndexService>, crate::assemble::AssembleError> {
     // Every update and delete is recorded in the change stripes, which is
     // what lets a writer confirm an index it kept without reading it.
@@ -51,6 +52,7 @@ pub(crate) fn index_service(
     }
     Ok(Arc::new(
         indices
+            .with_events(events.clone())
             .with_knn(config.knn)
             .with_nested(config.nested)
             .with_pipelines(config.ingest_pipelines)
@@ -112,6 +114,7 @@ pub(crate) fn delete_service(
     store: &Arc<dyn BlobStore>,
     clock: &PitClock,
     bucket_wiring: Option<&Arc<crate::writer::BucketWiring>>,
+    events: &crate::lifecycle_bus::Bus,
 ) -> Result<Arc<DeleteService>, crate::assemble::AssembleError> {
     // With the snapshot routes on, a delete reads the snapshots before it
     // purges: a shallow snapshot names the index's blobs and copies none.
@@ -141,6 +144,7 @@ pub(crate) fn delete_service(
         }
         None => service,
     })
+    .map(|service| service.with_events(events.clone()))
     .map(Arc::new)
     .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
 }

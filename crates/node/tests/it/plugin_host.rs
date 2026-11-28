@@ -80,7 +80,15 @@ fn a_plugin_reaches_the_backend_only_through_what_it_was_granted() {
     let backend: Arc<dyn Backend> = Arc::new(Node);
     let policy = r#"{"plugins":[{"id":"asker","tier":"native",
         "grants":["identity","search"]}]}"#;
-    let router = install(Router::new(), policy, &linked, &backend, || 0).expect("installs");
+    let router = install(
+        Router::new(),
+        policy,
+        &linked,
+        &backend,
+        || 0,
+        &oss_node::lifecycle_bus::Bus::default(),
+    )
+    .expect("installs");
     let budget = MemoryBudget::new(&support::budget_config());
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let server =

@@ -1,8 +1,6 @@
 //! Index admin over REST: create an index and ask whether a name holds one.
-//!
-//! Ported from `serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java`
-//! (its create and exists routes), over `oss-meta`'s descriptor store and
-//! `oss-coordinator`'s decisions.
+//! Ported from `serverless/shell/.../indexadmin/IndexAdminHandler.java` (its create and
+//! exists routes), over `oss-meta`'s descriptor store and `oss-coordinator`.
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -22,6 +20,7 @@ mod created;
 mod mapping;
 
 use crate::index_templates::TemplateSets;
+use crate::lifecycle_bus::Bus;
 use crate::pin_policy::{PinPolicy, with_members};
 use crate::route_util::read_body;
 pub use created::Created;
@@ -71,12 +70,12 @@ pub struct IndexService {
     pipelines: bool,
     search_pipelines: bool,
     created: Option<Created>,
+    events: Option<Bus>,
 }
 
 impl IndexService {
-    /// A service over `descriptors`, telling the time by `clock`
-    /// (milliseconds). Each create holds one buffer of `buffer_bytes` for
-    /// the descriptor, charged to the request-body pool.
+    /// A service over `descriptors`, timed by `clock` (ms); each create holds
+    /// one `buffer_bytes` buffer, charged to the request-body pool.
     pub fn new(descriptors: DescriptorStore, clock: PitClock, buffer_bytes: usize) -> Self {
         Self {
             descriptors,
@@ -91,6 +90,7 @@ impl IndexService {
             pipelines: false,
             search_pipelines: false,
             created: None,
+            events: None,
         }
     }
 
