@@ -2,7 +2,7 @@
 
 ## Serves
 
-R15.4's ML Commons plugin, under [ADR 0078](../../adr/0078-ml-commons-is-ported-natively.md), which supersedes [ADR 0046](../../adr/0046-plugin-requests-are-proxied-to-java-nodes.md) for it (the owner's decision, 2026-11-28: port the other plugins as learning to rank was). Follows the shape of [ltr](../ltr/SPEC.md); tasks are node-local memory ([ADR 0072](../../adr/0072-tasks-are-node-local-memory-with-no-blob-requests.md)).
+R15.4's ML Commons plugin, under [ADR 0079](../../adr/0079-ml-commons-is-ported-natively.md), which supersedes [ADR 0046](../../adr/0046-plugin-requests-are-proxied-to-java-nodes.md) for it (the owner's decision, 2026-11-28: port the other plugins as learning to rank was). Follows the shape of [ltr](../ltr/SPEC.md); tasks are node-local memory ([ADR 0072](../../adr/0072-tasks-are-node-local-memory-with-no-blob-requests.md)).
 
 ## Change
 
