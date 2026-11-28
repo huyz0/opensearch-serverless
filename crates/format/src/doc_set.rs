@@ -73,6 +73,8 @@ pub enum DocKind {
     /// A learning to rank store's models, `models/` under the store's own
     /// base.
     LtrModels,
+    /// Index state management policies, `ism/policies/`.
+    IsmPolicies,
 }
 
 impl DocKind {
@@ -92,6 +94,7 @@ impl DocKind {
             Self::LtrStores => "ltr/stores/",
             Self::LtrFeatureSets => "featuresets/",
             Self::LtrModels => "models/",
+            Self::IsmPolicies => "ism/policies/",
         }
     }
 }
