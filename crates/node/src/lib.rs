@@ -25,12 +25,15 @@ mod assemble_publishing;
 mod assemble_writer;
 #[cfg(feature = "reader")]
 pub mod async_search;
+pub mod async_search_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]
 pub mod bulk_handler;
 #[cfg(feature = "writer")]
 pub mod bulk_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod bulk_sink;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod by_query;
 #[cfg(feature = "writer")]
@@ -75,6 +78,7 @@ pub mod extension_store;
 pub mod forward;
 #[cfg(feature = "writer")]
 mod forward_call;
+pub mod geospatial_setting;
 #[cfg(feature = "writer")]
 pub mod get_route;
 #[cfg(any(feature = "reader", feature = "writer", feature = "coordinator"))]
@@ -97,6 +101,8 @@ pub mod index_templates;
 pub mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod ism_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod ism_run;
 pub mod ism_setting;
 #[cfg(feature = "reader")]
 pub mod jobs;
@@ -114,6 +120,7 @@ pub mod lease_age;
 pub mod lease_announce;
 #[cfg(feature = "writer")]
 pub mod lifecycle;
+pub mod lifecycle_bus;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod ltr_route;
 pub mod ltr_setting;
@@ -131,6 +138,9 @@ pub mod newest_ask;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod notifications_route;
 pub mod notifications_setting;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod observability_route;
+pub mod observability_setting;
 #[cfg(feature = "reader")]
 pub mod open_indexes;
 #[cfg(feature = "reader")]
@@ -166,6 +176,9 @@ pub mod read_forward;
 pub mod reader_ramp_setting;
 #[cfg(feature = "writer")]
 pub mod refresh_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod reports_route;
+pub mod reports_setting;
 #[cfg(feature = "writer")]
 pub mod restore_background;
 #[cfg(all(feature = "writer", feature = "coordinator"))]

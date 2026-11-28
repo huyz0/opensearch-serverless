@@ -85,6 +85,26 @@ fn index_state_management_is_on_by_default_and_set_by_its_variable() {
     assert!(!off.expect("valid").plugins.ism);
 }
 
+// docs/specs/observability: the object routes are on by default and set by their variable
+#[test]
+fn observability_is_on_by_default_and_set_by_its_variable() {
+    let on = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(on.plugins.observability);
+    let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_OBSERVABILITY", "false")])));
+    assert!(!off.expect("valid").plugins.observability);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_OBSERVABILITY", "maybe")]))).is_err());
+}
+
+// docs/specs/reports: the definition routes are on by default and set by their variable
+#[test]
+fn reports_are_on_by_default_and_set_by_their_variable() {
+    let on = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(on.plugins.reports);
+    let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_REPORTS", "false")])));
+    assert!(!off.expect("valid").plugins.reports);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_REPORTS", "maybe")]))).is_err());
+}
+
 // docs/specs/anomaly-detection: no plugin needs a flag to be on; the variable only turns it off
 #[test]
 fn anomaly_detection_is_on_by_default_and_set_by_its_variable() {

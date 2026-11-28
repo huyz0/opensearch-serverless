@@ -18,3 +18,16 @@
 - AC-11: `a_change_to_a_shipped_document_is_refused_as_the_plugin_refuses_it` in crates/coordinator/tests/it/security_builtin.rs; `a_built_in_cannot_be_written_patched_or_deleted` and `a_bulk_patch_naming_a_built_in_writes_nothing` in crates/node/tests/server/security_builtin.rs
 - AC-12: `a_mapping_for_a_built_in_role_is_accepted` in crates/node/tests/server/security_builtin.rs; `a_reserved_role_grants_what_the_plugin_grants` in crates/coordinator/tests/it/security_builtin.rs
 - AC-13: `no_user_or_mapping_is_shipped` in crates/coordinator/tests/it/security_builtin.rs; `no_demo_user_is_shipped` in crates/node/tests/server/security_builtin.rs
+
+## Slice 3
+
+- AC-14: `securityconfig_answers_the_effective_configuration` in crates/node/tests/server/security_config_api.rs
+- AC-15: `the_configuration_that_stock_keeps_closed_is_403_and_makes_no_request` in crates/node/tests/server/security_config_api.rs
+- AC-16: `permissionsinfo_names_the_caller` in crates/node/tests/server/security_config_api.rs
+- AC-17: `flushing_the_cache_makes_the_next_request_read_the_sets` and `a_user_without_admin_access_is_refused_every_one_of_these_routes` in crates/node/tests/server/security_config_api.rs
+
+## Slice 4
+
+- AC-18: `account_answers_the_recorded_shape` and `the_account_of_the_administrator_is_reserved` in crates/node/tests/server/security_account.rs
+- AC-19: `a_user_changes_its_own_password`, `a_wrong_current_password_changes_nothing`, `a_malformed_password_change_is_400` and `the_administrator_cannot_change_a_stored_password` in crates/node/tests/server/security_account.rs; `a_password_change_needs_both_strings` in crates/coordinator/tests/it/security_info.rs
+- AC-20: `a_user_without_admin_access_reads_its_own_account` in crates/node/tests/server/security_account.rs; `every_registered_route_has_an_action_row` in crates/node/tests/server/security_authz.rs

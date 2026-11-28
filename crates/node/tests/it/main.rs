@@ -28,6 +28,7 @@ mod never_written;
 mod open_prefetch;
 mod open_prefetch_layout;
 mod plugin_events;
+mod plugin_host;
 mod plugin_routes;
 mod rank_eval;
 mod rescore;
@@ -56,5 +57,7 @@ mod search_template;
 mod search_template_stored;
 mod search_url_params;
 mod shards;
+#[cfg(feature = "writer")]
+mod sql_budgets;
 mod uri_query;
 mod validate_query;

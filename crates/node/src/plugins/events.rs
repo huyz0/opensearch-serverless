@@ -47,14 +47,10 @@ fn work(
     now: fn() -> u64,
 ) {
     while let Ok(event) = rx.recv() {
-        if let Some(instance) = plugin.instance() {
-            let bytes = event.encode();
-            // The answer is empty by the point's ceiling, and a failure is the
-            // guard's to count: the plugin's breaker sees it.
-            let _ = plugin
-                .guard()
-                .call(&**instance, &event.tenant, "lifecycle", &bytes, 0, now);
-        }
+        let bytes = event.encode();
+        // The answer is empty by the point's ceiling, and a failure is the
+        // guard's to count: the plugin's breaker sees it.
+        let _ = plugin.call(&event.tenant, "lifecycle", &bytes, 0, now);
         done.fetch_add(1, Ordering::Relaxed);
     }
 }
@@ -107,5 +103,11 @@ impl Dispatcher {
             delivered: l.delivered.load(Ordering::Relaxed),
             dropped: l.dropped.load(Ordering::Relaxed),
         })
+    }
+}
+
+impl crate::lifecycle_bus::Events for Dispatcher {
+    fn publish(&self, event: &Event) {
+        Dispatcher::publish(self, event);
     }
 }

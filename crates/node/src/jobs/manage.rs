@@ -2,8 +2,6 @@
 
 use std::sync::atomic::Ordering;
 
-use oss_mem::Pool;
-
 use super::{JobError, Jobs, Stats, Who};
 
 impl Jobs {
@@ -63,7 +61,7 @@ impl Jobs {
         self.sweep(&mut inner, self.now());
         let mut s = inner.stats;
         s.running_current = inner.threads as u64;
-        s.held_bytes = self.budget.in_use(Pool::Extensions) as u64;
+        s.held_bytes = self.budget.in_use(self.limits.pool) as u64;
         s
     }
 }

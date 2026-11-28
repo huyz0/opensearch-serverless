@@ -46,3 +46,13 @@ fn the_replay_fuel_factor_is_sixteen_and_one_to_a_thousand_and_twenty_four() {
     assert!(read("0").is_err());
     assert!(read("1025").is_err());
 }
+
+// docs/specs/async-search AC-8: the node's own routes reserve results from
+// the query pool, which a default node has; the plugin pool it does not.
+#[test]
+fn a_default_node_has_room_for_the_async_search_registry_in_the_query_pool() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    let b = c.budget().expect("fits");
+    let worst = (8 << 20) + (32 << 20) + (72 << 10);
+    assert!(b.pool(Pool::QueryExecution) >= worst, "{c:?}");
+}

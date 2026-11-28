@@ -49,6 +49,7 @@ mod json;
 mod json_write;
 mod key_owner;
 mod keys;
+mod knn_model;
 mod location;
 mod manifest;
 mod members;
@@ -100,7 +101,7 @@ pub use cluster_settings::{ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, Setting,
 pub use descriptor::{DescriptorRecord, IndexDescriptor, TOMBSTONE_PREFIX};
 pub use doc_set::{
     DocKind, DocSetMarker, MAX_DOC_BYTES, MAX_DOC_NAME_BYTES, MAX_DOC_SET_MARKER_BYTES, MAX_DOCS,
-    MAX_MODEL_BYTES, doc_content_key, doc_set_marker_key,
+    MAX_MODEL_BYTES, MAX_REPORT_DEFINITIONS, doc_content_key, doc_set_marker_key,
 };
 pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
@@ -111,6 +112,10 @@ pub use keys::{
     TRANSPORT_SECRET_KEY, change_stripe_key, cluster_config_key, descriptor_key, looks_like_an_id,
     node_log_key, node_pack_key, point_in_time_key, point_in_time_state_key, reclaim_intent_key,
     tombstone_marker_key, transport_secret_key,
+};
+pub use knn_model::{
+    MAX_BLOB_BYTES as MAX_MODEL_BLOB_BYTES, ModelEncoder, ModelHeader, ModelSpace, ModelView,
+    PQ_ENTRIES, encode as encode_model, parse as parse_model,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestEntry, ManifestFile, encode as encode_manifest};

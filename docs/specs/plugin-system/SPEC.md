@@ -6,14 +6,14 @@
 
 ## Change
 
-Eight slices, one PR each. The plugin system has no master switch: the deployer's policy (`OSS_PLUGINS`) is the opt-in, an empty or absent policy loads nothing, and the native library loader sits behind `serverless.plugins.native.enabled` and the Cargo feature `plugins-native`. Slices 1 and 2 add no tier a deployer can reach; the first plugin that runs is slice 2's linked-in one.
+Eight slices, one PR each. The plugin system has no master switch: the deployer's policy (`OSS_PLUGINS`) is the opt-in, an empty or absent policy loads nothing, and the native library loader sits behind the Cargo feature `plugins-native`, with `serverless.plugins.native.enabled` as an opt-out that defaults on. Slices 1 and 2 add no tier a deployer can reach; the first plugin that runs is slice 2's linked-in one.
 
 1. **Contract** (`oss-ext`, no runtime): the manifest and its strict parser (the descriptor parser grown by the `plugin`, `routes`, `events`, `capabilities`, `budget` sections), the point catalogue as data (name, version, determinism class, ceilings, allowed tiers), the capability and budget types, the plugin API version (`1.0`) and its accept rule, the circuit breaker with an injected clock, and (added with the dynamic native tier) the C ABI as `#[repr(C)]` types and symbol names, with a golden layout test and the version rule both ways. The `rest` and `lifecycle` codecs and their golden vectors move to slice 2, where the first caller is.
 2. **Registry, the linked-in native form, REST routes, lifecycle** (`oss-node` `plugins/`, `plugins/` for third-party native crates): the `NativeInstance` trait, the policy reader (`OSS_PLUGINS`), registration with collision and claim rules, route mounting with the action-table row, dispatch with `catch_unwind`, the breaker and bulkhead on every call, lifecycle delivery from a bounded queue, the status route, counters, the setting. A reference plugin `plugins/echo` used by the tests, linked in here and built as a library in slice 5.
 3. **WASM plugins:** the `rest` and `lifecycle` points on ADR 0052's host (an effectful point is allowed host imports, linked only when granted; a pure point still refuses any import), deadline accounting across host imports, the module's manifest, the load-time grant check.
 4. **State, search and egress capabilities** for native and WASM: the `state` host API over document sets, the call budget and its 429, the `search` and `egress` imports with alerting's egress rules, tenant attribution of every request, rows in [request-budgets](../../request-budgets.md).
 5. **Dynamic native libraries** (`oss-ext-native`, `oss-plugin-sdk`, feature `plugins-native`): the loader, the SHA-256 allow-list and Ed25519 signature check, the verified private copy, the manifest-against-policy check, the `OssHost` table with granted capabilities and `denied` stubs, the host allocator and the unmetered refusal, the watchdog with `stuck_action`, the crash-loop guard, the no-replace rule, and the SDK with the panic wrapper. `plugins/echo` is built as a `cdylib` and loaded by the tests.
-6. **gRPC tier** (`oss-ext-grpc`, feature `plugins-grpc`): the client, the `Describe` and `Call` messages, unix socket and mutual TLS, deadline, message bound reserved before read, connection reuse, breaker, `serverless.plugins.grpc.enabled`. A test server in Rust in `testkit` stands in for a plugin.
+6. **gRPC tier** (`oss-ext-grpc`, feature `plugins-grpc`): the client, the `Describe` and `Call` messages, unix socket and mutual TLS, deadline, message bound reserved before read, connection reuse, breaker, `serverless.plugins.grpc.enabled` (opt-out, default on). A test server in Rust in `testkit` stands in for a plugin.
 7. **Conformance, hostile soak, measurement, docs:** one suite run against every form of the tiers (the same plugin behaviour linked in, as a library, as WASM and as a gRPC service), hostile plugins per tier, the idle-zero and empty-registry measurements, `compatibility.md` (the status route, plugin routes, and that `_cat/plugins` does not list these plugins), the update of [add-an-extension-point](../../how-to/add-an-extension-point.md), the flip decision recorded.
 8. **First adopter:** learning to rank's routes and rescore register through the system with its existing tests unchanged (the reference port other ports follow). Optional for the others; none is scheduled.
 
@@ -54,7 +54,7 @@ File ownership: new files under `crates/ext`, `crates/ext-wasm`, `crates/ext-grp
 - AC-29: a hung native call is contained: a plugin that never returns is marked `stuck` by the watchdog after its deadline, further calls answer 503 at once, the node keeps serving every other route, `quarantine` leaks and counts the thread and turns into `exit` after `max_stuck`, and `exit` drains and ends the process with its distinct status; with no native call in flight the watchdog thread does not run.
 - AC-30: the crash-loop guard: a process killed (SIGKILL, in a test) with a native plugin active leaves the marker, a start that finds it twice in a row for the same plugin and hash refuses that plugin as `crashed twice` and serves without it, a changed policy entry clears it, a clean shutdown removes it, and none of it makes a store request.
 - AC-31: native memory: a plugin whose manifest says `allocator: host` has its allocations charged to the `Extensions` pool and an allocation past the pool fails into the memory-limit status; a plugin that declares `host` and shows zero `host_allocs` after its first calls is flagged unmetered like one that declares nothing, and an unmetered plugin is refused unless the policy names `allow_unmetered`; the status route shows `host_allocs` and the flag; the declared `memory_bytes` is reserved at load; the spec states that this metering is cooperative.
-- AC-32: the native switch: with `serverless.plugins.native.enabled` off no library file is read, and a policy naming a library is logged and ignored.
+- AC-32: the native opt-out: with `serverless.plugins.native.enabled` set false no library file is read, and a policy naming a library is logged and ignored; unset, it is on.
 - AC-33: the native ABI at the boundary: an `OssBuf` returned with `len` above `cap` is `plugin_malformed`; a manifest without `threading` or declaring `panic: abort` is refused; a `serial` plugin never has two calls at once while a `concurrent` one may have eight; the table never returns host memory (`state_get` fills the plugin's buffer and reports the length needed); a host panic in a table function does not unwind into the plugin (a test panics in a stub).
 - AC-34: a plugin's call that enters a plugin route or point (through `search`) is 400 `plugin_recursion`, at depth 1, and costs no further request.
 
@@ -99,7 +99,7 @@ No request scales with documents, indexes, plugins loaded or elapsed time. A cal
 
 ## Switch
 
-There is no `serverless.plugins.enabled`: with no downside to hide behind a switch, the policy is the opt-in. `serverless.plugins.native.enabled` and `serverless.plugins.grpc.enabled` stay, each default false (the native one runs foreign code in the node's process, the gRPC one opens outbound connections). Both flip only when slice 7 records: hostile plugins of every tier leave the node serving within its memory budget; AC-12's idle-zero holds with all tiers loaded (measured on RustFS, provisional). Until then the setting stays off, the flip is its own change, and the owner is told.
+There is no `serverless.plugins.enabled`: with no downside to hide behind a switch, the policy is the opt-in. `serverless.plugins.native.enabled` and `serverless.plugins.grpc.enabled` stay only as opt-outs, each default true (owner's decision: plugins are on by default). A deployer who does not want foreign code in the node's process, or outbound plugin connections, sets one false; the policy still has to name the plugin before anything loads.
 
 ## Risks
 
@@ -109,3 +109,23 @@ There is no `serverless.plugins.enabled`: with no downside to hide behind a swit
 - **gRPC adds an outbound connection surface.** Off by default, endpoints named by the deployer in the policy, no redirects, no discovery; TLS verification is not optional for TCP.
 - **The policy file must match across nodes.** A node with a different policy answers differently; the status route makes it visible, and a mixed policy is a deployment error this does not detect (the same as ADR 0052's node switch).
 - **ADR number.** 0080 leaves room for the numbers other threads have taken; renumber before merge if one is taken.
+
+## Host API 1.0
+
+A plugin that holds a capability asks the host through one call, `Host::call(op, bytes) -> bytes` (`oss_ext::host`), whose operation names are versioned data, so a new operation is an additive change. The node supplies a `Backend`; `CallHost` stands between them and judges every operation the same way for every tier (AC-4, AC-14): the operation's capability must be granted (else 403), the call's budget for that kind must not be spent (else 429; a `state.*` op spends `state_ops`, `search` and `job.submit` spend `searches`, `egress` spends `egress`, the rest spend nothing), and the answer must fit the ceiling the plugin gave (else 413). A refused operation never reaches the backend. With no backend an operation is 503.
+
+| Operation | Needs | Spends |
+|---|---|---|
+| `state.get` | `state.read` | state op |
+| `state.put`, `state.delete` | `state.write` | state op |
+| `search` | `search` | search |
+| `job.submit` | `job` | search |
+| `job.get`, `job.delete`, `job.stats` | `job` | none |
+| `index.docs` | `index.write` | index op |
+| `egress` | `egress:<host>` (the backend checks the host) | egress |
+| `identity` | `identity` | none |
+| `log`, `metrics` | `log`, `metrics` | none |
+
+A native plugin reaches it by overriding `NativeInstance::call_host`; a plugin that asks for nothing implements `call` only. The backend's operations are bytes in and bytes out, and a port that wants one (asynchronous search's submit, get, delete and stats) implements the `job.*` operations behind `Backend` and keeps its own module a function of bytes.
+
+`index.docs` indexes up to 1,000 documents (each at most 1 MiB, 8 MiB in all) into one named index through the service `_bulk` uses, so a plugin's writes take the writer path, the bulk budget and the same refusals; a document that fails fails alone with its `_bulk` status, a source that is not a JSON object refuses the call (400). `DocSink::index(index, docs)` is the node's side, `DocSinkBackend` serves the operation from it, and the manifest's `budget.index_ops` bounds the calls of one invocation.

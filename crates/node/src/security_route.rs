@@ -17,7 +17,12 @@ use oss_format::{DocKind, MAX_DOC_BYTES};
 use oss_meta::{DocSet, MetaError};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
+mod account;
+mod admin;
 mod patch;
+
+pub use account::account_routes;
+pub use admin::config_routes;
 
 use crate::route_util::{read_body, refuse};
 use crate::security_state::SecurityState;
@@ -84,7 +89,7 @@ impl SecurityService {
     }
 
     /// The refusal for a caller who is not an administrator, if it is not.
-    fn admin_only(&self, req: &Request<'_>) -> Result<Option<Answer>, RestError> {
+    pub(super) fn admin_only(&self, req: &Request<'_>) -> Result<Option<Answer>, RestError> {
         let Some(state) = &self.state else {
             return Ok(None);
         };

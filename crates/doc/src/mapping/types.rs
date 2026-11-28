@@ -24,6 +24,8 @@ pub enum FieldType {
     Boolean,
     /// `knn_vector`, the k-NN plugin's field.
     Knn,
+    /// `geo_point`: a latitude and longitude, as `LatLonPoint`s and doc values.
+    GeoPoint,
 }
 
 impl FieldType {
@@ -43,6 +45,7 @@ impl FieldType {
             "date" => FieldType::Date,
             "boolean" => FieldType::Boolean,
             "knn_vector" => FieldType::Knn,
+            "geo_point" => FieldType::GeoPoint,
             _ => return None,
         })
     }
@@ -56,6 +59,7 @@ impl FieldType {
             FieldType::Date => "date",
             FieldType::Boolean => "boolean",
             FieldType::Knn => "knn_vector",
+            FieldType::GeoPoint => "geo_point",
         }
     }
 
@@ -69,6 +73,7 @@ impl FieldType {
             FieldType::Date => DATE,
             FieldType::Boolean => BOOLEAN,
             FieldType::Knn => KNN,
+            FieldType::GeoPoint => GEO_POINT,
         }
     }
 }
@@ -81,7 +86,6 @@ pub(crate) const OTHER_TYPES: &[&str] = &[
     "unsigned_long",
     "date_nanos",
     "ip",
-    "geo_point",
     "geo_shape",
     "completion",
     "search_as_you_type",
@@ -302,6 +306,20 @@ pub(crate) const DEPRECATED_PARAMS: &[&str] = &[
     "doc_values",
     "index_options",
     "similarity",
+];
+
+/// `GeoPointFieldMapper`'s parameters, in `doXContentBody`'s order:
+/// `FieldMapper`'s `index`, `doc_values` and `store`, `meta`, then the
+/// geometry mapper's `ignore_malformed` and `ignore_z_value` (written only
+/// when the mapping set them). `null_value` is refused as unsupported.
+pub(crate) const GEO_POINT: &[Def] = &[
+    p("index", Kind::Bool, Fixed, D::Bool(true)),
+    p("doc_values", Kind::Bool, Fixed, D::Bool(true)),
+    p("store", Kind::Bool, Fixed, D::Bool(false)),
+    p("meta", Kind::Meta, Upd, D::Empty),
+    p("ignore_malformed", Kind::Explicit, Upd, D::Bool(false)),
+    p("ignore_z_value", Kind::Explicit, Upd, D::Bool(true)),
+    only("null_value", Kind::NullString, Fixed, D::Null),
 ];
 
 /// `KNNVectorFieldMapper.Builder.getParameters`, in its order. The stored,

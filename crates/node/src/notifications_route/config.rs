@@ -1,8 +1,13 @@
 //! A channel config as a client puts it: checked at put against what this
 //! node can send, so a bad shape is a 400 naming it and never a failure at
-//! send.
+//! send. Answers use the plugin's own statuses and words (the stock 3.10.0
+//! recording): an unknown key is dropped, a type without its block is a 400,
+//! an unknown type a 406.
 
-use serde_json::{Map, Value};
+use oss_rest::RestError;
+use serde_json::{Map, Value, json};
+
+use crate::route_util::refuse;
 
 /// Every `config_type` of the plugin.
 pub(super) const TYPES: [&str; 9] = [
@@ -30,8 +35,6 @@ const CHANNEL_TYPES: [&str; 6] = [
 /// Header names a webhook may not set: the node frames its own request.
 const FORBIDDEN_HEADERS: [&str; 4] = ["host", "content-length", "transfer-encoding", "connection"];
 
-const MAX_NAME_CHARS: usize = 256;
-const MAX_DESCRIPTION_CHARS: usize = 1024;
 const MAX_RECIPIENTS: usize = 100;
 const MAX_HEADERS: usize = 32;
 
@@ -46,13 +49,6 @@ fn text<'a>(m: &'a Map<String, Value>, key: &str, what: &str) -> Result<&'a str,
     match m.get(key).and_then(Value::as_str) {
         Some(s) if !s.is_empty() => Ok(s),
         _ => Err(format!("[{what}] needs a non-empty string [{key}]")),
-    }
-}
-
-fn only(m: &Map<String, Value>, allowed: &[&str], what: &str) -> Checked {
-    match m.keys().find(|k| !allowed.contains(&k.as_str())) {
-        Some(k) => Err(format!("unknown key [{k}] in [{what}]")),
-        None => Ok(()),
     }
 }
 
@@ -164,115 +160,221 @@ fn recipients(list: &Value, what: &str) -> Checked {
         let o = item
             .as_object()
             .ok_or_else(|| format!("[{what}] a recipient is an object with [recipient]"))?;
-        only(o, &["recipient"], "recipient")?;
         address(text(o, "recipient", "recipient")?, "recipient")?;
     }
     Ok(())
 }
 
-fn block(ty: &str, b: &Map<String, Value>) -> Checked {
-    match ty {
-        "slack" | "chime" | "microsoft_teams" => {
-            only(b, &["url"], ty)?;
-            url(text(b, "url", ty)?, ty)
+fn status(code: u16, reason: impl Into<String>) -> RestError {
+    refuse(code, "status_exception", reason)
+}
+
+/// The ids a config names: the account an email sends through and the
+/// groups it sends to. A put checks that each exists.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(super) struct Refs {
+    pub accounts: Vec<String>,
+    pub groups: Vec<String>,
+}
+
+fn arg(reason: String) -> RestError {
+    super::bad(reason)
+}
+
+/// The block of `ty`, as the plugin stores it: the keys it knows, with its
+/// defaults, and what an email names.
+fn block(ty: &str, b: &Map<String, Value>) -> Result<(Value, Refs), RestError> {
+    let mut refs = Refs::default();
+    let out = match ty {
+        "slack" => {
+            let u = text(b, "url", ty).map_err(arg)?;
+            if !u.contains("hooks.slack.com/services/")
+                && !u.contains("hooks.gov-slack.com/services/")
+            {
+                return Err(status(
+                    400,
+                    "Wrong Slack url. Should contain \"hooks.slack.com/services/\" or \"hooks.gov-slack.com/services/\"",
+                ));
+            }
+            url(u, ty).map_err(arg)?;
+            json!({"url": u})
+        }
+        "chime" => {
+            let u = text(b, "url", ty).map_err(arg)?;
+            if !u.contains("hooks.chime.aws/incomingwebhooks/") || !u.contains("?token=") {
+                return Err(status(
+                    400,
+                    "Wrong Chime url. Should contain \"hooks.chime.aws/incomingwebhooks/\" and \"?token=\"",
+                ));
+            }
+            url(u, ty).map_err(arg)?;
+            json!({"url": u})
+        }
+        "microsoft_teams" => {
+            let u = text(b, "url", ty).map_err(arg)?;
+            url(u, ty).map_err(arg)?;
+            json!({"url": u})
         }
         "webhook" => {
-            only(b, &["url", "header_params", "method"], ty)?;
-            url(text(b, "url", ty)?, ty)?;
-            if let Some(h) = b.get("header_params") {
-                headers(h)?;
+            let u = text(b, "url", ty).map_err(arg)?;
+            if url(u, ty).is_err() {
+                return Err(arg("Invalid URL or unsupported".to_owned()));
             }
-            match b.get("method").map(Value::as_str) {
-                None | Some(Some("POST" | "PUT" | "PATCH")) => Ok(()),
-                _ => Err("[webhook] [method] is POST, PUT or PATCH".to_owned()),
-            }
+            let h = match b.get("header_params") {
+                None | Some(Value::Null) => json!({}),
+                Some(h) => {
+                    headers(h).map_err(arg)?;
+                    h.clone()
+                }
+            };
+            let method = match b.get("method") {
+                None | Some(Value::Null) => "POST",
+                Some(Value::String(m)) if matches!(m.as_str(), "POST" | "PUT" | "PATCH") => {
+                    m.as_str()
+                }
+                _ => return Err(arg("[webhook] [method] is POST, PUT or PATCH".to_owned())),
+            };
+            json!({"url": u, "header_params": h, "method": method})
         }
         "email" => {
-            only(
-                b,
-                &["email_account_id", "recipient_list", "email_group_id_list"],
-                ty,
-            )?;
-            text(b, "email_account_id", ty)?;
-            if let Some(list) = b.get("recipient_list") {
-                recipients(list, ty)?;
-            }
-            match b.get("email_group_id_list") {
-                None => Ok(()),
+            let account = text(b, "email_account_id", ty).map_err(arg)?;
+            refs.accounts.push(account.to_owned());
+            let list = match b.get("recipient_list") {
+                None | Some(Value::Null) => json!([]),
+                Some(l) => {
+                    recipients(l, ty).map_err(arg)?;
+                    l.clone()
+                }
+            };
+            let groups = match b.get("email_group_id_list") {
+                None | Some(Value::Null) => json!([]),
                 Some(Value::Array(ids))
                     if ids.len() <= MAX_RECIPIENTS
                         && ids
                             .iter()
                             .all(|i| i.as_str().is_some_and(|s| !s.is_empty())) =>
                 {
-                    Ok(())
+                    refs.groups
+                        .extend(ids.iter().filter_map(Value::as_str).map(str::to_owned));
+                    Value::Array(ids.clone())
                 }
-                Some(_) => Err("[email] [email_group_id_list] must be an array of ids".to_owned()),
-            }
+                Some(_) => {
+                    return Err(arg(
+                        "[email] [email_group_id_list] must be an array of ids".to_owned()
+                    ));
+                }
+            };
+            json!({"email_account_id": account, "recipient_list": list, "email_group_id_list": groups})
         }
         "sns" => {
-            only(b, &["topic_arn", "role_arn"], ty)?;
-            arn(b, "topic_arn", ty, true)?;
-            arn(b, "role_arn", ty, false)
+            let topic = b
+                .get("topic_arn")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if !sns_topic(topic) {
+                return Err(arg(format!("Invalid AWS SNS topic ARN: {topic}")));
+            }
+            arn(b, "role_arn", ty, false).map_err(arg)?;
+            let mut o = Map::new();
+            o.insert("topic_arn".into(), Value::String(topic.to_owned()));
+            if let Some(r) = b.get("role_arn") {
+                o.insert("role_arn".into(), r.clone());
+            }
+            Value::Object(o)
         }
         "ses_account" => {
-            only(b, &["region", "role_arn", "from_address"], ty)?;
-            region(text(b, "region", ty)?)?;
-            address(text(b, "from_address", ty)?, "from_address")?;
-            arn(b, "role_arn", ty, false)
+            region(text(b, "region", ty).map_err(arg)?).map_err(arg)?;
+            address(text(b, "from_address", ty).map_err(arg)?, "from_address").map_err(arg)?;
+            arn(b, "role_arn", ty, false).map_err(arg)?;
+            let mut o = Map::new();
+            for k in ["region", "role_arn", "from_address"] {
+                if let Some(v) = b.get(k) {
+                    o.insert(k.into(), v.clone());
+                }
+            }
+            Value::Object(o)
         }
         "smtp_account" => {
-            only(b, &["account_id", "from_address"], ty)?;
-            text(b, "account_id", ty)?;
-            address(text(b, "from_address", ty)?, "from_address")
+            let host = text(b, "host", ty).map_err(arg)?;
+            let port = b
+                .get("port")
+                .and_then(Value::as_u64)
+                .filter(|p| (1..=65535).contains(p))
+                .ok_or_else(|| arg("[smtp_account] needs a [port] from 1 to 65535".to_owned()))?;
+            address(text(b, "from_address", ty).map_err(arg)?, "from_address").map_err(arg)?;
+            let method = b
+                .get("method")
+                .and_then(Value::as_str)
+                .filter(|m| matches!(*m, "ssl" | "start_tls"))
+                .unwrap_or("none");
+            json!({"host": host, "port": port, "method": method,
+                   "from_address": b["from_address"]})
         }
         _ => {
-            only(b, &["recipient_list"], ty)?;
-            recipients(b.get("recipient_list").unwrap_or(&Value::Null), ty)
+            let list = b.get("recipient_list").unwrap_or(&Value::Null);
+            recipients(list, ty).map_err(arg)?;
+            json!({"recipient_list": list})
         }
-    }
+    };
+    Ok((out, refs))
 }
 
-/// The config of a request, checked, with its defaults filled in
-/// (`description` empty, `is_enabled` true).
-pub(super) fn checked(v: &Value, allowed: &[&str]) -> Result<Map<String, Value>, String> {
-    let m = v.as_object().ok_or("[config] must be an object")?;
-    let ty = text(m, "config_type", "config")?;
+/// `arn:aws:sns:<region>:<account>:<topic>` with a region and account of the
+/// shapes AWS gives.
+fn sns_topic(s: &str) -> bool {
+    let p: Vec<&str> = s.split(':').collect();
+    p.len() == 6
+        && p[0] == "arn"
+        && p[1].starts_with("aws")
+        && p[2] == "sns"
+        && region(p[3]).is_ok()
+        && !p[4].is_empty()
+        && p[4].bytes().all(|b| b.is_ascii_digit())
+        && !p[5].is_empty()
+        && p[5]
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.')
+}
+
+/// The config of a request, checked and rebuilt from the keys the plugin
+/// knows, with its defaults (`description` empty, `is_enabled` true), and
+/// what it refers to.
+pub(super) fn checked(
+    v: &Value,
+    allowed: &[&str],
+) -> Result<(Map<String, Value>, Refs), RestError> {
+    let m = v
+        .as_object()
+        .ok_or_else(|| arg("[config] must be an object".to_owned()))?;
+    let ty = text(m, "config_type", "config").map_err(arg)?;
     if !TYPES.contains(&ty) || !allowed.contains(&ty) {
-        return Err(format!("[config_type] [{ty}] is not a supported type"));
+        return Err(status(
+            406,
+            "NotificationConfig with type NONE is not acceptable",
+        ));
     }
-    only(
-        m,
-        &["name", "description", "config_type", "is_enabled", ty],
-        "config",
-    )?;
-    let name = text(m, "name", "config")?;
-    if name.chars().count() > MAX_NAME_CHARS {
-        return Err(format!("[name] is at most {MAX_NAME_CHARS} characters"));
-    }
-    let mut out = m.clone();
-    match m.get("description") {
-        None => {
-            out.insert("description".into(), Value::String(String::new()));
-        }
-        Some(Value::String(d)) if d.chars().count() <= MAX_DESCRIPTION_CHARS => {}
-        Some(_) => {
-            return Err(format!(
-                "[description] is a string of at most {MAX_DESCRIPTION_CHARS} characters"
-            ));
-        }
-    }
-    match m.get("is_enabled") {
-        None => {
-            out.insert("is_enabled".into(), Value::Bool(true));
-        }
-        Some(Value::Bool(_)) => {}
-        Some(_) => return Err("[is_enabled] must be a boolean".to_owned()),
-    }
-    let b = m
-        .get(ty)
-        .and_then(Value::as_object)
-        .ok_or_else(|| format!("[config] needs a [{ty}] object"))?;
-    block(ty, b)?;
-    Ok(out)
+    let matching = m.get(ty).and_then(Value::as_object);
+    let foreign = TYPES.iter().any(|t| *t != ty && m.contains_key(*t));
+    let Some(b) = matching.filter(|_| !foreign) else {
+        return Err(arg(format!("ConfigType: {ty} and data doesn't match")));
+    };
+    let name = text(m, "name", "config").map_err(arg)?;
+    let mut out = Map::new();
+    out.insert("name".into(), Value::String(name.to_owned()));
+    let description = match m.get("description") {
+        None | Some(Value::Null) => "",
+        Some(Value::String(d)) => d.as_str(),
+        Some(_) => return Err(arg("[description] must be a string".to_owned())),
+    };
+    out.insert("description".into(), Value::String(description.to_owned()));
+    out.insert("config_type".into(), Value::String(ty.to_owned()));
+    let enabled = match m.get("is_enabled") {
+        None | Some(Value::Null) => true,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => return Err(arg("[is_enabled] must be a boolean".to_owned())),
+    };
+    out.insert("is_enabled".into(), Value::Bool(enabled));
+    let (shown, refs) = block(ty, b)?;
+    out.insert(ty.to_owned(), shown);
+    Ok((out, refs))
 }

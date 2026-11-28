@@ -11,6 +11,7 @@ use super::config::is_channel;
 use super::{
     CATALOGUE, NotificationsService, bad, entries_of, failed, not_found, shown, summary, upsert,
 };
+use crate::route_util::refuse;
 
 /// The most configs a page holds, and the most ids a request names.
 const MAX_PAGE: usize = 100;
@@ -48,11 +49,38 @@ struct Query {
     text: Option<String>,
 }
 
-fn number(req: &Request<'_>, name: &str, default: usize) -> Result<usize, RestError> {
-    req.param(name).map_or(Ok(default), |v| {
-        v.parse::<usize>()
-            .map_err(|_| bad(format!("[{name}] must be a number")))
-    })
+/// A paging number; the plugin's own words for one out of range.
+fn number(
+    req: &Request<'_>,
+    name: &str,
+    default: usize,
+    least: i64,
+    refused: &str,
+) -> Result<usize, RestError> {
+    let Some(v) = req.param(name) else {
+        return Ok(default);
+    };
+    let n: i64 = v
+        .parse()
+        .map_err(|_| bad(format!("[{name}] must be a number")))?;
+    if n < least {
+        return Err(refuse(
+            400,
+            "action_request_validation_exception",
+            // ALLOC: error path; one message.
+            format!("Validation Failed: 1: {refused};"),
+        ));
+    }
+    Ok(usize::try_from(n).unwrap_or(default))
+}
+
+/// The words of `s` as a standard analyzer cuts them: runs of letters and
+/// digits, lower-cased.
+fn words(s: &str) -> Vec<String> {
+    s.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(str::to_lowercase)
+        .collect()
 }
 
 fn query(req: &Request<'_>) -> Result<Query, RestError> {
@@ -62,13 +90,25 @@ fn query(req: &Request<'_>) -> Result<Query, RestError> {
             .iter()
             .find(|f| **f == &*v)
             .copied()
-            .ok_or_else(|| bad(format!("[sort_field] [{v}] is not one of {SORT_FIELDS:?}")))?,
+            .ok_or_else(|| {
+                // ALLOC: error path; one message.
+                refuse(
+                    406,
+                    "status_exception",
+                    format!("Sort on {v} not acceptable"),
+                )
+            })?,
     };
-    let descending = match req.param("sort_order").as_deref() {
-        None => field == "last_updated_time_ms" || field == "created_time_ms",
-        Some("asc") => false,
-        Some("desc") => true,
-        Some(other) => return Err(bad(format!("[sort_order] [{other}] is asc or desc"))),
+    let descending = match req.param("sort_order").as_deref().map(str::to_lowercase) {
+        None => false,
+        Some(o) if o == "asc" => false,
+        Some(o) if o == "desc" => true,
+        Some(other) => {
+            return Err(bad(format!(
+                "No enum constant org.opensearch.search.sort.SortOrder.{}",
+                other.to_uppercase()
+            )));
+        }
     };
     let enabled = match req.param("is_enabled").as_deref() {
         None => None,
@@ -78,8 +118,8 @@ fn query(req: &Request<'_>) -> Result<Query, RestError> {
     };
     let text = |k: &str| req.param(k).map(std::borrow::Cow::into_owned);
     Ok(Query {
-        from: number(req, "from_index", 0)?,
-        max: number(req, "max_items", MAX_PAGE)?.min(MAX_PAGE),
+        from: number(req, "from_index", 0, 0, "fromIndex is -ve")?,
+        max: number(req, "max_items", MAX_PAGE, 1, "maxItems is not +ve")?.min(MAX_PAGE),
         field,
         descending,
         types: text("config_type")
@@ -100,9 +140,10 @@ fn matches(e: &Value, q: &Query, channels_only: bool) -> bool {
         && q.enabled
             .is_none_or(|b| e["is_enabled"].as_bool() == Some(b))
         && q.name.as_deref().is_none_or(|n| s("name") == n)
-        && q.description
-            .as_deref()
-            .is_none_or(|d| s("description") == d)
+        && q.description.as_deref().is_none_or(|d| {
+            let have = words(s("description"));
+            words(d).iter().any(|w| have.contains(w))
+        })
         && q.text.as_deref().is_none_or(|t| {
             s("name").to_lowercase().contains(t) || s("description").to_lowercase().contains(t)
         })
@@ -117,7 +158,8 @@ fn select(mut entries: Vec<Value>, q: &Query, channels_only: bool) -> (usize, Ve
         } else {
             a[q.field].as_str().cmp(&b[q.field].as_str())
         };
-        ord.then_with(|| a["config_id"].as_str().cmp(&b["config_id"].as_str()))
+        ord.then_with(|| a["ord"].as_u64().cmp(&b["ord"].as_u64()))
+            .then_with(|| a["config_id"].as_str().cmp(&b["config_id"].as_str()))
     });
     if q.descending {
         entries.reverse();

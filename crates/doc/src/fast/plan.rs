@@ -171,7 +171,7 @@ fn entry(name: &str, leaf: &Leaf, spec: Spec, number: i32) -> Option<Entry> {
         Shape::Date => e.kind = ingest::DATE,
         Shape::Bool => e.kind = ingest::BOOLEAN,
         // A vector goes through the complete path, which hands the engine its vectors.
-        Shape::Vector => return None,
+        Shape::Vector | Shape::GeoPoint => return None,
     }
     Some(e)
 }

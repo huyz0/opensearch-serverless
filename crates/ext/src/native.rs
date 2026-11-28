@@ -12,6 +12,7 @@ use std::sync::Mutex;
 
 use crate::breaker::{Breaker, BreakerConfig, BreakerState, Decision, Outcome};
 use crate::error::{CallError, FailureKind};
+use crate::host::{Host, NoHost};
 
 /// The most calls to one plugin at once.
 pub const MAX_CONCURRENT: usize = 8;
@@ -30,6 +31,22 @@ pub trait NativeInstance: Send + Sync {
     ///
     /// The failure, typed as a module's status is.
     fn call(&self, point: &str, input: &[u8], max_out: usize) -> Result<Vec<u8>, CallError>;
+
+    /// [`NativeInstance::call`] with `host` to ask for what the plugin was
+    /// granted. A plugin that asks for nothing leaves this as it is.
+    ///
+    /// # Errors
+    ///
+    /// The failure, typed as a module's status is.
+    fn call_host(
+        &self,
+        point: &str,
+        input: &[u8],
+        max_out: usize,
+        _host: &dyn Host,
+    ) -> Result<Vec<u8>, CallError> {
+        self.call(point, input, max_out)
+    }
 }
 
 /// Why a guarded call did not return the plugin's bytes.
@@ -171,6 +188,26 @@ impl Guard {
         max_out: usize,
         now_ms: impl Fn() -> u64,
     ) -> Result<Vec<u8>, GuardError> {
+        self.call_host(plugin, tenant, point, input, max_out, &NoHost, now_ms)
+    }
+
+    /// [`Guard::call`] giving the plugin `host` to ask for what it was
+    /// granted.
+    ///
+    /// # Errors
+    ///
+    /// Why the call was refused or failed.
+    #[allow(clippy::too_many_arguments)]
+    pub fn call_host(
+        &self,
+        plugin: &dyn NativeInstance,
+        tenant: &str,
+        point: &str,
+        input: &[u8],
+        max_out: usize,
+        host: &dyn Host,
+        now_ms: impl Fn() -> u64,
+    ) -> Result<Vec<u8>, GuardError> {
         let decision = {
             let mut g = self.lock();
             if g.running >= MAX_CONCURRENT {
@@ -196,7 +233,9 @@ impl Guard {
             guard: self,
             tenant,
         };
-        let result = match catch_unwind(AssertUnwindSafe(|| plugin.call(point, input, max_out))) {
+        let result = match catch_unwind(AssertUnwindSafe(|| {
+            plugin.call_host(point, input, max_out, host)
+        })) {
             Err(_) => Err(GuardError::Panicked),
             Ok(Err(e)) => Err(GuardError::Failed(e)),
             Ok(Ok(out)) if out.len() > max_out => Err(GuardError::Failed(

@@ -7,8 +7,14 @@
 //! before a job starts and gives the work the job runs. Nothing here makes a
 //! request to the store, starts a timer or holds a lock across a search.
 
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod mount;
 mod params;
 mod render;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod routes;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod runner;
 #[cfg(test)]
 mod tests;
 
@@ -17,7 +23,13 @@ use std::sync::Arc;
 use oss_rest::RestError;
 
 use crate::jobs::{Jobs, Target, Who, Work};
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub(crate) use mount::mount;
 use render::Shown;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub use routes::routes;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub use runner::SearchRunner;
 
 /// One submit.
 pub struct Submit<'a> {

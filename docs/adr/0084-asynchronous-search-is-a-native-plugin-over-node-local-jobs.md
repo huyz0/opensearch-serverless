@@ -26,3 +26,7 @@ Forces: a result write is a blob PUT and a read a GET, for something a client re
 - Harder: a result is lost on restart or node loss and read through one node; `keep_alive` is capped far below stock; a client that submitted, restarted nothing and polls another node pays a relay hop. Each is listed in `docs/compatibility.md`.
 - Rules out: persisting results (a later ADR would weigh one PUT per kept result against the benefit), cluster-wide stats (this node's only), and a plugin starting its own work.
 - The `job` capability is a change to the plugin contract (ADR 0080's catalogue); it is added by its own slice with a golden layout test where the ABI shows it.
+
+## Amendment: the node's own routes reserve from the query pool
+
+The `Extensions` pool is 0% by default, so a registry that reserved from it would refuse every submit on a node that runs no extension. The routes the node serves itself (a result is query output) reserve from the `QueryExecution` pool, the registry's `pool` limit; a job a plugin starts through the host API keeps the `Extensions` pool. The worst case for the node's own routes is 8 MiB running + 32 MiB kept + 72 KiB.

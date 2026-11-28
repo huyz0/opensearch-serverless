@@ -49,6 +49,11 @@ const WRITES: &[Method] = &[Method::Put, Method::Post];
 const RULES: &[(&[Method], &str, Rule)] = &[
     (GET, "/_plugins/_security/authinfo", Rule::Open),
     (
+        &[Method::Get, Method::Put],
+        "/_plugins/_security/api/account",
+        Rule::Open,
+    ),
+    (
         &[Method::Get],
         "/_cluster/health",
         Rule::Cluster("cluster:monitor/health"),
@@ -67,6 +72,10 @@ const RULES: &[(&[Method], &str, Rule)] = &[
     (GET_POST, "/_opendistro/_sql", SQL),
     (GET_POST, "/_plugins/_sql/_explain", SQL),
     (GET_POST, "/_opendistro/_sql/_explain", SQL),
+    (GET_POST, "/_plugins/_ppl", SQL),
+    (GET_POST, "/_opendistro/_ppl", SQL),
+    (GET_POST, "/_plugins/_ppl/_explain", SQL),
+    (GET_POST, "/_opendistro/_ppl/_explain", SQL),
     (WRITES, "/_bulk", Rule::Bulk),
     (WRITES, "/{index}/_bulk", Rule::Bulk),
     (
@@ -195,6 +204,12 @@ const RULES: &[(&[Method], &str, Rule)] = &[
 pub const HANDLER: &[&str] = &[
     "/_plugins/_security/api/actiongroups",
     "/_plugins/_security/api/actiongroups/{name}",
+    "/_plugins/_security/api/allowlist",
+    "/_plugins/_security/api/cache",
+    "/_plugins/_security/api/permissionsinfo",
+    "/_plugins/_security/api/securityconfig",
+    "/_plugins/_security/api/securityconfig/config",
+    "/_plugins/_security/api/ssl/certs",
     "/_plugins/_security/api/internalusers",
     "/_plugins/_security/api/internalusers/{name}",
     "/_plugins/_security/api/roles",

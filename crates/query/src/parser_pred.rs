@@ -69,6 +69,9 @@ impl Parser {
                 self.tokens.get(self.at.saturating_add(1)).map(|t| &t.kind),
                 Some(Kind::Sym("("))
             ) {
+                if self.ppl && matches!(lower.as_str(), "like" | "isnull" | "isnotnull") {
+                    return self.ppl_fn(&lower, alias);
+                }
                 if RELEVANCE.contains(&lower.as_str()) {
                     self.bump();
                     return self.relevance(lower, alias);
@@ -127,6 +130,24 @@ impl Parser {
         self.bump();
         let lit = self.literal()?;
         Ok(Pred::Cmp(field, op, lit))
+    }
+
+    /// PPL's `like(f, 'p')`, `isnull(f)` and `isnotnull(f)`.
+    fn ppl_fn(&mut self, name: &str, alias: Option<&str>) -> Result<Pred, Error> {
+        self.bump();
+        self.expect_sym("(")?;
+        let field = self.field(alias)?;
+        let pred = if name == "like" {
+            self.expect_sym(",")?;
+            match self.literal()? {
+                Lit::Str(s) => Pred::Like(field, s, false),
+                _ => return self.fail(),
+            }
+        } else {
+            Pred::IsNull(field, name == "isnotnull")
+        };
+        self.expect_sym(")")?;
+        Ok(pred)
     }
 
     pub(crate) fn literal(&mut self) -> Result<Lit, Error> {

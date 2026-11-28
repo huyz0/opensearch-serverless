@@ -115,3 +115,48 @@ fn a_plugin_that_never_returns_delays_no_publisher_and_a_full_queue_drops_the_ne
         "delivered in order, the dropped ones the newest"
     );
 }
+
+// docs/specs/plugin-system AC-17: the status route counts what each queue delivered.
+#[test]
+fn the_status_route_counts_what_a_plugins_queue_delivered() {
+    use oss_node::lifecycle_bus::Bus;
+    use oss_node::plugins::install;
+    use oss_rest::Router;
+
+    let watch = Arc::new(Watch {
+        seen: Mutex::new(Vec::new()),
+        gate: Mutex::new(None),
+    });
+    let linked: HashMap<String, Arc<dyn NativeInstance>> =
+        HashMap::from([("watch".to_owned(), watch.clone() as Arc<dyn NativeInstance>)]);
+    let backend: Arc<dyn oss_ext::host::Backend> = Arc::new(oss_ext::host::NoBackend);
+    let bus = Bus::default();
+    let router = install(
+        Router::new(),
+        r#"{"plugins":[{"id":"watch","tier":"native"}]}"#,
+        &linked,
+        &backend,
+        || 0,
+        &bus,
+    )
+    .expect("installs");
+    let budget = oss_mem::MemoryBudget::new(&crate::support::budget_config());
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let server =
+        oss_rest::Server::start(listener, crate::support::server_config(), router, &budget)
+            .expect("starts");
+    bus.publish("index.created", "t", "a", 1);
+    bus.publish("index.created", "t", "b", 2);
+    bus.publish("index.purged", "t", "c", 3);
+    until(|| watch.seen.lock().expect("seen").len() == 2);
+    let r = crate::support::request(
+        server.local_addr(),
+        "GET",
+        "/_plugins/_serverless/plugins",
+        None,
+    );
+    let v: serde_json::Value = serde_json::from_str(&r.text()).expect("json");
+    assert_eq!(v["plugins"][0]["events"]["delivered"], 2, "{v}");
+    assert_eq!(v["plugins"][0]["events"]["dropped"], 0);
+    server.shutdown();
+}

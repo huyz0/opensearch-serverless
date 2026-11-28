@@ -94,3 +94,5 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0085](0085-cross-cluster-replication-copies-published-segments-between-object-stores.md) | Cross-cluster replication copies published segments from the leader's object store | Accepted |
 | [0086](0086-knn-engines-and-models-are-native.md) | The k-NN engines, models and training are native; Faiss and NMSLIB names are served in stages | Accepted |
 | [0087](0087-knn-ivf-and-pq-search-from-a-shared-model.md) | IVF and PQ k-NN search serve model-mapped fields from lucene-rust's IVF files, with the model's centroids and codebooks shared per node | Accepted |
+| [0088](0088-observability-is-ported-natively.md) | Observability objects are ported natively over a document set | Accepted |
+| [0089](0089-report-definitions-are-ported-natively.md) | Report definitions are ported natively over a document set; rendering stays out of the node | Accepted |

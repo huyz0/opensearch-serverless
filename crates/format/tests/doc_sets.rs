@@ -297,6 +297,38 @@ fn the_ml_model_groups_have_their_own_directory_and_the_common_bound() {
 }
 
 #[test]
+fn the_observability_objects_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::ObservabilityObjects).unwrap(),
+        "observability/objects/_version"
+    );
+    assert_eq!(
+        doc_content_key("", DocKind::ObservabilityObjects, "k").unwrap(),
+        "observability/objects/blob-k"
+    );
+    assert_eq!(
+        DocKind::ObservabilityObjects.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+}
+
+#[test]
+fn the_report_definitions_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::ReportDefinitions).unwrap(),
+        "reports/definitions/_version"
+    );
+    assert_eq!(
+        doc_content_key("", DocKind::ReportDefinitions, "k").unwrap(),
+        "reports/definitions/blob-k"
+    );
+    assert_eq!(
+        DocKind::ReportDefinitions.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+}
+
+#[test]
 fn the_ml_connectors_have_their_own_directory_and_the_common_bound() {
     assert_eq!(
         doc_set_marker_key("", DocKind::MlConnectors).unwrap(),
@@ -306,4 +338,13 @@ fn the_ml_connectors_have_their_own_directory_and_the_common_bound() {
         DocKind::MlConnectors.max_doc_bytes(),
         oss_format::MAX_DOC_BYTES
     );
+}
+
+#[test]
+fn the_ml_models_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::MlModels).unwrap(),
+        "ml/models/_version"
+    );
+    assert_eq!(DocKind::MlModels.max_doc_bytes(), oss_format::MAX_DOC_BYTES);
 }

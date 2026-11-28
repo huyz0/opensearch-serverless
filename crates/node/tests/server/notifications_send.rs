@@ -20,12 +20,17 @@ use serde_json::{Value, json};
 const ROOT: &str = "/_plugins/_notifications";
 
 /// A target that records each request and answers with `status` and `extra`.
-struct Sink {
-    addr: SocketAddr,
-    seen: Arc<Mutex<Vec<String>>>,
+pub(crate) struct Sink {
+    pub(crate) addr: SocketAddr,
+    pub(crate) seen: Arc<Mutex<Vec<String>>>,
 }
 
-fn sink(status: &'static str, extra: &'static str, body: &'static str, delay: Duration) -> Sink {
+pub(crate) fn sink(
+    status: &'static str,
+    extra: &'static str,
+    body: &'static str,
+    delay: Duration,
+) -> Sink {
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let addr = listener.local_addr().unwrap();
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -73,7 +78,7 @@ fn sink(status: &'static str, extra: &'static str, body: &'static str, delay: Du
     Sink { addr, seen }
 }
 
-fn open_policy(port: u16) -> EgressPolicy {
+pub(crate) fn open_policy(port: u16) -> EgressPolicy {
     EgressPolicy {
         allow_private: true,
         ports: vec![port, 80, 443],
@@ -114,10 +119,23 @@ fn make(s: &Server, config: Value) -> String {
     body["config_id"].as_str().unwrap().to_owned()
 }
 
+/// The delivery status of a test send: in the answer when it worked, and in
+/// the plugin's error, whose message is JSON, when it did not.
 fn test_it(s: &Server, id: &str) -> Value {
     let (status, body) = call(s, "POST", &format!("{ROOT}/feature/test/{id}"), None);
-    assert_eq!(status, 200, "{body}");
-    body["status_list"][0]["delivery_status"].clone()
+    if status == 200 {
+        return body["status_list"][0]["delivery_status"].clone();
+    }
+    let reason = body["error"]["reason"].as_str().unwrap_or_default();
+    let shown: Value = serde_json::from_str(reason).unwrap_or(Value::Null);
+    let delivery = shown["event_status_list"][0]["delivery_status"].clone();
+    assert_eq!(delivery["status_code"], status.to_string(), "{body}");
+    delivery
+}
+
+/// The plugin's words for a send that failed with `reason`.
+fn fail(reason: &str) -> String {
+    format!("Failed to send webhook message Failed: {reason}")
 }
 
 fn hook(url: &str) -> Value {
@@ -164,7 +182,9 @@ fn slack_chime_and_teams_post_their_own_body_key() {
         let s = rig(Some(deliverer(t.addr.port())));
         let id = make(
             &s,
-            json!({"name": ty, "config_type": ty, ty: {"url": format!("http://127.0.0.1:{}/x", t.addr.port())}}),
+            json!({"name": ty, "config_type": ty, ty: {"url": format!(
+                "http://127.0.0.1:{}/hooks.slack.com/services/hooks.chime.aws/incomingwebhooks/x?token=t",
+                t.addr.port())}}),
         );
         assert_eq!(test_it(&s, &id)["status_code"], "200", "{ty}");
         assert!(t.seen.lock().unwrap()[0].contains(key), "{ty}");
@@ -187,7 +207,7 @@ fn a_failed_delivery_is_a_status_never_a_5xx_and_a_redirect_is_not_followed() {
             status["status_code"].as_str(),
             status["status_text"].as_str()
         ),
-        (Some("500"), Some("status 500"))
+        (Some("500"), Some(fail("Internal Server Error").as_str()))
     );
     assert!(
         !status.to_string().contains("MARKERSECRET"),
@@ -212,7 +232,7 @@ fn a_failed_delivery_is_a_status_never_a_5xx_and_a_redirect_is_not_followed() {
         &s,
         hook(&format!("http://127.0.0.1:{}/", moved.addr.port())),
     );
-    assert_eq!(test_it(&s, &id)["status_code"], "302");
+    assert_eq!(test_it(&s, &id)["status_text"], fail("Found").as_str());
     assert_eq!(
         other.seen.lock().unwrap().len(),
         0,
@@ -228,7 +248,10 @@ fn a_failed_delivery_is_a_status_never_a_5xx_and_a_redirect_is_not_followed() {
         .port();
     let s = rig(Some(deliverer(port)));
     let id = make(&s, hook(&format!("http://127.0.0.1:{port}/")));
-    assert_eq!(test_it(&s, &id)["status_text"], "refused");
+    assert_eq!(
+        test_it(&s, &id)["status_text"],
+        fail("Connection failed").as_str()
+    );
 }
 
 #[test]
@@ -238,14 +261,14 @@ fn a_disabled_config_and_a_type_not_served_are_not_sent() {
     let mut c = hook(&format!("http://127.0.0.1:{}/", t.addr.port()));
     c["is_enabled"] = json!(false);
     let id = make(&s, c);
-    assert_eq!(test_it(&s, &id)["status_text"], "disabled");
+    assert_eq!(test_it(&s, &id)["status_code"], "423");
     let id = make(
         &s,
         json!({"name": "e", "config_type": "sns", "sns": {"topic_arn": "arn:aws:sns:us-east-1:1:t"}}),
     );
-    assert_eq!(test_it(&s, &id)["status_code"], "501");
+    assert_eq!(test_it(&s, &id)["status_code"], "503");
     assert_eq!(t.seen.lock().unwrap().len(), 0);
-    let (status, _) = call(&s, "POST", &format!("{ROOT}/feature/test/missing"), None);
+    let (status, _) = call(&s, "GET", &format!("{ROOT}/feature/test/missing"), None);
     assert_eq!(status, 404);
 }
 
@@ -277,7 +300,11 @@ fn the_default_policy_refuses_a_private_target_and_connects_to_nothing() {
     ] {
         let id = make(&s, hook(&url));
         let status = test_it(&s, &id);
-        assert_eq!(status["status_text"], "blocked", "{url}: {status}");
+        assert_eq!(
+            status["status_text"],
+            fail("Forbidden").as_str(),
+            "{url}: {status}"
+        );
     }
     assert_eq!(t.seen.lock().unwrap().len(), 0);
 }
@@ -301,7 +328,7 @@ fn a_name_with_one_bad_record_among_good_ones_is_refused() {
         Limits::default(),
     )));
     let id = make(&s, hook(&format!("http://mixed.example:{port}/")));
-    assert_eq!(test_it(&s, &id)["status_text"], "blocked");
+    assert_eq!(test_it(&s, &id)["status_text"], fail("Forbidden").as_str());
     assert_eq!(t.seen.lock().unwrap().len(), 0);
 }
 
@@ -325,7 +352,11 @@ fn a_port_outside_the_list_a_denied_host_and_odd_literals_are_refused() {
         "http://0x7f.0.0.1/".to_owned(),
     ] {
         let id = make(&s, hook(&url));
-        assert_eq!(test_it(&s, &id)["status_text"], "blocked", "{url}");
+        assert_eq!(
+            test_it(&s, &id)["status_text"],
+            fail("Forbidden").as_str(),
+            "{url}"
+        );
     }
     assert_eq!(t.seen.lock().unwrap().len(), 0);
 }
@@ -388,7 +419,10 @@ fn a_body_over_the_bound_is_refused_before_any_connection_and_load_is_bounded() 
         },
     )));
     let id = make(&s, hook(&format!("http://127.0.0.1:{}/", t.addr.port())));
-    assert_eq!(test_it(&s, &id)["status_text"], "too large");
+    assert_eq!(
+        test_it(&s, &id)["status_text"],
+        fail("Payload Too Large").as_str()
+    );
     assert_eq!(t.seen.lock().unwrap().len(), 0);
 
     let slow = sink("200 OK", "", "", Duration::from_millis(800));
@@ -417,7 +451,7 @@ fn a_body_over_the_bound_is_refused_before_any_connection_and_load_is_bounded() 
         .map(|h| h.join().unwrap())
         .collect();
     assert!(
-        texts.contains(&"Success".to_owned()) && texts.contains(&"rejected".to_owned()),
+        texts.contains(&"Success".to_owned()) && texts.contains(&fail("Too Many Requests")),
         "{texts:?}"
     );
 }

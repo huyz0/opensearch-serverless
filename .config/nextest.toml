@@ -34,9 +34,11 @@ threads-required = 'num-test-threads'
 # The h3 memory test reads a process-wide heap peak while four uploads
 # stream; other tests' load changes how much of the upload sits in flight at
 # once (4 x 64 MiB read 3.1 MB against 1.5 MB for 4 x 16 MiB in main run
-# 3277). It runs with the whole test pool to itself too.
+# 3277). It runs with the whole test pool to itself too. So does the idle
+# connection test, which opens a burst of handshakes and timed out on its
+# 30 s connect when another h3 binary shared the runner (main run 3410).
 [[profile.default.overrides]]
-filter = 'package(oss-edge) and binary(h3_memory)'
+filter = 'package(oss-edge) and (binary(h3_memory) or binary(h3_idle))'
 threads-required = 'num-test-threads'
 
 [profile.ci]

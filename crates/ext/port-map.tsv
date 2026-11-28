@@ -16,3 +16,7 @@ src/native.rs	new		the native form of a plugin and the guard every call to it go
 src/manifest_routes.rs	new		the manifest's routes section: paths, methods, actions and query parameters, bounded (ADR 0080)
 src/lifecycle.rs	new		the lifecycle point's bytes: one event in
 tests/lifecycle.rs	new		the lifecycle codec: golden bytes and malformed inputs
+src/host.rs	new		what a plugin may ask the host for during a call: operations, grants and the per-call budget
+tests/host.rs	new		the host rules: unknown, denied, budget, ceiling
+src/doc_sink.rs	new		the index.docs seam: the DocSink trait, its bytes and the backend that serves it
+tests/doc_sink.rs	new		index.docs: codec bounds and the backend routing
