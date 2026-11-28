@@ -164,3 +164,24 @@ fn the_largest_shard_is_the_entry_bound_of_the_longest_ids_and_one_byte_more_is_
         Err(FormatError::TooLarge { .. })
     ));
 }
+
+#[test]
+fn a_namespace_keeps_its_registers_apart() {
+    use oss_format::{ALERTING_NAMESPACE, registry_shard_key_in, run_claim_key_in};
+    assert_eq!(ALERTING_NAMESPACE, "alerting");
+    assert_eq!(
+        registry_shard_key_in("dep/", "ad", 7).unwrap(),
+        "dep/ad/registry/007"
+    );
+    assert_eq!(
+        run_claim_key_in("dep/", "ad", "acme", "d1").unwrap(),
+        "dep/ad/runs/acme/d1"
+    );
+    assert_eq!(
+        registry_shard_key_in("dep/", "alerting", 7).unwrap(),
+        registry_shard_key("dep/", 7).unwrap()
+    );
+    assert!(registry_shard_key_in("", "a/b", 0).is_err());
+    assert!(registry_shard_key_in("", "", 0).is_err());
+    assert!(run_claim_key_in("", "ad", "acme", "").is_err());
+}

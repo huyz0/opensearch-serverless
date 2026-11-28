@@ -36,7 +36,6 @@
 //! bucketed descriptor ([`FormatError::NotFollowable`]); a reader follows it
 //! through the bucket manifest instead.
 
-mod alert_registry;
 mod alias_record;
 mod bucket_manifest;
 mod change_stripe;
@@ -66,6 +65,7 @@ mod reclaim_intent;
 mod register;
 mod repository_record;
 mod restore_mark;
+mod schedule_registry;
 mod segment_blob;
 mod shard_head;
 mod smile;
@@ -83,11 +83,6 @@ mod transport_secret;
 mod unit_layout;
 mod wal_record;
 
-pub use alert_registry::{
-    MAX_REGISTRY_ENTRIES, MAX_REGISTRY_SHARD_BYTES, MAX_TENANT_ID_BYTES, REGISTRY_SHARDS,
-    RUN_CLAIM_BYTES, RegistryShard, check_tenant_id, decode_run_claim, encode_run_claim,
-    registry_shard_key, registry_shard_of, run_claim_key,
-};
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
 pub use bucket_manifest::{
     BUCKET_OPEN_PREFIX, BUCKETS_PREFIX, BucketEntry, BucketManifest, BucketMember,
@@ -143,6 +138,12 @@ pub use reclaim_intent::{
 pub use register::{GENERATION_BYTES, Register};
 pub use repository_record::{MAX_REPOSITORY_RECORD_BYTES, NATIVE_TYPE, RepositoryRecord};
 pub use restore_mark::{RESTORING_KEY, RESTORING_WHY, is_restoring, mark_restoring};
+pub use schedule_registry::{
+    ALERTING_NAMESPACE, MAX_REGISTRY_ENTRIES, MAX_REGISTRY_SHARD_BYTES, MAX_TENANT_ID_BYTES,
+    REGISTRY_SHARDS, RUN_CLAIM_BYTES, RegistryShard, check_tenant_id, decode_run_claim,
+    encode_run_claim, registry_shard_key, registry_shard_key_in, registry_shard_of, run_claim_key,
+    run_claim_key_in,
+};
 pub use segment_blob::{
     SegmentBlobHeader, SegmentFile, blob_order as segment_blob_order,
     encode_header as encode_segment_header,

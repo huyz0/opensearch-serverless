@@ -1,15 +1,20 @@
-//! The alerting registry: which tenants have an enabled monitor, and which
-//! slot of a monitor last ran.
+//! The schedule registry shared by every plugin that runs work on a timer:
+//! which tenants have enabled work, and which slot of an item last ran.
 //!
 //! A node cannot list a bucket, so the tenants a scheduler must visit are
-//! named in 256 shard registers, `alerting/registry/<n>`. A shard's value is
-//! its tenant ids in byte order, one a line. A monitor's run claim is a
-//! register `alerting/runs/<tenant>/<monitor>` holding the last claimed slot
-//! as eight big-endian bytes.
+//! named in 256 shard registers, `<namespace>/registry/<n>`. A shard's value
+//! is its tenant ids in byte order, one a line. An item's run claim is a
+//! register `<namespace>/runs/<tenant>/<item>` holding the last claimed slot
+//! as eight big-endian bytes. The namespace (`alerting`, `ad`) keeps one
+//! plugin's registers apart from another's; the plain functions here are the
+//! alerting namespace.
 
 use crate::error::{FormatError, corrupt};
 
-const WHAT: &str = "alerting registry shard";
+const WHAT: &str = "schedule registry shard";
+
+/// The namespace of the alerting plugin, whose keys predate the others.
+pub const ALERTING_NAMESPACE: &str = "alerting";
 
 /// How many shard registers the registry is spread over.
 pub const REGISTRY_SHARDS: usize = 256;
@@ -78,33 +83,67 @@ fn check_base(base: &str) -> Result<(), FormatError> {
     }
 }
 
+fn check_namespace(namespace: &str) -> Result<(), FormatError> {
+    check_segment(namespace, "a namespace")
+}
+
+/// The key of a shard's register in the alerting namespace.
+///
+/// # Errors
+///
+/// As [`registry_shard_key_in`].
+pub fn registry_shard_key(base: &str, shard: usize) -> Result<String, FormatError> {
+    registry_shard_key_in(base, ALERTING_NAMESPACE, shard)
+}
+
 /// The key of a shard's register.
 ///
 /// # Errors
 ///
 /// [`FormatError::Corrupt`] for a base that is not empty and does not end in
-/// `/`, or a shard past [`REGISTRY_SHARDS`].
-pub fn registry_shard_key(base: &str, shard: usize) -> Result<String, FormatError> {
+/// `/`, a namespace that is not a plain path segment, or a shard past
+/// [`REGISTRY_SHARDS`].
+pub fn registry_shard_key_in(
+    base: &str,
+    namespace: &str,
+    shard: usize,
+) -> Result<String, FormatError> {
     check_base(base)?;
+    check_namespace(namespace)?;
     if shard >= REGISTRY_SHARDS {
         return Err(corrupt(WHAT, "a shard is below the shard count"));
     }
     // ALLOC: one key, the length of its parts.
-    Ok(format!("{base}alerting/registry/{shard:03}"))
+    Ok(format!("{base}{namespace}/registry/{shard:03}"))
 }
 
-/// The key of a monitor's run claim register.
+/// The key of a monitor's run claim register in the alerting namespace.
 ///
 /// # Errors
 ///
-/// As [`registry_shard_key`], and for a tenant or monitor id that is not a
-/// plain path segment.
+/// As [`run_claim_key_in`].
 pub fn run_claim_key(base: &str, tenant: &str, monitor: &str) -> Result<String, FormatError> {
+    run_claim_key_in(base, ALERTING_NAMESPACE, tenant, monitor)
+}
+
+/// The key of an item's run claim register.
+///
+/// # Errors
+///
+/// As [`registry_shard_key_in`], and for a tenant or item id that is not a
+/// plain path segment.
+pub fn run_claim_key_in(
+    base: &str,
+    namespace: &str,
+    tenant: &str,
+    item: &str,
+) -> Result<String, FormatError> {
     check_base(base)?;
+    check_namespace(namespace)?;
     check_tenant_id(tenant)?;
-    check_segment(monitor, "a monitor id")?;
+    check_segment(item, "an item id")?;
     // ALLOC: one key, the length of its parts.
-    Ok([base, "alerting/runs/", tenant, "/", monitor].concat())
+    Ok([base, namespace, "/runs/", tenant, "/", item].concat())
 }
 
 /// A shard's tenants, in byte order.
@@ -255,6 +294,6 @@ pub fn encode_run_claim(slot: u64) -> [u8; RUN_CLAIM_BYTES] {
 pub fn decode_run_claim(bytes: &[u8]) -> Result<u64, FormatError> {
     let raw: [u8; RUN_CLAIM_BYTES] = bytes
         .try_into()
-        .map_err(|_| corrupt("alerting run claim", "a claim is eight bytes"))?;
+        .map_err(|_| corrupt("schedule run claim", "a claim is eight bytes"))?;
     Ok(u64::from_be_bytes(raw))
 }
