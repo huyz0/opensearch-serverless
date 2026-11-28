@@ -19,9 +19,18 @@ struct Rig {
 }
 
 fn rig() -> Rig {
+    rig_with(None)
+}
+
+/// A rig whose claims go stale after `stale` milliseconds, when given.
+fn rig_with(stale: Option<u64>) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
-    let service = Arc::new(MlService::new(&blobs, "", BUF));
+    let mut service = MlService::new(&blobs, "", BUF);
+    if let Some(ms) = stale {
+        service = service.with_stale_claim_millis(ms);
+    }
+    let service = Arc::new(service);
     let router = routes(Router::new(), &service).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&support::budget_config());
@@ -289,4 +298,100 @@ fn a_set_holds_at_most_a_thousand_groups_and_a_refused_register_keeps_no_claim()
         200
     );
     assert_eq!(register(&r, r#"{"name":"one-too-many"}"#).status, 200);
+}
+
+/// Writes a claim on `name` holding `holder`, as a register that died would leave it.
+fn plant_claim(r: &Rig, name: &str, holder: &str) {
+    let hex: String = name.bytes().map(|b| format!("{b:02x}")).collect();
+    let key = format!("ml/model_group_names/public/{hex}");
+    r.store
+        .create_if_absent(
+            &key,
+            &mut oss_blob::SliceSource::new(holder.as_bytes()),
+            &mut [0u8; 64],
+        )
+        .expect("plants");
+}
+
+// AC-1
+#[test]
+fn a_fresh_claim_with_no_group_is_respected_and_an_old_one_is_taken_over() {
+    let fresh = rig();
+    plant_claim(&fresh, "ghost", "someone");
+    let refused = register(&fresh, r#"{"name":"ghost"}"#);
+    assert_eq!(refused.status, 400, "{}", refused.text());
+    assert!(
+        refused.text().contains("with ID: someone."),
+        "{}",
+        refused.text()
+    );
+
+    // an old claim (stale at once) with no such group is a leftover and is replaced
+    let old = rig_with(Some(0));
+    plant_claim(&old, "ghost", "someone");
+    assert_eq!(register(&old, r#"{"name":"ghost"}"#).status, 200);
+    // and the name is then held for real
+    assert_eq!(register(&old, r#"{"name":"ghost"}"#).status, 400);
+    // a claim of an empty body holds nothing readable and is taken over too
+    plant_claim(&old, "blank", "");
+    assert_eq!(register(&old, r#"{"name":"blank"}"#).status, 200);
+}
+
+// AC-1
+#[test]
+fn an_old_claim_whose_group_exists_is_never_taken_over() {
+    let r = rig_with(Some(0));
+    let id = id_of(&register(&r, r#"{"name":"live"}"#));
+    let again = register(&r, r#"{"name":"live"}"#);
+    assert_eq!(again.status, 400, "{}", again.text());
+    assert!(again.text().contains(&id), "{}", again.text());
+}
+
+// AC-1
+#[test]
+fn a_delete_or_rename_never_removes_a_claim_that_now_belongs_to_another_group() {
+    let r = rig();
+    let id = id_of(&register(&r, r#"{"name":"mine"}"#));
+    // the claim changes hands (as after a takeover), then the group is deleted
+    let hex: String = "mine".bytes().map(|b| format!("{b:02x}")).collect();
+    r.store
+        .delete(&format!("ml/model_group_names/public/{hex}"))
+        .unwrap();
+    plant_claim(&r, "mine", "another-group");
+    assert_eq!(
+        call(&r, "DELETE", &format!("{BASE}/{id}"), None).status,
+        200
+    );
+    let refused = register(&r, r#"{"name":"mine"}"#);
+    assert_eq!(refused.status, 400, "{}", refused.text());
+    assert!(
+        refused.text().contains("another-group"),
+        "{}",
+        refused.text()
+    );
+}
+
+// AC-20
+#[test]
+fn a_name_word_search_over_a_large_set_is_refused() {
+    let r = rig();
+    for n in 0..201 {
+        assert_eq!(register(&r, &format!(r#"{{"name":"g{n}"}}"#)).status, 200);
+    }
+    let words = call(
+        &r,
+        "POST",
+        &format!("{BASE}/_search"),
+        Some(r#"{"query":{"match":{"name":"g5"}}}"#),
+    );
+    assert_eq!(words.status, 400, "{}", words.text());
+    assert!(words.text().contains("name.keyword"), "{}", words.text());
+    // the exact term still answers
+    let exact = json(&call(
+        &r,
+        "POST",
+        &format!("{BASE}/_search"),
+        Some(r#"{"query":{"term":{"name.keyword":"g5"}}}"#),
+    ));
+    assert_eq!(exact["hits"]["total"]["value"], 1);
 }

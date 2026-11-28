@@ -3,7 +3,7 @@
 //! No query index exists, so a search is the marker's read and then a read
 //! of the documents it must look at: a match-all reads one page; an exact
 //! `name.keyword` term reads the name's claim and one document; any other
-//! name query reads the whole set (at most `MAX_DOCS` documents).
+//! name query reads the whole set, refused past `TOKEN_SCAN_MAX` groups.
 
 use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
@@ -12,6 +12,9 @@ use super::{INDEX, MlService, bad};
 
 /// The most hits one search returns.
 const MAX_SIZE: usize = 100;
+/// The most groups a name-token search reads: it reads each group, 2 GETs a group, so a larger
+/// set is refused and the search narrowed by an exact `name.keyword` term.
+const TOKEN_SCAN_MAX: usize = 200;
 /// The size a search without one returns, as the plugin's.
 const DEFAULT_SIZE: usize = 10;
 
@@ -142,6 +145,13 @@ impl MlService {
                 hits = hits.into_iter().skip(from).take(size).collect();
             }
             Filter::Tokens(..) => {
+                if names.len() > TOKEN_SCAN_MAX {
+                    return Err(bad(format!(
+                        "a name search reads every model group and the set holds {}; \
+                         search with a [name.keyword] term instead",
+                        names.len()
+                    )));
+                }
                 names.sort();
                 let mut found = Vec::new();
                 for id in &names {

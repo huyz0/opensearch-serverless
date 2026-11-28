@@ -29,12 +29,16 @@ pub(crate) const INDEX: &str = ".plugins-ml-model-group";
 const MAX_NAME_BYTES: usize = 255;
 /// A claim holds one id, 22 bytes; a buffer a little larger reads it whole.
 const CLAIM_BUFFER: usize = 64;
+/// How old a claim must be before it can be taken over from a group that was
+/// never written: far longer than a register takes, so a live one is never robbed.
+const STALE_CLAIM_MILLIS: u64 = 120_000;
 
 /// Serves the registry routes over one deployment's object store.
 pub struct MlService {
     store: Arc<dyn BlobStore>,
     base: String,
     buffer_bytes: usize,
+    stale_millis: u64,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -133,7 +137,16 @@ impl MlService {
             // ALLOC: one copy of the base, once.
             base: base.to_owned(),
             buffer_bytes,
+            stale_millis: STALE_CLAIM_MILLIS,
         }
+    }
+
+    /// As [`MlService::new`], with the age a claim must reach before a register may take
+    /// it over from a group that never came to be.
+    #[must_use]
+    pub fn with_stale_claim_millis(mut self, millis: u64) -> Self {
+        self.stale_millis = millis;
+        self
     }
 
     fn set(&self) -> Result<DocSet, RestError> {
@@ -189,19 +202,63 @@ impl MlService {
         format!("{}ml/model_group_names/public/{}", self.base, hex(name))
     }
 
-    /// Makes the claim on `name` for `id`; the id already holding it when
-    /// there is one.
-    fn claim(&self, name: &str, id: &str) -> Result<Option<String>, RestError> {
+    /// Makes the claim on `name` for `id`; the id holding it when another does.
+    ///
+    /// A claim that names no group of that name, and has outlived
+    /// `stale_millis`, is the leftover of a register that died between its
+    /// claim and its write: it is released (only if it still holds the id read)
+    /// and made again once.
+    fn claim(
+        &self,
+        name: &str,
+        id: &str,
+        marker: &mut [u8],
+        doc: &mut [u8],
+    ) -> Result<Option<String>, RestError> {
         let key = self.claim_key(name);
         let mut buf = [0u8; CLAIM_BUFFER];
-        match self
-            .store
-            .create_if_absent(&key, &mut SliceSource::new(id.as_bytes()), &mut buf)
-            .map_err(|e| blob_failed(&e))?
-        {
-            CreateOutcome::Created => Ok(None),
-            CreateOutcome::AlreadyExists => Ok(Some(self.holder(name)?.unwrap_or_default())),
+        for _ in 0..2 {
+            if matches!(
+                self.store
+                    .create_if_absent(&key, &mut SliceSource::new(id.as_bytes()), &mut buf)
+                    .map_err(|e| blob_failed(&e))?,
+                CreateOutcome::Created
+            ) {
+                return Ok(None);
+            }
+            let held = self.holder(name)?;
+            if !self.is_stale(&key, name, held.as_deref(), marker, doc)? {
+                return Ok(Some(held.unwrap_or_default()));
+            }
+            self.release(name, held.as_deref());
         }
+        let held = self.holder(name)?;
+        Ok(Some(held.unwrap_or_default()))
+    }
+
+    /// Whether the claim at `key` is a leftover: old, and its holder is not a
+    /// group of this name.
+    fn is_stale(
+        &self,
+        key: &str,
+        name: &str,
+        held: Option<&str>,
+        marker: &mut [u8],
+        doc: &mut [u8],
+    ) -> Result<bool, RestError> {
+        let old = self
+            .store
+            .age_millis(key)
+            .map_err(|e| blob_failed(&e))?
+            .is_some_and(|age| age >= self.stale_millis);
+        if !old {
+            return Ok(false);
+        }
+        let Some(held) = held else {
+            return Ok(true);
+        };
+        let group = self.stored(held, marker, doc)?;
+        Ok(group.is_none_or(|g| g.get("name").and_then(Value::as_str) != Some(name)))
     }
 
     /// The id holding the claim on `name`, if one does (1 GET).
@@ -218,16 +275,18 @@ impl MlService {
             .store
             .get(&self.claim_key(name), ByteRange::Full, &mut buf, &mut sink)
         {
-            Ok(_) => Ok(String::from_utf8(bytes).ok()),
+            Ok(_) => Ok(String::from_utf8(bytes).ok().filter(|b| !b.is_empty())),
             Err(BlobError::NotFound) => Ok(None),
             Err(e) => Err(blob_failed(&e)),
         }
     }
 
-    fn release(&self, name: &str) {
-        // A claim that stays is recognised by its holder not existing: the
-        // next register of the name replaces it (see `register_group`).
-        let _ = self.store.delete(&self.claim_key(name));
+    /// Deletes the claim on `name` if it still holds `id` (`None` for a claim
+    /// that holds nothing readable), so it never removes another group's claim.
+    fn release(&self, name: &str, id: Option<&str>) {
+        if self.holder(name).ok().is_some_and(|h| h.as_deref() == id) {
+            let _ = self.store.delete(&self.claim_key(name));
+        }
     }
 
     pub(crate) fn stored(
@@ -276,17 +335,9 @@ impl MlService {
         };
         let mut marker = self.marker(req)?;
         let id = fresh_id()?;
-        if let Some(held) = self.claim(&name, &id)? {
-            // A claim whose group is gone (a register that failed after the claim,
-            // and then failed to release it) is taken over by this register.
-            let mut doc = Self::doc_buffer(req)?;
-            if self.stored(&held, &mut marker, &mut doc)?.is_some() {
-                return Err(duplicate(&held));
-            }
-            self.release(&name);
-            if let Some(again) = self.claim(&name, &id)? {
-                return Err(duplicate(&again));
-            }
+        let mut doc = Self::doc_buffer(req)?;
+        if let Some(held) = self.claim(&name, &id, &mut marker, &mut doc)? {
+            return Err(duplicate(&held));
         }
         let t = now_millis();
         let mut group = Map::new();
@@ -299,7 +350,7 @@ impl MlService {
         group.insert("created_time".into(), json!(t));
         group.insert("last_updated_time".into(), json!(t));
         if let Err(e) = self.write(&id, &group, true, &mut marker) {
-            self.release(&name);
+            self.release(&name, Some(&id));
             return Err(e);
         }
         let out = json!({"model_group_id": id, "status": "CREATED"});
@@ -343,7 +394,7 @@ impl MlService {
         if let Some(value) = body.get("name").filter(|v| !v.is_null()) {
             let name = checked_name(value)?.to_owned();
             if name != old {
-                if let Some(held) = self.claim(&name, &id)?
+                if let Some(held) = self.claim(&name, &id, &mut marker, &mut doc)?
                     && held != id
                 {
                     return Err(duplicate(&held));
@@ -362,12 +413,12 @@ impl MlService {
         group.insert("last_updated_time".into(), json!(now_millis()));
         if let Err(e) = self.write(&id, &group, false, &mut marker) {
             if let Some(name) = &renamed {
-                self.release(name);
+                self.release(name, Some(&id));
             }
             return Err(e);
         }
         if renamed.is_some() {
-            self.release(&old);
+            self.release(&old, Some(&id));
         }
         resp.send(200, JSON, br#"{"status":"Updated"}"#)
     }
@@ -392,7 +443,7 @@ impl MlService {
             return Err(missing(&id));
         }
         if let Some(name) = group.get("name").and_then(Value::as_str) {
-            self.release(name);
+            self.release(name, Some(&id));
         }
         let out = json!({
             "_index": INDEX, "_id": id, "_version": 1, "result": "deleted",

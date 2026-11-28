@@ -21,4 +21,4 @@ Slice 1a (model groups and their name claims, `crates/node/src/ml_route/`) is bu
 - AC-17: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)
 - AC-18: `a_malformed_register_is_400_and_never_a_panic` (register only; a body is bounded by the document bound). Other routes come with their slices.
 - AC-19: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)
-- AC-20: `a_set_holds_at_most_a_thousand_groups_and_a_refused_register_keeps_no_claim` (the 1,000-document bound, 429, the claim released); `a_search_reads_a_page_of_documents_not_the_set` (a size past 100 is 400, a page reads only its hits). The scan bound is the set's own 1,000 documents and has no setting yet.
+- AC-20: `a_set_holds_at_most_a_thousand_groups_and_a_refused_register_keeps_no_claim` (the 1,000-document bound, 429, the claim released); `a_search_reads_a_page_of_documents_not_the_set` (a size past 100 is 400, a page reads only its hits). `a_name_word_search_over_a_large_set_is_refused` (past 200 groups).
