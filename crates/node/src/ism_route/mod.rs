@@ -7,6 +7,8 @@
 //! is a count kept in the stored document, one per policy, so a change to
 //! another policy never moves it.
 
+#[cfg(feature = "coordinator")]
+mod hook;
 mod managed;
 mod policy;
 mod routes;
