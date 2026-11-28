@@ -38,6 +38,13 @@ pub trait Backend: Send + Sync {
         alias: &str,
         write: Option<bool>,
     ) -> Result<(), String>;
+
+    /// Sends `text` through the notification channel `channel`.
+    ///
+    /// # Errors
+    ///
+    /// The reason the message was not delivered.
+    fn notify(&self, channel: &str, text: &str) -> Result<(), String>;
 }
 
 /// A backend that can do nothing: every action it is asked for fails.
@@ -64,5 +71,9 @@ impl Backend for Unsupported {
         _write: Option<bool>,
     ) -> Result<(), String> {
         Err("the node cannot change an alias yet".to_owned())
+    }
+
+    fn notify(&self, _channel: &str, _text: &str) -> Result<(), String> {
+        Err("the node cannot send a notification yet".to_owned())
     }
 }

@@ -198,6 +198,17 @@ mod tests {
             Ok(())
         }
 
+        fn notify(&self, channel: &str, text: &str) -> Result<(), String> {
+            if self.refuse {
+                return Err("channel [c1] is disabled".to_owned());
+            }
+            self.asked
+                .lock()
+                .unwrap()
+                .push((format!("notify {channel}: {text}"), false));
+            Ok(())
+        }
+
         fn set_alias(
             &self,
             index: &str,
@@ -355,6 +366,34 @@ mod tests {
             ..Fake::default()
         };
         let s = evaluate(&started(), &p, 7000, &refused);
+        assert_eq!(s.record["step"]["step_status"], "failed");
+    }
+
+    #[test]
+    fn a_notification_action_sends_its_text_with_the_index_filled_in() {
+        let p = acting(json!([{"notification":{"channel":{"id":"c1"},
+            "message_template":{"source":"{{ctx.index}} moved"}}}]));
+        let fake = Fake::default();
+        let s = evaluate(&started(), &p, 7000, &fake);
+        assert_eq!(
+            *fake.asked.lock().unwrap(),
+            [("notify c1: logs moved".to_owned(), false)]
+        );
+        assert_eq!(s.record["step"]["name"], "attempt_notification");
+        assert_eq!(s.record["step"]["step_status"], "completed");
+        assert_eq!(
+            s.record["info"]["message"],
+            "Successfully sent notification [index=logs]"
+        );
+        let refused = Fake {
+            refuse: true,
+            ..Fake::default()
+        };
+        let s = evaluate(&started(), &p, 7000, &refused);
+        assert_eq!(s.record["step"]["step_status"], "failed");
+        assert_eq!(s.record["info"]["message"], "channel [c1] is disabled");
+        let bare = acting(json!([{"notification":{"message_template":{"source":"x"}}}]));
+        let s = evaluate(&started(), &bare, 7000, &fake);
         assert_eq!(s.record["step"]["step_status"], "failed");
     }
 
