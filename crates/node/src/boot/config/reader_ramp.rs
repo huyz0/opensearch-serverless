@@ -1,6 +1,6 @@
 //! `OSS_READER_RAMP_MAX_SECS` and `OSS_READER_RAMP_MIN_SECS`: a joining
-//! reader's slow start (docs/specs/reader-slow-start). Off unless the
-//! maximum is set.
+//! reader's slow start (docs/specs/reader-slow-start). On by default, 30 to
+//! 300 seconds; a maximum of 0 turns it off.
 
 /// The bounds of the slow start, seconds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -24,7 +24,7 @@ fn secs(get: &impl Fn(&str) -> Option<String>, key: &str, default: i64) -> Resul
 }
 
 pub(super) fn read(get: &impl Fn(&str) -> Option<String>) -> Result<Secs, String> {
-    let max = secs(get, "OSS_READER_RAMP_MAX_SECS", 0)?;
+    let max = secs(get, "OSS_READER_RAMP_MAX_SECS", 300)?;
     let min = secs(get, "OSS_READER_RAMP_MIN_SECS", 30)?;
     if max > 0 && min > max {
         return Err(format!(

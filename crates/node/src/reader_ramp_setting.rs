@@ -4,10 +4,11 @@ use oss_types::settings::{IntSetting, Scope, Setting};
 
 /// `serverless.search.reader_ramp.max_duration` (`OSS_READER_RAMP_MAX_SECS`):
 /// seconds by which a joining reader is fully ramped, whatever it says.
-/// Default 0: off, every reader takes its full share at once.
+/// Default 300; 0 turns the slow start off and every reader takes its full
+/// share at once.
 pub const RAMP_MAX_DURATION: IntSetting = IntSetting::new(
     "serverless.search.reader_ramp.max_duration",
-    0,
+    300,
     0,
     86_400,
     Scope::Node,

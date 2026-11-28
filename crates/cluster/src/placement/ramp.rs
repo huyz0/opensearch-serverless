@@ -120,7 +120,13 @@ pub struct RampController {
     config: ControllerConfig,
     ramp: i32,
     seen: Totals,
+    idle: u32,
 }
+
+/// Renewals with too few searches to judge, after which the ramp steps up
+/// anyway: a node admitted to no shard it holds gets no search, so waiting
+/// for evidence would idle it until the ceiling.
+const IDLE_RENEWALS: u32 = 3;
 
 impl RampController {
     /// A controller that counts from `start`, at the first step: a node
@@ -132,6 +138,7 @@ impl RampController {
             config,
             ramp: config.step.clamp(0, 1000),
             seen: start,
+            idle: 0,
         }
     }
 
@@ -144,8 +151,17 @@ impl RampController {
     pub fn observe(&mut self, now: Totals) -> i32 {
         let searches = now.searches.saturating_sub(self.seen.searches);
         if searches < self.config.min_searches.max(1) {
+            // Too few searches to judge: little traffic means little cold cost,
+            // so after a few renewals the ramp steps up and admits more shards.
+            self.idle = self.idle.saturating_add(1);
+            if self.idle >= IDLE_RENEWALS {
+                self.idle = 0;
+                self.seen = now;
+                self.ramp = self.ramp.saturating_add(self.config.step).clamp(0, 1000);
+            }
             return self.ramp;
         }
+        self.idle = 0;
         let gets = now.gets_milli.saturating_sub(self.seen.gets_milli);
         self.seen = now;
         let per_search = gets.checked_div(searches).unwrap_or(u64::MAX);
@@ -270,6 +286,24 @@ mod tests {
         let mut c = RampController::new(ControllerConfig::default(), totals(0, 0));
         assert_eq!(c.observe(totals(10, 0)), 100);
         assert_eq!(c.observe(totals(20, 0)), 200, "the first ten still count");
+    }
+
+    #[test]
+    fn a_node_that_gets_no_search_steps_up_after_a_few_renewals() {
+        let mut c = RampController::new(ControllerConfig::default(), totals(0, 0));
+        assert_eq!(c.observe(totals(0, 0)), 100);
+        assert_eq!(c.observe(totals(1, 0)), 100);
+        assert_eq!(c.observe(totals(2, 0)), 200, "the third idle renewal steps");
+        assert_eq!(c.observe(totals(2, 0)), 200, "and counts again from there");
+        // A judged window resets the count.
+        assert_eq!(c.observe(totals(30, 0)), 300);
+        assert_eq!(c.observe(totals(30, 0)), 300);
+        assert_eq!(c.observe(totals(30, 0)), 300);
+        assert_eq!(c.observe(totals(30, 0)), 400);
+        for _ in 0..40 {
+            c.observe(totals(30, 0));
+        }
+        assert_eq!(c.ramp(), 1000);
     }
 
     #[test]
