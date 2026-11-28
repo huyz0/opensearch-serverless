@@ -96,6 +96,8 @@ pub mod ism_route;
 pub mod ism_setting;
 #[cfg(feature = "reader")]
 pub mod jobs;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod knn_model_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod knn_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -115,6 +117,9 @@ pub mod nested_setting;
 pub mod newest;
 #[cfg(feature = "reader")]
 pub mod newest_ask;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod notifications_route;
+pub mod notifications_setting;
 #[cfg(feature = "reader")]
 pub mod open_indexes;
 #[cfg(feature = "reader")]
@@ -267,6 +272,8 @@ pub mod warm_handlers;
 pub mod warm_join;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_peer;
+#[cfg(feature = "reader")]
+pub mod warm_pressure;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_rate;
 #[cfg(all(feature = "reader", feature = "writer"))]

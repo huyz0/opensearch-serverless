@@ -42,6 +42,8 @@ pub struct Config {
     pub sql_max_request_bytes: usize,
     /// `serverless.ism.enabled`: serve the index state management policy routes.
     pub ism: bool,
+    /// `serverless.notifications.enabled`: serve the notifications config routes.
+    pub notifications: bool,
     /// `serverless.ad.enabled`: serve the anomaly detection detector routes.
     pub ad: bool,
     /// `serverless.ltr.max_window`: the most hits an `sltr` rescore scores.
@@ -172,6 +174,7 @@ impl Config {
             sql_size_limit: 200,
             sql_max_request_bytes: 1 << 20,
             ism: false,
+            notifications: false,
             ad: false,
             ltr_max_window: 1_000,
             ltr_cache_ttl_secs: 30,
