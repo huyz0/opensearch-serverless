@@ -5,3 +5,5 @@
 - AC-5: `clear_cache_closes_the_open_shards_returns_the_charge_and_asks_for_nothing` in crates/node/tests/server/knn_api.rs
 - AC-6: `clear_cache_closes_the_open_shards_returns_the_charge_and_asks_for_nothing` in crates/node/tests/server/knn_api.rs (stats make no GET; clear makes none); the warmup request count is NOT-RUN: not metered separately from the open
 - AC-7: `without_the_routes_every_path_is_an_unknown_route` in crates/node/tests/server/knn_api.rs
+- AC-8: `an_unmapped_field_matches_nothing_when_ignored_and_fails_when_not`, `a_mapped_field_that_is_not_a_vector_still_fails_when_unmapped_is_ignored`, `an_ignored_unmapped_clause_leaves_the_rest_of_the_bool_to_answer` and `a_mapped_vector_field_is_searched_whatever_ignore_unmapped_says` in crates/reader/src/knn/unmapped_tests.rs (behaviour from the OpenSearch query convention, not recorded from a stock node: provisional)
+- AC-9: `ignore_unmapped_parses_as_a_boolean_and_defaults_to_false` in crates/reader/src/dsl/queries/knn_tests.rs
