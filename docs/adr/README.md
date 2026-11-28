@@ -86,4 +86,5 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0075](0075-alerting-is-ported-natively.md) | Alerting is ported natively; it is no longer proxied | Accepted |
 | [0077](0077-index-state-management-is-ported-natively.md) | Index State Management is ported natively; it is no longer proxied | Accepted |
 | [0078](0078-anomaly-detection-is-ported-natively.md) | Anomaly detection is ported natively; a scheduled, stateful port with a model written here | Proposed |
+| [0079](0079-ml-commons-is-ported-natively.md) | ML Commons is ported natively to Rust; it is no longer proxied | Accepted |
 | [0080](0080-one-plugin-system-three-tiers.md) | One plugin system, three tiers: native, WASM and gRPC, behind one manifest, point contract and failure rule | Accepted |
