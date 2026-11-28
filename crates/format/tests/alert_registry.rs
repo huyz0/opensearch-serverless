@@ -36,6 +36,7 @@ fn an_empty_shard_is_no_bytes_and_removal_reports_whether_it_was_there() {
     assert_eq!(written(&shard), b"");
     assert_eq!(RegistryShard::parse(b"").unwrap(), shard);
     shard.insert("a").unwrap();
+    assert!(!shard.is_empty());
     assert!(shard.remove("a"));
     assert!(!shard.remove("a"));
     assert!(shard.is_empty());
