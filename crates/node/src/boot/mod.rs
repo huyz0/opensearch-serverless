@@ -5,12 +5,14 @@
 //! head's conditional write is what fences a writer, so a late renewal can
 //! cost a handover and never a write.
 
+mod ad_loop;
 mod async_search;
 mod config;
 mod edge;
 mod error;
 mod follow;
 mod join;
+mod node_impl;
 mod pack_collect;
 mod renew;
 mod retire;
@@ -53,6 +55,7 @@ use crate::writer::{
     HeadOpener, OrphanTimer, ShardNames, ShardOpener, Takeover,
 };
 
+use ad_loop::run_detectors;
 pub use config::commits::Logged;
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 pub use error::BootError;
@@ -79,6 +82,7 @@ pub struct Node {
     dead_logs: Option<Renewal>,
     orphan_sweep: Option<OrphanTimer>,
     pack_collect: Option<Renewal>,
+    ad_loop: Option<Renewal>,
     following: Option<follow::Following>,
     membership: Arc<Membership>,
     node_id: String,
@@ -86,53 +90,6 @@ pub struct Node {
     ephemeral: String,
     /// Whether dropping the node leaves its lease to lapse, as a kill does.
     crashed: bool,
-}
-
-impl Node {
-    /// Stops the node as a killed process stops: its servers and its
-    /// renewal end, and its lease is not released, so it lapses in one
-    /// lifetime and the other nodes see it die.
-    pub fn crash(mut self) {
-        self.crashed = true;
-    }
-
-    /// The address the node's HTTP server listens on.
-    pub fn addr(&self) -> std::net::SocketAddr {
-        self.running.as_ref().map_or_else(
-            || std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
-            Running::addr,
-        )
-    }
-
-    /// Whether the tail overlay is on: writers push to this node's reader
-    /// side and its searches see what they pushed.
-    pub fn tail_on(&self) -> bool {
-        self.running.as_ref().is_some_and(|r| r.tail().is_some())
-    }
-
-    /// The refresh visibility the node is in, which follows the cluster
-    /// register; `None` while the tail overlay is off.
-    pub fn refresh_visibility(&self) -> Option<crate::writer::RefreshVisibility> {
-        self.following.as_ref().map(follow::Following::mode)
-    }
-}
-
-impl Drop for Node {
-    fn drop(&mut self) {
-        self.edge.stop();
-        // The renewal stops first, so it cannot write the lease back.
-        drop(self.renewal.take());
-        drop(self.dead_logs.take());
-        drop(self.orphan_sweep.take());
-        drop(self.pack_collect.take());
-        drop(self.following.take());
-        drop(self.running.take());
-        drop(self.transport.take());
-        // Best effort: an unreleased lease lapses in one lifetime.
-        if !self.crashed {
-            let _ = self.membership.release(&self.node_id);
-        }
-    }
 }
 
 /// Starts a node from `config`: enrols its lease, builds its write log and
@@ -414,6 +371,12 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let role = Arc::clone(&assembled.role);
     let fleet = support::FleetTick::new(&role, load, &clock, config)
         .with_ramp(&readiness, ramp_ledger.as_ref());
+    let ad_loop = run_detectors(
+        &node_config,
+        config,
+        &assembled,
+        (&store, &membership, &clock),
+    );
     let running = assembled
         .start(listener, config.rest_config(), &budget)
         .map_err(BootError::Assemble)?;
@@ -489,6 +452,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         renewal: Some(renewal),
         dead_logs: Some(dead_logs),
         orphan_sweep,
+        ad_loop,
         pack_collect: collect_packs(&node_config, config, &store, &membership, &clock, &budget),
         following,
         membership,

@@ -54,3 +54,4 @@ Stats and clear cache: 0 requests. Warmup: the open's requests plus the ranged r
 ## Risks
 
 Response shapes come from the plugin's published documentation, not a recording of a stock node; they are provisional until recorded. Stats are per node, where the plugin merges every node's, so a client summing `nodes` sees one entry. `clear_cache` does not evict shared page-cache pages.
+- AC-17 (slice 3, model blob): a trained model is stored as one versioned blob (header, centroids, optional PQ codebooks, CRC-32 trailer) that parses back to the same bytes, and a flipped byte, truncation, trailing bytes, an unknown version or an impossible shape is refused rather than read.

@@ -308,23 +308,24 @@ fn between_refreshes_a_tick_with_nothing_due_makes_no_request() {
         (gets, puts),
         "nothing is due and no refresh is: nothing is requested"
     );
-    // a refresh reads the 256 registry shards and the set's marker, and no detector
+    // a refresh reads the set's marker, and no detector
     let before = total(&f.rig, S3Op::Get);
     let report = node.tick(t0 + 31_000, &ALONE).unwrap();
     assert!(report.refreshed);
-    assert_eq!(total(&f.rig, S3Op::Get) - before, 257);
+    assert_eq!(total(&f.rig, S3Op::Get) - before, 1);
     assert_eq!(total(&f.rig, S3Op::List), 0);
 }
 
 #[test]
-fn a_cluster_with_no_started_detector_reads_the_registry_and_nothing_more() {
+fn a_cluster_with_a_created_detector_reads_the_set_once_and_the_detector_once() {
     let f = fixture();
     let sink = Arc::new(Written::default());
     let node = scheduler(&f, &sink, "a");
     let before = total(&f.rig, S3Op::Get);
     let report = node.tick(due(0), &ALONE).unwrap();
     assert!(report.refreshed && report.outcomes.is_empty());
-    assert_eq!(total(&f.rig, S3Op::Get) - before, 256);
+    // the marker, the names, and the one detector's two reads
+    assert_eq!(total(&f.rig, S3Op::Get) - before, 4);
 }
 
 #[test]
