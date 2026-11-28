@@ -20,7 +20,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use oss_blob::BlobStore;
 use oss_format::DocKind;
 use oss_meta::{DescriptorStore, DocSet, MetaError};
-use oss_rest::{JSON, Request, Response, RestError};
+use oss_rest::{Exception, JSON, Meta, Request, Response, RestError};
 use serde_json::{Value, json};
 
 use crate::route_util::{read_body, refuse};
@@ -45,12 +45,28 @@ fn not_found() -> RestError {
     refuse(404, "status_exception", "Policy not found")
 }
 
-fn conflict(id: &str) -> RestError {
-    refuse(
+/// What a delete of a missing policy says.
+fn not_found_by_id(id: &str) -> RestError {
+    refuse(404, "status_exception", format!("Policy {id} is not found"))
+}
+
+/// A 409 as the plugin's index answers it: the reason, and where.
+fn version_conflict(reason: String) -> RestError {
+    RestError::exception(
         409,
-        "version_conflict_engine_exception",
-        format!("version conflict, document [{id}] was changed or already exists"),
+        Exception::new("version_conflict_engine_exception", reason)
+            .with_meta("index", Meta::Str(INDEX.to_owned()))
+            .with_meta("shard", Meta::Str("0".to_owned()))
+            .with_meta("index_uuid", Meta::Str("_na_".to_owned())),
     )
+}
+
+/// A replace whose `if_seq_no` or `if_primary_term` is not the policy's.
+fn conflict(id: &str, seq: i64, term: i64, current: Option<i64>) -> RestError {
+    let (now_seq, now_term) = current.map_or((-2, 0), |c| (c, 1));
+    version_conflict(format!(
+        "[{id}]: version conflict, required seqNo [{seq}], primary term [{term}]. current document has seqNo [{now_seq}] and primary term [{now_term}]"
+    ))
 }
 
 /// What a failed store call answers.
@@ -62,14 +78,48 @@ fn failed(e: &MetaError) -> RestError {
             "a tenant holds at most 1000 policies",
         ),
         MetaError::InvalidDocName(_) | MetaError::InvalidArgument(_) => bad(e.to_string()),
-        MetaError::AlreadyExists => refuse(
-            409,
-            "version_conflict_engine_exception",
-            "a policy of that name already exists",
-        ),
+        MetaError::AlreadyExists => {
+            version_conflict("version conflict, document already exists".to_owned())
+        }
         // ALLOC: error path; one message.
         other => refuse(500, "ism_store_failure", other.to_string()),
     }
+}
+
+/// Whether policies may be listed sorted by `field`: they come in id order,
+/// so only that field is served; a field with no mapping is the plugin's 400.
+fn sortable(field: &str) -> Result<(), RestError> {
+    match field {
+        "policy.policy_id.keyword" | "policy.policy_id" | "_id" => Ok(()),
+        "policy.description"
+        | "policy.last_updated_time"
+        | "policy.schema_version"
+        | "policy.default_state" => Err(bad(format!(
+            "sorting policies by [{field}] is not supported: they are listed in id order"
+        ))),
+        _ => {
+            let reason = format!("No mapping found for [{field}] in order to sort on");
+            let shard = || {
+                Exception::new("query_shard_exception", reason.clone())
+                    .with_meta("index", Meta::Str(INDEX.to_owned()))
+                    .with_meta("index_uuid", Meta::Str("_na_".to_owned()))
+            };
+            Err(RestError::exception(
+                400,
+                Exception::new("search_phase_execution_exception", "all shards failed")
+                    .with_meta("phase", Meta::Str("query".to_owned()))
+                    .caused_by(shard()),
+            ))
+        }
+    }
+}
+
+/// A request body as JSON: an empty one is the plugin's `parse_exception`.
+fn parse_body(raw: &[u8]) -> Result<Value, RestError> {
+    if raw.is_empty() {
+        return Err(refuse(400, "parse_exception", "request body is required"));
+    }
+    serde_json::from_slice(raw).map_err(|e| bad(format!("invalid body: {e}")))
 }
 
 fn now_millis() -> u64 {
@@ -182,8 +232,7 @@ impl IsmService {
         let (if_seq, if_term) = (number("if_seq_no")?, number("if_primary_term")?);
         let max = DocKind::IsmPolicies.max_doc_bytes();
         let raw = read_body(req, max, "the body is over the limit for a policy")?;
-        let body: Value =
-            serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?;
+        let body = parse_body(&raw)?;
         let policy = policy::checked(&id, &body, now_millis()).map_err(bad)?;
         let wanted = templates::entries_of(&id, &policy).map_err(bad)?;
         let mut marker = self.marker(req)?;
@@ -199,9 +248,10 @@ impl IsmService {
             (Some(seq), Some(term)) => {
                 let current = self
                     .stored(&id, &mut marker, &mut doc)?
-                    .ok_or_else(|| conflict(&id))?;
-                if current["seq_no"].as_i64() != Some(seq) || term != 1 {
-                    return Err(conflict(&id));
+                    .ok_or_else(|| conflict(&id, seq, term, None))?;
+                let now = current["seq_no"].as_i64();
+                if now != Some(seq) || term != 1 {
+                    return Err(conflict(&id, seq, term, now));
                 }
                 seq.saturating_add(1)
             }
@@ -211,16 +261,32 @@ impl IsmService {
         // ALLOC: the document's text, at most the kind's bound, checked by the put.
         let bytes = stored.to_string().into_bytes();
         let replaced = if_seq.is_some();
-        self.set()?
-            .put_counted(&id, &bytes, !replaced, &mut marker)
-            .map_err(|e| failed(&e))?;
+        match self.set()?.put_counted(&id, &bytes, !replaced, &mut marker) {
+            Ok(_) => {}
+            Err(MetaError::AlreadyExists) => {
+                let now = self
+                    .stored(&id, &mut marker, &mut doc)
+                    .ok()
+                    .flatten()
+                    .and_then(|s| s["seq_no"].as_i64())
+                    .unwrap_or(0);
+                return Err(version_conflict(format!(
+                    "[{id}]: version conflict, document already exists (current version [{}])",
+                    now.saturating_add(1)
+                )));
+            }
+            Err(e) => return Err(failed(&e)),
+        }
         if let Some(held) = held {
             self.sync_templates(&id, &wanted, held, &mut marker, &mut doc)?;
         }
+        // The plugin answers a put with the policy under a `policy` of its own.
+        let mut answer = shown(&id, &stored);
+        answer["policy"] = json!({"policy": stored["policy"]});
         resp.send(
             if replaced { 200 } else { 201 },
             JSON,
-            shown(&id, &stored).to_string().as_bytes(),
+            answer.to_string().as_bytes(),
         )
     }
 
@@ -252,14 +318,15 @@ impl IsmService {
             .delete(&id, &mut marker)
             .map_err(|e| failed(&e))?
         {
-            return Err(not_found());
+            return Err(not_found_by_id(&id));
         }
         let mut doc = Self::doc_buffer(req)?;
         let held = self.check_templates(&[], &mut marker, &mut doc)?;
         self.sync_templates(&id, &[], held, &mut marker, &mut doc)?;
         let body = json!({
-            "_index": INDEX, "_id": id, "result": "deleted", "forced_refresh": true,
-            "_shards": {"total": 1, "successful": 1, "failed": 0},
+            "_index": INDEX, "_id": id, "_version": now_millis(), "result": "deleted",
+            "forced_refresh": true, "_shards": {"total": 2, "successful": 1, "failed": 0},
+            "_seq_no": now_millis(), "_primary_term": 1,
         });
         resp.send(200, JSON, body.to_string().as_bytes())
     }
@@ -283,6 +350,9 @@ impl IsmService {
             .map(std::borrow::Cow::into_owned)
             .unwrap_or_default()
             .replace('*', "");
+        if let Some(field) = req.param("sortField") {
+            sortable(&field)?;
+        }
         let descending = req.param("sortOrder").is_some_and(|v| v == "desc");
         let mut marker = self.marker(req)?;
         let mut names = self.set()?.names(&mut marker).map_err(|e| failed(&e))?;

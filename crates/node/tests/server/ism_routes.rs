@@ -15,8 +15,9 @@ fn a_policy_is_created_read_replaced_listed_and_deleted() {
     assert_eq!(body["_version"], 1);
     assert_eq!(body["_seq_no"], 0);
     assert_eq!(body["_primary_term"], 1);
-    assert_eq!(body["policy"]["policy_id"], "logs");
-    assert_eq!(body["policy"]["default_state"], "hot");
+    // a put answers with the policy under a `policy` of its own, a get without
+    assert_eq!(body["policy"]["policy"]["policy_id"], "logs");
+    assert_eq!(body["policy"]["policy"]["default_state"], "hot");
 
     let read = call(&r, "GET", "/_plugins/_ism/policies/logs", None);
     assert_eq!(read.status, 200, "{}", read.text());
@@ -90,7 +91,7 @@ fn an_invalid_policy_is_refused_naming_what_is_wrong() {
                 "\"default_state\":\"hot\"",
                 "\"default_state\":\"cold\"",
             ),
-            "cold",
+            "valid default state",
         ),
         (
             with(POLICY, "{\"read_only\":{}}", "{\"close\":{}}"),
@@ -118,13 +119,13 @@ fn an_invalid_policy_is_refused_naming_what_is_wrong() {
         ),
         (
             with(POLICY, "{\"name\":\"warm\"", "{\"name\":\"hot\""),
-            "hot",
+            "duplicate state names",
         ),
         (
             "{\"policy\":{\"default_state\":\"a\",\"states\":[]}}".to_owned(),
-            "states",
+            "at least one State",
         ),
-        ("not json".to_owned(), "body"),
+        ("not json".to_owned(), "invalid body"),
     ];
     for (body, word) in cases {
         let reply = call(&r, "PUT", "/_plugins/_ism/policies/bad", Some(&body));

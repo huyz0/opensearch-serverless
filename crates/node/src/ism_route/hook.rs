@@ -62,8 +62,10 @@ impl IsmService {
         let mut marker = self.marker(req)?;
         let mut doc = Self::doc_buffer(req)?;
         let entries = self.all_templates(&mut marker, &mut doc)?;
-        if let Some(policy) = matching(&entries, index) {
-            self.attach(index, uuid, created, policy, None, &mut marker, &mut doc)?;
+        if let Some(policy) = matching(&entries, index)
+            && let Some(stored) = self.stored(policy, &mut marker, &mut doc)?
+        {
+            self.attach(index, uuid, created, policy, &stored, None, &mut marker)?;
         }
         Ok(())
     }

@@ -7,10 +7,10 @@
 //! writer, so no entry is lost for good.
 
 use oss_format::DocKind;
-use oss_rest::RestError;
+use oss_rest::{Exception, RestError};
 use serde_json::{Value, json};
 
-use super::{IsmService, bad, failed, refuse};
+use super::{IsmService, failed, refuse};
 
 /// The aggregate's name in its set.
 const ALL: &str = "all";
@@ -70,8 +70,11 @@ pub(super) fn entries_of(id: &str, policy: &Value) -> Result<Vec<Entry>, String>
                     .collect::<Option<_>>()
             })
             .unwrap_or(None)
-            .filter(|p: &Vec<String>| !p.is_empty() && p.len() <= MAX_PATTERNS)
-            .ok_or_else(|| format!("[index_patterns] needs 1 to {MAX_PATTERNS} strings"))?;
+            .filter(|p: &Vec<String>| p.len() <= MAX_PATTERNS)
+            .ok_or_else(|| format!("[index_patterns] holds at most {MAX_PATTERNS} strings"))?;
+        if patterns.is_empty() {
+            return Err("Requires at least one index pattern".to_owned());
+        }
         if patterns.iter().any(|p| p.is_empty() || p.starts_with('-')) {
             return Err("an index pattern is not empty and does not start with [-]".to_owned());
         }
@@ -108,8 +111,8 @@ fn overlap(wanted: &[Entry], current: &[Entry]) -> Result<(), String> {
         {
             if let Some(p) = new.patterns.iter().find(|p| old.patterns.contains(p)) {
                 return Err(format!(
-                    "index pattern [{p}] at priority [{}] overlaps policy [{}]",
-                    new.priority, old.policy_id
+                    "New policy {} has an ISM template with index pattern [{p}] matching existing policy templates, please use a different priority than {}",
+                    new.policy_id, new.priority
                 ));
             }
         }
@@ -145,7 +148,9 @@ impl IsmService {
         doc: &mut [u8],
     ) -> Result<Vec<Entry>, RestError> {
         let current = self.all_templates(marker, doc)?;
-        overlap(wanted, &current).map_err(bad)?;
+        overlap(wanted, &current).map_err(|reason| {
+            RestError::exception(400, Exception::new("index_management_exception", reason))
+        })?;
         Ok(current)
     }
 
