@@ -41,7 +41,7 @@ The stored-scripts shape, per route as AC-6. The standing cost is zero: no timer
 
 ## Switch
 
-`serverless.observability.enabled` (`OSS_OBSERVABILITY`), default **off** until AC-1 to AC-9 pass; then **on**, because with no schedule, no standing request and a bounded marker it has no measured downside and the proxy prefix stops being needed. The janitor reclaims a content blob left dead by a replace or delete (AC-9 tests that too). Bounds `serverless.observability.max_objects` (1,000) and `max_object_bytes` (1 MiB) are settings.
+`serverless.observability.enabled` (`OSS_OBSERVABILITY`), default **on** (the owner's rule of 2026-11-28: a ported plugin needs no flag, or its flag is on by default), because with no schedule, no standing request and a bounded marker it has no measured downside and the proxy prefix stops being needed. The janitor reclaims a content blob left dead by a replace or delete (AC-9 tests that too). Bounds `serverless.observability.max_objects` (1,000) and `max_object_bytes` (1 MiB) are settings.
 
 ## Risks
 
