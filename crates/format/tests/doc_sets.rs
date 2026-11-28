@@ -307,3 +307,12 @@ fn the_ml_connectors_have_their_own_directory_and_the_common_bound() {
         oss_format::MAX_DOC_BYTES
     );
 }
+
+#[test]
+fn the_ml_models_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::MlModels).unwrap(),
+        "ml/models/_version"
+    );
+    assert_eq!(DocKind::MlModels.max_doc_bytes(), oss_format::MAX_DOC_BYTES);
+}

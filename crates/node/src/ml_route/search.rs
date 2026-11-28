@@ -15,7 +15,7 @@ use super::{INDEX, MlService, bad};
 const MAX_SIZE: usize = 100;
 /// The most groups a name-token search reads: it reads each group, 2 GETs a group, so a larger
 /// set is refused and the search narrowed by an exact `name.keyword` term.
-const TOKEN_SCAN_MAX: usize = 200;
+pub(super) const TOKEN_SCAN_MAX: usize = 200;
 /// The size a search without one returns, as the plugin's.
 const DEFAULT_SIZE: usize = 10;
 
