@@ -3,6 +3,10 @@
 # Mutants listed here are equivalent: no test can tell them apart from the
 # original, so they would only ever be reported as missed. Each names why.
 exclude_re = [
+    # With no routes registered, the node tests that call them wait for an
+    # answer that never comes: the mutant is caught by hanging, which
+    # cargo-mutants reports as a timeout.
+    "crates/node/src/security_route/admin.rs:.*replace config_routes -> Result<Router, RouteError> with Ok\\(Default::default\\(\\)\\)",
     # The compact bucket manifest packs a pack reference's low bit, a tag's
     # low two bits and a UTF-8-style lead byte over disjoint bits, where
     # `|` and `^` give the same number.
