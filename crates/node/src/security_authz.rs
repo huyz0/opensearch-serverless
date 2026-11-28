@@ -66,6 +66,10 @@ const RULES: &[(&[Method], &str, Rule)] = &[
     (GET_POST, "/_opendistro/_sql", SQL),
     (GET_POST, "/_plugins/_sql/_explain", SQL),
     (GET_POST, "/_opendistro/_sql/_explain", SQL),
+    (GET_POST, "/_plugins/_ppl", SQL),
+    (GET_POST, "/_opendistro/_ppl", SQL),
+    (GET_POST, "/_plugins/_ppl/_explain", SQL),
+    (GET_POST, "/_opendistro/_ppl/_explain", SQL),
     (WRITES, "/_bulk", Rule::Bulk),
     (WRITES, "/{index}/_bulk", Rule::Bulk),
     (

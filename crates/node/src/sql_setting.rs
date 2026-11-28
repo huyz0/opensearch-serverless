@@ -12,6 +12,15 @@ pub const SQL_ENABLED: BoolSetting = BoolSetting::new(
     "Serve the SQL endpoint, parsed and planned natively into the search path.",
 );
 
+/// `serverless.ppl.enabled`: serve `/_plugins/_ppl` natively, through the same planner as
+/// SQL. On by default for the same reason; with it off the routes answer the disabled error.
+pub const PPL_ENABLED: BoolSetting = BoolSetting::new(
+    "serverless.ppl.enabled",
+    true,
+    Scope::Node,
+    "Serve the PPL endpoint, parsed and planned natively into the search path.",
+);
+
 /// `serverless.sql.size_limit`: the most rows a statement returns.
 pub const SQL_SIZE_LIMIT: IntSetting = IntSetting::new(
     "serverless.sql.size_limit",
@@ -45,6 +54,7 @@ pub const SQL_MAX_BUCKETS: IntSetting = IntSetting::new(
 /// Every setting this module defines, for the node's registry.
 pub static SETTINGS: &[&Setting] = &[
     SQL_ENABLED.setting(),
+    PPL_ENABLED.setting(),
     SQL_SIZE_LIMIT.setting(),
     SQL_MAX_REQUEST_BYTES.setting(),
     SQL_MAX_BUCKETS.setting(),

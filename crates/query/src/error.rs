@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 pub struct Error {
     status: u16,
     kind: &'static str,
-    reason: &'static str,
+    reason: std::borrow::Cow<'static, str>,
     details: String,
 }
 
@@ -28,7 +28,7 @@ impl Error {
         Self {
             status: 400,
             kind,
-            reason: "Invalid SQL query",
+            reason: "Invalid SQL query".into(),
             details,
         }
     }
@@ -40,10 +40,58 @@ impl Error {
         Self {
             status: 400,
             kind: "ExpressionEvaluationException",
-            reason: "Invalid SQL query",
+            reason: "Invalid SQL query".into(),
             // ALLOC: one message, bounded by the type names.
             details: format!("{func} function expected {{{SIGNATURES}}}, but got [{left},{right}]"),
         }
+    }
+
+    /// Whether this is a parse error (not a refusal of a construct that parsed).
+    pub(crate) fn is_syntax(&self) -> bool {
+        matches!(self.kind, "ParserException" | "EOFParserException")
+    }
+
+    /// A PPL parse error at `start..end` of `src`, in the plugin's text.
+    #[must_use]
+    pub(crate) fn ppl_syntax(src: &str, start: usize, end: usize, extra: &str) -> Self {
+        let start = start.min(src.len());
+        let end = end.clamp(start, src.len());
+        let mut from = start.saturating_sub(20);
+        while !src.is_char_boundary(from) {
+            from = from.saturating_add(1);
+        }
+        let token = if start >= src.len() {
+            "<EOF>"
+        } else {
+            &src[start..end]
+        };
+        let dots = if from > 0 { "..." } else { "" };
+        Self {
+            status: 400,
+            kind: "SyntaxCheckException",
+            reason: "Invalid Query".into(),
+            // ALLOC: one message, bounded by the token and the 20 byte window.
+            details: format!(
+                "[{token}] is not a valid term at this part of the query: '{dots}{}' <-- HERE. {extra}",
+                &src[from..end]
+            ),
+        }
+    }
+
+    /// The same refusal in PPL's words: an unknown field is an illegal argument.
+    #[must_use]
+    pub(crate) fn into_ppl(mut self) -> Self {
+        const PREFIX: &str = "can't resolve Symbol(namespace=FIELD_NAME, name=";
+        if let Some(rest) = self.details.strip_prefix(PREFIX) {
+            let name = rest.split(')').next().unwrap_or("");
+            // ALLOC: one message, bounded by the identifier limit.
+            self.details = format!("Field [{name}] not found.");
+            self.reason = self.details.clone().into();
+            self.kind = "IllegalArgumentException";
+        } else if self.reason == "Invalid SQL query" {
+            self.reason = "Invalid Query".into();
+        }
+        self
     }
 
     /// An empty statement.
@@ -52,7 +100,7 @@ impl Error {
         Self {
             status: 400,
             kind: "IllegalArgumentException",
-            reason: "Invalid SQL query",
+            reason: "Invalid SQL query".into(),
             details: "Query is empty".to_owned(),
         }
     }
@@ -63,7 +111,7 @@ impl Error {
         Self {
             status: 400,
             kind: "SQLFeatureNotSupportedException",
-            reason: "Invalid SQL query",
+            reason: "Invalid SQL query".into(),
             // ALLOC: the statement again, bounded by the statement byte limit.
             details: format!("Query must start with SELECT, DELETE, SHOW or DESCRIBE: {sql}"),
         }
@@ -75,7 +123,7 @@ impl Error {
         Self {
             status: 400,
             kind: "SyntaxCheckException",
-            reason: "Invalid SQL query",
+            reason: "Invalid SQL query".into(),
             // ALLOC: one message of fixed size.
             details: format!("The statement is past its bound: {what} (at most {limit})"),
         }
@@ -87,7 +135,7 @@ impl Error {
         Self {
             status: 400,
             kind: "UnsupportedOperationException",
-            reason: "Invalid SQL query",
+            reason: "Invalid SQL query".into(),
             details: details.into(),
         }
     }
@@ -98,7 +146,7 @@ impl Error {
         Self {
             status: 400,
             kind: "SemanticCheckException",
-            reason: "Invalid SQL query",
+            reason: "Invalid SQL query".into(),
             details: details.into(),
         }
     }
@@ -109,7 +157,7 @@ impl Error {
         Self {
             status: 429,
             kind: "CircuitBreakingException",
-            reason: "Result too large",
+            reason: "Result too large".into(),
             // ALLOC: one message of fixed size.
             details: format!(
                 "The result is past its bound of {limit} bytes; add a LIMIT or a filter"
