@@ -84,3 +84,5 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0073](0073-stored-painless-scripts-resolve-through-a-ttl-cache.md) | A stored script named by id resolves through a per-node cache checked once a TTL | Accepted |
 | [0074](0074-a-joining-reader-ramps-its-own-share-of-shards.md) | A joining reader ramps its own share of shards, bounded by a floor and a ceiling in time | Accepted |
 | [0075](0075-alerting-is-ported-natively.md) | Alerting is ported natively; it is no longer proxied | Accepted |
+| [0077](0077-index-state-management-is-ported-natively.md) | Index State Management is ported natively; it is no longer proxied | Accepted |
+| [0080](0080-one-plugin-system-three-tiers.md) | One plugin system, three tiers: native, WASM and gRPC, behind one manifest, point contract and failure rule | Accepted |

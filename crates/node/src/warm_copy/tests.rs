@@ -90,6 +90,12 @@ struct Fake<'a> {
     answers: Cell<bool>,
     corrupt_from_call: Option<usize>,
     calls: Cell<usize>,
+    /// The first this many page calls fail, as a busy peer's refusals do.
+    refuse_first: Cell<usize>,
+    /// Every page call fails.
+    refuse_all: Cell<bool>,
+    /// The first this many hot-set calls fail.
+    hot_refuse_first: Cell<usize>,
 }
 
 impl<'a> Fake<'a> {
@@ -100,6 +106,9 @@ impl<'a> Fake<'a> {
             answers: Cell::new(true),
             corrupt_from_call: None,
             calls: Cell::new(0),
+            refuse_first: Cell::new(0),
+            refuse_all: Cell::new(false),
+            hot_refuse_first: Cell::new(0),
         }
     }
 }
@@ -107,6 +116,11 @@ impl<'a> Fake<'a> {
 impl Peer for Fake<'_> {
     fn hot_set(&self, _: &HotSetRequest) -> Option<HotSetResponse> {
         if !self.answers.get() {
+            return None;
+        }
+        if self.hot_refuse_first.get() > 0 {
+            self.hot_refuse_first
+                .set(self.hot_refuse_first.get().saturating_sub(1));
             return None;
         }
         let prefix = format!("{}\u{0}", self.rig.namespace);
@@ -142,7 +156,12 @@ impl Peer for Fake<'_> {
     fn pages(&self, request: &PagesRequest) -> Option<PagesResponse> {
         let call = self.calls.get();
         self.calls.set(call.saturating_add(1));
-        if !self.answers.get() {
+        if !self.answers.get() || self.refuse_all.get() {
+            return None;
+        }
+        if self.refuse_first.get() > 0 {
+            self.refuse_first
+                .set(self.refuse_first.get().saturating_sub(1));
             return None;
         }
         let pages = request
@@ -180,6 +199,7 @@ fn settings(rate: u64) -> Settings<'static> {
         max_bytes: 1 << 30,
         bytes_per_second: rate,
         open_parallel: 16,
+        ask_attempts: PAGES_ATTEMPTS,
     }
 }
 
@@ -365,3 +385,110 @@ fn nothing_named_is_reached_and_a_fraction_is_taken_of_what_is() {
 
 mod applies;
 mod two_peers;
+
+// docs/specs/reader-warm-copy AC-6
+#[test]
+fn a_busy_peers_refusals_are_retried_after_a_backoff_and_the_copy_still_completes() {
+    let a = oss_testkit::TempDir::new("warm-copy-busy");
+    let b = oss_testkit::TempDir::new("warm-copy-busy-joiner");
+    let peer = rig(a.path());
+    let joiner = cache(b.path());
+    let fake = Fake::new(&peer);
+    // The first batch is refused twice, as a peer serving its limit does.
+    fake.refuse_first.set(2);
+    let progress = Progress::default();
+    let sleeps = Sleeps::default();
+    let outcome = copy_from_peer(
+        &fake,
+        &Ours(Arc::clone(&peer.expected)),
+        &joiner,
+        &settings(1 << 40),
+        &sleeps,
+        &progress,
+        &never,
+    );
+    assert_eq!(outcome, Outcome::Done);
+    assert!(progress.copied() > 0);
+    assert_eq!(
+        progress.named(),
+        progress.copied(),
+        "everything named was taken"
+    );
+    let waits = sleeps.0.borrow();
+    assert_eq!(
+        &waits[..2],
+        [Duration::from_millis(25), Duration::from_millis(50)],
+        "each retry waits twice as long as the one before"
+    );
+}
+
+// docs/specs/reader-warm-copy AC-12
+#[test]
+fn a_hot_set_the_busy_peer_refused_is_asked_again() {
+    let a = oss_testkit::TempDir::new("warm-copy-hot-busy");
+    let b = oss_testkit::TempDir::new("warm-copy-hot-busy-joiner");
+    let peer = rig(a.path());
+    let joiner = cache(b.path());
+    let fake = Fake::new(&peer);
+    fake.hot_refuse_first.set(3);
+    let progress = Progress::default();
+    let sleeps = Sleeps::default();
+    let outcome = copy_from_peer(
+        &fake,
+        &Ours(Arc::clone(&peer.expected)),
+        &joiner,
+        &settings(1 << 40),
+        &sleeps,
+        &progress,
+        &never,
+    );
+    assert_eq!(outcome, Outcome::Done);
+    assert!(progress.copied() > 0);
+    assert_eq!(
+        &sleeps.0.borrow()[..3],
+        [
+            Duration::from_millis(25),
+            Duration::from_millis(50),
+            Duration::from_millis(100)
+        ],
+        "a backoff after each refusal"
+    );
+}
+
+// docs/specs/reader-warm-copy AC-6
+#[test]
+fn a_peer_that_keeps_refusing_is_given_up_on_after_a_bounded_number_of_tries() {
+    let a = oss_testkit::TempDir::new("warm-copy-refuses");
+    let b = oss_testkit::TempDir::new("warm-copy-refuses-joiner");
+    let peer = rig(a.path());
+    let joiner = cache(b.path());
+    let fake = Fake::new(&peer);
+    fake.refuse_all.set(true);
+    let progress = Progress::default();
+    let sleeps = Sleeps::default();
+    let outcome = copy_from_peer(
+        &fake,
+        &Ours(Arc::clone(&peer.expected)),
+        &joiner,
+        &settings(1 << 40),
+        &sleeps,
+        &progress,
+        &never,
+    );
+    assert_eq!(outcome, Outcome::Unreachable);
+    assert_eq!(
+        fake.calls.get(),
+        PAGES_ATTEMPTS,
+        "the first batch only, tried a bounded number of times"
+    );
+    assert_eq!(
+        sleeps.0.borrow().len(),
+        PAGES_ATTEMPTS - 1,
+        "a backoff between tries"
+    );
+    assert_eq!(
+        progress.named(),
+        0,
+        "what the peer would not give is not waited for"
+    );
+}

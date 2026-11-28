@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Instant;
 
 use lucene_store::page_cache::PageCache;
 use oss_cluster::placement::{ROLE_SEARCH, ShardKey, readers_for};
@@ -20,6 +21,7 @@ use oss_transport::stream::{Input, Output};
 
 use crate::push_link::Leases;
 use crate::warm_peer::{HeldShard, hot_set, serve};
+use crate::warm_rate::ServeRate;
 
 /// The most a hot-set ask takes: a name, a parent task, two numbers.
 const MAX_HOT_SET_ASK_BYTES: usize = 4096;
@@ -47,10 +49,12 @@ pub struct Limits {
     pub max_concurrent: usize,
 }
 
-/// A count of the requests being served, up to a limit.
+/// A count of the requests being served, up to a limit, and the rate the
+/// bytes of page batches go out at.
 #[derive(Debug, Default)]
 pub struct Gate {
     serving: AtomicUsize,
+    rate: ServeRate,
 }
 
 /// One request being served, counted until it drops.
@@ -63,6 +67,16 @@ impl Drop for Permit<'_> {
 }
 
 impl Gate {
+    /// A gate that also holds page batches to at most `bytes_per_second`
+    /// across every joiner; 0 holds none.
+    #[must_use]
+    pub fn with_rate(bytes_per_second: u64) -> Self {
+        Self {
+            serving: AtomicUsize::new(0),
+            rate: ServeRate::new(bytes_per_second),
+        }
+    }
+
     fn enter(&self, limit: usize) -> Option<Permit<'_>> {
         let before = self.serving.fetch_add(1, Ordering::AcqRel);
         if before >= limit {
@@ -181,8 +195,17 @@ impl<H: HeldShards> Handler for PagesHandler<H> {
             .gate
             .enter(self.limits.max_concurrent)
             .ok_or_else(busy)?;
-        serve(&self.cache, &self.held.held(), &ask)
-            .map_err(|_| RemoteException::status("a key outside the held shards", "BAD_REQUEST"))?
+        let held = self.held.held();
+        let answer = serve(&self.cache, &held, &ask)
+            .map_err(|_| RemoteException::status("a key outside the held shards", "BAD_REQUEST"))?;
+        // The wait is taken holding the permit above, so the batches queued
+        // behind this one are at most the node's `max_concurrent`.
+        let bytes: u64 = answer.pages.iter().map(|p| p.bytes.len() as u64).sum();
+        let wait = self.gate.rate.reserve(Instant::now(), bytes);
+        if !wait.is_zero() {
+            std::thread::sleep(wait);
+        }
+        answer
             .write(out)
             .map_err(|_| RemoteException::status("warm pages answer", "INTERNAL_SERVER_ERROR"))
     }
