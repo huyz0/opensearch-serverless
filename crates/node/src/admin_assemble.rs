@@ -152,22 +152,6 @@ pub(crate) fn register(
     let router = crate::ml_route::mount(router, store, config)?;
     let router = crate::observability_route::mount(router, store, config)?;
     let router = crate::reports_route::mount(router, store, config)?;
-    let router = if config.notifications {
-        let service = crate::notifications_route::NotificationsService::new(
-            store,
-            &config.base,
-            config.pit_buffer_bytes,
-        )
-        .with_deliverer(Arc::new(crate::notifications_route::Deliverer::new(
-            crate::notifications_route::system_lookup(),
-            crate::notifications_route::EgressPolicy::from_env(),
-            crate::notifications_route::Limits::default(),
-        )));
-        crate::notifications_route::routes(router, &Arc::new(service))
-            .map_err(AssembleError::Route)?
-    } else {
-        router
-    };
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,

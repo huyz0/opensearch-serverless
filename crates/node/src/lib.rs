@@ -76,6 +76,7 @@ pub mod extension_store;
 pub mod forward;
 #[cfg(feature = "writer")]
 mod forward_call;
+pub mod geospatial_setting;
 #[cfg(feature = "writer")]
 pub mod get_route;
 #[cfg(any(feature = "reader", feature = "writer", feature = "coordinator"))]
@@ -132,6 +133,8 @@ pub mod nested_setting;
 pub mod newest;
 #[cfg(feature = "reader")]
 pub mod newest_ask;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod notifications_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod notifications_route;
 pub mod notifications_setting;

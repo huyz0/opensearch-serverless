@@ -185,3 +185,37 @@ fn an_execution_error_is_a_closed_search_with_the_error() {
     assert_eq!(v["error"]["type"], "index_not_found_exception");
     assert_eq!(call(&r, "GET", &format!("{ROOT}/stats"), None).0, 200);
 }
+
+// AC-13: on an assembled node, with no extension pool, a kept search is
+// held, and a read, a delete and the stats cost the object store nothing.
+#[cfg(all(feature = "reader", feature = "writer"))]
+#[test]
+fn reads_deletes_and_stats_make_no_object_store_request() {
+    use oss_blob::BlobStore;
+    let (r, store) = super::assemble::start(256 << 20);
+    let call = |method: &str, target: &str, body: Option<&str>| {
+        let reply = super::assemble::call(&r, method, target, body);
+        let value: Value = serde_json::from_slice(&reply.body).unwrap_or(Value::Null);
+        (reply.status, value)
+    };
+    let (status, v) = call(
+        "POST",
+        &format!("{ROOT}?keep_on_completion=true"),
+        Some("{}"),
+    );
+    assert_eq!(
+        (status, v["state"].as_str()),
+        (200, Some("PERSISTING")),
+        "{v}"
+    );
+    let id = v["id"].as_str().expect("id").to_owned();
+    let before = store.meter().total();
+    assert_eq!(call("GET", &format!("{ROOT}/{id}"), None).0, 200);
+    assert_eq!(call("GET", &format!("{ROOT}/stats"), None).0, 200);
+    assert_eq!(call("DELETE", &format!("{ROOT}/{id}"), None).0, 200);
+    oss_testkit::budget::check(
+        "async_search.read.requests",
+        store.meter().total() - before,
+        "",
+    );
+}

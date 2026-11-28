@@ -137,7 +137,7 @@ impl<'m, 'a> Parser<'m, 'a> {
         }
     }
 
-    fn push(&mut self, parts: &[&str]) -> usize {
+    pub(super) fn push(&mut self, parts: &[&str]) -> usize {
         for part in parts {
             // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
             self.path.push((*part).to_owned());
@@ -145,7 +145,7 @@ impl<'m, 'a> Parser<'m, 'a> {
         parts.len()
     }
 
-    fn pop(&mut self, n: usize) {
+    pub(super) fn pop(&mut self, n: usize) {
         for _ in 0..n {
             self.path.pop();
         }
@@ -335,6 +335,9 @@ impl<'m, 'a> Parser<'m, 'a> {
         if leaf.ty() == FieldType::Knn {
             return self.vector_value(leaf, full, tok);
         }
+        if leaf.ty() == FieldType::GeoPoint {
+            return self.geo_value(leaf, full, tok);
+        }
         let at = self.reader.at();
         match take(leaf, &tok, at) {
             // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
@@ -396,6 +399,10 @@ impl<'m, 'a> Parser<'m, 'a> {
             let read = self.vector_array(leaf, &full);
             self.pop(n);
             read?;
+        } else if let Some(Mapper::Leaf(leaf)) = get_mapper(scope.obj, parts)
+            && leaf.ty() == FieldType::GeoPoint
+        {
+            self.geo_array(leaf, parts)?;
         } else if get_mapper(scope.obj, parts).is_some() {
             self.non_dynamic_array(scope, key)?;
         } else {

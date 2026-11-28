@@ -138,6 +138,8 @@ pub struct NodeConfig {
     pub knn: bool,
     /// `serverless.nested.enabled`.
     pub nested: bool,
+    /// `serverless.geospatial.index_fields`.
+    pub geo: bool,
     /// `serverless.reader.vector_warm.at_open`.
     pub vector_warm_at_open: bool,
     /// `OSS_READER_RAMP_MAX_SECS` and `OSS_READER_RAMP_MIN_SECS`: a joining reader's slow start.
@@ -327,7 +329,6 @@ impl NodeConfig {
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let (commit_checkpoint_millis, commit_logged) = commits::read(&flag, &bounded)?;
         let knn = flag("OSS_KNN", "true")?;
-        let nested = flag("OSS_NESTED", "true")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
@@ -461,7 +462,8 @@ impl NodeConfig {
             security_jwt,
             security_refresh_millis,
             knn,
-            nested,
+            nested: flag("OSS_NESTED", "true")?,
+            geo: flag("OSS_GEOSPATIAL_FIELDS", "true")?,
             vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
             reader_ramp: reader_ramp::read(&get)?,
             painless_native_compile: flag("OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE", "false")?,

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use oss_mem::MemoryBudget;
+use oss_mem::{MemoryBudget, Pool};
 use oss_rest::Router;
 
 use super::{SearchRunner, Service};
@@ -22,12 +22,13 @@ pub(crate) fn mount(
     if !config.async_search {
         return Ok(router);
     }
-    let jobs = Jobs::new(
-        &config.node_id,
-        budget,
-        Limits::default(),
-        Arc::new(now_millis),
-    );
+    // Results are query output, and the plugin pool is empty on a node that
+    // runs no extension, so they are reserved from the query pool.
+    let limits = Limits {
+        pool: Pool::QueryExecution,
+        ..Limits::default()
+    };
+    let jobs = Jobs::new(&config.node_id, budget, limits, Arc::new(now_millis));
     let service = Service::new(
         jobs,
         Arc::new(SearchRunner::new(search)),

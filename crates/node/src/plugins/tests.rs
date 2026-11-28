@@ -101,10 +101,26 @@ fn a_policy_that_is_not_exactly_that_is_refused() {
         r#"{"plugins":[{"id":"a","tier":"native","actions":{"GET /x":1}}]}"#,
         r#"{"plugins":[{"id":"a","tier":"native"},{"id":"a","tier":"native"}]}"#,
         r#"{"plugins":[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","tier":"native"}]}"#,
+        r#"{"plugins":[{"id":"a","tier":"wasm","sha256":"abc"}]}"#,
+        r#"{"plugins":[{"id":"a","tier":"native","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]}"#,
     ];
     for text in bad {
         assert!(Policy::parse(text).is_err(), "{text}");
     }
+    let hash = "ab".repeat(32);
+    let wasm = Policy::parse(&format!(
+        r#"{{"plugins":[{{"id":"a","tier":"wasm","sha256":"{hash}"}}]}}"#
+    ))
+    .expect("a wasm entry names its module");
+    assert_eq!(wasm.entries()[0].sha256.as_deref(), Some(hash.as_str()));
+    assert!(
+        Policy::parse(&format!(
+            r#"{{"plugins":[{{"id":"a","tier":"wasm","sha256":"{}"}}]}}"#,
+            hash.to_uppercase()
+        ))
+        .is_err(),
+        "the hash is lowercase hex"
+    );
     let many: Vec<String> = (0..65)
         .map(|i| format!(r#"{{"id":"p{i}","tier":"native"}}"#))
         .collect();
@@ -125,9 +141,9 @@ fn a_plugin_that_meets_every_rule_is_ready_with_its_routes() {
 #[test]
 fn each_refusal_names_its_reason_and_keeps_the_node_serving() {
     let ok = manifest("echo", &route("/_plugins/echo/x"), "");
-    let cases: [Case; 6] = [
+    let cases: [Case; 7] = [
         (
-            r#"{"plugins":[{"id":"echo","tier":"wasm"}]}"#,
+            r#"{"plugins":[{"id":"echo","tier":"grpc"}]}"#,
             vec![],
             "this tier is not available",
         ),
@@ -150,6 +166,11 @@ fn each_refusal_names_its_reason_and_keeps_the_node_serving() {
             ECHO,
             vec![("echo", manifest("echo", &route("/_ltr/x"), ""))],
             "outside /_plugins/echo/ and not claimed",
+        ),
+        (
+            r#"{"plugins":[{"id":"echo","tier":"wasm"}]}"#,
+            vec![("echo", manifest("echo", &route("/_plugins/echo/x"), ""))],
+            "is registered as a native plugin, and the policy says wasm",
         ),
     ];
     for (policy, items, want) in cases {

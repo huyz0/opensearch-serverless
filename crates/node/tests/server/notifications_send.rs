@@ -20,12 +20,17 @@ use serde_json::{Value, json};
 const ROOT: &str = "/_plugins/_notifications";
 
 /// A target that records each request and answers with `status` and `extra`.
-struct Sink {
-    addr: SocketAddr,
-    seen: Arc<Mutex<Vec<String>>>,
+pub(crate) struct Sink {
+    pub(crate) addr: SocketAddr,
+    pub(crate) seen: Arc<Mutex<Vec<String>>>,
 }
 
-fn sink(status: &'static str, extra: &'static str, body: &'static str, delay: Duration) -> Sink {
+pub(crate) fn sink(
+    status: &'static str,
+    extra: &'static str,
+    body: &'static str,
+    delay: Duration,
+) -> Sink {
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let addr = listener.local_addr().unwrap();
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -73,7 +78,7 @@ fn sink(status: &'static str, extra: &'static str, body: &'static str, delay: Du
     Sink { addr, seen }
 }
 
-fn open_policy(port: u16) -> EgressPolicy {
+pub(crate) fn open_policy(port: u16) -> EgressPolicy {
     EgressPolicy {
         allow_private: true,
         ports: vec![port, 80, 443],
@@ -261,7 +266,8 @@ fn a_disabled_config_and_a_type_not_served_are_not_sent() {
         &s,
         json!({"name": "e", "config_type": "sns", "sns": {"topic_arn": "arn:aws:sns:us-east-1:1:t"}}),
     );
-    assert_eq!(test_it(&s, &id)["status_code"], "503");
+    // No operator account declares the topic's role: nothing is signed or sent.
+    assert_eq!(test_it(&s, &id)["status_code"], "500");
     assert_eq!(t.seen.lock().unwrap().len(), 0);
     let (status, _) = call(&s, "GET", &format!("{ROOT}/feature/test/missing"), None);
     assert_eq!(status, 404);

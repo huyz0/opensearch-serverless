@@ -11,8 +11,10 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Mutex;
 
 use crate::breaker::{Breaker, BreakerConfig, BreakerState, Decision, Outcome};
+use crate::catalogue::Tier;
 use crate::error::{CallError, FailureKind};
 use crate::host::{Host, NoHost};
+use crate::manifest::{Manifest, ManifestError};
 
 /// The most calls to one plugin at once.
 pub const MAX_CONCURRENT: usize = 8;
@@ -23,6 +25,22 @@ pub const MAX_PER_TENANT: usize = 2;
 pub trait NativeInstance: Send + Sync {
     /// The manifest this plugin declares, as the parser reads it.
     fn manifest(&self) -> Vec<u8>;
+
+    /// The tier this plugin runs on. A plugin in this process, native or
+    /// linked in, leaves this as it is; a WASM module's adapter says `Wasm`.
+    fn tier(&self) -> Tier {
+        Tier::Native
+    }
+
+    /// The manifest as this tier delivers it. A native plugin's is the bytes
+    /// of [`NativeInstance::manifest`]; a WASM module's is its descriptor.
+    ///
+    /// # Errors
+    ///
+    /// [`ManifestError`] as [`Manifest::parse`].
+    fn read_manifest(&self) -> Result<Manifest, ManifestError> {
+        Manifest::parse(&self.manifest())
+    }
 
     /// Serves one call of `point` with `input`, answering at most `max_out`
     /// bytes.
