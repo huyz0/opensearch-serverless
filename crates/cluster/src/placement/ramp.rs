@@ -249,7 +249,11 @@ mod tests {
     fn controller_steps_up_on_warm_windows_and_holds_otherwise() {
         let mut c = RampController::new(ControllerConfig::default(), totals(0, 0));
         assert_eq!(c.ramp(), 100, "the first step is the start");
-        assert_eq!(c.observe(totals(19, 0)), 100, "too few searches say nothing");
+        assert_eq!(
+            c.observe(totals(19, 0)),
+            100,
+            "too few searches say nothing"
+        );
         assert_eq!(c.observe(totals(20, 0)), 200);
         // 30 searches, 90 GETs: 3 per search, cold: hold.
         assert_eq!(c.observe(totals(50, 90)), 200);
