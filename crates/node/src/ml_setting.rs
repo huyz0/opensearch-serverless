@@ -3,12 +3,12 @@
 use oss_types::settings::{BoolSetting, Scope, Setting};
 
 /// `serverless.ml.enabled`: serve `/_plugins/_ml`, the stock plugin's model
-/// registry routes, natively. Default `false` until the measurements the spec
-/// names are recorded; with it off those paths go to a plugin upstream when
-/// one is configured, else answer as an unknown route.
+/// registry routes, natively. On by default (an idle registry makes no
+/// request); with it off those paths go to a plugin upstream when one is
+/// configured, else answer as an unknown route.
 pub const ML_ENABLED: BoolSetting = BoolSetting::new(
     "serverless.ml.enabled",
-    false,
+    true,
     Scope::Node,
     "Serve the ML Commons plugin's model registry routes over document sets in the object store.",
 );

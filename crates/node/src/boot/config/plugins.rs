@@ -13,6 +13,6 @@ pub struct Switches {
 pub(super) fn read(flag: &impl Fn(&str, &str) -> Result<bool, String>) -> Result<Switches, String> {
     Ok(Switches {
         ism: flag("OSS_ISM", "false")?,
-        ml: flag("OSS_ML", "false")?,
+        ml: flag("OSS_ML", "true")?,
     })
 }
