@@ -426,3 +426,4 @@ src/sql_route/names.rs	new		SHOW TABLES and DESCRIBE over a pattern: one listing
 src/ism_run/actions.rs	new		what each action asks of the backend and leaves in the record
 src/ad_route/profile_route.rs	new		GET /detectors/{id}/_profile[/{type}]: the state from the stored job and the clock; no stock recording exists (AC-15 gap)
 src/ad_route/run/entity_run.rs	new		one run of a detector with category fields: a model for each entity, results with the entity; no stock recording exists (AC-15 gap)
+src/ad_route/top_route.rs	new		GET|POST /detectors/{id}/results/_topAnomalies: results of a range grouped by entity in one bounded search; messages from the stock recording (ad-results.json)

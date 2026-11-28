@@ -21,7 +21,7 @@ fn empty() -> Value {
         "took": 0,
         "timed_out": false,
         "_shards": {"total": 0, "successful": 0, "skipped": 0, "failed": 0},
-        "hits": {"total": {"value": 0, "relation": "eq"}, "max_score": null, "hits": []}
+        "hits": {"total": {"value": 0, "relation": "eq"}, "max_score": 0.0, "hits": []}
     })
 }
 

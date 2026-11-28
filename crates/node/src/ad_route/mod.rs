@@ -19,6 +19,7 @@ mod schedule;
 mod search;
 mod slots;
 mod source;
+mod top_route;
 mod validate_route;
 pub mod windows;
 
