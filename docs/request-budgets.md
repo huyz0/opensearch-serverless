@@ -20,6 +20,10 @@ OSS_REQUEST_BUDGETS_RECORD=1 cargo test -p oss-node --test it budgets -- --nocap
 
 | Objective | Case | Budget | Bound | Status | Gate |
 |---|---|---|---|---|---|
+| `alerting.register.requests` | A tenant's registration in its registry shard, whether or not the entry is there: one read and one swap (the file store's swap adds a ranged read), no LIST ([spec](specs/alerting/SPEC.md)) | 2 | exact | enforced | `crates/meta/tests/descriptors/alert_registry.rs::registering_costs_one_read_and_one_write_even_when_the_entry_is_there` |
+| `alerting.unregister.requests` | A removal of a tenant with no enabled monitor: the shard read and the swap, no LIST | 2 | exact | enforced | `crates/meta/tests/descriptors/alert_registry.rs::a_removal_costs_one_read_and_one_write` |
+| `alerting.claim.requests` | A monitor's first claim of a slot: the claim register's read and its create; a claim of a slot already taken is the read alone | 2 | exact | enforced | `crates/meta/tests/descriptors/alert_registry.rs::a_slot_is_claimed_once_and_only_upwards` |
+| `alerting.claim_hinted.requests` | A monitor's next claim by the node that made the last one, with that claim's generation: the swap alone, no read (a stale hint costs the read as well) | 1 | exact | enforced | `crates/meta/tests/descriptors/alert_registry.rs::a_hinted_claim_is_one_request_and_a_stale_hint_falls_back_to_a_read` |
 | `search.cold.requests` | A reader node opens an index it never served and runs one term search: the descriptor, the commit, and the segment's opening files in one merged ranged read | 3 | exact | enforced | `crates/node/tests/it/budgets.rs::a_cold_search_then_a_warm_one` |
 | `search.cold.round_trips` | Round trips that open and first search wait through: the descriptor, the commit, then the opening files sent together (open prefetch, [spec](specs/reader-open-prefetch/SPEC.md)) | 3 | exact | enforced | `crates/node/tests/it/budgets.rs::a_cold_search_then_a_warm_one` |
 | `search.warm.requests` | The next search on that index | 0 | exact | enforced | `crates/node/tests/it/budgets.rs::a_cold_search_then_a_warm_one` |
