@@ -9,7 +9,8 @@ use serde_json::{Value, json};
 fn mapping() -> Mapping {
     Mapping::from_json(&json!({"properties": {
         "name": {"type": "keyword"}, "age": {"type": "integer"},
-        "balance": {"type": "double"}, "city": {"type": "keyword"}}}))
+        "balance": {"type": "double"}, "city": {"type": "keyword"},
+        "joined": {"type": "date"}, "none": {"type": "keyword"}, "absent": {"type": "long"}}}))
     .unwrap()
 }
 
@@ -122,4 +123,119 @@ fn expression_depth_is_bounded_and_no_mutation_panics() {
             }
         }
     }
+}
+
+fn doc() -> Value {
+    json!({"name": "Ann", "age": 30, "balance": 10.5, "city": "x",
+        "joined": "2024-03-05T07:08:09Z", "none": null})
+}
+
+// AC-1, per function and per operator: each value is the one stock's text gives.
+#[test]
+fn every_function_and_date_specifier_gives_its_value() {
+    let d = doc();
+    for (sql, want) in [
+        ("SELECT lower(name) FROM t", json!("ann")),
+        ("SELECT upper(name) FROM t", json!("ANN")),
+        ("SELECT length(name) FROM t", json!(3)),
+        ("SELECT year(joined) FROM t", json!(2024)),
+        ("SELECT month(joined) FROM t", json!(3)),
+        ("SELECT date_format(joined, '%Y') FROM t", json!("2024")),
+        ("SELECT date_format(joined, '%m') FROM t", json!("03")),
+        ("SELECT date_format(joined, '%d') FROM t", json!("05")),
+        ("SELECT date_format(joined, '%H') FROM t", json!("07")),
+        ("SELECT date_format(joined, '%i') FROM t", json!("08")),
+        ("SELECT date_format(joined, '%s') FROM t", json!("09")),
+        (
+            "SELECT date_format(joined, '100%% %Y/%m') FROM t",
+            json!("100% 2024/03"),
+        ),
+        ("SELECT date_format(joined, '%Q') FROM t", Value::Null),
+        ("SELECT date_format(name, '%Y') FROM t", Value::Null),
+        ("SELECT concat(name, '-', age) FROM t", json!("Ann-30")),
+        ("SELECT ifnull(none, 'd') FROM t", json!("d")),
+        ("SELECT ifnull(name, 'd') FROM t", json!("Ann")),
+        ("SELECT abs(-2.5) FROM t", json!(2.5)),
+        ("SELECT abs(age) FROM t", json!(30)),
+        ("SELECT age + 2 FROM t", json!(32)),
+        ("SELECT age - 2 FROM t", json!(28)),
+        ("SELECT age * 2 FROM t", json!(60)),
+        ("SELECT age / 4 FROM t", json!(7)),
+        ("SELECT age % 7 FROM t", json!(2)),
+        ("SELECT balance + 1 FROM t", json!(11.5)),
+        ("SELECT balance - 0.5 FROM t", json!(10.0)),
+        ("SELECT balance * 2 FROM t", json!(21.0)),
+        ("SELECT balance / 2 FROM t", json!(5.25)),
+        ("SELECT balance % 4 FROM t", json!(2.5)),
+        ("SELECT 2 + 3 * 4 FROM t", json!(14)),
+        ("SELECT (2 + 3) * 4 FROM t", json!(20)),
+        ("SELECT 10 - 4 - 3 FROM t", json!(3)),
+    ] {
+        assert_eq!(cell(sql, &d), want, "{sql}");
+    }
+}
+
+#[test]
+fn case_conditions_follow_their_operators() {
+    let d = doc();
+    for (cond, want) in [
+        ("age = 30", true),
+        ("age <> 30", false),
+        ("age < 31", true),
+        ("age <= 30", true),
+        ("age > 30", false),
+        ("age >= 30", true),
+        ("name = 'Ann'", true),
+        ("name < 'Bob'", true),
+        ("none IS NULL", true),
+        ("name IS NULL", false),
+        ("name IS NOT NULL", true),
+        ("age > 20 AND name = 'Ann'", true),
+        ("age > 40 OR name = 'Ann'", true),
+        ("age > 40 OR name = 'Bob'", false),
+        ("NOT age > 40", true),
+        ("none > 1", false),
+        ("absent = 1", false),
+    ] {
+        let sql = format!("SELECT CASE WHEN {cond} THEN 1 ELSE 0 END FROM t");
+        assert_eq!(cell(&sql, &d), json!(i32::from(want)), "{cond}");
+    }
+    assert_eq!(
+        cell("SELECT CASE WHEN age > 99 THEN 1 END FROM t", &d),
+        Value::Null
+    );
+    assert_eq!(
+        cell(
+            "SELECT CASE WHEN age > 99 THEN 1 WHEN age > 9 THEN 2 ELSE 3 END FROM t",
+            &d
+        ),
+        json!(2)
+    );
+    assert_eq!(cell("SELECT if(age > 20, 'a', 'b') FROM t", &d), json!("a"));
+}
+
+#[test]
+fn column_types_and_names_follow_the_recordings() {
+    let ty = |sql: &str| {
+        let p = planned(sql);
+        let out: Value =
+            serde_json::from_str(&write(Format::Jdbc, &p, &[vec![Value::Null]], 1 << 16).unwrap())
+                .unwrap();
+        (
+            out["schema"][0]["name"].clone(),
+            out["schema"][0]["type"].clone(),
+        )
+    };
+    assert_eq!(
+        ty("SELECT age + 1 FROM t"),
+        (json!("age + 1"), json!("integer"))
+    );
+    assert_eq!(ty("SELECT balance * 2 FROM t").1, json!("double"));
+    assert_eq!(ty("SELECT abs(-3) FROM t").1, json!("integer"));
+    assert_eq!(ty("SELECT abs(balance) FROM t").1, json!("double"));
+    assert_eq!(ty("SELECT length(name) FROM t").1, json!("integer"));
+    assert_eq!(ty("SELECT year(name) FROM t").1, json!("integer"));
+    assert_eq!(ty("SELECT upper(name) AS u FROM t").0, json!("upper(name)"));
+    assert_eq!(ty("SELECT 1.5 FROM t").1, json!("double"));
+    assert_eq!(ty("SELECT 'a' FROM t").1, json!("keyword"));
 }
