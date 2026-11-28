@@ -116,7 +116,7 @@ pub struct NodeConfig {
     pub ltr_bounds: ltr::Bounds,
     /// `OSS_SCRIPT_CACHE_TTL`: seconds a stored script is trusted before the set is checked.
     pub script_cache_ttl_secs: u64,
-    /// `serverless.security.enabled`: serve the security configuration API. Off by default.
+    /// `serverless.security.enabled`: serve the security configuration API. On when an administrator is configured, off otherwise.
     pub security: bool,
     /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).
     pub security_admin: Option<(String, String)>,
@@ -332,7 +332,6 @@ impl NodeConfig {
         let (ltr, ism) = (flag("OSS_LTR", "true")?, flag("OSS_ISM", "false")?);
         let ltr_bounds = ltr::read(&bounded)?;
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
-        let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
         let security_admin = match (
             get("OSS_SECURITY_ADMIN_USER").filter(|v| !v.is_empty()),
@@ -346,6 +345,16 @@ impl NodeConfig {
                 );
             }
         };
+        // No flag is needed: configuring an administrator turns security on, and
+        // OSS_SECURITY=false turns it off. With neither, nobody can sign in, so it stays off.
+        let security = flag(
+            "OSS_SECURITY",
+            if security_admin.is_some() {
+                "true"
+            } else {
+                "false"
+            },
+        )?;
         let store_usage = flag("OSS_STORE_USAGE", "true")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
         let tenant_levels = match or("OSS_TENANT_LEVELS", "observe").as_str() {

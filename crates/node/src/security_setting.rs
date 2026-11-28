@@ -4,7 +4,7 @@ use oss_types::settings::{BoolSetting, Scope, Setting};
 
 /// `serverless.security.enabled`: serve `/_plugins/_security/api/...`.
 /// With it on, every request is authenticated and authorized against the
-/// stored configuration. Default `false`: a node with it off is open.
+/// stored configuration. The node turns it on when an administrator is configured (`OSS_SECURITY_ADMIN_USER`), so no flag is needed; with none a node is open.
 pub const SECURITY_ENABLED: BoolSetting = BoolSetting::new(
     "serverless.security.enabled",
     false,

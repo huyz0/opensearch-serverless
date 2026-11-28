@@ -62,7 +62,7 @@ Idle: none. A list is an administrator's read of operator configuration (at most
 
 ## Switch
 
-None new: the routes exist whenever `serverless.security.enabled` does, which is off by default. No downside to measure on the request path, so no switch of its own.
+None new: the routes exist whenever `serverless.security.enabled` does, which is on whenever an administrator is configured (owner rule: no enable flag for plugins). No downside to measure on the request path, so no switch of its own.
 
 ## Risks
 
