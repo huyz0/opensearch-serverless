@@ -154,10 +154,9 @@ impl Session {
 
     /// The code of one reply, once its last line has arrived.
     fn reply(&mut self) -> Result<u16, Delivery> {
-        let mut code = 0u16;
         for _ in 0..MAX_REPLY_LINES {
             let l = self.line()?;
-            code = l
+            let code: u16 = l
                 .get(..3)
                 .and_then(|c| c.parse().ok())
                 .ok_or_else(|| Delivery::failed(502, "failed"))?;
@@ -165,7 +164,8 @@ impl Session {
                 return Ok(code);
             }
         }
-        Ok(code)
+        // A reply that never ends is not one the dialog can go on from.
+        Err(Delivery::failed(502, "failed"))
     }
 
     fn send(&mut self, text: &str) -> Result<(), Delivery> {
@@ -251,7 +251,10 @@ fn run(
     to: &[&str],
     msg: &str,
 ) -> Result<Vec<Delivery>, Delivery> {
-    let tcp = d.connect(&account.host, account.port)?;
+    let deadline = Instant::now()
+        .checked_add(d.total())
+        .unwrap_or_else(Instant::now);
+    let tcp = d.connect(&account.host, account.port, deadline)?;
     let tls = if method == "none" {
         None
     } else {
@@ -260,9 +263,7 @@ fn run(
     let mut s = Session {
         conn: Conn::Plain(tcp),
         buf: Vec::new(),
-        deadline: Instant::now()
-            .checked_add(d.total())
-            .unwrap_or_else(Instant::now),
+        deadline,
     };
     if method == "ssl"
         && let Some(t) = &tls

@@ -206,9 +206,18 @@ impl Deliverer {
     /// Opens a connection to `host` and `port` under the same rules as a
     /// delivery: the policy on the name, the lookup, every address checked, the
     /// connect and total time bounds. The refusal is a status, never an address.
-    pub(super) fn connect(&self, host: &str, port: u16) -> Result<std::net::TcpStream, Delivery> {
+    ///
+    /// The host and port are one an operator declared, so the webhook port
+    /// list does not apply; the name rules and the address rules do. The
+    /// attempts share `deadline`.
+    pub(super) fn connect(
+        &self,
+        host: &str,
+        port: u16,
+        deadline: std::time::Instant,
+    ) -> Result<std::net::TcpStream, Delivery> {
         use std::net::{IpAddr, TcpStream};
-        if self.policy.refuses(host, port).is_some() {
+        if self.policy.refuses_host(host).is_some() {
             return Err(Delivery::failed(403, "blocked"));
         }
         let addrs = match host.parse::<IpAddr>() {
@@ -225,7 +234,13 @@ impl Deliverer {
         let stream = addrs
             .iter()
             .take(16)
-            .find_map(|a| TcpStream::connect_timeout(a, self.limits.connect).ok())
+            .find_map(|a| {
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                let wait = left.min(self.limits.connect);
+                (!wait.is_zero())
+                    .then(|| TcpStream::connect_timeout(a, wait).ok())
+                    .flatten()
+            })
             .ok_or_else(|| Delivery::failed(502, "refused"))?;
         let _ = stream.set_nodelay(true);
         Ok(stream)
@@ -236,9 +251,15 @@ impl Deliverer {
         if !self.take() {
             return None;
         }
-        let out = work();
-        self.give();
-        Some(out)
+        // Frees the slot even if `work` panics.
+        struct Held<'a>(&'a Deliverer);
+        impl Drop for Held<'_> {
+            fn drop(&mut self) {
+                self.0.give();
+            }
+        }
+        let _held = Held(self);
+        Some(work())
     }
 
     /// The most bytes of a message.

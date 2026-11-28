@@ -185,3 +185,45 @@ fn an_email_through_an_ses_account_is_signed_and_addressed_to_each_recipient() {
         json!(["a@example.com", "b@example.com"])
     );
 }
+
+#[test]
+fn an_email_to_more_than_fifty_recipients_is_two_ses_requests() {
+    let t = sink("200 OK", "", "{}", Duration::ZERO);
+    let s = rig(t.addr.port());
+    let account = make(
+        &s,
+        json!({"name": "a", "config_type": "ses_account", "ses_account": {
+            "region": "us-east-1", "role_arn": ROLE, "from_address": "from@example.com"}}),
+    );
+    let list: Vec<Value> = (0..51)
+        .map(|i| json!({"recipient": format!("u{i}@example.com")}))
+        .collect();
+    let id = make(
+        &s,
+        json!({"name": "e", "config_type": "email", "email": {
+            "email_account_id": account, "recipient_list": list}}),
+    );
+    let (status, body) = sent(&s, &id);
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(t.seen.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn an_ses_account_naming_an_undeclared_role_sends_nothing() {
+    let t = sink("200 OK", "", "", Duration::ZERO);
+    let s = rig(t.addr.port());
+    let account = make(
+        &s,
+        json!({"name": "a", "config_type": "ses_account", "ses_account": {
+            "region": "us-east-1", "role_arn": "arn:aws:iam::2:role/other",
+            "from_address": "from@example.com"}}),
+    );
+    let id = make(
+        &s,
+        json!({"name": "e", "config_type": "email", "email": {
+            "email_account_id": account, "recipient_list": [{"recipient": "a@example.com"}]}}),
+    );
+    let (status, _) = sent(&s, &id);
+    assert_ne!(status, 200);
+    assert_eq!(t.seen.lock().unwrap().len(), 0);
+}

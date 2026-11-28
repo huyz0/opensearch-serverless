@@ -45,6 +45,10 @@ fn signed_post(
     content_type: &str,
     body: String,
 ) -> Delivery {
+    if super::config::region(region).is_err() {
+        // A region names a host; one that is not a region name is never used.
+        return Delivery::failed(400, "no url");
+    }
     let base = account
         .endpoint
         .clone()
@@ -151,4 +155,20 @@ pub(super) fn send_ses(
         "application/json",
         body,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::notifications_route::{EgressPolicy, Limits, system_lookup};
+
+    #[test]
+    fn a_region_that_is_not_a_region_name_is_never_used_as_a_host() {
+        let accounts =
+            Accounts::parse(r#"{"aws":[{"access_key":"AK","secret_key":"SK"}]}"#).expect("parses");
+        let d = Deliverer::new(system_lookup(), EgressPolicy::default(), Limits::default());
+        let block = json!({"topic_arn": "arn:aws:sns:evil.com/?:1:t"});
+        let out = publish_sns(&d, &accounts, &block, "s", "m");
+        assert_eq!(out.status_code, 400);
+    }
 }

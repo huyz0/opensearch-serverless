@@ -362,3 +362,55 @@ fn an_address_with_a_line_break_never_reaches_a_relay() {
     assert_eq!(status, 400);
     assert!(r.seen.lock().unwrap().commands.is_empty());
 }
+
+#[test]
+fn a_declared_relay_needs_no_webhook_port_and_a_webhook_to_it_is_still_refused() {
+    let r = relay(Tls::None);
+    let mut a = accounts(&r, false);
+    a["smtp"][0].as_object_mut().unwrap().remove("ca_pem");
+    // The policy lists only 80 and 443: the relay's port is the operator's declaration.
+    let s = rig(&a, 80);
+    let id = email(&s, r.port, "none", &["a@example.com"]);
+    let (status, body) = test_it(&s, &id);
+    assert_eq!(status, 200, "{body}");
+    let before = r.seen.lock().unwrap().commands.len();
+    let hook = make(
+        &s,
+        json!({"name": "w", "config_type": "webhook",
+            "webhook": {"url": format!("http://127.0.0.1:{}/", r.port)}}),
+    );
+    let (status, _) = test_it(&s, &hook);
+    assert_eq!(status, 500);
+    assert_eq!(
+        r.seen.lock().unwrap().commands.len(),
+        before,
+        "the webhook never connected"
+    );
+}
+
+#[test]
+fn a_group_that_is_gone_fails_the_send_instead_of_dropping_its_recipients() {
+    let r = relay(Tls::None);
+    let s = rig(&accounts(&r, false), r.port);
+    let account = make(
+        &s,
+        json!({"name": "a", "config_type": "smtp_account", "smtp_account": {
+            "host": "localhost", "port": r.port, "method": "none", "from_address": "f@example.com"}}),
+    );
+    let group = make(
+        &s,
+        json!({"name": "g", "config_type": "email_group",
+            "email_group": {"recipient_list": [{"recipient": "g@example.com"}]}}),
+    );
+    let id = make(
+        &s,
+        json!({"name": "e", "config_type": "email", "email": {
+            "email_account_id": account, "recipient_list": [],
+            "email_group_id_list": [group]}}),
+    );
+    let (status, _) = call(&s, "DELETE", &format!("{ROOT}/configs/{group}"), None);
+    assert_eq!(status, 200);
+    let (status, _) = test_it(&s, &id);
+    assert_ne!(status, 200);
+    assert!(r.seen.lock().unwrap().data.is_empty());
+}
