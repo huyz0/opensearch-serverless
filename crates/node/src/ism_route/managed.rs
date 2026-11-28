@@ -74,9 +74,6 @@ impl IsmService {
         })?;
         let mut marker = self.marker(req)?;
         let mut doc = Self::doc_buffer(req)?;
-        let Some(stored) = self.stored(policy_id, &mut marker, &mut doc)? else {
-            return Self::send(resp, &outcome(0, Some((&index, "", "Policy not found"))));
-        };
         let (uuid, created) = match descriptors.get(&index, &mut marker) {
             Ok(Some(record)) => (record.uuid.to_string(), record.created_at_millis),
             Ok(None) => {
@@ -85,14 +82,52 @@ impl IsmService {
             }
             Err(e) => return Err(failed(&e)),
         };
+        let refusal = self.attach(
+            &index,
+            &uuid,
+            created,
+            policy_id,
+            state,
+            &mut marker,
+            &mut doc,
+        )?;
+        let body = match refusal {
+            None => outcome(1, None),
+            Some(reason) => outcome(0, Some((&index, &uuid, &reason))),
+        };
+        Self::send(resp, &body)
+    }
+
+    /// Manages `index` by policy `policy_id`, starting in `state` or the
+    /// policy's default: `None` when it did, else why it could not.
+    ///
+    /// # Errors
+    ///
+    /// 429 when the tenant holds the most managed indices, and a failed
+    /// store call.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn attach(
+        &self,
+        index: &str,
+        uuid: &str,
+        created: i64,
+        policy_id: &str,
+        state: Option<&str>,
+        marker: &mut [u8],
+        doc: &mut [u8],
+    ) -> Result<Option<String>, RestError> {
+        let Some(stored) = self.stored(policy_id, marker, doc)? else {
+            return Ok(Some("Policy not found".to_owned()));
+        };
         let policy = &stored["policy"];
         let first = state.unwrap_or_else(|| policy["default_state"].as_str().unwrap_or_default());
         let known = policy["states"]
             .as_array()
             .is_some_and(|s| s.iter().any(|x| x["name"] == first));
         if !known {
-            let reason = format!("state [{first}] is not a state of policy [{policy_id}]");
-            return Self::send(resp, &outcome(0, Some((&index, &uuid, &reason))));
+            return Ok(Some(format!(
+                "state [{first}] is not a state of policy [{policy_id}]"
+            )));
         }
         let now = now_millis();
         let managed = json!({
@@ -109,20 +144,13 @@ impl IsmService {
         let bytes = managed.to_string().into_bytes();
         match self
             .set_of(DocKind::IsmManaged)?
-            .put_counted(&index, &bytes, true, &mut marker)
+            .put_counted(index, &bytes, true, marker)
         {
-            Ok(_) => Self::send(resp, &outcome(1, None)),
-            Err(MetaError::AlreadyExists) => Self::send(
-                resp,
-                &outcome(
-                    0,
-                    Some((
-                        &index,
-                        &uuid,
-                        "This index already has a policy, use the update policy API to update index policies",
-                    )),
-                ),
-            ),
+            Ok(_) => Ok(None),
+            Err(MetaError::AlreadyExists) => Ok(Some(
+                "This index already has a policy, use the update policy API to update index policies"
+                    .to_owned(),
+            )),
             Err(MetaError::TooManyDocs) => Err(refuse(
                 429,
                 "too_many_managed_indices",
@@ -130,6 +158,98 @@ impl IsmService {
             )),
             Err(e) => Err(failed(&e)),
         }
+    }
+
+    /// Writes `record` over the managed index's document.
+    fn replace_managed(
+        &self,
+        index: &str,
+        record: &Value,
+        marker: &mut [u8],
+    ) -> Result<(), RestError> {
+        // ALLOC: the document's text, a few hundred bytes.
+        let bytes = record.to_string().into_bytes();
+        self.set_of(DocKind::IsmManaged)?
+            .put_counted(index, &bytes, false, marker)
+            .map(|_| ())
+            .map_err(|e| failed(&e))
+    }
+
+    /// `POST /change_policy/{index}` with `{"policy_id", "state"?}`: the
+    /// change is recorded on the managed index for the runner to apply at its
+    /// next step, as the plugin applies it on the next job run.
+    pub(crate) fn change_policy(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        let index = literal(req)?;
+        let raw = read_body(req, MAX_BODY_BYTES, "the body is over 64 KiB")?;
+        let body: Value =
+            serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?;
+        let policy_id = body
+            .get("policy_id")
+            .and_then(Value::as_str)
+            .filter(|p| !p.is_empty())
+            .ok_or_else(|| bad("[policy_id] is required"))?;
+        let state = body.get("state").and_then(Value::as_str);
+        let mut marker = self.marker(req)?;
+        let mut doc = Self::doc_buffer(req)?;
+        let Some(stored) = self.stored(policy_id, &mut marker, &mut doc)? else {
+            return Self::send(resp, &outcome(0, Some((&index, "", "Policy not found"))));
+        };
+        if let Some(state) = state {
+            let known = stored["policy"]["states"]
+                .as_array()
+                .is_some_and(|s| s.iter().any(|x| x["name"] == state));
+            if !known {
+                let reason = format!("state [{state}] is not a state of policy [{policy_id}]");
+                return Self::send(resp, &outcome(0, Some((&index, "", &reason))));
+            }
+        }
+        let Some(mut record) =
+            self.stored_in(DocKind::IsmManaged, &index, &mut marker, &mut doc)?
+        else {
+            let reason = "This index does not have a policy to update";
+            return Self::send(resp, &outcome(0, Some((&index, "", reason))));
+        };
+        record["change_policy"] = json!({"policy_id": policy_id, "state": state});
+        self.replace_managed(&index, &record, &mut marker)?;
+        Self::send(resp, &outcome(1, None))
+    }
+
+    /// `POST /retry/{index}` with an optional `{"state"}`: asks the runner to
+    /// run the failed step again.
+    pub(crate) fn retry(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        let index = literal(req)?;
+        let raw = read_body(req, MAX_BODY_BYTES, "the body is over 64 KiB")?;
+        let body: Value = if raw.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?
+        };
+        let mut marker = self.marker(req)?;
+        let mut doc = Self::doc_buffer(req)?;
+        let Some(mut record) =
+            self.stored_in(DocKind::IsmManaged, &index, &mut marker, &mut doc)?
+        else {
+            let reason = "This index does not have a policy";
+            return Self::send(resp, &outcome(0, Some((&index, "", reason))));
+        };
+        if record["failed"] != true {
+            let reason = "This index is not in a failed state";
+            return Self::send(resp, &outcome(0, Some((&index, "", reason))));
+        }
+        record["retry_requested"] = json!(true);
+        if let Some(state) = body.get("state").and_then(Value::as_str) {
+            record["retry_state"] = json!(state);
+        }
+        self.replace_managed(&index, &record, &mut marker)?;
+        Self::send(resp, &outcome(1, None))
     }
 
     /// `POST /remove/{index}`.
@@ -166,8 +286,8 @@ impl IsmService {
         let mut doc = Self::doc_buffer(req)?;
         let managed = self.stored_in(DocKind::IsmManaged, &index, &mut marker, &mut doc)?;
         let (entry, total) = match managed {
-            Some(m) => (
-                json!({
+            Some(m) => {
+                let mut entry = json!({
                     PLUGIN_KEY: m["policy_id"],
                     LEGACY_KEY: m["policy_id"],
                     "index": m["index"],
@@ -179,9 +299,14 @@ impl IsmService {
                     "index_creation_date": m["index_creation_date"],
                     "state": m["state"],
                     "enabled": m["enabled"],
-                }),
-                1,
-            ),
+                });
+                for key in ["change_policy", "retry_requested"] {
+                    if !m[key].is_null() {
+                        entry[key] = m[key].clone();
+                    }
+                }
+                (entry, 1)
+            }
             None => (
                 json!({PLUGIN_KEY: null, LEGACY_KEY: null, "enabled": null}),
                 0,

@@ -31,6 +31,10 @@ pub const MAX_DOC_BYTES: usize = 1 << 20;
 /// thousand trees is some megabytes of JSON or XML.
 pub const MAX_MODEL_BYTES: usize = 10 << 20;
 
+/// The longest notification catalogue: 1,000 summaries with a longest name and
+/// description.
+pub const MAX_CATALOGUE_BYTES: usize = 2 << 20;
+
 /// The longest marker: [`MAX_DOCS`] entries of a longest name and a content
 /// key of 64 hex digits, `-` and a 22-character id (the blob is then
 /// `blob-` and the key), with the quotes, colon and comma.
@@ -73,10 +77,21 @@ pub enum DocKind {
     /// A learning to rank store's models, `models/` under the store's own
     /// base.
     LtrModels,
+    /// The k-NN plugin's trained models, `knn/models/`.
+    KnnModels,
     /// Index state management policies, `ism/policies/`.
     IsmPolicies,
+    /// Anomaly detection detectors, `ad/detectors/`.
+    AdDetectors,
     /// The indices an ISM policy manages, one document each, `ism/managed/`.
     IsmManaged,
+    /// Notification channel configs, one document each, `notifications/configs/`.
+    NotificationConfigs,
+    /// The one document summarising every notification config,
+    /// `notifications/catalogue/`.
+    NotificationCatalogue,
+    /// The `ism_template` of every policy, one aggregate document, `ism/templates/`.
+    IsmTemplates,
 }
 
 impl DocKind {
@@ -96,8 +111,13 @@ impl DocKind {
             Self::LtrStores => "ltr/stores/",
             Self::LtrFeatureSets => "featuresets/",
             Self::LtrModels => "models/",
+            Self::KnnModels => "knn/models/",
             Self::IsmPolicies => "ism/policies/",
+            Self::AdDetectors => "ad/detectors/",
             Self::IsmManaged => "ism/managed/",
+            Self::NotificationConfigs => "notifications/configs/",
+            Self::NotificationCatalogue => "notifications/catalogue/",
+            Self::IsmTemplates => "ism/templates/",
         }
     }
 }
@@ -107,7 +127,8 @@ impl DocKind {
     /// [`MAX_MODEL_BYTES`].
     pub const fn max_doc_bytes(self) -> usize {
         match self {
-            Self::LtrModels => MAX_MODEL_BYTES,
+            Self::LtrModels | Self::KnnModels => MAX_MODEL_BYTES,
+            Self::NotificationCatalogue => MAX_CATALOGUE_BYTES,
             _ => MAX_DOC_BYTES,
         }
     }

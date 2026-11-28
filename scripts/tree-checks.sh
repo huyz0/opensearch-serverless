@@ -29,6 +29,7 @@ check-arith-allows.py
 check-test-binaries.py
 check-pack-references.py
 check-dev-notes.py
+check-notifications-no-proxy.py
 check-port-map.py
 check-invariants.py
 check-verified.py

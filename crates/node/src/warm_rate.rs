@@ -1,13 +1,18 @@
 //! The most bytes a second a peer serves to joining nodes, across all of them.
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+
+use crate::warm_pressure::Pressure;
 
 /// A peer's serve rate: each page batch reserves the time its bytes take
 /// at the rate, after the batches already reserved.
 #[derive(Debug)]
 pub struct ServeRate {
     bytes_per_second: u64,
+    /// When set, the rate it allows (up to `bytes_per_second`) in place of
+    /// the fixed one.
+    pressure: Option<Arc<Pressure>>,
     next_free: Mutex<Option<Instant>>,
 }
 
@@ -23,7 +28,18 @@ impl ServeRate {
     pub fn new(bytes_per_second: u64) -> Self {
         Self {
             bytes_per_second,
+            pressure: None,
             next_free: Mutex::new(None),
+        }
+    }
+
+    /// At most `bytes_per_second`, and less while `pressure` says the
+    /// node's own searches are slowed.
+    #[must_use]
+    pub fn adaptive(bytes_per_second: u64, pressure: Arc<Pressure>) -> Self {
+        Self {
+            pressure: Some(pressure),
+            ..Self::new(bytes_per_second)
         }
     }
 
@@ -37,6 +53,9 @@ impl ServeRate {
         if self.bytes_per_second == 0 {
             return Duration::ZERO;
         }
+        let rate = self.pressure.as_ref().map_or(self.bytes_per_second, |p| {
+            p.rate_for(now, bytes).min(self.bytes_per_second)
+        });
         let mut next = self
             .next_free
             .lock()
@@ -45,7 +64,7 @@ impl ServeRate {
         let took = Duration::from_nanos(
             bytes
                 .saturating_mul(1_000_000_000)
-                .checked_div(self.bytes_per_second)
+                .checked_div(rate.max(1))
                 .unwrap_or(u64::MAX),
         );
         *next = start.checked_add(took).or(Some(start));

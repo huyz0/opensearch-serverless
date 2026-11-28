@@ -113,6 +113,8 @@ pub struct NodeConfig {
     pub ltr: bool,
     /// `serverless.ism.enabled` (`OSS_ISM`): serve the ISM policy routes. Off by default.
     pub ism: bool,
+    /// `serverless.ad.enabled` (`OSS_AD`): serve the anomaly detection detector routes. Off by default.
+    pub ad: bool,
     /// The `sltr` window and model cache bounds.
     pub ltr_bounds: ltr::Bounds,
     /// `OSS_SCRIPT_CACHE_TTL`: seconds a stored script is trusted before the set is checked.
@@ -258,18 +260,7 @@ impl NodeConfig {
             ));
         }
         let lease_ttl_millis = lease_timing::ttl_millis(&get)?;
-        let lease_refresh_millis = match get("OSS_LEASE_REFRESH_MS").filter(|v| !v.is_empty()) {
-            None => None,
-            Some(v) => {
-                let millis: u64 = v
-                    .parse()
-                    .map_err(|e| format!("OSS_LEASE_REFRESH_MS: {e}"))?;
-                if millis == 0 {
-                    return Err("OSS_LEASE_REFRESH_MS is below 1".to_owned());
-                }
-                Some(millis)
-            }
-        };
+        let lease_refresh_millis = lease_timing::refresh_millis(&get)?;
         let index_confirm_millis: u64 = or("OSS_INDEX_CONFIRM_MS", "5000")
             .parse()
             .map_err(|e| format!("OSS_INDEX_CONFIRM_MS: {e}"))?;
@@ -451,6 +442,7 @@ impl NodeConfig {
             node_packs: packs::read(&flag, &bounded)?,
             ltr,
             ism,
+            ad: flag("OSS_AD", "false")?,
             ltr_bounds,
             script_cache_ttl_secs,
             security,

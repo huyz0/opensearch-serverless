@@ -241,4 +241,45 @@ fn the_ism_policies_have_their_own_directory_and_the_common_bound() {
         doc_set_marker_key("", DocKind::IsmManaged).unwrap(),
         "ism/managed/_version"
     );
+    assert_eq!(
+        doc_content_key("", DocKind::IsmTemplates, "all").unwrap(),
+        "ism/templates/blob-all"
+    );
+}
+
+#[test]
+fn the_notification_sets_have_their_own_directories_and_the_catalogue_a_larger_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::NotificationConfigs).unwrap(),
+        "notifications/configs/_version"
+    );
+    assert_eq!(
+        doc_content_key("", DocKind::NotificationConfigs, "k").unwrap(),
+        "notifications/configs/blob-k"
+    );
+    assert_eq!(
+        doc_set_marker_key("", DocKind::NotificationCatalogue).unwrap(),
+        "notifications/catalogue/_version"
+    );
+    assert_eq!(
+        DocKind::NotificationConfigs.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+    assert_eq!(DocKind::NotificationCatalogue.max_doc_bytes(), 2 << 20);
+}
+
+#[test]
+fn the_ad_detectors_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::AdDetectors).unwrap(),
+        "ad/detectors/_version"
+    );
+    assert_eq!(
+        doc_content_key("", DocKind::AdDetectors, "k").unwrap(),
+        "ad/detectors/blob-k"
+    );
+    assert_eq!(
+        DocKind::AdDetectors.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
 }
