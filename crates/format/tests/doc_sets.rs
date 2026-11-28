@@ -263,3 +263,19 @@ fn the_notification_sets_have_their_own_directories_and_the_catalogue_a_larger_b
     );
     assert_eq!(DocKind::NotificationCatalogue.max_doc_bytes(), 2 << 20);
 }
+
+#[test]
+fn the_ad_detectors_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::AdDetectors).unwrap(),
+        "ad/detectors/_version"
+    );
+    assert_eq!(
+        doc_content_key("", DocKind::AdDetectors, "k").unwrap(),
+        "ad/detectors/blob-k"
+    );
+    assert_eq!(
+        DocKind::AdDetectors.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+}

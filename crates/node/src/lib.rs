@@ -5,6 +5,9 @@
 //! what this binary was built with.
 
 #[cfg(all(feature = "reader", feature = "writer"))]
+pub mod ad_route;
+pub mod ad_setting;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod admin_assemble;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod alias_route;

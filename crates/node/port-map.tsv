@@ -312,3 +312,8 @@ src/notifications_route/routes.rs	new		the route table on /_plugins/_notificatio
 src/notifications_route/deliver.rs	new		posting a message to a channel URL: bounded, no redirect, no proxy
 src/notifications_route/egress.rs	new		the address rules and the guarded resolver of a delivery
 src/notifications_route/test_send.rs	new		the plugin test route that sends a test message through a config
+src/ad_setting.rs	new		serverless.ad.enabled
+src/ad_route/mod.rs	new		the anomaly detection detector service over a document set; the Java plugin is ported natively by ADR 0078
+src/ad_route/detector.rs	new		detector validation: the features, filters and bounds a serverless node can run
+src/ad_route/search.rs	new		the _search query a detectors id can answer without reading every detector
+src/ad_route/routes.rs	new		the route table under /_plugins/_anomaly_detection and /_opendistro/_anomaly_detection
