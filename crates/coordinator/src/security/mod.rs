@@ -11,6 +11,7 @@
 mod authn;
 mod authz;
 mod config;
+mod patch;
 mod render;
 mod schema;
 mod validate;
@@ -18,7 +19,8 @@ mod validate;
 pub use authn::{MAX_HEADER_BYTES, authinfo, basic, forbidden};
 pub use authz::{Authz, IndexPermission, Role};
 pub use config::{ALL_ACCESS, Config, Mapping, User};
-pub use render::{deleted, missing, render, saved};
+pub use patch::{Op, apply_ops, bulk_updated, patch_document, plan_bulk};
+pub use render::{MAX_LIST_BYTES, deleted, missing, render, render_list, saved};
 pub use validate::{
     MIN_PASSWORD_CHARS, needs_credentials, password_ok, validate, weak_password, with_hash,
 };

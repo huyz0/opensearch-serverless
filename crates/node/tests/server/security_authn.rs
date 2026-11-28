@@ -232,7 +232,7 @@ fn a_snapshot_older_than_three_intervals_is_not_used() {
 
 // docs/specs/security-authn AC-8
 #[test]
-fn listing_a_kind_is_refused_to_everyone_and_not_served_to_an_administrator() {
+fn listing_a_kind_is_refused_to_a_user_and_served_to_an_administrator() {
     let r = rig();
     make_user(&r, "u", "Zz9!longEnough");
     let user = call(
@@ -244,10 +244,5 @@ fn listing_a_kind_is_refused_to_everyone_and_not_served_to_an_administrator() {
     );
     assert_eq!(user.0, 403, "{}", user.1);
     let admin = call(&r, Some(ADMIN), "GET", &format!("{API}/rolesmapping"), None);
-    assert_eq!(admin.0, 501, "{}", admin.1);
-    assert!(
-        admin.1.contains("listing rolesmapping is not served"),
-        "{}",
-        admin.1
-    );
+    assert_eq!((admin.0, admin.1.as_str()), (200, "{}"));
 }
