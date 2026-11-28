@@ -333,6 +333,8 @@ fn security(
     let router = security_route::authinfo_route(router, &state).map_err(AssembleError::Route)?;
     let router =
         security_route::config_routes(router, &service, &state).map_err(AssembleError::Route)?;
+    let router =
+        security_route::account_routes(router, &service, &state).map_err(AssembleError::Route)?;
     let authorizer = RouteAuthorizer::new(Arc::clone(&state));
     let guard = AuthGuard(Arc::new(Authenticator::new(Arc::clone(&state), clock)));
     let router = router
