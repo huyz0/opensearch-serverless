@@ -43,6 +43,8 @@ fn an_answer_says_missing_apart_from_empty() {
 
 #[test]
 fn a_key_and_a_value_are_bounded_before_they_are_read() {
+    // The host's buffers are sized to these: a value is at most 256 KiB.
+    assert_eq!((MAX_KEY_BYTES, MAX_VALUE_BYTES), (128, 262_144));
     let longest = "k".repeat(MAX_KEY_BYTES);
     assert!(decode_key(&encode_key(&longest)).is_ok());
     assert_eq!(
