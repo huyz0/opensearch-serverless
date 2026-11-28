@@ -1945,6 +1945,7 @@ dependencies = [
  "lucene-analysis",
  "lucene-codecs",
  "lucene-index",
+ "lucene-painless",
  "lucene-search",
  "lucene-store",
  "oss-anomaly",

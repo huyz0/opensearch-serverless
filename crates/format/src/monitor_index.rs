@@ -34,7 +34,7 @@ pub const MAX_MONITOR_BYTES: usize = 1 << 20;
 /// and a content key, with the field names, quotes and numbers.
 pub const MAX_MONITOR_INDEX_BYTES: usize = MAX_MONITORS * 768;
 
-fn check_base(base: &str) -> Result<(), FormatError> {
+pub(crate) fn check_base(base: &str) -> Result<(), FormatError> {
     if base.is_empty() || base.ends_with('/') {
         Ok(())
     } else {
@@ -82,6 +82,11 @@ pub struct MonitorEntry {
     pub schedule: String,
     /// When it was last changed, in milliseconds since the epoch.
     pub updated_ms: i64,
+    /// How many times this monitor has been written: 1 for its first put.
+    pub version: i64,
+    /// The index's change count at this monitor's last write; the plugin's
+    /// `_seq_no`, which an `if_seq_no` is compared with.
+    pub seq_no: i64,
 }
 
 /// A tenant's monitors.
@@ -92,7 +97,7 @@ pub struct MonitorIndex {
     entries: BTreeMap<String, MonitorEntry>,
 }
 
-fn check_id(id: &str) -> Result<(), FormatError> {
+pub(crate) fn check_id(id: &str) -> Result<(), FormatError> {
     if id.len() > MAX_MONITOR_ID_BYTES {
         return Err(FormatError::TooLarge {
             what: WHAT,
@@ -262,23 +267,35 @@ impl MonitorIndex {
     fn parse_entry(json: &mut Reader<'_>) -> Result<MonitorEntry, FormatError> {
         json.start_object("a monitor is an object")?;
         let (mut content, mut enabled, mut schedule, mut updated) = (None, None, None, None);
+        let (mut version, mut seq_no) = (None, None);
         while let Some(field) = json.next_field()? {
             match (field.as_ref(), json.expect_token()?) {
                 ("c", Token::Str(s)) if content.is_none() => content = Some(s.into_owned()),
                 ("e", Token::Bool(b)) if enabled.is_none() => enabled = Some(b),
                 ("s", Token::Str(s)) if schedule.is_none() => schedule = Some(s.into_owned()),
                 ("u", Token::Int(n)) if updated.is_none() => updated = Some(n),
-                _ => return Err(json.error("a monitor holds c, e, s and u once each")),
+                ("v", Token::Int(n)) if version.is_none() => version = Some(n),
+                ("q", Token::Int(n)) if seq_no.is_none() => seq_no = Some(n),
+                _ => return Err(json.error("a monitor holds c, e, s, u, v and q once each")),
             }
         }
-        match (content, enabled, schedule, updated) {
-            (Some(content), Some(enabled), Some(schedule), Some(updated_ms)) => Ok(MonitorEntry {
+        match (content, enabled, schedule, updated, version, seq_no) {
+            (
+                Some(content),
+                Some(enabled),
+                Some(schedule),
+                Some(updated_ms),
+                Some(version),
+                Some(seq_no),
+            ) => Ok(MonitorEntry {
                 content,
                 enabled,
                 schedule,
                 updated_ms,
+                version,
+                seq_no,
             }),
-            _ => Err(corrupt(WHAT, "a monitor holds c, e, s and u")),
+            _ => Err(corrupt(WHAT, "a monitor holds c, e, s, u, v and q")),
         }
     }
 
@@ -299,6 +316,8 @@ impl MonitorIndex {
             out.bool_field("e", e.enabled);
             out.string_field("s", &e.schedule);
             out.int_field("u", e.updated_ms);
+            out.int_field("v", e.version);
+            out.int_field("q", e.seq_no);
             out.end_object();
         }
         out.end_object();

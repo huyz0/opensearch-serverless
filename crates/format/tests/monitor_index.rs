@@ -11,6 +11,8 @@ fn entry(content: &str, enabled: bool) -> MonitorEntry {
         enabled,
         schedule: "period:1:MINUTES".to_owned(),
         updated_ms: 1_700_000_000_000,
+        version: 3,
+        seq_no: 17,
     }
 }
 
@@ -28,7 +30,7 @@ fn an_index_is_written_in_id_order_and_reads_back_the_same() {
     index.insert("alpha", entry("c-a", false)).unwrap();
     assert_eq!(
         written(&index),
-        r#"{"version":3,"monitors":{"alpha":{"c":"c-a","e":false,"s":"period:1:MINUTES","u":1700000000000},"zeta":{"c":"c-z","e":true,"s":"period:1:MINUTES","u":1700000000000}}}"#
+        r#"{"version":3,"monitors":{"alpha":{"c":"c-a","e":false,"s":"period:1:MINUTES","u":1700000000000,"v":3,"q":17},"zeta":{"c":"c-z","e":true,"s":"period:1:MINUTES","u":1700000000000,"v":3,"q":17}}}"#
     );
     let back = MonitorIndex::parse(written(&index).as_bytes()).unwrap();
     assert_eq!(back, index);
@@ -105,7 +107,7 @@ fn ids_schedules_and_content_keys_are_checked_on_the_way_in() {
 
 #[test]
 fn a_damaged_index_is_refused_never_taken() {
-    let good = r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1}}}"#;
+    let good = r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1,"v":1,"q":1}}}"#;
     assert!(MonitorIndex::parse(good.as_bytes()).is_ok());
     for bad in [
         "",
@@ -117,14 +119,18 @@ fn a_damaged_index_is_refused_never_taken() {
         r#"{"version":"1","monitors":{}}"#,
         r#"{"version":1,"monitors":{},"extra":1}"#,
         r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p"}}}"#,
-        r#"{"version":1,"monitors":{"a":{"c":"x","c":"y","e":true,"s":"p","u":1}}}"#,
-        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"e":false,"s":"p","u":1}}}"#,
-        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","s":"q","u":1}}}"#,
-        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1,"u":2}}}"#,
-        r#"{"version":1,"monitors":{"a":{"c":"x","e":"yes","s":"p","u":1}}}"#,
-        r#"{"version":1,"monitors":{"a":{"c":"a/b","e":true,"s":"p","u":1}}}"#,
-        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1},"a":{"c":"x","e":true,"s":"p","u":1}}}"#,
-        r#"{"version":1,"monitors":{"":{"c":"x","e":true,"s":"p","u":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","c":"y","e":true,"s":"p","u":1,"v":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"e":false,"s":"p","u":1,"v":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","s":"q","u":1,"v":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1,"u":2,"v":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":"yes","s":"p","u":1,"v":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"a/b","e":true,"s":"p","u":1,"v":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1,"v":1,"q":1},"a":{"c":"x","e":true,"s":"p","u":1,"v":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"":{"c":"x","e":true,"s":"p","u":1,"v":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1,"v":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1,"v":1,"v":2,"q":1}}}"#,
+        r#"{"version":1,"monitors":{"a":{"c":"x","e":true,"s":"p","u":1,"v":1,"q":1,"q":2}}}"#,
     ] {
         assert!(MonitorIndex::parse(bad.as_bytes()).is_err(), "{bad}");
     }
@@ -187,6 +193,8 @@ fn a_quote_backslash_or_control_character_in_an_id_or_schedule_is_refused() {
             enabled: true,
             schedule: schedule.to_owned(),
             updated_ms: 0,
+            version: 1,
+            seq_no: 1,
         };
         assert!(index.insert(bad, entry("p")).is_err(), "id {bad:?}");
         assert!(index.insert("m", entry(bad)).is_err(), "schedule {bad:?}");
@@ -206,6 +214,8 @@ fn a_full_index_of_the_longest_entries_fits_its_bound() {
                     enabled: true,
                     schedule: "s".repeat(oss_format::MAX_SCHEDULE_BYTES),
                     updated_ms: i64::MIN,
+                    version: i64::MIN,
+                    seq_no: i64::MIN,
                 },
             )
             .unwrap();

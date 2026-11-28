@@ -6,7 +6,7 @@ use std::sync::Arc;
 use oss_blob::BlobStore;
 use oss_blob::S3Op::{Delete, Get, Put};
 use oss_format::{MAX_MONITORS, MonitorEntry, MonitorIndex, monitor_index_key};
-use oss_meta::{AlertRegistry, MetaError, Monitors};
+use oss_meta::{AlertRegistry, MetaError, MonitorPut, Monitors, PutGuard, PutOutcome, PutRefusal};
 use oss_testkit::budget;
 
 use crate::probe::Quirky;
@@ -27,9 +27,16 @@ fn put(m: &Monitors, id: &str, body: &str, enabled: bool) {
         enabled,
         "period:1:MINUTES",
         1_000,
-        false,
+        PutGuard::Any,
     )
     .unwrap();
+}
+
+fn stored(outcome: PutOutcome) -> MonitorPut {
+    match outcome {
+        PutOutcome::Stored(p) => p,
+        PutOutcome::Refused(why) => panic!("refused: {why:?}"),
+    }
 }
 
 fn read(m: &Monitors, id: &str) -> Option<String> {
@@ -44,17 +51,33 @@ fn a_monitor_is_put_read_replaced_and_deleted() {
     for b in all() {
         let m = monitors(&b, "acme");
         assert_eq!(read(&m, "m1"), None);
-        let first = m
-            .put("m1", b"{\"a\":1}", false, "period:1:MINUTES", 5, false)
-            .unwrap();
+        let first = stored(
+            m.put(
+                "m1",
+                b"{\"a\":1}",
+                false,
+                "period:1:MINUTES",
+                5,
+                PutGuard::Any,
+            )
+            .unwrap(),
+        );
         assert!(!first.replaced);
-        assert_eq!(first.version, 1);
+        assert_eq!((first.version, first.seq_no), (1, 1));
         assert_eq!(read(&m, "m1").unwrap(), "{\"a\":1}");
-        let second = m
-            .put("m1", b"{\"a\":2}", false, "period:5:MINUTES", 6, false)
-            .unwrap();
+        let second = stored(
+            m.put(
+                "m1",
+                b"{\"a\":2}",
+                false,
+                "period:5:MINUTES",
+                6,
+                PutGuard::Any,
+            )
+            .unwrap(),
+        );
         assert!(second.replaced);
-        assert_eq!(second.version, 2);
+        assert_eq!((second.version, second.seq_no), (2, 2));
         let mut buf = vec![0u8; 64];
         let (entry, n) = m.get("m1", &mut buf).unwrap().unwrap();
         assert_eq!(&buf[..n], b"{\"a\":2}");
@@ -62,8 +85,8 @@ fn a_monitor_is_put_read_replaced_and_deleted() {
             (entry.schedule.as_str(), entry.updated_ms),
             ("period:5:MINUTES", 6)
         );
-        assert!(m.delete("m1").unwrap());
-        assert!(!m.delete("m1").unwrap());
+        assert_eq!(m.delete("m1").unwrap().map(|e| e.version), Some(2));
+        assert!(m.delete("m1").unwrap().is_none());
         assert_eq!(read(&m, "m1"), None);
         assert!(m.index().unwrap().is_empty());
     }
@@ -96,8 +119,15 @@ fn require_absent_refuses_a_present_id_and_leaves_no_blob() {
     for b in all() {
         let m = monitors(&b, "acme");
         put(&m, "m1", "one", false);
-        let out = m.put("m1", b"two", false, "p", 1, true);
-        assert!(matches!(out, Err(MetaError::AlreadyExists)), "{:?}", b.kind);
+        let out = m
+            .put("m1", b"two", false, "p", 1, PutGuard::Absent)
+            .unwrap();
+        assert_eq!(
+            out,
+            PutOutcome::Refused(PutRefusal::AlreadyExists),
+            "{:?}",
+            b.kind
+        );
         assert_eq!(read(&m, "m1").unwrap(), "one");
     }
 }
@@ -147,9 +177,9 @@ fn deleting_the_last_enabled_monitor_removes_the_tenant_but_not_while_another_is
         let r = registry(&b);
         put(&m, "m1", "x", true);
         put(&m, "m2", "y", true);
-        assert!(m.delete("m1").unwrap());
+        assert!(m.delete("m1").unwrap().is_some());
         assert!(r.is_registered("acme").unwrap(), "{:?}", b.kind);
-        assert!(m.delete("m2").unwrap());
+        assert!(m.delete("m2").unwrap().is_some());
         assert!(!r.is_registered("acme").unwrap(), "{:?}", b.kind);
     }
 }
@@ -191,7 +221,7 @@ fn a_body_over_its_bound_or_an_invalid_id_sends_nothing() {
         let (_, sent) = counted(b.meter(), || {
             let big = vec![b'x'; oss_format::MAX_MONITOR_BYTES + 1];
             assert!(matches!(
-                m.put("m1", &big, true, "p", 1, false),
+                m.put("m1", &big, true, "p", 1, PutGuard::Any),
                 Err(MetaError::InvalidArgument(_))
             ));
         });
@@ -205,7 +235,7 @@ fn a_body_over_its_bound_or_an_invalid_id_sends_nothing() {
 fn a_bad_id_leaves_no_body_behind() {
     for b in all() {
         let m = monitors(&b, "acme");
-        let out = m.put("a/b", b"x", true, "p", 1, false);
+        let out = m.put("a/b", b"x", true, "p", 1, PutGuard::Any);
         assert!(matches!(out, Err(MetaError::Format(_))), "{:?}", b.kind);
         assert!(m.index().unwrap().is_empty());
     }
@@ -239,7 +269,7 @@ fn a_body_of_exactly_the_bound_is_stored() {
     let b = &all()[0];
     let m = monitors(b, "acme");
     let body = vec![b'x'; oss_format::MAX_MONITOR_BYTES];
-    m.put("m1", &body, false, "p", 1, false).unwrap();
+    m.put("m1", &body, false, "p", 1, PutGuard::Any).unwrap();
     let mut buf = vec![0u8; oss_format::MAX_MONITOR_BYTES];
     let (_, n) = m.get("m1", &mut buf).unwrap().unwrap();
     assert_eq!(n, oss_format::MAX_MONITOR_BYTES);
@@ -311,6 +341,8 @@ fn a_put_landing_before_the_removals_shard_read_keeps_the_tenant() {
                     enabled: true,
                     schedule: "period:1:MINUTES".to_owned(),
                     updated_ms: 1,
+                    version: 1,
+                    seq_no: 1,
                 },
             )
             .unwrap();
@@ -327,7 +359,7 @@ fn a_put_landing_before_the_removals_shard_read_keeps_the_tenant() {
     // Requests of the delete: index read, index swap, body delete, then the
     // registry's shard read, where the hook runs first.
     store.arm(4);
-    assert!(m.delete("m1").unwrap());
+    assert!(m.delete("m1").unwrap().is_some());
     assert!(m.index().unwrap().get("m2").unwrap().enabled);
     assert!(r.is_registered("acme").unwrap());
 }
@@ -339,9 +371,38 @@ fn a_full_index_refuses_a_new_monitor_and_leaves_no_body() {
     for i in 0..MAX_MONITORS {
         put(&m, &format!("m{i}"), "x", false);
     }
-    let out = m.put("extra", b"x", false, "p", 1, false);
+    let out = m.put("extra", b"x", false, "p", 1, PutGuard::Any);
     assert!(matches!(out, Err(MetaError::Format(_))), "{out:?}");
     assert_eq!(m.index().unwrap().len(), MAX_MONITORS);
     // A replacement of an existing id still lands.
-    m.put("m0", b"y", false, "p", 1, false).unwrap();
+    m.put("m0", b"y", false, "p", 1, PutGuard::Any).unwrap();
+}
+
+#[test]
+fn a_guarded_put_refuses_for_a_missing_id_or_a_stale_seq_no_and_writes_nothing() {
+    for b in all() {
+        let m = monitors(&b, "acme");
+        let new = |m: &Monitors, guard| m.put("m1", b"x", false, "p", 1, guard).unwrap();
+        // A replacement of an id that is not there.
+        let none = PutGuard::Exists { if_seq_no: None };
+        assert_eq!(new(&m, none), PutOutcome::Refused(PutRefusal::NotFound));
+        assert!(m.index().unwrap().is_empty(), "{:?}", b.kind);
+        let first = stored(new(&m, PutGuard::Absent));
+        // The seq_no it was written at must be the one the caller names.
+        let stale = PutGuard::Exists {
+            if_seq_no: Some(first.seq_no + 1),
+        };
+        assert_eq!(new(&m, stale), PutOutcome::Refused(PutRefusal::Conflict));
+        assert_eq!(m.index().unwrap().version, 1, "{:?}", b.kind);
+        let right = PutGuard::Exists {
+            if_seq_no: Some(first.seq_no),
+        };
+        let second = stored(new(&m, right));
+        assert_eq!((second.version, second.seq_no), (2, 2), "{:?}", b.kind);
+        // A put of another monitor moves the index, not this one's entry.
+        let other = stored(m.put("m2", b"y", false, "p", 1, PutGuard::Any).unwrap());
+        assert_eq!((other.version, other.seq_no), (1, 3), "{:?}", b.kind);
+        let entry = m.index().unwrap().get("m1").cloned().unwrap();
+        assert_eq!((entry.version, entry.seq_no), (2, 2), "{:?}", b.kind);
+    }
 }

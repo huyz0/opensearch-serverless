@@ -41,6 +41,7 @@
 //!   retried create, and finishing a delete from the [`ReclaimQueue`] once a
 //!   writer that missed it has stopped.
 
+mod alerts;
 mod alias_mutations;
 mod alias_restore;
 mod changes;
@@ -74,6 +75,7 @@ mod stock_read;
 mod stock_restore;
 mod sweep;
 
+pub use alerts::Alerts;
 pub use alias_mutations::{AliasAt, AliasClock, AliasMutations};
 pub use changes::{ChangeStripes, Snapshot};
 pub use cluster_config::{ClusterConfig, ConfigValue};
@@ -88,7 +90,7 @@ pub use lifecycle::{
     DEFAULT_RECLAIM_DELAY_MILLIS, Deleted, HeadAt, IndexLifecycle, Purged, ReclaimQueue,
     ShardHeads, ShardPins,
 };
-pub use monitors::{MonitorPut, Monitors};
+pub use monitors::{MonitorPut, Monitors, PutGuard, PutOutcome, PutRefusal};
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
 pub use oss_format::{
     AliasMutation, AliasRecord, ChangeKind, ClusterSettings, DocKind, MAX_CLUSTER_SETTINGS_BYTES,

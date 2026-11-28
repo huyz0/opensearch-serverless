@@ -38,3 +38,4 @@ src/snapshot_aliases.rs	new		the take's confirm of each index's aliases (ADR 006
 src/schedule_registry.rs	new		registration, removal and slot claims over the registry registers (alerting spec, slice 1); no Java counterpart
 src/monitors.rs	new		a tenant's monitors over the index register and the registry (alerting spec, slice 2); no Java counterpart
 src/doc_set/update.rs	new		update: a change rebuilt from the current document on every swap attempt; the Java has no read-modify-write set change
+src/alerts.rs	new		a monitor's alert register read and changed by compare-and-swap (alerting spec, slice 6); no Java counterpart

@@ -22,7 +22,7 @@ pub mod windows;
 
 pub use run::{MAX_HELD_MODELS, Outcome, RunError, Runner};
 pub use schedule::{Scheduler, TickReport};
-pub use slots::Timing;
+pub use slots::{Timing, latest_due, window};
 pub use source::WindowSearch;
 
 use std::sync::Arc;

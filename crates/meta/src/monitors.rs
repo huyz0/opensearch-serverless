@@ -29,10 +29,54 @@ const ATTEMPTS: u32 = 10;
 /// What a [`Monitors::put`] did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonitorPut {
-    /// The index's change count after the put.
+    /// The monitor's write count: 1 for its first put.
     pub version: i64,
+    /// The index's change count after the put, the monitor's `_seq_no`.
+    pub seq_no: i64,
     /// Whether the id was already there.
     pub replaced: bool,
+}
+
+/// What a put requires of the id's current entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PutGuard {
+    /// Nothing: a new id or a replacement.
+    Any,
+    /// The id must not exist.
+    Absent,
+    /// The id must exist, and its `_seq_no` must be `if_seq_no` when given.
+    Exists {
+        /// The `_seq_no` the caller read, if it asked for one.
+        if_seq_no: Option<i64>,
+    },
+}
+
+/// Why a put wrote nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PutRefusal {
+    /// [`PutGuard::Absent`] and the id exists.
+    AlreadyExists,
+    /// [`PutGuard::Exists`] and the id does not.
+    NotFound,
+    /// [`PutGuard::Exists`] with an `if_seq_no` the entry does not have.
+    Conflict,
+}
+
+/// What a put did: it stored the monitor, or refused for its guard.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PutOutcome {
+    /// The monitor is stored.
+    Stored(MonitorPut),
+    /// Nothing was written.
+    Refused(PutRefusal),
+}
+
+/// How a change of the index ended.
+enum Changed {
+    /// Swapped: the new change count, the replaced entry, and whether any
+    /// monitor is enabled now.
+    Done(i64, Option<MonitorEntry>, bool),
+    Refused(PutRefusal),
 }
 
 /// One tenant's monitors.
@@ -124,6 +168,21 @@ impl Monitors {
         Err(MetaError::MissingContent(id.to_owned()))
     }
 
+    /// Reads the body `entry` names into the front of `body_buf`: one
+    /// request. `None` when the body is gone, which means the monitor was
+    /// replaced since the index was read.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError::Format`]; [`MetaError::Blob`] (a body that does not fit).
+    pub fn body_of(
+        &self,
+        entry: &MonitorEntry,
+        body_buf: &mut [u8],
+    ) -> Result<Option<usize>, MetaError> {
+        self.read_body(&entry.content, body_buf)
+    }
+
     fn read_body(&self, content: &str, body_buf: &mut [u8]) -> Result<Option<usize>, MetaError> {
         let key = monitor_content_key(&self.base, &self.tenant, content)?;
         let mut scratch = [0u8; 4096];
@@ -149,8 +208,8 @@ impl Monitors {
         }
     }
 
-    /// Stores `body` as monitor `id` with its schedule, replacing one of that
-    /// id unless `require_absent`, and registers the tenant when the monitor
+    /// Stores `body` as monitor `id` with its schedule, as `guard` allows
+    /// ([`PutOutcome::Refused`] writes nothing), and registers the tenant when the monitor
     /// is enabled. The body first under a new key, one swap of the index
     /// naming it, then the registry's swap; the replaced body goes last. A put that
     /// leaves the tenant with no enabled monitor runs the registry's removal.
@@ -158,7 +217,6 @@ impl Monitors {
     /// # Errors
     ///
     /// [`MetaError::InvalidArgument`] for a body over [`MAX_MONITOR_BYTES`];
-    /// [`MetaError::AlreadyExists`] under `require_absent`;
     /// [`MetaError::Format`] for an invalid id or schedule, a full index or a
     /// full registry shard; [`MetaError::Contended`]; [`MetaError::Blob`].
     pub fn put(
@@ -168,8 +226,8 @@ impl Monitors {
         enabled: bool,
         schedule: &str,
         now_ms: i64,
-        require_absent: bool,
-    ) -> Result<MonitorPut, MetaError> {
+        guard: PutGuard,
+    ) -> Result<PutOutcome, MetaError> {
         if body.len() > MAX_MONITOR_BYTES {
             return Err(MetaError::InvalidArgument(
                 "a monitor is over its size bound",
@@ -177,7 +235,9 @@ impl Monitors {
         }
         let content = new_id()?;
         self.write_body(&content, body)?;
-        let outcome = self.change_index(id, require_absent, |index| {
+        let outcome = self.change_index(id, guard, |index| {
+            let seq_no = index.version.saturating_add(1);
+            let version = index.get(id).map_or(1, |old| old.version.saturating_add(1));
             index
                 .insert(
                     id,
@@ -188,12 +248,18 @@ impl Monitors {
                         // ALLOC: one schedule, at most MAX_SCHEDULE_BYTES, once a put.
                         schedule: schedule.to_owned(),
                         updated_ms: now_ms,
+                        version,
+                        seq_no,
                     },
                 )
                 .map_err(MetaError::from)
         });
-        let (version, replaced, any_enabled) = match outcome {
-            Ok(done) => done,
+        let (seq_no, replaced, any_enabled) = match outcome {
+            Ok(Changed::Done(seq_no, replaced, any_enabled)) => (seq_no, replaced, any_enabled),
+            Ok(Changed::Refused(why)) => {
+                self.drop_body(&content);
+                return Ok(PutOutcome::Refused(why));
+            }
             Err(e) => {
                 self.drop_body(&content);
                 return Err(e);
@@ -207,24 +273,27 @@ impl Monitors {
             self.drop_body(&old.content);
         }
         self.settle_registry(enabled || any_enabled, enabled)?;
-        Ok(MonitorPut {
-            version,
+        Ok(PutOutcome::Stored(MonitorPut {
+            version: replaced
+                .as_ref()
+                .map_or(1, |old| old.version.saturating_add(1)),
+            seq_no,
             replaced: replaced.is_some(),
-        })
+        }))
     }
 
     /// Removes monitor `id`: one swap of the index, then its body, then the
-    /// registry's removal when no enabled monitor is left. Returns whether
-    /// there was one.
+    /// registry's removal when no enabled monitor is left. Returns the entry
+    /// it removed, `None` for an id the tenant lacks.
     ///
     /// # Errors
     ///
     /// [`MetaError::Contended`]; [`MetaError::Format`]; [`MetaError::Blob`].
-    pub fn delete(&self, id: &str) -> Result<bool, MetaError> {
+    pub fn delete(&self, id: &str) -> Result<Option<MonitorEntry>, MetaError> {
         for _ in 0..ATTEMPTS {
             let (mut index, generation) = self.read()?;
             let Some(old) = index.remove(id) else {
-                return Ok(false);
+                return Ok(None);
             };
             index.version = index.version.saturating_add(1);
             if self.swap(&index, generation)? {
@@ -232,7 +301,7 @@ impl Monitors {
                     self.drop_body(&old.content);
                 }
                 self.settle_registry(index.any_enabled(), false)?;
-                return Ok(true);
+                return Ok(Some(old));
             }
         }
         Err(MetaError::Contended)
@@ -257,18 +326,30 @@ impl Monitors {
     fn change_index(
         &self,
         id: &str,
-        require_absent: bool,
+        guard: PutGuard,
         mut edit: impl FnMut(&mut MonitorIndex) -> Result<Option<MonitorEntry>, MetaError>,
-    ) -> Result<(i64, Option<MonitorEntry>, bool), MetaError> {
+    ) -> Result<Changed, MetaError> {
         for _ in 0..ATTEMPTS {
             let (mut index, generation) = self.read()?;
-            if require_absent && index.get(id).is_some() {
-                return Err(MetaError::AlreadyExists);
+            let current = index.get(id);
+            let refusal = match (guard, current) {
+                (PutGuard::Absent, Some(_)) => Some(PutRefusal::AlreadyExists),
+                (PutGuard::Exists { .. }, None) => Some(PutRefusal::NotFound),
+                (
+                    PutGuard::Exists {
+                        if_seq_no: Some(want),
+                    },
+                    Some(e),
+                ) if e.seq_no != want => Some(PutRefusal::Conflict),
+                _ => None,
+            };
+            if let Some(why) = refusal {
+                return Ok(Changed::Refused(why));
             }
             let replaced = edit(&mut index)?;
             index.version = index.version.saturating_add(1);
             if self.swap(&index, generation)? {
-                return Ok((index.version, replaced, index.any_enabled()));
+                return Ok(Changed::Done(index.version, replaced, index.any_enabled()));
             }
         }
         Err(MetaError::Contended)

@@ -9,6 +9,10 @@ pub mod ad_route;
 pub mod ad_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod admin_assemble;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod alerting_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod alerting_run;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -206,6 +210,7 @@ pub mod security_auth;
 #[cfg(feature = "writer")]
 #[cfg(feature = "writer")]
 pub mod security_authz;
+pub(crate) mod security_authz_all_access;
 #[cfg(feature = "writer")]
 pub mod security_route;
 pub mod security_setting;

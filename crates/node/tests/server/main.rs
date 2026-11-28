@@ -11,6 +11,13 @@ mod ad_job;
 mod ad_preview;
 mod ad_routes;
 mod ad_run;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod alerting_actions;
+mod alerting_execute;
+mod alerting_routes;
+mod alerting_run;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod alerting_stock;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -86,7 +93,6 @@ mod knn_api;
 mod knn_models;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_cache;
-#[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod metadata_block;
