@@ -36,6 +36,7 @@ pub(super) fn perform(
             replicas(action, index, backend),
         ),
         "alias" => ("attempt_alias", aliases(action, index, backend)),
+        "notification" => ("attempt_notification", notification(action, index, backend)),
         _ => (
             "",
             Err(format!("action [{name}] cannot run on this node yet")),
@@ -83,4 +84,20 @@ fn aliases(action: &Value, index: &str, backend: &dyn Backend) -> Result<String,
         }
     }
     Ok(format!("Successfully updated aliases [index={index}]"))
+}
+
+fn notification(action: &Value, index: &str, backend: &dyn Backend) -> Result<String, String> {
+    let body = &action["notification"];
+    let channel = body["channel"]["id"]
+        .as_str()
+        .filter(|c| !c.is_empty())
+        .ok_or_else(|| "the action has no channel id".to_owned())?;
+    // The one variable of the plugin's template a serverless node fills in.
+    let text = body["message_template"]["source"]
+        .as_str()
+        .unwrap_or("Notification")
+        .replace("{{ctx.index}}", index);
+    backend
+        .notify(channel, &text)
+        .map(|()| format!("Successfully sent notification [index={index}]"))
 }

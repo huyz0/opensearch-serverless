@@ -17,6 +17,7 @@ const ACTIONS: &[&str] = &[
     "snapshot",
     "alias",
     "replica_count",
+    "notification",
 ];
 /// Keys every action may carry beside its own.
 const ACTION_COMMON: &[&str] = &["timeout", "retry"];
@@ -33,7 +34,6 @@ fn action_refusal(name: &str) -> String {
         "close" | "open" => "an index is never closed or opened here",
         "shrink" | "allocation" => "an index has no replicas or node placement to change here",
         "rollup" | "transform" => "rollup and transform jobs are not ported",
-        "notification" => "notification channels are not served yet",
         _ => return format!("Invalid field: [{name}] found in Actions."),
     };
     format!("action [{name}] is not supported: {why}")
@@ -113,6 +113,23 @@ fn action(a: &Value, state: &str) -> Result<(), String> {
             if body.get("number_of_replicas").and_then(Value::as_i64) != Some(0) {
                 return Err("replica_count accepts only [number_of_replicas] 0 here".to_owned());
             }
+        }
+        "notification" => {
+            if body.contains_key("destination") {
+                return Err(
+                    "notification needs a [channel]: destinations are not served".to_owned(),
+                );
+            }
+            string(
+                object(body.get("channel").unwrap_or(&Value::Null), "channel")?,
+                "id",
+                "notification channel",
+            )?;
+            let template = object(
+                body.get("message_template").unwrap_or(&Value::Null),
+                "message_template",
+            )?;
+            string(template, "source", "message_template")?;
         }
         "alias" if !body.get("actions").is_some_and(Value::is_array) => {
             return Err("alias needs an [actions] array".to_owned());
@@ -281,6 +298,31 @@ mod tests {
         let a = &stored["states"][0]["actions"];
         assert_eq!(a[0]["retry"]["count"], 3);
         assert_eq!(a[1]["retry"]["count"], 1);
+    }
+
+    #[test]
+    fn a_notification_names_a_channel_and_a_destination_is_refused() {
+        let ok = put(
+            r#"[{"name":"a","actions":[{"notification":{"channel":{"id":"c1"},"message_template":{"source":"hi"}}}]}]"#,
+        );
+        assert!(checked("p", &ok, 0).is_ok());
+        for (states, word) in [
+            (
+                r#"[{"name":"a","actions":[{"notification":{"destination":{"chime":{"url":"u"}},"message_template":{"source":"hi"}}}]}]"#,
+                "channel",
+            ),
+            (
+                r#"[{"name":"a","actions":[{"notification":{"channel":{"id":"c1"},"message_template":{}}}]}]"#,
+                "source",
+            ),
+            (
+                r#"[{"name":"a","actions":[{"notification":{}}]}]"#,
+                "channel",
+            ),
+        ] {
+            let err = checked("p", &put(states), 0).unwrap_err();
+            assert!(err.contains(word), "{err}");
+        }
     }
 
     #[test]
