@@ -139,7 +139,7 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = crate::alerting_route::install(router, store, &config.base)?;
+    let router = crate::alerting_route::install(router, store, config)?;
     let router = crate::knn_train_route::mount(router, store, config)?;
     let router = if config.ism {
         let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)

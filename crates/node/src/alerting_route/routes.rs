@@ -6,7 +6,8 @@ use std::sync::Arc;
 use oss_rest::{Method, Request, Response, RestError, RouteError, Router};
 
 use super::AlertingService;
-use crate::assemble::AssembleError;
+use crate::assemble::{AssembleError, Config};
+use oss_meta::DescriptorStore;
 
 /// The query parameters a monitor request accepts: the plugin's own, and
 /// the timeouts every admin route takes.
@@ -21,11 +22,12 @@ const PARAMS: &[&str] = &[
 
 type Handler = fn(&AlertingService, &mut Request<'_>, &mut Response<'_>) -> Result<(), RestError>;
 
-fn table() -> [(Method, &'static str, Handler); 4] {
+fn table() -> [(Method, &'static str, Handler); 5] {
     [
         (Method::Post, "/monitors", AlertingService::create),
         (Method::Put, "/monitors/{id}", AlertingService::update),
         (Method::Get, "/monitors/{id}", AlertingService::get),
+        (Method::Head, "/monitors/{id}", AlertingService::head),
         (Method::Delete, "/monitors/{id}", AlertingService::delete),
     ]
 }
@@ -53,15 +55,21 @@ pub fn routes(router: Router, service: &Arc<AlertingService>) -> Result<Router, 
     Ok(router)
 }
 
-/// The monitor routes over `store`, with the default limits.
+/// The monitor routes over `store`, with the default limits, checking the
+/// indices a monitor names against the node's index records.
 ///
 /// # Errors
 ///
-/// [`AssembleError::Route`] for a route registered twice.
+/// [`AssembleError::Route`] for a route registered twice;
+/// [`AssembleError::Store`] for a base the records refuse.
 pub fn install(
     router: Router,
     store: &Arc<dyn oss_blob::BlobStore>,
-    base: &str,
+    config: &Config,
 ) -> Result<Router, AssembleError> {
-    routes(router, &Arc::new(AlertingService::new(store, base))).map_err(AssembleError::Route)
+    let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
+        .map_err(|e| AssembleError::Store(e.to_string()))?;
+    let service = AlertingService::new(store, &config.base)
+        .with_descriptors(descriptors, config.pit_buffer_bytes);
+    routes(router, &Arc::new(service)).map_err(AssembleError::Route)
 }

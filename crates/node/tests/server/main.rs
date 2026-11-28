@@ -11,6 +11,8 @@ mod ad_preview;
 mod ad_routes;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod alerting_routes;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod alerting_stock;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]

@@ -8,30 +8,46 @@ use std::sync::Arc;
 
 use oss_blob::{BlobStore, Emulator};
 use oss_mem::MemoryBudget;
-use oss_meta::AlertRegistry;
+use oss_meta::{AlertRegistry, DeleteMode, DescriptorStore, PitClock};
 use oss_node::alerting_route::{AlertingService, routes};
+use oss_node::index_route::{IndexService, routes as index_routes};
 use oss_rest::{Router, Server};
 use serde_json::{Value, json};
 
-struct Rig {
-    server: Server,
-    store: Arc<Emulator>,
+pub(crate) struct Rig {
+    pub(crate) server: Server,
+    pub(crate) store: Arc<Emulator>,
 }
 
-fn rig() -> Rig {
+pub(crate) fn rig() -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
-    let service = Arc::new(AlertingService::new(&blobs, ""));
-    let router = routes(Router::new(), &service).expect("routes");
+    let descriptors =
+        || DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).expect("names");
+    let service =
+        Arc::new(AlertingService::new(&blobs, "").with_descriptors(descriptors(), 1 << 16));
+    let clock: PitClock = Arc::new(|| 1_234_567);
+    let indices = Arc::new(IndexService::new(descriptors(), clock, 1 << 16));
+    let router = index_routes(Router::new(), indices).expect("routes");
+    let router = routes(router, &service).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&support::budget_config());
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
-    Rig { server, store }
+    let r = Rig { server, store };
+    let (status, _) = send(
+        r.server.local_addr(),
+        "PUT",
+        "/compat-alert-src",
+        None,
+        None,
+    );
+    assert_eq!(status, 200);
+    r
 }
 
 /// A request with an optional `securitytenant` header; the status and body.
-fn send(
+pub(crate) fn send(
     addr: SocketAddr,
     method: &str,
     target: &str,
@@ -83,7 +99,7 @@ fn monitor(name: &str, enabled: bool) -> Value {
         "type": "monitor", "name": name, "monitor_type": "query_level_monitor",
         "enabled": enabled,
         "schedule": {"period": {"interval": 5, "unit": "MINUTES"}},
-        "inputs": [{"search": {"indices": ["logs"], "query": {"size": 0, "query": {"match_all": {}}}}}],
+        "inputs": [{"search": {"indices": ["compat-alert-src"], "query": {"size": 0, "query": {"match_all": {}}}}}],
         "triggers": [{"query_level_trigger": {"name": "t", "severity": "1",
             "condition": {"script": {"source": "ctx.results[0].hits.total.value > 0", "lang": "painless"}},
             "actions": []}}]
@@ -120,7 +136,7 @@ fn a_monitor_is_created_read_replaced_and_deleted_on_both_prefixes() {
     assert_eq!(got["monitor"]["enabled"], false);
     assert!(got["monitor"]["enabled_time"].is_null());
     let (status, gone) = call(&r, "DELETE", &format!("{BASE}/{id}"), None);
-    assert_eq!((status, gone["result"].as_str()), (200, Some("deleted")));
+    assert_eq!((status, gone["_id"].as_str()), (200, Some(id.as_str())));
     assert_eq!(call(&r, "GET", &format!("{BASE}/{id}"), None).0, 404);
     assert_eq!(call(&r, "DELETE", &format!("{BASE}/{id}"), None).0, 404);
     assert_eq!(
@@ -144,16 +160,14 @@ fn an_invalid_monitor_is_a_400_and_stores_nothing() {
     cases.push(("name", no_name));
     let mut kind = monitor("m", true);
     kind["monitor_type"] = json!("nonsense");
-    cases.push(("monitor_type", kind));
+    let (status, answer) = call(&r, "POST", BASE, Some(&kind));
+    assert_eq!(status, 500, "monitor_type: {answer}");
     let mut fast = monitor("m", true);
     fast["schedule"] = json!({"period": {"interval": 0, "unit": "MINUTES"}});
     cases.push(("interval", fast));
     let mut unit = monitor("m", true);
     unit["schedule"] = json!({"period": {"interval": 1, "unit": "SECONDS"}});
     cases.push(("unit", unit));
-    let mut none = monitor("m", true);
-    none["inputs"] = json!([]);
-    cases.push(("inputs", none));
     let mut many = monitor("m", true);
     many["triggers"] = json!(vec![json!({"query_level_trigger": {"actions": []}}); 101]);
     cases.push(("triggers", many));

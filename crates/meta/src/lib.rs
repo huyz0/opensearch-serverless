@@ -88,7 +88,7 @@ pub use lifecycle::{
     DEFAULT_RECLAIM_DELAY_MILLIS, Deleted, HeadAt, IndexLifecycle, Purged, ReclaimQueue,
     ShardHeads, ShardPins,
 };
-pub use monitors::{MonitorPut, Monitors};
+pub use monitors::{MonitorPut, Monitors, PutGuard, PutOutcome, PutRefusal};
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
 pub use oss_format::{
     AliasMutation, AliasRecord, ChangeKind, ClusterSettings, DocKind, MAX_CLUSTER_SETTINGS_BYTES,
