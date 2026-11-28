@@ -287,7 +287,7 @@ pub fn resolve(
             return Ok(Some(kept));
         }
         Some(_) => {
-            return Err(MappingError::mapper_parsing(
+            return Err(MappingError::illegal_argument(
                 super::knn_faiss::NMSLIB_REFUSED,
             ));
         }
@@ -322,6 +322,10 @@ pub fn resolve(
     }
     if let Some(params) = &method.params {
         for (key, value) in params {
+            if key == "encoder" {
+                // The Lucene scalar quantizer is another segment format.
+                return Err(MappingError::unsupported("knn_vector lucene encoder"));
+            }
             if !matches!(key.as_str(), "m" | "ef_construction") {
                 // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
                 return Err(MappingError::validation(&format!(

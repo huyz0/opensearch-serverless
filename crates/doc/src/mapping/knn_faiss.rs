@@ -31,7 +31,7 @@ pub(super) fn resolve(
         "hnsw" => {}
         "ivf" => return Err(needs_training()),
         "flat" => {
-            return Err(MappingError::illegal_argument(
+            return Err(MappingError::mapper_parsing(
                 "[flat] method does not support [engine] parameter",
             ));
         }
@@ -104,7 +104,7 @@ fn encoder(value: &Json) -> Result<Json, MappingError> {
         "sq" => Err(MappingError::validation(
             "Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];",
         )),
-        _ => Err(MappingError::mapper_parsing(
+        _ => Err(MappingError::null_pointer(
             "Cannot invoke \"org.opensearch.knn.index.engine.MethodComponent.isTrainingRequired(org.opensearch.knn.index.engine.MethodComponentContext)\" because \"methodComponent\" is null",
         )),
     }
