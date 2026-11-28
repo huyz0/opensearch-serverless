@@ -48,14 +48,10 @@ pub(crate) const FUNCTIONS: &[(&str, usize)] = &[
 ];
 
 impl Expr {
-    /// Every field the expression reads, each once and in order of first use.
+    /// Every field the expression reads, in order of use; a field read twice is listed twice.
     pub(crate) fn fields(&self, out: &mut Vec<String>) {
         match self {
-            Self::Field(f) => {
-                if !out.contains(f) {
-                    out.push(f.clone());
-                }
-            }
+            Self::Field(f) => out.push(f.clone()),
             Self::Lit(_) => {}
             Self::Call(_, args) => args.iter().for_each(|a| a.fields(out)),
             Self::Bin(_, a, b) => {
@@ -138,7 +134,7 @@ fn pred_fields(p: &Pred, out: &mut Vec<String>) {
     match p {
         Pred::And(v) | Pred::Or(v) => v.iter().for_each(|x| pred_fields(x, out)),
         Pred::Not(x) => pred_fields(x, out),
-        Pred::Cmp(f, ..) | Pred::IsNull(f, _) if !out.contains(f) => out.push(f.clone()),
+        Pred::Cmp(f, ..) | Pred::IsNull(f, _) => out.push(f.clone()),
         _ => {}
     }
 }
