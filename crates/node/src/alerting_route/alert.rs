@@ -168,3 +168,26 @@ pub(super) fn acknowledge(current: &[Value], ids: &[String], now: i64) -> Acknow
     }
     out
 }
+
+/// The alerts of `before` that `after` no longer holds, as completed.
+pub(super) fn completed(before: &[Value], after: &[Value], now: i64, tenant: &str) -> Vec<Value> {
+    before
+        .iter()
+        .filter(|a| !after.iter().any(|n| n["id"] == a["id"]))
+        .map(|a| {
+            let mut done = a.clone();
+            done["state"] = json!("COMPLETED");
+            done["end_time"] = json!(now);
+            done["tenant"] = json!(tenant);
+            done
+        })
+        .collect()
+}
+
+/// A completed alert as a history document, its id the alert's.
+pub(super) fn history_doc(alert: &Value) -> oss_ext::doc_sink::Doc {
+    oss_ext::doc_sink::Doc {
+        id: alert["id"].as_str().map(str::to_owned),
+        source: alert.to_string().into_bytes(),
+    }
+}

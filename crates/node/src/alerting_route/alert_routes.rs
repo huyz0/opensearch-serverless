@@ -4,16 +4,20 @@
 
 use std::cmp::Ordering;
 
+use oss_ext::doc_sink::Doc;
 use oss_meta::{Alerts, MetaError};
 use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Value, json};
 
-use super::alert::{self, Outcome, Subject};
+use super::alert::{self, Outcome, Subject, history_doc};
+use super::notify;
 use super::{AlertingService, alerting, bad, failed, now_millis, status_cause};
 use crate::route_util::read_body;
 
 /// The longest acknowledge body.
 const MAX_REQUEST_BYTES: usize = 1 << 20;
+/// The index a completed alert is written to.
+const HISTORY_INDEX: &str = ".opendistro-alerting-alert-history-write";
 /// The most alerts one answer holds.
 const MAX_PAGE: usize = 10_000;
 
@@ -62,23 +66,84 @@ impl AlertingService {
         Alerts::new(&self.store, &self.base, tenant, monitor).map_err(|e| failed(&e))
     }
 
-    /// Records a run's outcome for a stored monitor in its alert register.
+    /// Records a run's outcome for a stored monitor in its alert register:
+    /// completed alerts go to the history index first, the set is swapped,
+    /// then the actions due are sent (at most once each: a send is recorded
+    /// before it is made, and a failed one is recorded as an ERROR).
     pub(super) fn record_run(
         &self,
         tenant: &str,
         subject: &Subject<'_>,
         outcomes: &[Outcome<'_>],
-        execution: &str,
+        run: (&Value, &Value, &str),
     ) -> Result<(), RestError> {
+        let (monitor, ctx, execution) = run;
         let now = now_millis();
-        self.alert_set_of(tenant, subject.id)?
-            .change(|current| {
-                let alerts = alert::parse(current)
-                    .map_err(|_| MetaError::InvalidArgument("a stored alert set is unreadable"))?;
-                Ok(alert::after_run(&alerts, subject, outcomes, now, execution).map(alert::write))
+        let set = self.alert_set_of(tenant, subject.id)?;
+        let mut sends = Vec::new();
+        set.change(|current| {
+            let alerts = alert::parse(current)
+                .map_err(|_| MetaError::InvalidArgument("a stored alert set is unreadable"))?;
+            let moved = alert::after_run(&alerts, subject, outcomes, now, execution);
+            let mut next = moved.clone().unwrap_or_else(|| alerts.clone());
+            if let Some(sink) = &self.history {
+                let done = alert::completed(&alerts, &next, now, tenant);
+                if !done.is_empty() {
+                    let docs: Vec<Doc> = done.iter().map(history_doc).collect();
+                    let results = sink
+                        .index(HISTORY_INDEX, &docs)
+                        .map_err(|_| MetaError::InvalidArgument("alert history is not writable"))?;
+                    if results.iter().any(|r| r.status >= 300) {
+                        return Err(MetaError::InvalidArgument("alert history is not writable"));
+                    }
+                }
+            }
+            let (due, stamped) = if self.sender.is_some() {
+                notify::due(&mut next, monitor, ctx, now)
+            } else {
+                (Vec::new(), false)
+            };
+            sends = due;
+            Ok((moved.is_some() || stamped).then(|| alert::write(next)))
+        })
+        .map(|_| ())
+        .map_err(|e| failed(&e))?;
+        self.deliver(&set, sends, now)
+    }
+
+    /// Sends `sends`; the ones that fail leave their alert in ERROR.
+    fn deliver(
+        &self,
+        set: &Alerts,
+        sends: Vec<notify::Dispatch>,
+        now: i64,
+    ) -> Result<(), RestError> {
+        let Some(sender) = &self.sender else {
+            return Ok(());
+        };
+        let bad: Vec<(notify::Dispatch, String)> = sends
+            .into_iter()
+            .filter_map(|s| {
+                sender
+                    .send(&s.destination, &s.text)
+                    .err()
+                    .map(|why| (s, why))
             })
-            .map(|_| ())
-            .map_err(|e| failed(&e))
+            .collect();
+        if bad.is_empty() {
+            return Ok(());
+        }
+        set.change(|current| {
+            let mut alerts = alert::parse(current)
+                .map_err(|_| MetaError::InvalidArgument("a stored alert set is unreadable"))?;
+            let mut any = false;
+            for (send, why) in &bad {
+                any |= notify::failed(&mut alerts, send, why, now);
+            }
+            Ok(any.then(|| alert::write(alerts)))
+        })
+        .map(|_| ())
+        .map_err(|e| failed(&e))
     }
 
     /// `GET /monitors/alerts`.

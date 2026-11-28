@@ -12,6 +12,7 @@ mod alert_routes;
 mod execute;
 mod misc;
 mod monitor;
+mod notify;
 mod routes;
 mod search;
 mod search_query;
@@ -27,6 +28,7 @@ use serde_json::{Value, json};
 
 use crate::route_util::{read_body, refuse};
 use monitor::{Checked, Refused};
+pub use notify::ActionSender;
 pub use routes::{install, routes};
 
 impl AlertingService {
@@ -64,6 +66,8 @@ pub struct AlertingService {
     descriptors: Option<DescriptorStore>,
     buffer_bytes: usize,
     search: Option<Arc<dyn crate::ad_route::WindowSearch>>,
+    sender: Option<Arc<dyn ActionSender>>,
+    history: Option<Arc<dyn oss_ext::doc_sink::DocSink>>,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -131,7 +135,23 @@ impl AlertingService {
             descriptors: None,
             buffer_bytes: 0,
             search: None,
+            sender: None,
+            history: None,
         }
+    }
+
+    /// Sends the actions of an ACTIVE alert through `sender`.
+    #[must_use]
+    pub fn with_sender(mut self, sender: Arc<dyn ActionSender>) -> Self {
+        self.sender = Some(sender);
+        self
+    }
+
+    /// Writes each completed alert to the history index through `sink`.
+    #[must_use]
+    pub fn with_history(mut self, sink: Arc<dyn oss_ext::doc_sink::DocSink>) -> Self {
+        self.history = Some(sink);
+        self
     }
 
     /// Runs a monitor's input through `search` when it is executed.

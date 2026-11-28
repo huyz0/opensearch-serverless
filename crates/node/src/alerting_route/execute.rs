@@ -325,7 +325,14 @@ impl AlertingService {
             version,
         };
         let execution = format!("{id}_{}", answer["period_end"].as_str().unwrap_or_default());
-        self.record_run(tenant, &subject, &outcomes, &execution)
+        let ctx = json!({
+            "monitor": monitor,
+            "periodStart": answer["period_start"],
+            "periodEnd": answer["period_end"],
+            "results": answer["input_results"]["results"],
+            "error": answer["error"],
+        });
+        self.record_run(tenant, &subject, &outcomes, (monitor, &ctx, &execution))
     }
 
     /// `POST /monitors/{id}/_execute`: a stored monitor.
