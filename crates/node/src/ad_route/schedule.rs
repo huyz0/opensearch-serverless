@@ -2,8 +2,8 @@
 //! owns and runs, found without polling any detector.
 //!
 //! A tick costs nothing between refreshes. A refresh (every `refresh_ms`, or
-//! when the live nodes change) reads the 256 registry shards, the detector
-//! set's marker and, only when the marker moved or the owned set changed,
+//! when the live nodes change) reads the detector set's marker (one request:
+//! a deployment with no detector pays that and nothing more) and, only when the marker moved or the owned set changed,
 //! the documents of the detectors this node owns. Between refreshes a tick
 //! is the clock and the cached documents: a detector's slot comes due by
 //! arithmetic, and the claim and the search happen then.
@@ -16,16 +16,16 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use oss_blob::BlobStore;
 use oss_cluster::placement::{ShardKey, owner};
-use oss_format::{DocKind, REGISTRY_SHARDS};
-use oss_meta::{DocSet, MetaError, ScheduleRegistry};
+use oss_format::DocKind;
+use oss_meta::{DocSet, MetaError};
 use serde_json::Value;
 
-use super::run::{NAMESPACE, Outcome, RunError, Runner, TENANT};
+use super::run::{Outcome, RunError, Runner};
 
 /// What a tick did.
 #[derive(Debug, Default)]
 pub struct TickReport {
-    /// Whether the registry and the set were read.
+    /// Whether the detector set was read.
     pub refreshed: bool,
     /// The runs that happened, by detector id; undue detectors are left out.
     pub outcomes: Vec<(String, Outcome)>,
@@ -45,7 +45,7 @@ struct State {
     version: Option<i64>,
     /// The live nodes the owned set was computed for.
     live: Vec<String>,
-    /// Whether the tenant is in the registry.
+    /// Whether the detector set has any change.
     registered: bool,
     owned: Vec<Owned>,
 }
@@ -53,7 +53,6 @@ struct State {
 /// Decides, each tick, which detectors this node runs.
 pub struct Scheduler {
     runner: Runner,
-    registry: ScheduleRegistry,
     set: DocSet,
     node: String,
     refresh_ms: i64,
@@ -66,7 +65,7 @@ impl Scheduler {
     ///
     /// # Errors
     ///
-    /// [`MetaError`] for a base the registry refuses.
+    /// [`MetaError`] for a base the detector set refuses.
     pub fn new(
         store: &Arc<dyn BlobStore>,
         base: &str,
@@ -77,7 +76,6 @@ impl Scheduler {
     ) -> Result<Self, MetaError> {
         Ok(Self {
             runner,
-            registry: ScheduleRegistry::in_namespace(Arc::clone(store), base, NAMESPACE)?,
             set: DocSet::new(Arc::clone(store), base, DocKind::AdDetectors)?,
             // ALLOC: one copy of the node id, once.
             node: node.to_owned(),
@@ -97,7 +95,7 @@ impl Scheduler {
     ///
     /// # Errors
     ///
-    /// [`MetaError`] when the registry or the detector set cannot be read.
+    /// [`MetaError`] when the detector set cannot be read.
     pub fn tick(&self, now_ms: i64, live: &[&str]) -> Result<TickReport, MetaError> {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         let mut report = TickReport::default();
@@ -125,16 +123,9 @@ impl Scheduler {
 
     fn refresh(&self, state: &mut State, now_ms: i64, live: &[&str]) -> Result<(), MetaError> {
         state.refreshed_at = Some(now_ms);
-        let mut registered = false;
-        for shard in 0..REGISTRY_SHARDS {
-            registered |= self.registry.tenants(shard)?.iter().any(|t| t == TENANT);
-        }
         let mut marker = vec![0u8; self.buffer_bytes];
-        let version = if registered {
-            Some(self.set.version(&mut marker)?)
-        } else {
-            None
-        };
+        let version = Some(self.set.version(&mut marker)?);
+        let registered = version.is_some_and(|v| v > 0);
         let same = state.registered == registered
             && state.version == version
             && state

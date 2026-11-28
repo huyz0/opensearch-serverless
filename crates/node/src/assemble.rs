@@ -49,6 +49,8 @@ pub struct Assembled {
     pub search: Arc<SearchService<Shared>>,
     /// The role the write routes write through.
     pub role: Arc<WriterRole>,
+    /// The bulk service a background writer indexes documents through.
+    pub(crate) bulk: Arc<BulkService>,
     timer: PublishTimer,
     janitor: JanitorTimer,
     drain: Drain,
@@ -350,6 +352,7 @@ pub fn assemble(
         router,
         search,
         role,
+        bulk,
         timer,
         janitor,
         drain,

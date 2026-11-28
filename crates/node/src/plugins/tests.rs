@@ -125,9 +125,9 @@ fn a_plugin_that_meets_every_rule_is_ready_with_its_routes() {
 #[test]
 fn each_refusal_names_its_reason_and_keeps_the_node_serving() {
     let ok = manifest("echo", &route("/_plugins/echo/x"), "");
-    let cases: [Case; 6] = [
+    let cases: [Case; 7] = [
         (
-            r#"{"plugins":[{"id":"echo","tier":"wasm"}]}"#,
+            r#"{"plugins":[{"id":"echo","tier":"grpc"}]}"#,
             vec![],
             "this tier is not available",
         ),
@@ -150,6 +150,11 @@ fn each_refusal_names_its_reason_and_keeps_the_node_serving() {
             ECHO,
             vec![("echo", manifest("echo", &route("/_ltr/x"), ""))],
             "outside /_plugins/echo/ and not claimed",
+        ),
+        (
+            r#"{"plugins":[{"id":"echo","tier":"wasm"}]}"#,
+            vec![("echo", manifest("echo", &route("/_plugins/echo/x"), ""))],
+            "is registered as a native plugin, and the policy says wasm",
         ),
     ];
     for (policy, items, want) in cases {
