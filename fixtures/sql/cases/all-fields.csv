@@ -1,0 +1,8 @@
+score,address,balance,city,joined,ip,name,active,bio,age,tags
+100,"{zip=111, street=main st}",10.5,x,2024-01-05 10:00:00,10.0.0.1,ann,true,likes tea,30,"[a, b]"
+50,"{zip=222, street=side st}",0.0,y,2024-02-10 00:00:00,10.0.0.2,bob,false,likes coffee,25,[b]
+7,"{zip=111, street=main st}",99.99,x,2023-12-31 23:59:59,192.168.1.1,cy,true,likes tea and coffee,35,
+0,"{zip=333, street=hill rd}",'-5.25,z,2024-03-01 12:30:00,::1,dee,,no age,,
+9999999999,"{zip=222, street=side st}",1000000.0,,2022-06-15 08:00:00,172.16.0.9,eve,true,quiet,41,[c]
+1,"{zip=111, street=x}",3.0,x,2021-01-01 00:00:00,10.0.0.3,"Al's ""quoted"", name",false,"comma, quote"" and newline
+",50,[a]

@@ -1,0 +1,47 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "response": {
+    "schema": [
+      {
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "name": "double_age",
+        "type": "bigint"
+      }
+    ],
+    "datarows": [
+      [
+        "ann",
+        60
+      ],
+      [
+        "bob",
+        50
+      ],
+      [
+        "cy",
+        70
+      ],
+      [
+        "dee",
+        null
+      ],
+      [
+        "eve",
+        82
+      ],
+      [
+        "Al's \"quoted\", name",
+        100
+      ]
+    ],
+    "total": 6,
+    "size": 6
+  }
+}

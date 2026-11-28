@@ -295,10 +295,18 @@ src/painless_setting.rs	new		the switch that compiles Painless in Rust; Java com
 src/reader_ramp_setting.rs	new		the slow start settings; the shell reads them from ReaderPlacementSettings
 src/boot/config/reader_ramp.rs	new		the slow start variables, split out of the boot config to keep it under the size limit
 src/boot/support/ramp_feed.rs	new		what a joining reader's slow start reads at each lease renewal
+src/search/start_error.rs	new		why a reader node did not start, split out of search.rs
+src/warm_pressure.rs	new		the peer serve rate that follows the slowest search of each second against a quiet baseline: backs off while searches are slowed, climbs back otherwise
+src/warm_pressure/tests.rs	new		tests of the adaptive serve rate on injected instants
 src/ism_setting.rs	new		serverless.ism.enabled
 src/ism_route/mod.rs	new		the index state management policy service over a document set; the Java plugin is ported natively by ADR 0077
 src/ism_route/policy.rs	new		policy validation: the actions and conditions a serverless node can run
 src/ism_route/routes.rs	new		the route table under /_plugins/_ism and /_opendistro/_ism
+src/ml_setting.rs	new		serverless.ml.enabled
+src/ml_route/mod.rs	new		the ML Commons model group service over a document set and name claims; the Java plugin is ported natively by ADR 0079
+src/ml_route/routes.rs	new		the route table under /_plugins/_ml
+src/boot/config/plugins.rs	new		the switches of the natively ported plugins (ISM, ML Commons), read from the environment
+src/ml_route/search.rs	new		the model group search: match-all, exact name and name token queries over the set
 src/ism_route/managed.rs	new		add, remove and explain: which policy manages which index
 src/ism_route/hook.rs	new		the create hook: attaches the policy whose template matches a new index
 src/ism_route/templates.rs	new		ism_template: the aggregate of every policy's patterns, and the attach on create
@@ -307,6 +315,7 @@ src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusal
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
 src/plugins/tests.rs	new		the policy reader and the registry's refusals, tested (ADR 0080)
+src/security_route/patch.rs	new		list and PATCH of the security configuration
 src/notifications_setting.rs	new		serverless.notifications.enabled
 src/notifications_route/mod.rs	new		the notifications plugin config service over two document sets; the Java plugin is ported natively by ADR 0081
 src/notifications_route/config.rs	new		config validation per type, from the plugin documentation
@@ -332,4 +341,13 @@ src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a reques
 src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded, memory only, no blob request (ADR 0084)
 src/jobs/types.rs	new		the registry's limits, caller, context and errors
 src/jobs/tests.rs	new		the registry bounds, with the clock and the search gates passed in
+src/boot/config/sql.rs	new		the SQL row and request bounds read from the environment
+src/search_sql.rs	new		the SQL backend over the node search service
+src/sql_route/guard.rs	new		the per-name authorisation of the names a SQL statement reads
+src/sql_route/handle.rs	new		the SQL request handler: parse, authorise, plan, search, write
+src/sql_route/mod.rs	new		the SQL service and its backend trait, per ADR 0082
+src/sql_route/routes.rs	new		the SQL and explain routes under the plugin and legacy prefixes
+src/sql_setting.rs	new		serverless.sql.enabled
+src/knn_model_route.rs	new		the k-NN plugin model store (get, delete, search) over a document set; plugin source not in this repository (docs/specs/knn-plugin-api, ADR 0086)
 src/ad_route/validate_route.rs	new		the _validate route: what a create would refuse, answered without writing
+src/sql_route/mount.rs	new		the SQL routes mounted on the node router

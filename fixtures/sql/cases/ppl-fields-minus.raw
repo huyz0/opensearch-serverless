@@ -1,0 +1,7 @@
+score|address.street|address.zip|balance|city|joined|name|active|age
+100|main st|111|10.5|x|2024-01-05 10:00:00|ann|true|30
+50|side st|222|0.0|y|2024-02-10 00:00:00|bob|false|25
+7|main st|111|99.99|x|2023-12-31 23:59:59|cy|true|35
+0|hill rd|333|-5.25|z|2024-03-01 12:30:00|dee||
+9999999999|side st|222|1000000.0||2022-06-15 08:00:00|eve|true|41
+1|x|111|3.0|x|2021-01-01 00:00:00|"Al's ""quoted"", name"|false|50

@@ -52,6 +52,7 @@ graph TD
     oss-node -.-> oss-janitor
     oss-node -.-> oss-mem
     oss-node -.-> oss-meta
+    oss-node -.-> oss-query
     oss-node -.-> oss-reader
     oss-node -.-> oss-rest
     oss-node -.-> oss-transport

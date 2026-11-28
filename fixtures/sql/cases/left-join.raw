@@ -1,0 +1,2 @@
+# status 500
+Cannot invoke "Object.toString()" because the return value of "org.opensearch.sql.legacy.executor.format.DataRows$Row.getDataOrDefault(String, Object)" is null

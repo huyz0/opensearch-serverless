@@ -77,8 +77,12 @@ pub enum DocKind {
     /// A learning to rank store's models, `models/` under the store's own
     /// base.
     LtrModels,
+    /// The k-NN plugin's trained models, `knn/models/`.
+    KnnModels,
     /// Index state management policies, `ism/policies/`.
     IsmPolicies,
+    /// ML Commons model groups, `ml/model_groups/`.
+    MlModelGroups,
     /// Anomaly detection detectors, `ad/detectors/`.
     AdDetectors,
     /// The indices an ISM policy manages, one document each, `ism/managed/`.
@@ -109,7 +113,9 @@ impl DocKind {
             Self::LtrStores => "ltr/stores/",
             Self::LtrFeatureSets => "featuresets/",
             Self::LtrModels => "models/",
+            Self::KnnModels => "knn/models/",
             Self::IsmPolicies => "ism/policies/",
+            Self::MlModelGroups => "ml/model_groups/",
             Self::AdDetectors => "ad/detectors/",
             Self::IsmManaged => "ism/managed/",
             Self::NotificationConfigs => "notifications/configs/",
@@ -124,7 +130,7 @@ impl DocKind {
     /// [`MAX_MODEL_BYTES`].
     pub const fn max_doc_bytes(self) -> usize {
         match self {
-            Self::LtrModels => MAX_MODEL_BYTES,
+            Self::LtrModels | Self::KnnModels => MAX_MODEL_BYTES,
             Self::NotificationCatalogue => MAX_CATALOGUE_BYTES,
             _ => MAX_DOC_BYTES,
         }

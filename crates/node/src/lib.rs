@@ -96,6 +96,8 @@ pub mod ism_route;
 pub mod ism_setting;
 #[cfg(feature = "reader")]
 pub mod jobs;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod knn_model_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod knn_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -109,6 +111,9 @@ pub mod ltr_route;
 pub mod ltr_setting;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod metadata_block;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod ml_route;
+pub mod ml_setting;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod nested_setting;
 #[cfg(feature = "writer")]
@@ -202,6 +207,9 @@ pub mod snapshot_restore_route;
 pub mod snapshot_route;
 #[cfg(feature = "writer")]
 pub mod snapshot_take_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod sql_route;
+pub mod sql_setting;
 #[cfg(feature = "writer")]
 pub mod stock_export_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
@@ -267,6 +275,8 @@ pub mod warm_handlers;
 pub mod warm_join;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_peer;
+#[cfg(feature = "reader")]
+pub mod warm_pressure;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_rate;
 #[cfg(all(feature = "reader", feature = "writer"))]

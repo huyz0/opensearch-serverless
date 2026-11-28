@@ -42,7 +42,7 @@ Idle: none.
 
 ## Switch
 
-`serverless.security.enabled` (`OSS_SECURITY`), default off. ⚠️ On its own it serves the management API with no authentication until the authentication spec lands, so it must not be turned on in a deployment before then. On by default waits for the measurement named in the ADR.
+`serverless.security.enabled` (`OSS_SECURITY`): on when an administrator is configured, off otherwise, so no flag is needed (owner rule: plugins need no enable flag or have it on by default). ⚠️ On its own it serves the management API with no authentication until the authentication spec lands, so it must not be turned on in a deployment before then. On by default waits for the measurement named in the ADR.
 
 ## Risks
 
