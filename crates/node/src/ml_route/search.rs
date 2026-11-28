@@ -5,6 +5,7 @@
 //! `name.keyword` term reads the name's claim and one document; any other
 //! name query reads the whole set, refused past `TOKEN_SCAN_MAX` groups.
 
+use oss_format::DocKind;
 use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
 
@@ -125,6 +126,18 @@ impl MlService {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
+        self.search_set(DocKind::MlModelGroups, INDEX, req, resp)
+    }
+
+    /// A search over the `kind` set, hits shown under `index`. A group's exact name is
+    /// answered from its claim; any other set, and any other query, reads the set.
+    pub(super) fn search_set(
+        &self,
+        kind: DocKind,
+        index: &str,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
         let body = Self::body_or_empty(req)?;
         let filter = match body.get("query") {
             None | Some(Value::Null) => Filter::All,
@@ -145,7 +158,7 @@ impl MlService {
         let mut marker = self.marker(req)?;
         let mut doc = Self::doc_buffer(req)?;
         let mut names = self
-            .set()?
+            .set_of(kind)?
             .names(&mut marker)
             .map_err(|e| super::failed(&e))?;
         let mut hits: Vec<(String, Map<String, Value>)> = Vec::new();
@@ -155,14 +168,14 @@ impl MlService {
                 total = names.len();
                 names.sort();
                 for id in names.iter().skip(from).take(size) {
-                    if let Some(g) = self.stored(id, &mut marker, &mut doc)? {
+                    if let Some(g) = self.stored_in(kind, id, &mut marker, &mut doc)? {
                         hits.push((id.clone(), g));
                     }
                 }
             }
-            Filter::Exact(name) => {
+            Filter::Exact(name) if kind == DocKind::MlModelGroups => {
                 if let Some(id) = self.holder(name)?
-                    && let Some(g) = self.stored(&id, &mut marker, &mut doc)?
+                    && let Some(g) = self.stored_in(kind, &id, &mut marker, &mut doc)?
                     && matches(&filter, &g)
                 {
                     hits.push((id, g));
@@ -170,18 +183,23 @@ impl MlService {
                 total = hits.len();
                 hits = hits.into_iter().skip(from).take(size).collect();
             }
-            Filter::All | Filter::Tokens(..) => {
+            Filter::All | Filter::Tokens(..) | Filter::Exact(_) => {
                 if names.len() > TOKEN_SCAN_MAX {
+                    let advice = if kind == DocKind::MlModelGroups {
+                        "search with a [name.keyword] term instead"
+                    } else {
+                        "delete the connectors you no longer use"
+                    };
                     return Err(bad(format!(
-                        "a name or sorted search reads every model group and the set holds {}; \
-                         search with a [name.keyword] term instead",
+                        "a name or sorted search reads every document and the set holds {}; \
+                         {advice}",
                         names.len()
                     )));
                 }
                 names.sort();
                 let mut found = Vec::new();
                 for id in &names {
-                    if let Some(g) = self.stored(id, &mut marker, &mut doc)?
+                    if let Some(g) = self.stored_in(kind, id, &mut marker, &mut doc)?
                         && matches(&filter, &g)
                     {
                         found.push((id.clone(), g));
@@ -206,9 +224,11 @@ impl MlService {
         let sorted = descending.is_some();
         let hits: Vec<Value> = hits
             .into_iter()
-            .map(|(id, g)| {
+            .map(|(id, mut g)| {
+                // A connector's sealed credential never leaves the store.
+                g.remove("credential");
                 let mut hit = json!({
-                    "_index": INDEX, "_id": id, "_version": 1, "_seq_no": 0,
+                    "_index": index, "_id": id, "_version": 1, "_seq_no": 0,
                     "_primary_term": 1, "_score": if sorted { Value::Null } else { json!(1.0) },
                     "_source": Value::Object(g.clone()),
                 });

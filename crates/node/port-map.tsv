@@ -304,6 +304,8 @@ src/ism_route/policy.rs	new		policy validation: the actions and conditions a ser
 src/ism_route/routes.rs	new		the route table under /_plugins/_ism and /_opendistro/_ism
 src/ml_setting.rs	new		serverless.ml.enabled
 src/ml_route/mod.rs	new		the ML Commons model group service over a document set and name claims; the Java plugin is ported natively by ADR 0079
+src/ml_route/claims.rs	new		the conditional-create name claims of model groups
+src/ml_route/connectors.rs	new		the connector routes: create, get, update, delete and search, credentials sealed with the cluster master key
 src/ml_route/routes.rs	new		the route table under /_plugins/_ml
 src/boot/config/plugins.rs	new		the switches of the natively ported plugins (ISM, ML Commons), read from the environment
 src/ml_route/search.rs	new		the model group search: match-all, exact name and name token queries over the set
