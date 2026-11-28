@@ -26,7 +26,7 @@ pub const MAX_DIMENSION: i32 = 16_000;
 const SPACES: &[&str] = &["l2", "cosinesimil", "l1", "linf", "innerproduct", "hamming"];
 
 /// The spaces the Lucene engine's HNSW method supports.
-const LUCENE_SPACES: &[&str] = &["l2", "cosinesimil", "innerproduct"];
+pub(super) const LUCENE_SPACES: &[&str] = &["l2", "cosinesimil", "innerproduct"];
 
 /// A `method` as `KNNMethodContext` keeps it.
 #[derive(Clone, Debug, PartialEq)]
@@ -65,15 +65,20 @@ impl KnnMethod {
             Some(params) => {
                 out.push('{');
                 let mut first = true;
-                // `ef_construction` hashes before `m`.
-                for key in ["ef_construction", "m"] {
+                // The order Java's `HashMap` holds the keys in.
+                let order: &[&str] = if self.engine.as_deref() == Some("faiss") {
+                    &["ef_search", "ef_construction", "m", "encoder"]
+                } else {
+                    &["ef_construction", "m"]
+                };
+                for key in order {
                     if let Some((_, v)) = params.iter().find(|(k, _)| k == key) {
                         if !first {
                             out.push(',');
                         }
                         first = false;
                         super::json::write_str(out, key);
-                        let _ = write!(out, ":{}", v.java_string());
+                        let _ = write!(out, ":{}", v.to_json());
                     }
                 }
                 out.push('}');
@@ -277,11 +282,14 @@ pub fn resolve(
     }
     match method.engine.as_deref() {
         Some("lucene") => {}
-        Some(other) => {
-            // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
-            return Err(MappingError::unsupported(&format!(
-                "knn_vector method on the [{other}] engine"
-            )));
+        Some("faiss") => {
+            let kept = super::knn_faiss::resolve(name, dimension, method, space, resolved)?;
+            return Ok(Some(kept));
+        }
+        Some(_) => {
+            return Err(MappingError::mapper_parsing(
+                super::knn_faiss::NMSLIB_REFUSED,
+            ));
         }
         None if method.name == "flat" => {
             return Err(MappingError::unsupported("knn_vector flat method"));
@@ -328,7 +336,7 @@ pub fn resolve(
     Ok(Some(resolved))
 }
 
-fn check_int_param(key: &str, value: &Json) -> Result<(), MappingError> {
+pub(super) fn check_int_param(key: &str, value: &Json) -> Result<(), MappingError> {
     let integer = match value {
         Json::Num(t) => super::json::is_integral(t) && t.parse::<i32>().is_ok(),
         Json::Null => {
@@ -353,7 +361,7 @@ fn check_int_param(key: &str, value: &Json) -> Result<(), MappingError> {
     )))
 }
 
-fn check_dimension(dimension: i32, engine: &str) -> Result<(), MappingError> {
+pub(super) fn check_dimension(dimension: i32, engine: &str) -> Result<(), MappingError> {
     if dimension > MAX_DIMENSION {
         // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
         return Err(MappingError::validation(&format!(
@@ -363,7 +371,7 @@ fn check_dimension(dimension: i32, engine: &str) -> Result<(), MappingError> {
     Ok(())
 }
 
-fn check_set(name: &str, dimension: i32) -> Result<(), MappingError> {
+pub(super) fn check_set(name: &str, dimension: i32) -> Result<(), MappingError> {
     if dimension == KNN_NO_DIMENSION {
         // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
         return Err(MappingError::illegal_argument(&format!(

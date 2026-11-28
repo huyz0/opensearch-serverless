@@ -11,3 +11,5 @@
 - AC-11: `a_delete_removes_a_model_and_refuses_one_that_is_training` in crates/node/tests/server/knn_models.rs
 - AC-12: `a_search_pages_models_in_id_order_and_serves_match_all_and_ids_only` in crates/node/tests/server/knn_models.rs
 - AC-13: `a_read_costs_the_marker_and_the_content_and_nothing_lists` in crates/node/tests/server/knn_models.rs
+- AC-14: `faiss_hnsw_is_accepted_and_written_back_with_its_engine`, `faiss_parameters_are_written_in_the_plugins_order`, `the_flat_encoder_is_accepted_and_written_with_empty_parameters` and `faiss_accepts_a_large_m_and_the_dimension_limit_is_16000` in crates/doc/tests/knn_engines.rs (shapes from the stock 3.10.0 recordings in fixtures/compat/knn-options, replayed by oss-compat once those land: NOT-RUN here)
+- AC-15: `faiss_refusals_carry_the_stock_messages`, `nmslib_is_refused_for_a_new_index_as_the_stock_plugin_refuses_it` and `lucene_still_refuses_ef_search` in crates/doc/tests/knn_engines.rs
