@@ -46,8 +46,5 @@ fn the_meter_counts_each_tenants_calls_bytes_and_fuel() {
     spin.call("c", 0, b"x").expect_err("out of fuel");
     let c = spinner.meter().usage("c");
     assert_eq!((c.calls, c.input_bytes, c.output_bytes), (1, 1, 0));
-    assert!(
-        c.fuel >= config.fuel,
-        "the whole budget was spent"
-    );
+    assert!(c.fuel >= config.fuel, "the whole budget was spent");
 }
