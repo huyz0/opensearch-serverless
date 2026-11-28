@@ -299,6 +299,7 @@ src/ism_setting.rs	new		serverless.ism.enabled
 src/ism_route/mod.rs	new		the index state management policy service over a document set; the Java plugin is ported natively by ADR 0077
 src/ism_route/policy.rs	new		policy validation: the actions and conditions a serverless node can run
 src/ism_route/routes.rs	new		the route table under /_plugins/_ism and /_opendistro/_ism
+src/ism_route/managed.rs	new		add, remove and explain: which policy manages which index
 src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusals (ADR 0080)
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)

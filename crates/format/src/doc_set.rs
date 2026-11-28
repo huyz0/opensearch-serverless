@@ -77,6 +77,8 @@ pub enum DocKind {
     IsmPolicies,
     /// Anomaly detection detectors, `ad/detectors/`.
     AdDetectors,
+    /// The indices an ISM policy manages, one document each, `ism/managed/`.
+    IsmManaged,
 }
 
 impl DocKind {
@@ -98,6 +100,7 @@ impl DocKind {
             Self::LtrModels => "models/",
             Self::IsmPolicies => "ism/policies/",
             Self::AdDetectors => "ad/detectors/",
+            Self::IsmManaged => "ism/managed/",
         }
     }
 }
