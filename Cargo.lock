@@ -1275,6 +1275,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lucene-faiss"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=51f8f7921fcda3afdeff0ee3d341c539727c04d7#51f8f7921fcda3afdeff0ee3d341c539727c04d7"
+dependencies = [
+ "lucene-store",
+ "lucene-util",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
 name = "lucene-highlighter"
 version = "0.1.0"
 source = "git+https://github.com/huyz0/lucene-rust?rev=51f8f7921fcda3afdeff0ee3d341c539727c04d7#51f8f7921fcda3afdeff0ee3d341c539727c04d7"
@@ -1943,9 +1954,11 @@ dependencies = [
  "http",
  "lucene-analysis",
  "lucene-codecs",
+ "lucene-faiss",
  "lucene-index",
  "lucene-search",
  "lucene-store",
+ "lucene-vector-quant",
  "oss-anomaly",
  "oss-blob",
  "oss-cluster",

@@ -415,5 +415,7 @@ src/plugins/jobs.rs	new		the job.* host operations over a registry of the plugin
 src/plugins/jobs_tests.rs	new		job.*: a plugin starts, reads and deletes its own job and no other plugin or tenant sees it
 src/search_stop.rs	new		the question a running search asks between shards to learn it should give up
 src/ism_run/backend.rs	new		the effects the runner asks of the node, a trait so the decision is tested with a fake
+src/knn_trainer.rs	new		k-means and product-quantizer training of a k-NN model from a vector sample: Faiss Clustering as lucene-faiss ports it, PQ on residuals
+src/knn_trainer_tests.rs	new		tests of the trainer; compiled only under cfg(test)
 src/ism_run/node_backend.rs	new		the runner backend over the settings service
 src/settings_route/block.rs	new		the write block as the runner sets it, through the route's own merge and swap
