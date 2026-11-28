@@ -146,3 +146,21 @@ fn a_run_claim_is_eight_big_endian_bytes() {
     assert!(decode_run_claim(&[0; 7]).is_err());
     assert!(decode_run_claim(&[0; 9]).is_err());
 }
+
+#[test]
+fn the_largest_shard_is_the_entry_bound_of_the_longest_ids_and_one_byte_more_is_refused() {
+    assert_eq!(MAX_REGISTRY_SHARD_BYTES, 4096 * 65);
+    let mut shard = RegistryShard::new();
+    for i in 0..MAX_REGISTRY_ENTRIES {
+        shard.insert(&format!("{i:064}")).unwrap();
+    }
+    let bytes = written(&shard);
+    assert_eq!(bytes.len(), MAX_REGISTRY_SHARD_BYTES);
+    assert_eq!(RegistryShard::parse(&bytes).unwrap(), shard);
+    let mut over = bytes;
+    over.push(b'\n');
+    assert!(matches!(
+        RegistryShard::parse(&over),
+        Err(FormatError::TooLarge { .. })
+    ));
+}
