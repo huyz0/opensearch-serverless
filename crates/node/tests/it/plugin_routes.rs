@@ -11,7 +11,7 @@ use oss_ext::CallError;
 use oss_ext::native::NativeInstance;
 use oss_ext::rest::{RestRequest, RestResponse};
 use oss_mem::MemoryBudget;
-use oss_node::plugins::{Policy, Registry, mount};
+use oss_node::plugins::{InstallError, Policy, Registry, install, mount};
 use oss_rest::{Router, Server};
 
 use crate::support;
@@ -176,4 +176,59 @@ fn a_body_over_the_points_ceiling_is_a_413_before_the_plugin_is_called() {
     assert_eq!(r.status, 413, "{}", r.text());
     assert_eq!(echo.calls.load(Ordering::SeqCst), 0);
     server.shutdown();
+}
+
+fn served(router: Router) -> Server {
+    let budget = MemoryBudget::new(&support::budget_config());
+    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+    Server::start(listener, support::server_config(), router, &budget).expect("starts")
+}
+
+// docs/specs/plugin-system AC-11: the status route says which plugin serves and why another does not.
+#[test]
+fn the_status_route_lists_each_plugin_and_why_one_is_refused() {
+    let echo: Arc<dyn NativeInstance> = Arc::new(Echo {
+        calls: AtomicUsize::new(0),
+    });
+    let linked = HashMap::from([("echo".to_owned(), echo)]);
+    let policy = r#"{"plugins":[{"id":"echo","tier":"native"},{"id":"gone","tier":"native"}]}"#;
+    let router = install(Router::new(), policy, &linked, || 0).expect("installs");
+    let server = served(router);
+    let r = support::request(
+        server.local_addr(),
+        "GET",
+        "/_plugins/_serverless/plugins",
+        None,
+    );
+    assert_eq!(r.status, 200, "{}", r.text());
+    let v: serde_json::Value = serde_json::from_str(&r.text()).expect("json");
+    let list = v["plugins"].as_array().expect("array");
+    assert_eq!(list.len(), 2);
+    assert_eq!(list[0]["id"], "echo");
+    assert_eq!(list[0]["state"], "ready");
+    assert_eq!(list[0]["breaker"], "closed");
+    assert_eq!(list[1]["id"], "gone");
+    assert_eq!(list[1]["state"], "refused");
+    assert!(list[1]["reason"].is_string());
+    let r = support::request(server.local_addr(), "POST", "/_plugins/echo/x", Some(b"ok"));
+    assert_eq!(r.status, 201, "a ready plugin serves");
+    server.shutdown();
+}
+
+// docs/specs/plugin-system AC-3: no policy loads nothing; a bad policy is refused whole.
+#[test]
+fn an_empty_policy_loads_nothing_and_a_bad_one_is_refused() {
+    let router = install(Router::new(), "  ", &HashMap::new(), || 0).expect("installs");
+    let server = served(router);
+    let r = support::request(
+        server.local_addr(),
+        "GET",
+        "/_plugins/_serverless/plugins",
+        None,
+    );
+    assert_eq!(r.status, 200);
+    assert_eq!(r.text(), r#"{"plugins":[]}"#);
+    server.shutdown();
+    let bad = install(Router::new(), "{not json", &HashMap::new(), || 0);
+    assert!(matches!(bad, Err(InstallError::Policy(_))));
 }
