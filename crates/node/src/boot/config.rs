@@ -110,7 +110,7 @@ pub struct NodeConfig {
     pub commit_logged: commits::Logged,
     /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
     pub ltr: bool,
-    /// `serverless.ism.enabled` (`OSS_ISM`): serve the ISM policy routes. Off by default.
+    /// `serverless.ism.enabled` (`OSS_ISM`): serve the ISM policy routes. On by default.
     pub ism: bool,
     /// `serverless.ad.enabled` (`OSS_AD`): serve the anomaly detection detector routes. Off by default.
     pub ad: bool,
@@ -320,7 +320,7 @@ impl NodeConfig {
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
-        let (ltr, ism) = (flag("OSS_LTR", "true")?, flag("OSS_ISM", "false")?);
+        let (ltr, ism) = (flag("OSS_LTR", "true")?, flag("OSS_ISM", "true")?);
         let ltr_bounds = ltr::read(&bounded)?;
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
         let security = flag("OSS_SECURITY", "false")?;
