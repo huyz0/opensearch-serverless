@@ -435,6 +435,7 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::LtrFeatureSets => "feature set",
         DocKind::LtrModels => "model",
         DocKind::IsmPolicies => "policy",
+        DocKind::MlModelGroups => "model group",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers

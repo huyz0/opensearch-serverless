@@ -104,6 +104,9 @@ pub mod ltr_route;
 pub mod ltr_setting;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod metadata_block;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod ml_route;
+pub mod ml_setting;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod nested_setting;
 #[cfg(feature = "writer")]

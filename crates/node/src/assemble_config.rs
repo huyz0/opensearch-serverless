@@ -36,6 +36,8 @@ pub struct Config {
     pub ltr: bool,
     /// `serverless.ism.enabled`: serve the index state management policy routes.
     pub ism: bool,
+    /// `serverless.ml.enabled`: serve the ML Commons model group routes.
+    pub ml: bool,
     /// `serverless.ltr.max_window`: the most hits an `sltr` rescore scores.
     pub ltr_max_window: usize,
     /// `serverless.ltr.cache_ttl`, in seconds.
@@ -161,6 +163,7 @@ impl Config {
             search_pipelines: false,
             ltr: false,
             ism: false,
+            ml: false,
             ltr_max_window: 1_000,
             ltr_cache_ttl_secs: 30,
             ltr_cache_bytes: 64 << 20,

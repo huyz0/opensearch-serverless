@@ -145,6 +145,12 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = if config.ml {
+        let ml = crate::ml_route::MlService::new(store, &config.base, config.pit_buffer_bytes);
+        crate::ml_route::routes(router, &Arc::new(ml)).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,

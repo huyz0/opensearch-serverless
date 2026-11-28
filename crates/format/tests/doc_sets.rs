@@ -238,3 +238,15 @@ fn the_ism_policies_have_their_own_directory_and_the_common_bound() {
         oss_format::MAX_DOC_BYTES
     );
 }
+
+#[test]
+fn the_ml_model_groups_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::MlModelGroups).unwrap(),
+        "ml/model_groups/_version"
+    );
+    assert_eq!(
+        DocKind::MlModelGroups.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+}
