@@ -131,18 +131,10 @@ impl Handler for PluginRoute {
         };
         let (max_in, max_out) = (spec.max_in as usize, spec.max_out as usize);
         let input = self.call_bytes(req, max_in)?;
-        let Some(instance) = self.plugin.instance() else {
-            return Err(refuse(
-                503,
-                "plugin_unavailable",
-                "the plugin is not loaded",
-            ));
-        };
         let tenant = req.principal().unwrap_or_default().to_owned();
         let out = self
             .plugin
-            .guard()
-            .call(&**instance, &tenant, "rest", &input, max_out, self.now)
+            .call(&tenant, "rest", &input, max_out, self.now)
             .map_err(|e| failed(&e))?;
         let answer = RestResponse::decode(&out, max_out).map_err(malformed)?;
         let content_type = answer

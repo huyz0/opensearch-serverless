@@ -13,6 +13,7 @@ mod capability;
 mod catalogue;
 mod descriptor;
 mod error;
+pub mod host;
 mod json;
 pub mod lifecycle;
 pub mod manifest;

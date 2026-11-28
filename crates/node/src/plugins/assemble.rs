@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use oss_ext::host::{Backend, NoBackend};
 use oss_ext::native::NativeInstance;
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 use serde_json::{Value, json};
@@ -57,7 +58,8 @@ fn status(registry: &Registry) -> Value {
 }
 
 /// Reads `policy_text`, loads the plugins it names from `linked`, and mounts
-/// their routes and the status route on `router`.
+/// their routes and the status route on `router`. `backend` is what the
+/// plugins' host operations reach.
 ///
 /// # Errors
 ///
@@ -66,6 +68,7 @@ pub fn install(
     router: Router,
     policy_text: &str,
     linked: &HashMap<String, Arc<dyn NativeInstance>>,
+    backend: &Arc<dyn Backend>,
     now: fn() -> u64,
 ) -> Result<Router, InstallError> {
     let policy = if policy_text.trim().is_empty() {
@@ -82,7 +85,7 @@ pub fn install(
             holder: "a built-in route".to_owned(),
         })
         .collect();
-    let registry = Arc::new(Registry::load(&policy, linked, &builtin));
+    let registry = Arc::new(Registry::load_with(&policy, linked, &builtin, backend));
     let router = mount(router, &registry, now).map_err(InstallError::Route)?;
     let seen = Arc::clone(&registry);
     router
@@ -113,6 +116,7 @@ pub(crate) fn install_configured(
         router,
         policy_text,
         &HashMap::new(),
+        &(Arc::new(NoBackend) as Arc<dyn Backend>),
         crate::clock::now_millis,
     )
     .map_err(|e| match e {
