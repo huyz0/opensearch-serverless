@@ -193,6 +193,7 @@ fn sorts(keys: &[SortKey]) -> Option<Vec<SortSpec>> {
                     SortKey::Score { ascending }
                     | SortKey::Field { ascending, .. }
                     | SortKey::Script { ascending, .. } => *ascending,
+                    SortKey::GeoDistance(sort) => sort.ascending,
                 };
                 SortSpec {
                     descending: !ascending,

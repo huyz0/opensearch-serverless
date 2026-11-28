@@ -47,7 +47,7 @@ pub struct GeoBoundingBox {
 /// `GeoUtils.EffectivePoint`: which corner of a geohash cell a corner
 /// field takes.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum Corner {
+pub(crate) enum Corner {
     TopLeft,
     TopRight,
     BottomLeft,
@@ -79,7 +79,7 @@ fn geohash_corner(text: &str, corner: Corner) -> Result<(f64, f64), DslError> {
     })
 }
 
-fn parse_failure_text(reason: impl Into<String>) -> DslError {
+pub(crate) fn parse_failure_text(reason: impl Into<String>) -> DslError {
     DslError::Failure(Failure::plain("opensearch_parse_exception", reason))
 }
 
@@ -93,7 +93,7 @@ fn string_corner(text: &str, corner: Corner) -> Result<(f64, f64), DslError> {
 
 /// `GeoUtils.parseGeoPoint(parser, point, false, corner)`: the parser is on
 /// the value's first token.
-pub(super) fn corner_point(p: &mut Parser<'_>, corner: Corner) -> Result<(f64, f64), DslError> {
+pub(crate) fn corner_point(p: &mut Parser<'_>, corner: Corner) -> Result<(f64, f64), DslError> {
     match p.current_token() {
         Some(Kind::StartArray) => parse_array(p),
         Some(Kind::String) => string_corner(p.text(), corner),
