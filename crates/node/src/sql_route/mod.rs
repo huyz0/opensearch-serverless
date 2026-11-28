@@ -36,6 +36,21 @@ pub trait SqlBackend: Send + Sync {
     ///
     /// A refusal as the REST layer answers it, or a search error body.
     fn search(&self, names: &[String], body: &Value) -> Result<Vec<u8>, SqlFailure>;
+
+    /// As [`Self::search`], giving up with an error between shards once
+    /// `stop` answers true. A backend that cannot stop early runs to the end.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::search`]; a search that stopped is an error.
+    fn search_until(
+        &self,
+        names: &[String],
+        body: &Value,
+        _stop: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Vec<u8>, SqlFailure> {
+        self.search(names, body)
+    }
 }
 
 /// Why a backend call gave no answer.

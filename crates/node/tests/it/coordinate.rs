@@ -261,3 +261,32 @@ fn a_top_hits_under_a_bucket_is_merged_across_the_shards() {
     }
     assert!(hits > 0);
 }
+
+// docs/specs/async-search AC-6: a search told to stop gives up before it
+// queries a shard, and one that is not told to answers as it always did.
+#[test]
+fn a_search_told_to_stop_queries_no_shard() {
+    use oss_node::sql_route::{SqlBackend, SqlFailure};
+    let node = two("compat-term", "compat-term-uuid", "two");
+    let names = ["two".to_owned()];
+    let body = serde_json::json!({"query": {"term": {"title": "brown"}}});
+    let open = node
+        .service
+        .search_until(&names, &body, &|| false)
+        .expect("not told to stop");
+    assert!(String::from_utf8_lossy(&open).contains(r#""total":2"#));
+    let asked = std::sync::atomic::AtomicUsize::new(0);
+    let stop = || {
+        asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        true
+    };
+    match node.service.search_until(&names, &body, &stop) {
+        Err(SqlFailure::Body(status, text)) => {
+            assert_eq!(status, 400);
+            let text = String::from_utf8_lossy(&text);
+            assert!(text.contains("task_cancelled_exception"), "{text}");
+        }
+        other => panic!("expected the cancelled search, got {other:?}"),
+    }
+    assert!(asked.load(std::sync::atomic::Ordering::SeqCst) >= 1);
+}

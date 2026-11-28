@@ -328,3 +328,63 @@ fn an_id_that_is_not_a_job_of_this_caller_is_not_found() {
     assert_eq!(get(&s, &id, &[]).expect("mine")["state"], "STORE_RESIDENT");
     let _ = json!(null);
 }
+
+/// A backend whose search runs until it is told to stop, as a search over many
+/// shards does between them.
+struct Stoppable;
+
+impl crate::sql_route::SqlBackend for Stoppable {
+    fn mapping(&self, _: &str) -> Result<Value, crate::sql_route::SqlFailure> {
+        Ok(json!({}))
+    }
+
+    fn search(&self, _: &[String], _: &Value) -> Result<Vec<u8>, crate::sql_route::SqlFailure> {
+        panic!("a search by the runner is told how to stop");
+    }
+
+    fn search_until(
+        &self,
+        _: &[String],
+        _: &Value,
+        stop: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Vec<u8>, crate::sql_route::SqlFailure> {
+        while !stop() {
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        Err(crate::sql_route::SqlFailure::Body(
+            400,
+            br#"{"error":{"type":"task_cancelled_exception","reason":"cancelled"}}"#.to_vec(),
+        ))
+    }
+}
+
+// AC-6: a delete reaches the search itself, which stops, and the slot is freed
+// when its thread has.
+#[test]
+fn a_delete_stops_the_running_search_and_frees_its_slot() {
+    let config = BudgetConfig::new(256 << 20)
+        .with_pool(Pool::Extensions, 128 << 20)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    let clock: Clock = Arc::new(|| 1_000);
+    let jobs = Jobs::new("n1", &budget, Limits::default(), clock);
+    let s = Service::new(
+        Arc::clone(&jobs),
+        Arc::new(SearchRunner::new(Arc::new(Stoppable))),
+        "opensearch",
+        "n1",
+    );
+    let v = submit(&s, "{}", &[("wait_for_completion_timeout", "1ms")]).expect("answer");
+    assert_eq!(v["state"], "RUNNING");
+    assert_eq!(jobs.stats().running_current, 1);
+    let id = v["id"].as_str().expect("id").to_owned();
+    assert_eq!(s.delete(&who(), &id).expect("cancelled").status, 200);
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while jobs.stats().running_current != 0 {
+        assert!(
+            std::time::Instant::now() < until,
+            "the search never stopped"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
