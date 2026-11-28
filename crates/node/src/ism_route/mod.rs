@@ -10,6 +10,7 @@
 mod managed;
 mod policy;
 mod routes;
+mod templates;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -182,11 +183,18 @@ impl IsmService {
         let body: Value =
             serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?;
         let policy = policy::checked(&id, &body, now_millis()).map_err(bad)?;
+        let wanted = templates::entries_of(&id, &policy).map_err(bad)?;
         let mut marker = self.marker(req)?;
+        let mut doc = Self::doc_buffer(req)?;
+        // A new policy with no template has nothing to remove: no read.
+        let held = if wanted.is_empty() && if_seq.is_none() {
+            None
+        } else {
+            Some(self.check_templates(&wanted, &mut marker, &mut doc)?)
+        };
         let seq = match (if_seq, if_term) {
             (None, None) => 0,
             (Some(seq), Some(term)) => {
-                let mut doc = Self::doc_buffer(req)?;
                 let current = self
                     .stored(&id, &mut marker, &mut doc)?
                     .ok_or_else(|| conflict(&id))?;
@@ -204,6 +212,9 @@ impl IsmService {
         self.set()?
             .put_counted(&id, &bytes, !replaced, &mut marker)
             .map_err(|e| failed(&e))?;
+        if let Some(held) = held {
+            self.sync_templates(&id, &wanted, held, &mut marker, &mut doc)?;
+        }
         resp.send(
             if replaced { 200 } else { 201 },
             JSON,
@@ -241,6 +252,9 @@ impl IsmService {
         {
             return Err(not_found());
         }
+        let mut doc = Self::doc_buffer(req)?;
+        let held = self.check_templates(&[], &mut marker, &mut doc)?;
+        self.sync_templates(&id, &[], held, &mut marker, &mut doc)?;
         let body = json!({
             "_index": INDEX, "_id": id, "result": "deleted", "forced_refresh": true,
             "_shards": {"total": 1, "successful": 1, "failed": 0},

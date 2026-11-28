@@ -77,6 +77,8 @@ pub enum DocKind {
     IsmPolicies,
     /// The indices an ISM policy manages, one document each, `ism/managed/`.
     IsmManaged,
+    /// The `ism_template` of every policy, one aggregate document, `ism/templates/`.
+    IsmTemplates,
 }
 
 impl DocKind {
@@ -98,6 +100,7 @@ impl DocKind {
             Self::LtrModels => "models/",
             Self::IsmPolicies => "ism/policies/",
             Self::IsmManaged => "ism/managed/",
+            Self::IsmTemplates => "ism/templates/",
         }
     }
 }

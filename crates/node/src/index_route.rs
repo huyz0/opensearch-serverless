@@ -18,11 +18,13 @@ use oss_writer::bucket::policy;
 use oss_writer::mapping::{Mapping, ParseOptions};
 
 mod backing;
+mod created;
 mod mapping;
 
 use crate::index_templates::TemplateSets;
 use crate::pin_policy::{PinPolicy, with_members};
 use crate::route_util::read_body;
+pub use created::Created;
 
 /// The most bytes of a create body.
 const MAX_CREATE_BYTES: usize = 1 << 20;
@@ -68,6 +70,7 @@ pub struct IndexService {
     pins: Option<Arc<dyn PinPolicy>>,
     pipelines: bool,
     search_pipelines: bool,
+    created: Option<Created>,
 }
 
 impl IndexService {
@@ -87,6 +90,7 @@ impl IndexService {
             pins: None,
             pipelines: false,
             search_pipelines: false,
+            created: None,
         }
     }
 
@@ -231,8 +235,7 @@ impl IndexService {
         index: &str,
         mut asked: oss_coordinator::indices::create::CreateRequest,
     ) -> Result<(String, u32), RestError> {
-        // A setting the node does not read is refused before the policy
-        // is asked anything, so the refusal costs no request.
+        // A setting the node does not read is refused before any request.
         // ALLOC: the non-pin settings of one create, bounded by the body.
         let own: Vec<_> = asked
             .settings
@@ -267,6 +270,7 @@ impl IndexService {
         };
         let shards = asked.shards;
         let uuid = self.build(req, index, asked, &pins)?;
+        self.notify_created(req, index, &uuid);
         Ok((uuid, shards))
     }
 

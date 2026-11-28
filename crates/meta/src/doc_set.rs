@@ -436,6 +436,7 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::LtrModels => "model",
         DocKind::IsmPolicies => "policy",
         DocKind::IsmManaged => "managed index",
+        DocKind::IsmTemplates => "template",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers

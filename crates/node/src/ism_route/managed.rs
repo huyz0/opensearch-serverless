@@ -74,9 +74,6 @@ impl IsmService {
         })?;
         let mut marker = self.marker(req)?;
         let mut doc = Self::doc_buffer(req)?;
-        let Some(stored) = self.stored(policy_id, &mut marker, &mut doc)? else {
-            return Self::send(resp, &outcome(0, Some((&index, "", "Policy not found"))));
-        };
         let (uuid, created) = match descriptors.get(&index, &mut marker) {
             Ok(Some(record)) => (record.uuid.to_string(), record.created_at_millis),
             Ok(None) => {
@@ -85,14 +82,52 @@ impl IsmService {
             }
             Err(e) => return Err(failed(&e)),
         };
+        let refusal = self.attach(
+            &index,
+            &uuid,
+            created,
+            policy_id,
+            state,
+            &mut marker,
+            &mut doc,
+        )?;
+        let body = match refusal {
+            None => outcome(1, None),
+            Some(reason) => outcome(0, Some((&index, &uuid, &reason))),
+        };
+        Self::send(resp, &body)
+    }
+
+    /// Manages `index` by policy `policy_id`, starting in `state` or the
+    /// policy's default: `None` when it did, else why it could not.
+    ///
+    /// # Errors
+    ///
+    /// 429 when the tenant holds the most managed indices, and a failed
+    /// store call.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn attach(
+        &self,
+        index: &str,
+        uuid: &str,
+        created: i64,
+        policy_id: &str,
+        state: Option<&str>,
+        marker: &mut [u8],
+        doc: &mut [u8],
+    ) -> Result<Option<String>, RestError> {
+        let Some(stored) = self.stored(policy_id, marker, doc)? else {
+            return Ok(Some("Policy not found".to_owned()));
+        };
         let policy = &stored["policy"];
         let first = state.unwrap_or_else(|| policy["default_state"].as_str().unwrap_or_default());
         let known = policy["states"]
             .as_array()
             .is_some_and(|s| s.iter().any(|x| x["name"] == first));
         if !known {
-            let reason = format!("state [{first}] is not a state of policy [{policy_id}]");
-            return Self::send(resp, &outcome(0, Some((&index, &uuid, &reason))));
+            return Ok(Some(format!(
+                "state [{first}] is not a state of policy [{policy_id}]"
+            )));
         }
         let now = now_millis();
         let managed = json!({
@@ -109,20 +144,13 @@ impl IsmService {
         let bytes = managed.to_string().into_bytes();
         match self
             .set_of(DocKind::IsmManaged)?
-            .put_counted(&index, &bytes, true, &mut marker)
+            .put_counted(index, &bytes, true, marker)
         {
-            Ok(_) => Self::send(resp, &outcome(1, None)),
-            Err(MetaError::AlreadyExists) => Self::send(
-                resp,
-                &outcome(
-                    0,
-                    Some((
-                        &index,
-                        &uuid,
-                        "This index already has a policy, use the update policy API to update index policies",
-                    )),
-                ),
-            ),
+            Ok(_) => Ok(None),
+            Err(MetaError::AlreadyExists) => Ok(Some(
+                "This index already has a policy, use the update policy API to update index policies"
+                    .to_owned(),
+            )),
             Err(MetaError::TooManyDocs) => Err(refuse(
                 429,
                 "too_many_managed_indices",
