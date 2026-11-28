@@ -23,11 +23,14 @@ pub enum Pool {
     /// Compiled extension modules and the calls running them; zero unless
     /// extensions are on.
     Extensions,
+    /// What training a k-NN model holds while it runs: the vector sample and
+    /// the trainer's working copies; carved from the page cache.
+    Training,
 }
 
 impl Pool {
     /// Every pool, in a fixed order.
-    pub const ALL: [Pool; 7] = [
+    pub const ALL: [Pool; 8] = [
         Pool::RequestBodies,
         Pool::QueryExecution,
         Pool::WriteBuffers,
@@ -35,6 +38,7 @@ impl Pool {
         Pool::Transport,
         Pool::OpenIndexes,
         Pool::Extensions,
+        Pool::Training,
     ];
 
     /// The pool's position in [`Pool::ALL`].
@@ -47,6 +51,7 @@ impl Pool {
             Pool::Transport => 4,
             Pool::OpenIndexes => 5,
             Pool::Extensions => 6,
+            Pool::Training => 7,
         }
     }
 
@@ -60,6 +65,7 @@ impl Pool {
             Pool::Transport => "transport",
             Pool::OpenIndexes => "open_indexes",
             Pool::Extensions => "extensions",
+            Pool::Training => "training",
         }
     }
 }

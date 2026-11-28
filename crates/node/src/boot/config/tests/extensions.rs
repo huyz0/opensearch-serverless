@@ -1,4 +1,4 @@
-//! The memory the extension pool takes.
+//! The memory the extension and training pools take.
 
 use super::{FS, lookup, with};
 use crate::boot::config::*;
@@ -7,9 +7,14 @@ use oss_mem::Pool;
 #[cfg(feature = "extensions")]
 #[test]
 fn the_extensions_pool_is_taken_from_the_page_cache() {
-    let on =
-        NodeConfig::from_lookup(lookup(&with(&[("OSS_EXTENSIONS_PERCENT", "5")]))).expect("valid");
-    let off = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    // Training takes its own share of the page cache, so this pins the split without it.
+    let on = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_EXTENSIONS_PERCENT", "5"),
+        ("OSS_KNN_TRAINING_MB", "0"),
+    ])))
+    .expect("valid");
+    let off =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN_TRAINING_MB", "0")]))).expect("valid");
     let (b, o) = (on.budget().expect("fits"), off.budget().expect("fits"));
     assert_eq!(b.pool(Pool::Extensions), on.memory_bytes / 100 * 5);
     assert_eq!(b.pool(Pool::PageCache), on.memory_bytes / 100 * 15);
@@ -55,4 +60,50 @@ fn a_default_node_has_room_for_the_async_search_registry_in_the_query_pool() {
     let b = c.budget().expect("fits");
     let worst = (8 << 20) + (32 << 20) + (72 << 10);
     assert!(b.pool(Pool::QueryExecution) >= worst, "{c:?}");
+}
+
+// docs/specs/knn-plugin-api AC-20
+const MIB: usize = 1 << 20;
+
+fn config(extra: &[(&str, &str)]) -> NodeConfig {
+    NodeConfig::from_lookup(lookup(&with(extra))).expect("valid")
+}
+
+#[test]
+fn a_big_node_gives_the_training_pool_its_256_mib_out_of_the_page_cache() {
+    let c = config(&[("OSS_MEMORY_BYTES", "17179869184")]);
+    let b = c.budget().expect("fits");
+    let cache = c.memory_bytes / 100 * 20;
+    assert_eq!(b.pool(Pool::Training), 256 * MIB);
+    assert_eq!(b.pool(Pool::PageCache), cache - 256 * MIB);
+}
+
+#[test]
+fn a_small_node_gives_it_a_quarter_of_the_page_cache_at_most() {
+    let c = config(&[]);
+    let b = c.budget().expect("fits");
+    let cache = c.memory_bytes / 100 * 20;
+    assert_eq!(b.pool(Pool::Training), cache / 4);
+    assert_eq!(b.pool(Pool::PageCache), cache - cache / 4);
+}
+
+#[test]
+fn the_variable_sets_the_size_and_zero_or_knn_off_reserves_none() {
+    let c = config(&[
+        ("OSS_MEMORY_BYTES", "17179869184"),
+        ("OSS_KNN_TRAINING_MB", "64"),
+    ]);
+    assert_eq!(c.budget().expect("fits").pool(Pool::Training), 64 * MIB);
+    let none = config(&[("OSS_KNN_TRAINING_MB", "0")]);
+    assert_eq!(none.budget().expect("fits").pool(Pool::Training), 0);
+    let off = config(&[("OSS_KNN", "false")]);
+    let b = off.budget().expect("fits");
+    assert_eq!(b.pool(Pool::Training), 0);
+    assert_eq!(b.pool(Pool::PageCache), off.memory_bytes / 100 * 20);
+}
+
+#[test]
+fn a_size_past_the_bound_is_refused() {
+    let past = NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN_TRAINING_MB", "65537")])));
+    assert!(past.is_err());
 }
