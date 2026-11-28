@@ -35,6 +35,8 @@ Slice 1:
 - AC-11 (slice 3): a delete removes a model, a second delete is 404, and a model in state `training` is refused 400 and kept.
 - AC-12 (slice 3): a search pages models in id order with `from` and `size`, serves `match_all` and `ids`, and refuses another query 400.
 - AC-13 (slice 3): a model read costs the marker GET and the content GET and no LIST.
+- AC-14 (slice 4, stage 1): a `faiss` method `hnsw` on a float field (spaces `l2`, `cosinesimil`, `innerproduct`; parameters `m`, `ef_construction`, `ef_search`; encoder `flat`) is accepted and written back with the engine the client named, in the plugin's key order; the dimension limit is 16000.
+- AC-15 (slice 4, stage 1): each refusal the stock 3.10.0 makes for `faiss` and `nmslib` mappings is made with its message: `l1` and `linf` spaces, `sq` without `bits`, `pq` and `ivf` needing training, an unknown parameter, a non-positive or non-integer parameter, an unknown encoder, and `nmslib` for a new index.
 
 ## Test plan
 
@@ -46,7 +48,7 @@ Stats and clear cache: 0 requests. Warmup: the open's requests plus the ranged r
 
 ## Switch
 
-`serverless.knn.enabled` (existing). No new setting: the routes are new paths an index without a vector field never reaches, and a counter bump is one relaxed atomic add.
+`serverless.knn.enabled` (existing). No `native_engines` switch (supersedes [ADR 0086](../../adr/0086-knn-engines-and-models-are-native.md) on this point, per the owner's rule that plugins need no enable flag): a `faiss` mapping is served by the codec the `lucene` engine already uses, so it has no cost of its own, and a stored mapping must load whatever a switch said. No new setting: the routes are new paths an index without a vector field never reaches, and a counter bump is one relaxed atomic add.
 
 ## Risks
 

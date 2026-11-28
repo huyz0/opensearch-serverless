@@ -113,14 +113,14 @@ fn between_in_and_null_tests() {
 }
 
 #[test]
-fn not_equal_is_a_negated_term() {
+fn not_equal_is_a_negated_term_of_a_present_value() {
     case(
         "SELECT * FROM accounts WHERE city <> 'x'",
-        json!({"from": 0, "size": 200, "query": filter(json!({"bool": {"must_not": [{"term": {"city": "x"}}]}}))}),
+        json!({"from": 0, "size": 200, "query": filter(json!({"bool": {"filter": [{"exists": {"field": "city"}}], "must_not": [{"term": {"city": "x"}}]}}))}),
     );
     case(
         "SELECT * FROM accounts WHERE city != 'x'",
-        json!({"from": 0, "size": 200, "query": filter(json!({"bool": {"must_not": [{"term": {"city": "x"}}]}}))}),
+        json!({"from": 0, "size": 200, "query": filter(json!({"bool": {"filter": [{"exists": {"field": "city"}}], "must_not": [{"term": {"city": "x"}}]}}))}),
     );
 }
 
@@ -268,7 +268,7 @@ fn what_cannot_be_pushed_is_refused_with_a_400_and_no_body() {
         "SELECT * FROM accounts WHERE upper(city) = 'X'",
         "SELECT * FROM accounts WHERE age + 1 > 3",
         "SELECT DISTINCT city FROM accounts",
-        "SELECT * FROM accounts WHERE firstname = 'x' AND address = 'y'",
+        "SELECT * FROM accounts ORDER BY address",
         "DELETE FROM accounts WHERE age > 3",
         "INSERT INTO accounts VALUES (1)",
         "CREATE TABLE t (a int)",

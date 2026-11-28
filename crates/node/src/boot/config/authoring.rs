@@ -12,7 +12,7 @@ pub struct AuthoringConfig {
     pub ingest_pipelines: bool,
     /// `serverless.search.pipelines.enabled`: serve the search pipeline routes and run the pipeline a search names. Off by default.
     pub search_pipelines: bool,
-    /// `serverless.notifications.enabled`: serve the notifications config routes. Off by default.
+    /// `serverless.notifications.enabled`: serve the notifications config routes. On by default.
     pub notifications: bool,
 }
 
@@ -24,7 +24,7 @@ pub(in crate::boot) fn read(
         index_templates: flag("OSS_INDEX_TEMPLATES", "false")?,
         ingest_pipelines: flag("OSS_INGEST_PIPELINES", "false")?,
         search_pipelines: flag("OSS_SEARCH_PIPELINES", "false")?,
-        notifications: flag("OSS_NOTIFICATIONS", "false")?,
+        notifications: flag("OSS_NOTIFICATIONS", "true")?,
     })
 }
 
@@ -64,5 +64,12 @@ mod tests {
         ] {
             assert!(NodeConfig::from_lookup(lookup(&with(&[(name, "yes")]))).is_err());
         }
+    }
+
+    #[test]
+    fn notifications_are_on_by_default_and_off_when_set_false() {
+        assert!(config(&[]).notifications);
+        assert!(!config(&[("OSS_NOTIFICATIONS", "false")]).notifications);
+        assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_NOTIFICATIONS", "yes")]))).is_err());
     }
 }
