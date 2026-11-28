@@ -94,13 +94,13 @@ pub fn plan(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, 
     for item in &sel.items {
         match item {
             Item::Star => {
-                for (name, f) in mapping.fields() {
-                    includes.push(Value::String(name.to_owned()));
+                for (name, leaf) in mapping.star_columns() {
+                    includes.push(Value::String(name.clone()));
                     columns.push(Column {
-                        name: name.to_owned(),
+                        name: name.clone(),
                         alias: None,
-                        ty: f.sql_type().to_owned(),
-                        source: Source::Field(name.to_owned()),
+                        ty: leaf.map_or("object", Field::sql_type).to_owned(),
+                        source: Source::Field(name),
                     });
                 }
             }
@@ -155,7 +155,7 @@ pub fn plan(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, 
         }
         let f = lookup(mapping, &o.field)?;
         let key = exact_name(&o.field, f, "sort on")?;
-        sort.push(json!({key: {"order": order(o.desc), "missing": if o.desc { "_last" } else { "_first" }}}));
+        sort.push(json!({key: {"order": order(o.desc), "missing": if o.nulls_first.unwrap_or(!o.desc) { "_first" } else { "_last" }}}));
     }
     if score {
         body.insert("track_scores".into(), Value::Bool(true));
@@ -179,6 +179,10 @@ fn exact_name(name: &str, f: &Field, what: &str) -> Result<String, Error> {
         if f.keyword_sub {
             // ALLOC: one name, bounded by the identifier limit.
             return Ok(format!("{name}.keyword"));
+        }
+        if what != "sort on" {
+            // The plugin runs the term on the analysed field itself.
+            return Ok(name.to_owned());
         }
         return Err(Error::unsupported(format!(
             "cannot {what} the text field [{name}]: it has no keyword sub-field"
@@ -221,6 +225,56 @@ fn query(p: &Pred, mapping: &Mapping) -> Result<Value, Error> {
     Ok(json!({"bool": b}))
 }
 
+/// The plugin's name for a field's type in a comparison, when it has one a literal can clash with.
+fn expr_type(f: &Field) -> Option<&'static str> {
+    Some(match f.es_type.as_str() {
+        "byte" => "BYTE",
+        "short" => "SHORT",
+        "integer" => "INTEGER",
+        "long" => "LONG",
+        "float" | "half_float" => "FLOAT",
+        "double" | "scaled_float" => "DOUBLE",
+        "keyword" | "text" => "STRING",
+        _ => return None,
+    })
+}
+
+/// A string against a number, or a number against a string, has no comparison function.
+fn check_types(f: &Field, op: CmpOp, l: &Lit) -> Result<(), Error> {
+    let Some(left) = expr_type(f) else {
+        return Ok(());
+    };
+    let right = match l {
+        Lit::Str(_) => "STRING",
+        Lit::Int(_) => "INTEGER",
+        Lit::Float(_) => "DOUBLE",
+        _ => return Ok(()),
+    };
+    if (left == "STRING") == (right == "STRING") {
+        return Ok(());
+    }
+    let func = match op {
+        CmpOp::Eq => "=",
+        CmpOp::Ne => "!=",
+        CmpOp::Lt => "<",
+        CmpOp::Le => "<=",
+        CmpOp::Gt => ">",
+        CmpOp::Ge => ">=",
+    };
+    Err(Error::type_mismatch(func, left, right))
+}
+
+/// A literal against a field: a date field takes the plugin's `yyyy-MM-dd[ HH:mm:ss[.fff]]`
+/// strings as epoch milliseconds, as the plugin sends them.
+fn lit_for(f: &Field, l: &Lit) -> Value {
+    match l {
+        Lit::Str(s) if matches!(f.es_type.as_str(), "date" | "date_nanos") => {
+            crate::dates::millis(s).map_or_else(|| lit(l), |ms| json!(ms))
+        }
+        _ => lit(l),
+    }
+}
+
 fn lit(l: &Lit) -> Value {
     match l {
         Lit::Str(s) => Value::String(s.clone()),
@@ -229,6 +283,11 @@ fn lit(l: &Lit) -> Value {
         Lit::Bool(b) => Value::Bool(*b),
         Lit::Null => Value::Null,
     }
+}
+
+/// A value that is present and not `q`: the plugin's `<>` and `NOT LIKE` skip a missing value.
+fn present_and_not(field: &str, q: Value) -> Value {
+    json!({"bool": {"filter": [{"exists": {"field": field}}], "must_not": [q]}})
 }
 
 fn not(q: Value) -> Value {
@@ -258,23 +317,29 @@ fn node(p: &Pred, m: &Mapping) -> Result<Value, Error> {
             if matches!(l, Lit::Null) {
                 return Err(Error::unsupported("compare with NULL using IS NULL"));
             }
+            check_types(f, *op, l)?;
+            let v = lit_for(f, l);
             match op {
-                CmpOp::Eq => json!({"term": {name: lit(l)}}),
-                CmpOp::Ne => not(json!({"term": {name: lit(l)}})),
-                CmpOp::Lt => json!({"range": {name: {"lt": lit(l)}}}),
-                CmpOp::Le => json!({"range": {name: {"lte": lit(l)}}}),
-                CmpOp::Gt => json!({"range": {name: {"gt": lit(l)}}}),
-                CmpOp::Ge => json!({"range": {name: {"gte": lit(l)}}}),
+                CmpOp::Eq => json!({"term": {name: v}}),
+                // The plugin evaluates `<>` as a script that is false for a missing value.
+                CmpOp::Ne => present_and_not(field, json!({"term": {name: v}})),
+                CmpOp::Lt => json!({"range": {name: {"lt": v}}}),
+                CmpOp::Le => json!({"range": {name: {"lte": v}}}),
+                CmpOp::Gt => json!({"range": {name: {"gt": v}}}),
+                CmpOp::Ge => json!({"range": {name: {"gte": v}}}),
             }
         }
         Pred::Between(field, lo, hi, neg) => {
-            let name = exact_name(field, lookup(m, field)?, "compare")?;
-            let q = json!({"range": {name: {"gte": lit(lo), "lte": lit(hi)}}});
+            let f = lookup(m, field)?;
+            let name = exact_name(field, f, "compare")?;
+            let q = json!({"range": {name: {"gte": lit_for(f, lo), "lte": lit_for(f, hi)}}});
             if *neg { not(q) } else { q }
         }
         Pred::In(field, vals, neg) => {
-            let name = exact_name(field, lookup(m, field)?, "compare")?;
-            let q = json!({"terms": {name: vals.iter().map(lit).collect::<Vec<_>>()}});
+            let f = lookup(m, field)?;
+            let name = exact_name(field, f, "compare")?;
+            let q =
+                json!({"terms": {name: vals.iter().map(|v| lit_for(f, v)).collect::<Vec<_>>()}});
             if *neg { not(q) } else { q }
         }
         Pred::IsNull(field, is_not) => {
@@ -293,7 +358,7 @@ fn node(p: &Pred, m: &Mapping) -> Result<Value, Error> {
                 })
                 .collect();
             let q = json!({"wildcard": {name: {"wildcard": wild, "case_insensitive": true}}});
-            if *neg { not(q) } else { q }
+            if *neg { present_and_not(field, q) } else { q }
         }
         Pred::Rel(r) => relevance(r, m)?,
     })
@@ -307,7 +372,10 @@ fn relevance(r: &Relevance, m: &Mapping) -> Result<Value, Error> {
     for (k, v) in &r.options {
         opts.insert(k.clone(), lit(v));
     }
-    if r.func == "multi_match" || r.func == "query_string" {
+    if matches!(
+        r.func.as_str(),
+        "multi_match" | "query_string" | "simple_query_string"
+    ) {
         let fields: Map<String, Value> = r
             .fields
             .iter()
