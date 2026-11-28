@@ -7,6 +7,7 @@
 mod support;
 
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ad_job;
 mod ad_preview;
 mod ad_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
