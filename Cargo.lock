@@ -1609,6 +1609,7 @@ dependencies = [
  "lucene-index",
  "lucene-search",
  "lucene-store",
+ "oss-anomaly",
  "oss-blob",
  "oss-cluster",
  "oss-coordinator",

@@ -274,6 +274,7 @@ pub fn assemble(
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
     let (router, _sec) =
         crate::admin_assemble::register(router, &store, config, budget, &script_source)?;
+    let router = crate::admin_assemble::ad_routes(router, config, &store, &search)?;
     #[cfg(feature = "coordinator")]
     let (router, drain, tasks) = {
         use crate::index_assemble::{index_service, pin_policy, restore_routes, stream_routes};

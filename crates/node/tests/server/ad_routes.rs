@@ -7,14 +7,14 @@ use std::sync::Arc;
 
 use oss_blob::{BlobStore, Emulator, S3Op};
 use oss_mem::MemoryBudget;
-use oss_node::ad_route::{AdService, routes};
+use oss_node::ad_route::{AdService, WindowSearch, routes};
 use oss_rest::{Router, Server};
 use serde_json::{Value, json};
 
 const BUF: usize = 1 << 16;
-const ROOT: &str = "/_plugins/_anomaly_detection";
+pub(super) const ROOT: &str = "/_plugins/_anomaly_detection";
 
-fn detector() -> Value {
+pub(super) fn detector() -> Value {
     json!({
         "name": "cpu-anomaly",
         "description": "cpu of the web tier",
@@ -30,15 +30,24 @@ fn detector() -> Value {
     })
 }
 
-struct Rig {
-    server: Server,
-    store: Arc<Emulator>,
+pub(super) struct Rig {
+    pub(super) server: Server,
+    pub(super) store: Arc<Emulator>,
 }
 
 fn rig() -> Rig {
+    rig_with(None)
+}
+
+/// A rig whose previews read their windows through `search`.
+pub(super) fn rig_with(search: Option<Arc<dyn WindowSearch>>) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
-    let service = Arc::new(AdService::new(&blobs, "", BUF));
+    let mut service = AdService::new(&blobs, "", BUF);
+    if let Some(search) = search {
+        service = service.with_search(search);
+    }
+    let service = Arc::new(service);
     let router = routes(Router::new(), &service).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&support::budget_config());
@@ -47,16 +56,16 @@ fn rig() -> Rig {
     Rig { server, store }
 }
 
-fn call(r: &Rig, method: &str, target: &str, body: Option<&Value>) -> support::Reply {
+pub(super) fn call(r: &Rig, method: &str, target: &str, body: Option<&Value>) -> support::Reply {
     let bytes = body.map(|b| b.to_string().into_bytes());
     support::request(r.server.local_addr(), method, target, bytes.as_deref())
 }
 
-fn json_of(reply: &support::Reply) -> Value {
+pub(super) fn json_of(reply: &support::Reply) -> Value {
     serde_json::from_str(&reply.text()).unwrap_or_else(|_| panic!("not json: {}", reply.text()))
 }
 
-fn total(r: &Rig, op: S3Op) -> u64 {
+pub(super) fn total(r: &Rig, op: S3Op) -> u64 {
     r.store.meter().count(op)
 }
 

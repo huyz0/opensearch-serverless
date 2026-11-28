@@ -324,11 +324,6 @@ fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
     Ok(source)
 }
 
-fn search_error(e: SearchError) -> Answer {
-    // ALLOC: error path; one box.
-    Answer::Search(Box::new(e))
-}
-
 fn send(resp: &mut Response<'_>, e: &SearchError) -> Result<(), RestError> {
     resp.send(e.status, JSON, &e.to_body())
 }
@@ -412,6 +407,9 @@ mod validate;
 #[cfg(all(feature = "reader", feature = "writer"))]
 #[path = "search_warm.rs"]
 mod warm;
+#[cfg(all(feature = "reader", feature = "writer"))]
+#[path = "search_window.rs"]
+mod window;
 pub use shard_query::ShardQuery;
 #[cfg(feature = "coordinator")]
 #[path = "coordinate.rs"]
