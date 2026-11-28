@@ -81,5 +81,5 @@ No request scales with documents, indexes, entries or elapsed time.
 - A result is lost with its node and read through it; clients that expect stock's persistence (a poll after a restart, a long `keep_alive`) get 404. Documented in `compatibility.md`.
 - The `job` capability touches the plugin contract and the ADR 0072 registry, both shared with other threads; slice 1 is kept to new files and a registry extension that leaves by-query tasks' tests unchanged.
 - The `search` capability (plugin-system slice 4) may not exist when slice 2 starts; AC-16 holds the fallback and the capability to the same answers.
-- The `Extensions` pool is 0% by default: until it is sized, every call is refused 429, which is why the plugin needs `serverless.plugins.enabled` and a sized pool; the default-on flag does not change that.
+- The `Extensions` pool is 0% by default: until it is sized, every call is refused 429, which is why the plugin needs a sized pool; the default-on flag does not change that.
 - The recording does not cover a kept search that fails while running, the largest `wait_for_completion_timeout` stock accepts, or a second node; those rules are *provisional*.

@@ -14,6 +14,7 @@ mod catalogue;
 mod descriptor;
 mod error;
 mod json;
+pub mod lifecycle;
 pub mod manifest;
 mod manifest_routes;
 pub mod native;

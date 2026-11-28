@@ -364,3 +364,6 @@ src/async_search/render.rs	new		the response envelopes, stats and refusals of as
 src/async_search/tests.rs	new		the service against the stock recording
 src/jobs/manage.rs	new		extending, deleting and counting jobs
 src/security_route/admin.rs	new		securityconfig, permissionsinfo, closed routes and the cache flush
+src/plugins/assemble.rs	new		reading the policy, loading the registry and mounting the plugins and the status route
+src/boot/config/plugin_policy.rs	new		the OSS_PLUGINS variable
+src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins from bounded queues

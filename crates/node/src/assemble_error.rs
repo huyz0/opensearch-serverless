@@ -16,6 +16,8 @@ pub enum AssembleError {
     Route(RouteError),
     /// Security is on without an administrator, or its settings are refused.
     Security(String),
+    /// The plugin policy was refused.
+    Plugins(String),
     /// The HTTP server did not start.
     Server(oss_rest::StartError),
 }
@@ -28,6 +30,7 @@ impl std::fmt::Display for AssembleError {
             AssembleError::Store(e) => write!(f, "store: {e}"),
             AssembleError::Route(e) => write!(f, "route: {e:?}"),
             AssembleError::Security(e) => write!(f, "security: {e}"),
+            AssembleError::Plugins(e) => write!(f, "plugins: {e}"),
             AssembleError::Server(e) => write!(f, "server: {e:?}"),
         }
     }
