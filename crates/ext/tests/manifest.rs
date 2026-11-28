@@ -460,3 +460,31 @@ fn the_size_ceiling_is_inclusive() {
     let over = pad(max + 1);
     assert!(Manifest::parse(over.as_bytes()).is_err(), "one byte over");
 }
+
+// docs/specs/plugin-system AC-3: a path parameter is a lowercase name of letters, digits and underscores.
+#[test]
+fn path_parameter_names_are_exact() {
+    let with = |p: &str| GOOD.replace("{place}", p);
+    for ok in ["{a}", "{_a}", "{a1}", "{a_}", "{a_b2}"] {
+        assert!(parse(&with(ok)).is_ok(), "{ok} accepted");
+    }
+    for bad in ["{A}", "{Abc}", "{1a}", "{a-b}", "{aB}", "{}"] {
+        assert!(parse(&with(bad)).is_err(), "{bad} refused");
+    }
+}
+
+// docs/specs/plugin-system AC-3: sixteen capabilities are accepted, seventeen refused.
+#[test]
+fn the_capability_count_ceiling_is_sixteen() {
+    let with = |n: usize| {
+        let caps: Vec<String> = (0..n)
+            .map(|i| format!("\"egress:h{i}.example.com\""))
+            .collect();
+        GOOD.replace(
+            r#""capabilities":["state.read","state.write","egress:api.example.com","identity"]"#,
+            &format!(r#""capabilities":[{}]"#, caps.join(",")),
+        )
+    };
+    assert!(parse(&with(16)).is_ok(), "sixteen accepted");
+    assert!(parse(&with(17)).is_err(), "seventeen refused");
+}
