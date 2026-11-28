@@ -9,11 +9,6 @@ pub(crate) fn now_millis() -> u64 {
         .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
-/// Now, in seconds since the epoch.
-pub(crate) fn wall_secs() -> u64 {
-    now_millis() / 1000
-}
-
 /// Milliseconds since this process first asked, from a clock that never goes
 /// back: for ages and intervals, not for dates.
 pub(crate) fn monotonic_millis() -> u64 {

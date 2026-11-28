@@ -116,7 +116,7 @@ impl Authenticator {
             Some(s) => self.with_jwt(Jwt::new(
                 s.key.clone(),
                 s.rules.clone(),
-                Arc::new(crate::clock::wall_secs),
+                Arc::new(crate::security_jwt::wall_secs),
             )),
         }
     }

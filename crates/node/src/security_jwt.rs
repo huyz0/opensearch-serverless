@@ -12,6 +12,13 @@ use ring::{hmac, signature};
 /// Seconds since the epoch.
 pub type WallClock = Arc<dyn Fn() -> u64 + Send + Sync>;
 
+/// Now, in seconds since the epoch; 0 for a clock before it.
+pub fn wall_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
 /// The key a token is checked with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Key {

@@ -396,3 +396,4 @@ src/security_jwt.rs	new		the signature check of a JSON Web Token against the con
 src/ism_run/schedule.rs	new		the runner schedule: the indices this node owns and evaluates, found by registry and rendezvous, claimed by slot
 src/ism_run/schedule_tests.rs	new		the schedule over an emulator
 src/lifecycle_bus.rs	new		the fill-once handle index and node events are published through
+src/security_setting/jwt.rs	new		the JSON Web Token domain settings read from the variables
