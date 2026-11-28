@@ -89,4 +89,5 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0079](0079-ml-commons-is-ported-natively.md) | ML Commons is ported natively to Rust; it is no longer proxied | Accepted |
 | [0080](0080-one-plugin-system-three-tiers.md) | One plugin system, three tiers: native, WASM and gRPC, behind one manifest, point contract and failure rule | Accepted |
 | [0081](0081-notifications-is-ported-natively.md) | Notifications is ported natively; channel configs are document sets with a derived catalogue, and a send costs no store request inside a TTL | Accepted |
+| [0082](0082-sql-and-ppl-are-ported-natively-with-our-own-parser-and-a-pushdown-planner.md) | SQL and PPL are ported natively, with our own parsers, one logical plan and a planner that pushes down into the search path | Accepted |
 | [0084](0084-asynchronous-search-is-a-native-plugin-over-node-local-jobs.md) | Asynchronous search is a native plugin over node-local jobs; its results are memory only | Accepted |
