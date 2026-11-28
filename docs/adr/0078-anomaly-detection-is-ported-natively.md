@@ -18,7 +18,7 @@ Anomaly detection is native in `oss-anomaly` (a new leaf crate: the model), `oss
 - **One owner, not two.** A detector's owner is the single live node with the highest placement hash, so its model stays in one memory; a node uses its model only if it was the previous claimer and otherwise reloads the checkpoint, so a flap costs a read and never two model lineages. Membership disagreement costs a failed claim, never a double run.
 - **A started detector is a standing job, stated as such.** Its cost is claim PUT, search and result write per interval, plus a checkpoint each `checkpoint_interval`; a stopped or deleted detector costs nothing. The 60 s floor, per-tenant counts and a fleet cap bound it; the worst case per tenant is written in the spec.
 - **Memory is bounded by reservation:** each model is reserved at construction from a cache pool; past the pool a new entity is skipped and counted, never evicting a model with a checkpoint pending.
-- The feature is behind `serverless.ad.enabled`, **off** until the spec's criteria pass, including a recording of the stock plugin.
+- The feature is behind `serverless.ad.enabled`, **on** by default as for every plugin (Huy, 2026-11-28); the spec's criteria, including a recording of the stock plugin, are still what VERIFIED.md records.
 
 ## Consequences
 
