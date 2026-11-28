@@ -30,11 +30,11 @@ fn the_variable_reaches_the_engine() {
 
 // docs/specs/nested-fields AC-9
 #[test]
-fn nested_is_off_by_default_and_turned_on_by_its_variable() {
+fn nested_is_on_by_default_and_turned_off_by_its_variable() {
     let c = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
-    assert!(!c.nested);
-    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_NESTED", "true")]))).expect("valid");
     assert!(c.nested);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_NESTED", "false")]))).expect("valid");
+    assert!(!c.nested);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_NESTED", "yes")]))).is_err());
 }
 

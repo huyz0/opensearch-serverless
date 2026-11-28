@@ -13,7 +13,7 @@ An index may map an object as `type: nested`. A document's nested objects are in
 - **Lucene document** (`oss-doc`): a child holds its fields, `_id` (indexed, not stored, so the soft-delete by `_id` term reaches the block) and `_nested_path` (the path, indexed): no `_seq_no`, `_primary_term`, `_version` or `_source`. The document keeps all of those, so `_primary_term` is what tells the reader a root from a child.
 - **Writer** (`oss-writer`): an index, update and replay hands the engine the block in one call; a delete writes its one tombstone, which the `_id` term deletes with the whole block. The fast ingest plan declines an index with a nested object. The version lookup already takes the last live document of an `_id`, the root.
 - **Reader overlay** (`oss-reader`): the unpublished documents of the log are built as blocks, and a replaced or deleted document hides its children in the commit as it hides itself.
-- **Switch** (`oss-node`): `serverless.nested.enabled`, off by default; a create that maps a `nested` object is refused as unsupported while it is off, as today. A stored mapping is read whatever the setting is now, as `knn_vector` is. Put-mapping does not add a nested object yet.
+- **Switch** (`oss-node`): `serverless.nested.enabled`, on by default (`OSS_NESTED=false` turns it off); a create that maps a `nested` object is refused as unsupported while it is off, as it was before the flip. A stored mapping is read whatever the setting is now, as `knn_vector` is. Put-mapping does not add a nested object yet.
 
 Not here: `inner_hits`, nested aggregations and `reverse_nested`, `include_in_parent` and `include_in_root` of `true`, vectors in nested objects, a nested object added by put-mapping, `copy_to` into or out of a nested object.
 
@@ -49,7 +49,7 @@ Indexing memory is reserved from each record's bytes, which already contain the 
 
 ## Switch
 
-`serverless.nested.enabled`, node scope, off. Flip it on by default when a 10,000-document nested soak holds the write p99 within 5% of a plain index's and the search tests pass in both modes (not measured here: emulator numbers are provisional). Both values are tested (AC-10); with it off the code path is the old one.
+`serverless.nested.enabled`, node scope, on by default since the release-build soaks in VERIFIED.md held the bound; it was off until then. It flips on when a 10,000-document nested soak holds the write p99 within 5% of a plain index's and the search tests pass in both modes (not measured here: emulator numbers are provisional). Both values are tested (AC-10); with it off the code path is the old one.
 
 ## Risks
 

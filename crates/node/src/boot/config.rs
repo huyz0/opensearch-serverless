@@ -325,7 +325,7 @@ impl NodeConfig {
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let (commit_checkpoint_millis, commit_logged) = commits::read(&flag, &bounded)?;
         let knn = flag("OSS_KNN", "true")?;
-        let nested = flag("OSS_NESTED", "false")?;
+        let nested = flag("OSS_NESTED", "true")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
