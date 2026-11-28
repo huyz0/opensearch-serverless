@@ -35,8 +35,9 @@ fn tier_name(t: PolicyTier) -> &'static str {
 }
 
 /// The status document: each plugin, whether it serves, why not, and its
-/// breaker. Answered from memory; it makes no store request.
-fn status(registry: &Registry) -> Value {
+/// breaker, and what its event queue has delivered and dropped (null when it
+/// subscribed to no event). Answered from memory; it makes no store request.
+fn status(registry: &Registry, events: &Dispatcher) -> Value {
     let plugins: Vec<Value> = registry
         .plugins()
         .iter()
@@ -45,12 +46,16 @@ fn status(registry: &Registry) -> Value {
                 State::Ready => ("ready", None),
                 State::Refused(why) => ("refused", Some(why.as_str())),
             };
+            let counts = events
+                .counts(p.id())
+                .map(|c| json!({ "delivered": c.delivered, "dropped": c.dropped }));
             json!({
                 "id": p.id(),
                 "tier": tier_name(p.entry().tier),
                 "state": state,
                 "reason": reason,
                 "breaker": format!("{:?}", p.guard().state()).to_ascii_lowercase(),
+                "events": counts,
             })
         })
         .collect();
@@ -92,13 +97,14 @@ pub fn install(
     bus.set(Arc::clone(&events) as Arc<dyn crate::lifecycle_bus::Events>);
     bus.publish("node.started", "", "", now());
     let seen = Arc::clone(&registry);
+    let lanes = Arc::clone(&events);
     router
         .route(
             Method::Get,
             STATUS_PATH,
             &[],
             move |_: &mut Request<'_>, resp: &mut Response<'_>| -> Result<(), RestError> {
-                resp.send(200, JSON, status(&seen).to_string().as_bytes())
+                resp.send(200, JSON, status(&seen, &lanes).to_string().as_bytes())
             },
         )
         .map_err(InstallError::Route)
