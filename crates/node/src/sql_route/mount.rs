@@ -26,6 +26,7 @@ pub(crate) fn mount<S: BlobStore + 'static>(
         enabled: config.sql,
         size_limit: config.sql_size_limit,
         max_request_bytes: config.sql_max_request_bytes,
+        max_buckets: config.sql_max_buckets,
     };
     let backend: Arc<dyn SqlBackend> = Arc::clone(search) as _;
     let service = Arc::new(SqlService::new(backend, guard, limits));

@@ -95,9 +95,27 @@ mod tests {
             assert!(keys.contains(&"serverless.store.type"), "{keys:?}");
             let writer = cfg!(feature = "writer");
             let reader = cfg!(feature = "reader");
+            // The plugins' settings are counted from their own modules, so a
+            // plugin adding a setting does not edit this number and collide
+            // with another plugin doing the same.
+            let plugins: usize = [
+                crate::security_setting::SETTINGS,
+                crate::ad_setting::SETTINGS,
+                crate::ism_setting::SETTINGS,
+                crate::ml_setting::SETTINGS,
+                crate::notifications_setting::SETTINGS,
+                crate::ltr_setting::SETTINGS,
+                crate::sql_setting::SETTINGS,
+                crate::observability_setting::SETTINGS,
+            ]
+            .iter()
+            .map(|s| s.len())
+            .sum();
             assert_eq!(
                 keys.len(),
-                16 + 10 * usize::from(reader)
+                oss_blob::settings::SETTINGS.len()
+                    + plugins
+                    + 10 * usize::from(reader)
                     + if writer { 51 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + 2 * usize::from(writer && cfg!(feature = "coordinator"))

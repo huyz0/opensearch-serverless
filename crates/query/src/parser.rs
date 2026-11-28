@@ -4,13 +4,20 @@ use crate::ast::{Item, Order, Select, Statement};
 use crate::lexer::{Kind, Token, lex};
 use crate::{Error, Limits};
 
-pub(crate) const RELEVANCE: [&str; 6] = [
+pub(crate) const RELEVANCE: [&str; 8] = [
     "match",
+    "match_query",
+    "simple_query_string",
     "match_phrase",
     "match_phrase_prefix",
     "match_bool_prefix",
     "multi_match",
     "query_string",
+];
+
+/// Words that are never a bare field name (a quoted one is).
+const RESERVED: [&str; 8] = [
+    "select", "from", "where", "group", "order", "by", "having", "limit",
 ];
 
 const STOP: [&str; 14] = [
@@ -24,6 +31,15 @@ const STOP: [&str; 14] = [
 ///
 /// A bound passed, a syntax error, or a construct the planner cannot push.
 pub fn parse(sql: &str, limits: &Limits) -> Result<Statement, Error> {
+    let first = sql.split_whitespace().next().map(str::to_ascii_lowercase);
+    match first.as_deref() {
+        None => return Err(Error::empty()),
+        Some("select" | "show" | "describe") => {}
+        Some(_) if sql.len() <= limits.max_statement_bytes => {
+            return Err(Error::not_a_query(sql.trim()));
+        }
+        Some(_) => {}
+    }
     let tokens = lex(sql, limits)?;
     let mut p = Parser {
         tokens,
@@ -114,7 +130,7 @@ impl Parser {
 
     fn statement(&mut self) -> Result<Statement, Error> {
         if self.eat_word("select") {
-            return self.select().map(Statement::Select);
+            return self.select().map(|s| Statement::Select(Box::new(s)));
         }
         if self.eat_word("show") {
             self.expect_word("tables")?;
@@ -163,9 +179,7 @@ impl Parser {
     }
 
     fn select(&mut self) -> Result<Select, Error> {
-        if self.is_word("distinct") {
-            return Err(Error::unsupported("SELECT DISTINCT is not supported"));
-        }
+        let distinct = self.eat_word("distinct");
         // ALLOC: bounded by the token limit.
         let mut items = Vec::new();
         loop {
@@ -194,6 +208,9 @@ impl Parser {
             items,
             from: vec![from],
             filter: None,
+            distinct,
+            group: Vec::new(),
+            having: None,
             order: Vec::new(),
             limit: None,
             offset: 0,
@@ -201,14 +218,8 @@ impl Parser {
         if self.eat_word("where") {
             sel.filter = Some(self.or(alias.as_deref())?);
         }
-        for stop in ["group", "having"] {
-            if self.is_word(stop) {
-                return Err(Error::unsupported(format!(
-                    "[{}] is not supported yet: aggregations are a later slice",
-                    stop.to_ascii_uppercase()
-                )));
-            }
-        }
+        sel.group = self.group_by(alias.as_deref())?;
+        sel.having = self.having(alias.as_deref())?;
         if self.eat_word("order") {
             self.expect_word("by")?;
             loop {
@@ -219,7 +230,21 @@ impl Parser {
                     self.eat_word("asc");
                     false
                 };
-                sel.order.push(Order { field, desc });
+                let missing = if self.eat_word("nulls") {
+                    if self.eat_word("first") {
+                        Some(true)
+                    } else {
+                        self.expect_word("last")?;
+                        Some(false)
+                    }
+                } else {
+                    None
+                };
+                sel.order.push(Order {
+                    field,
+                    desc,
+                    nulls_first: missing,
+                });
                 if !self.eat_sym(",") {
                     break;
                 }
@@ -299,12 +324,15 @@ impl Parser {
         if self.eat_sym("*") {
             return Ok(Item::Star);
         }
+        if let Some(agg) = self.agg_call(None)? {
+            return self.agg_item(agg);
+        }
         let path = self.path()?;
         let alias = self.alias_for_item()?;
         Ok(Item::Field(path, alias))
     }
 
-    fn alias_for_item(&mut self) -> Result<Option<String>, Error> {
+    pub(crate) fn alias_for_item(&mut self) -> Result<Option<String>, Error> {
         if self.eat_word("as") {
             return match self.peek().cloned() {
                 Some(Kind::Word(w) | Kind::Quoted(w)) => {
@@ -320,6 +348,9 @@ impl Parser {
     /// A dotted field path; anything that looks like a call or an operator is refused.
     pub(crate) fn path(&mut self) -> Result<String, Error> {
         let mut out = match self.peek().cloned() {
+            Some(Kind::Word(w)) if RESERVED.contains(&w.to_ascii_lowercase().as_str()) => {
+                return self.fail();
+            }
             Some(Kind::Word(w) | Kind::Quoted(w)) => {
                 self.bump();
                 w

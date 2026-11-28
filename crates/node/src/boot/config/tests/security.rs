@@ -94,3 +94,13 @@ fn observability_is_on_by_default_and_set_by_its_variable() {
     assert!(!off.expect("valid").plugins.observability);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_OBSERVABILITY", "maybe")]))).is_err());
 }
+
+// docs/specs/anomaly-detection: no plugin needs a flag to be on; the variable only turns it off
+#[test]
+fn anomaly_detection_is_on_by_default_and_set_by_its_variable() {
+    let on = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(on.plugins.ad);
+    let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_AD", "false")])));
+    assert!(!off.expect("valid").plugins.ad);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_AD", "maybe")]))).is_err());
+}

@@ -73,6 +73,8 @@ mod ism_rig;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ism_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod ism_stock;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod ism_template;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod knn_api;

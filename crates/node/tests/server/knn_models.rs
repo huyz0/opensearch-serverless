@@ -173,3 +173,109 @@ fn a_read_costs_the_marker_and_the_content_and_nothing_lists() {
     assert_eq!(after.0 - before.0, 2, "marker GET and content GET");
     assert_eq!(after.1, before.1, "no LIST");
 }
+
+// AC-16: the training request's checks against the recording.
+mod train {
+    use super::*;
+    use oss_format::IndexRecord;
+    use oss_meta::{DeleteMode, DescriptorStore};
+    use oss_node::knn_train_route::{KnnTrainService, routes as train_routes};
+
+    fn rig_with_index() -> Rig {
+        let store = Arc::new(Emulator::new(1 << 28, 5));
+        let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
+        let descriptors =
+            DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).expect("ds");
+        let mut record = IndexRecord::new("train", "u1", 1);
+        record.mapping = Some(
+            r#"{"properties":{"v":{"type":"knn_vector","dimension":3,"method":{"name":"hnsw","engine":"lucene","space_type":"l2"}}}}"#
+                .into(),
+        );
+        descriptors
+            .create(&record, 1, &mut vec![0u8; BUF])
+            .expect("create");
+        let models = Arc::new(KnnModelService::new(&blobs, "", BUF));
+        let service = Arc::new(KnnTrainService::new(Arc::clone(&models), descriptors, BUF));
+        let router = routes(Router::new(), &models).expect("routes");
+        let router = train_routes(router, &service).expect("train routes");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+        let budget = MemoryBudget::new(&support::budget_config());
+        let server =
+            Server::start(listener, support::server_config(), router, &budget).expect("starts");
+        Rig { server, store }
+    }
+
+    fn ivf(index: &str, field: &str, dimension: u32) -> String {
+        json!({"training_index": index, "training_field": field, "dimension": dimension,
+               "method": {"name": "ivf", "engine": "faiss", "space_type": "l2",
+                          "parameters": {"nlist": 4, "nprobes": 2}}})
+        .to_string()
+    }
+
+    fn reason(reply: &support::Reply) -> String {
+        json_of(reply)["error"]["reason"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+    }
+
+    #[test]
+    fn the_index_the_field_and_the_dimension_are_checked_with_the_recorded_messages() {
+        let r = rig_with_index();
+        let go = |id: &str, body: String| {
+            call(
+                &r,
+                "POST",
+                &format!("/_plugins/_knn/models/{id}/_train"),
+                Some(&body),
+            )
+        };
+        let missing_index = go("m5", ivf("nope", "v", 3));
+        assert_eq!(missing_index.status, 400, "{}", missing_index.text());
+        assert_eq!(
+            reason(&missing_index),
+            "Validation Failed: 1: Index \"nope\" does not exist.;"
+        );
+        let missing_field = go("m5", ivf("train", "nope", 3));
+        assert_eq!(
+            reason(&missing_field),
+            "Validation Failed: 1: Field \"nope\" does not exist.;"
+        );
+        let wrong = go("m5", ivf("train", "v", 5));
+        assert_eq!(
+            reason(&wrong),
+            "Validation Failed: 1: Field \"v\" has dimension 3, which is different from dimension specified in the training request: 5;"
+        );
+        let body_only = call(
+            &r,
+            "POST",
+            "/_plugins/_knn/models/m5/_train",
+            Some(r#"{"training_field":"v","dimension":3}"#),
+        );
+        assert_eq!(reason(&body_only), "Request did not set \"training_index.");
+    }
+
+    #[test]
+    fn a_model_that_exists_is_refused_and_a_valid_request_is_not_served_yet() {
+        let r = rig_with_index();
+        put(&r, "m1", "created");
+        let again = call(
+            &r,
+            "POST",
+            "/_plugins/_knn/models/m1/_train",
+            Some(&ivf("train", "v", 3)),
+        );
+        assert_eq!(again.status, 400, "{}", again.text());
+        assert_eq!(
+            reason(&again),
+            "Validation Failed: 1: Model with id=\"m1\" already exists;"
+        );
+        let valid = call(
+            &r,
+            "POST",
+            "/_plugins/_knn/models/new/_train",
+            Some(&ivf("train", "v", 3)),
+        );
+        assert_eq!(valid.status, 501, "{}", valid.text());
+    }
+}
