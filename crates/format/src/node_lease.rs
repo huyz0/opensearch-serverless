@@ -70,6 +70,11 @@ pub struct NodeLease {
     pub refused: i32,
     /// The failure domain the node runs in, never blank.
     zone: Option<String>,
+    /// When the node first advertised the `search` role, epoch milliseconds;
+    /// `None` when the lease does not say (a fully ramped reader).
+    pub search_since: Option<i64>,
+    /// How warm the node judges its cache, 0 to 1000; `None` when it does not say.
+    ramp_permille: Option<i32>,
     /// The write-log epochs a successor must fence and replay, oldest first.
     pub node_log: Vec<NodeLogEpoch>,
 }
@@ -105,6 +110,8 @@ impl NodeLease {
             in_use: -1,
             refused: -1,
             zone: None,
+            search_since: None,
+            ramp_permille: None,
             // ALLOC: none until epochs are set.
             node_log: Vec::new(),
         }
@@ -127,6 +134,16 @@ impl NodeLease {
     /// The zone, `None` when unknown.
     pub fn zone(&self) -> Option<&str> {
         self.zone.as_deref()
+    }
+
+    /// The node's own judgement of how warm it is, 0 to 1000, `None` when unknown.
+    pub fn ramp_permille(&self) -> Option<i32> {
+        self.ramp_permille
+    }
+
+    /// Sets the ramp; a value outside 0 to 1000 is clamped into it.
+    pub fn set_ramp_permille(&mut self, ramp: Option<i32>) {
+        self.ramp_permille = ramp.map(|r| r.clamp(0, 1000));
     }
 
     /// Sets the zone; a blank one is unknown (`withZone`).
@@ -190,6 +207,12 @@ impl NodeLease {
         if let Some(zone) = &self.zone {
             out.string_field("zone", zone);
         }
+        if let Some(since) = self.search_since {
+            out.int_field("search_since", since);
+        }
+        if let Some(ramp) = self.ramp_permille {
+            out.int_field("ramp_permille", i64::from(ramp));
+        }
         if !self.node_log.is_empty() {
             out.start_array_field("node_log");
             for epoch in &self.node_log {
@@ -246,10 +269,12 @@ struct Fields {
     revoked: bool,
     counts: [i32; 4],
     zone: Option<String>,
+    search_since: Option<i64>,
+    ramp: Option<i64>,
     node_log: Vec<NodeLogEpoch>,
 }
 
-const FIELDS: [&str; 14] = [
+const FIELDS: [&str; 16] = [
     "node_id",
     "ephemeral_id",
     "address",
@@ -264,6 +289,8 @@ const FIELDS: [&str; 14] = [
     "refused",
     "zone",
     "node_log",
+    "search_since",
+    "ramp_permille",
 ];
 
 impl Fields {
@@ -282,6 +309,8 @@ impl Fields {
             // Absent shard counts are -1, as the Java's defaults.
             counts: [-1; 4],
             zone: None,
+            search_since: None,
+            ramp: None,
             // ALLOC: none until epochs are read.
             node_log: Vec::new(),
         }
@@ -318,7 +347,9 @@ impl Fields {
                 }
             }
             12 => self.zone = Some(text(json)?),
-            _ => self.node_log = epochs(json)?,
+            13 => self.node_log = epochs(json)?,
+            14 => self.search_since = Some(int(json)?),
+            _ => self.ramp = Some(int(json)?),
         }
         Ok(())
     }
@@ -345,8 +376,14 @@ impl Fields {
             in_use,
             refused,
             zone: None,
+            search_since: self.search_since,
+            ramp_permille: None,
             node_log: self.node_log,
         };
+        lease.set_ramp_permille(
+            self.ramp
+                .map(|r| i32::try_from(r.clamp(0, 1000)).unwrap_or(0)),
+        );
         lease.set_roles(self.roles);
         lease.set_zone(self.zone);
         Ok(lease)

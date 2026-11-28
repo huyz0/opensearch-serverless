@@ -82,3 +82,46 @@ fn a_drain_is_reported_over_warming_and_finishing_does_not_undo_it() {
     assert!(!readiness.ready(), "still draining");
     assert_eq!(Readiness::new().state(), "ready");
 }
+
+// docs/specs/reader-slow-start AC-8
+#[test]
+fn a_ready_leases_search_since_is_set_once_and_a_warming_one_has_none() {
+    let warming = Readiness::warming().stamping_ramp(true);
+    let mut l = lease(&["search"]);
+    warming.stamp(&mut l);
+    assert_eq!(l.search_since, None, "no search role was said");
+    warming.finish_warming();
+    let mut l = lease(&["search"]);
+    warming.stamp(&mut l);
+    let since = l.search_since.expect("stamped at ready");
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    let mut again = lease(&["search"]);
+    warming.stamp(&mut again);
+    assert_eq!(again.search_since, Some(since), "a renewal keeps it");
+    let mut no_search = lease(&["ingest"]);
+    warming.stamp(&mut no_search);
+    assert_eq!(no_search.search_since, None);
+}
+
+// docs/specs/reader-slow-start AC-8a
+#[test]
+fn the_ramp_the_node_set_rides_in_its_lease() {
+    let readiness = Readiness::new().stamping_ramp(true);
+    let mut l = lease(&["search"]);
+    readiness.stamp(&mut l);
+    assert_eq!(l.ramp_permille(), None, "nothing said yet");
+    readiness.set_ramp(300);
+    let mut l = lease(&["search"]);
+    readiness.stamp(&mut l);
+    assert_eq!(l.ramp_permille(), Some(300));
+}
+
+// docs/specs/reader-slow-start, Switch: off, a search lease is as it always was.
+#[test]
+fn with_the_slow_start_off_a_ready_lease_says_nothing_of_it() {
+    let readiness = Readiness::new();
+    readiness.set_ramp(300);
+    let mut l = lease(&["search"]);
+    readiness.stamp(&mut l);
+    assert_eq!((l.search_since, l.ramp_permille()), (None, None));
+}

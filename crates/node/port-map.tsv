@@ -290,3 +290,6 @@ src/stored_script_source.rs	new		the node's snapshot of the stored-script set, c
 src/stored_script_source/tests.rs	new		the cache's cost and freshness over a metered emulator
 src/extension_refusals.rs	new		the node-local count of refused opens of pinned indices, served by the metrics route; the Java shell has none
 src/painless_setting.rs	new		the switch that compiles Painless in Rust; Java compiles it in the script service and has no such setting
+src/reader_ramp_setting.rs	new		the slow start settings; the shell reads them from ReaderPlacementSettings
+src/boot/config/reader_ramp.rs	new		the slow start variables, split out of the boot config to keep it under the size limit
+src/boot/support/ramp_feed.rs	new		what a joining reader's slow start reads at each lease renewal

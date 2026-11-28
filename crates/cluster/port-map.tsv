@@ -43,3 +43,5 @@ src/heads/store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless
 src/heads/registers.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ShardHeadStore.java@429b4cbc	readAllOf, deleteIfUnchanged, releaseAllOf and deleteAllOf of an unbucketed shard
 src/heads/bucket.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketHeads.java@429b4cbc	BucketHeads and Member; ShardHeadStore's ref, shown, stored, read and acquire of a member, one take of a bucket at a time; releaseMember waits for the release path
 src/heads/descriptor.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/DescriptorBucketHeads.java@429b4cbc	note, forget, register, bucketOf with the one-hour cache, othersOpenOn; the node's descriptor reader is later wiring
+src/placement/ramp.rs	new		a joining reader's slow start: ramp from lease and clock, admission, controller; the Java shell computes the same in cluster/ReaderRamp.java (one shared fixture)
+tests/placement/ramp.rs	new		the slow start in the ranking and the shared ramp fixture

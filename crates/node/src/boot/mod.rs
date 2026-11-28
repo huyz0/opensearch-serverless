@@ -142,6 +142,7 @@ impl Drop for Node {
 /// A [`BootError`] naming what could not be set up.
 pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let (store, usage) = usage_of(store_of(&config.store)?, config);
+    let ramp_ledger = usage.clone();
     let budget = MemoryBudget::new(
         &config
             .budget()
@@ -412,7 +413,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
     let role = Arc::clone(&assembled.role);
-    let fleet = support::FleetTick::new(&role, load, &clock, config);
+    let fleet = support::FleetTick::new(&role, load, &clock, config)
+        .with_ramp(&readiness, ramp_ledger.as_ref());
     let running = assembled
         .start(listener, config.rest_config(), &budget)
         .map_err(BootError::Assemble)?;

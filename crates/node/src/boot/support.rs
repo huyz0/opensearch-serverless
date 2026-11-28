@@ -1,5 +1,7 @@
 //! The small reads and conversions a node start leans on.
 
+mod ramp_feed;
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -264,6 +266,7 @@ pub(super) struct FleetTick {
     clock: Arc<dyn LeaseClock>,
     ttl_millis: i64,
     node_id: String,
+    ramp: Option<ramp_feed::RampFeed>,
 }
 
 impl FleetTick {
@@ -280,13 +283,27 @@ impl FleetTick {
             ttl_millis: config.lease_ttl_millis,
             // ALLOC: one id, once a node.
             node_id: config.node_id.clone(),
+            ramp: None,
         }
+    }
+
+    /// Lets the node judge its own slow start (see `ramp_feed`).
+    pub(super) fn with_ramp(
+        mut self,
+        readiness: &Arc<crate::lifecycle::Readiness>,
+        ledger: Option<&Arc<oss_blob::usage::Ledger>>,
+    ) -> Self {
+        self.ramp = ramp_feed::RampFeed::new(readiness, ledger);
+        self
     }
 
     /// Before a renewal: the load the lease is about to say.
     pub(super) fn renewing(&self) {
         let stats = self.role.shard_cap_stats();
         self.load.set(stats.held, stats.max);
+        if let Some(feed) = &self.ramp {
+            feed.renewing();
+        }
     }
 
     /// After a refresh: hands idle shards to a member with room, when set.
@@ -447,15 +464,16 @@ pub(super) fn shared_in(
 /// A node's readiness: warming from its peers' hot pages when the config asks
 /// for it, ready at once otherwise.
 pub(super) fn readiness_for(config: &NodeConfig) -> crate::lifecycle::Readiness {
-    if config
+    let warm = config
         .page_cache
         .as_ref()
-        .is_some_and(|tier| tier.warm.is_some())
-    {
+        .is_some_and(|tier| tier.warm.is_some());
+    let readiness = if warm {
         crate::lifecycle::Readiness::warming()
     } else {
         crate::lifecycle::Readiness::new()
-    }
+    };
+    readiness.stamping_ramp(config.reader_ramp.max > 0)
 }
 
 /// The bytes a takeover's replay buffers before it commits locally.

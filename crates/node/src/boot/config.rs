@@ -17,6 +17,7 @@ pub(super) mod edge;
 pub(super) mod ltr;
 mod packs;
 pub(super) mod page_cache;
+mod reader_ramp;
 pub(super) mod roles;
 pub(super) mod search_queue;
 pub(super) mod search_slots;
@@ -127,6 +128,8 @@ pub struct NodeConfig {
     pub nested: bool,
     /// `serverless.reader.vector_warm.at_open`.
     pub vector_warm_at_open: bool,
+    /// `OSS_READER_RAMP_MAX_SECS` and `OSS_READER_RAMP_MIN_SECS`: a joining reader's slow start.
+    pub reader_ramp: reader_ramp::Secs,
     /// `OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE`: compile Painless source here.
     pub painless_native_compile: bool,
     /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
@@ -253,12 +256,7 @@ impl NodeConfig {
                 "OSS_MEMORY_BYTES [{memory_bytes}] is below the {MIN_MEMORY_BYTES} the pools need"
             ));
         }
-        let lease_ttl_millis: i64 = or("OSS_LEASE_TTL_MS", "30000")
-            .parse()
-            .map_err(|e| format!("OSS_LEASE_TTL_MS: {e}"))?;
-        if lease_ttl_millis < 3 {
-            return Err(format!("OSS_LEASE_TTL_MS [{lease_ttl_millis}] is below 3"));
-        }
+        let lease_ttl_millis = lease_timing::ttl_millis(&get)?;
         let lease_refresh_millis = match get("OSS_LEASE_REFRESH_MS").filter(|v| !v.is_empty()) {
             None => None,
             Some(v) => {
@@ -467,6 +465,7 @@ impl NodeConfig {
             knn,
             nested,
             vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
+            reader_ramp: reader_ramp::read(&get)?,
             painless_native_compile: flag("OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE", "false")?,
             extensions_percent,
             extensions_replay_factor,

@@ -194,6 +194,8 @@ impl Handler for SearchShardHandler {
             ));
         }
         let ask = Ask::read(request.message, &Bounds::DEFAULT).map_err(|e| from_refusal(&e))?;
+        // The joiner's slow start judges its warmth by what a search costs it.
+        oss_cluster::placement::count_search();
         let shard =
             u32::try_from(ask.shard).map_err(|_| refuse("a negative shard", "BAD_REQUEST"))?;
         let uuid = self
