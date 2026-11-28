@@ -40,6 +40,7 @@ impl Drop for Node {
         drop(self.orphan_sweep.take());
         drop(self.pack_collect.take());
         drop(self.ad_loop.take());
+        drop(self.alerting_loop.take());
         drop(self.following.take());
         drop(self.running.take());
         drop(self.transport.take());

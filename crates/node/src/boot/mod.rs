@@ -6,6 +6,7 @@
 //! cost a handover and never a write.
 
 mod ad_loop;
+mod alerting_loop;
 mod config;
 mod edge;
 mod error;
@@ -55,6 +56,7 @@ use crate::writer::{
 };
 
 use ad_loop::run_detectors;
+use alerting_loop::run_monitors;
 pub use config::commits::Logged;
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 pub use error::BootError;
@@ -82,6 +84,7 @@ pub struct Node {
     orphan_sweep: Option<OrphanTimer>,
     pack_collect: Option<Renewal>,
     ad_loop: Option<Renewal>,
+    alerting_loop: Option<Renewal>,
     following: Option<follow::Following>,
     membership: Arc<Membership>,
     node_id: String,
@@ -378,6 +381,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &assembled,
         (&store, &membership, &clock),
     );
+    let alerting_loop = run_monitors(config, &assembled, (&store, &membership, &clock));
     let running = assembled
         .start(listener, config.rest_config(), &budget)
         .map_err(BootError::Assemble)?;
@@ -454,6 +458,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         dead_logs: Some(dead_logs),
         orphan_sweep,
         ad_loop,
+        alerting_loop,
         pack_collect: collect_packs(&node_config, config, &store, &membership, &clock, &budget),
         following,
         membership,

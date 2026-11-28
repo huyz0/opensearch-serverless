@@ -54,19 +54,24 @@ impl AlertingService {
         let tenant = req
             .header("securitytenant")
             .unwrap_or(super::DEFAULT_TENANT);
+        self.alert_set_of(tenant, monitor)
+    }
+
+    /// The alert set of `monitor` of `tenant`.
+    pub(super) fn alert_set_of(&self, tenant: &str, monitor: &str) -> Result<Alerts, RestError> {
         Alerts::new(&self.store, &self.base, tenant, monitor).map_err(|e| failed(&e))
     }
 
     /// Records a run's outcome for a stored monitor in its alert register.
     pub(super) fn record_run(
         &self,
-        req: &Request<'_>,
+        tenant: &str,
         subject: &Subject<'_>,
         outcomes: &[Outcome<'_>],
         execution: &str,
     ) -> Result<(), RestError> {
         let now = now_millis();
-        self.alert_set(req, subject.id)?
+        self.alert_set_of(tenant, subject.id)?
             .change(|current| {
                 let alerts = alert::parse(current)
                     .map_err(|_| MetaError::InvalidArgument("a stored alert set is unreadable"))?;

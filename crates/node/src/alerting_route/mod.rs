@@ -29,6 +29,26 @@ use crate::route_util::{read_body, refuse};
 use monitor::{Checked, Refused};
 pub use routes::{install, routes};
 
+impl AlertingService {
+    /// One scheduled run of a stored monitor of `tenant`: its alerts are
+    /// recorded, as an execute without `dryrun` records them.
+    ///
+    /// # Errors
+    ///
+    /// The input search's or the alert register's refusal.
+    pub fn run_scheduled(
+        &self,
+        tenant: &str,
+        id: &str,
+        version: i64,
+        monitor: &Value,
+        period_end_ms: i64,
+    ) -> Result<(), RestError> {
+        let answer = self.run_monitor(monitor, period_end_ms, false)?;
+        self.record(tenant, monitor, &answer, (id, version))
+    }
+}
+
 /// The tenant a request without a security tenant belongs to.
 const DEFAULT_TENANT: &str = "_default_";
 /// The plugin's config index, shown as every monitor's `_index`.

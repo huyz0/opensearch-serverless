@@ -410,3 +410,6 @@ src/lifecycle_bus.rs	new		the fill-once handle index and node events are publish
 src/geospatial_setting.rs	new		the node setting that accepts the geo_point field type; the Java shell always maps it
 src/index_route/options.rs	new		the create-time switches (nested, geo_point) read when a mapping is parsed
 src/plugins/wasm.rs	new		a WASM module as a plugin: its descriptor is its manifest and each call is one call into the extension host
+src/alerting_run/mod.rs	new		the alerting runner's module
+src/alerting_run/schedule.rs	new		which monitors a node runs and the slot each is claimed for (ADR 0075)
+src/boot/alerting_loop.rs	new		the thread that ticks the alerting scheduler on every node

@@ -11,6 +11,7 @@ pub mod ad_setting;
 mod admin_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod alerting_route;
+pub mod alerting_run;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]

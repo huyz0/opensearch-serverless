@@ -14,6 +14,7 @@ mod ad_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod alerting_execute;
 mod alerting_routes;
+mod alerting_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod alerting_stock;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]

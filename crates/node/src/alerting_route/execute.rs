@@ -185,7 +185,12 @@ impl AlertingService {
     }
 
     /// One run of `monitor` over the period ending at `end`.
-    fn run_monitor(&self, monitor: &Value, end: i64, dryrun: bool) -> Result<Value, RestError> {
+    pub(super) fn run_monitor(
+        &self,
+        monitor: &Value,
+        end: i64,
+        dryrun: bool,
+    ) -> Result<Value, RestError> {
         let kind = monitor["monitor_type"].as_str().unwrap_or_default();
         if kind != "query_level_monitor" {
             return Err(alerting(
@@ -280,15 +285,18 @@ impl AlertingService {
         };
         let answer = self.run_monitor(&monitor, end, dryrun)?;
         if let (false, Some((id, version))) = (dryrun, &stored) {
-            self.record(req, &monitor, &answer, (id, *version))?;
+            let tenant = req
+                .header("securitytenant")
+                .unwrap_or(super::DEFAULT_TENANT);
+            self.record(tenant, &monitor, &answer, (id, *version))?;
         }
         resp.send(200, JSON, answer.to_string().as_bytes())
     }
 
     /// Opens, keeps or completes the alerts of the run `answer` describes.
-    fn record(
+    pub(super) fn record(
         &self,
-        req: &Request<'_>,
+        tenant: &str,
         monitor: &Value,
         answer: &Value,
         (id, version): (&str, i64),
@@ -317,7 +325,7 @@ impl AlertingService {
             version,
         };
         let execution = format!("{id}_{}", answer["period_end"].as_str().unwrap_or_default());
-        self.record_run(req, &subject, &outcomes, &execution)
+        self.record_run(tenant, &subject, &outcomes, &execution)
     }
 
     /// `POST /monitors/{id}/_execute`: a stored monitor.
