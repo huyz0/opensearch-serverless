@@ -102,6 +102,24 @@ impl Mapping {
         self.fields.get(path)
     }
 
+    /// The top-level names in the plugin's `SELECT *` order, each with its leaf when
+    /// it is one (an object is a single column holding the object).
+    pub(crate) fn star_columns(&self) -> Vec<(String, Option<&Field>)> {
+        let mut names: Vec<String> = self
+            .fields
+            .keys()
+            .map(|k| k.split('.').next().unwrap_or(k).to_owned())
+            .collect();
+        names.dedup();
+        crate::hashorder::iteration_order(names)
+            .into_iter()
+            .map(|n| {
+                let leaf = self.fields.get(&n);
+                (n, leaf)
+            })
+            .collect()
+    }
+
     /// Every leaf in name order.
     pub fn fields(&self) -> impl Iterator<Item = (&str, &Field)> {
         self.fields.iter().map(|(k, v)| (k.as_str(), v))

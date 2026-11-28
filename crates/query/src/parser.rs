@@ -4,13 +4,20 @@ use crate::ast::{Item, Order, Select, Statement};
 use crate::lexer::{Kind, Token, lex};
 use crate::{Error, Limits};
 
-pub(crate) const RELEVANCE: [&str; 6] = [
+pub(crate) const RELEVANCE: [&str; 8] = [
     "match",
+    "match_query",
+    "simple_query_string",
     "match_phrase",
     "match_phrase_prefix",
     "match_bool_prefix",
     "multi_match",
     "query_string",
+];
+
+/// Words that are never a bare field name (a quoted one is).
+const RESERVED: [&str; 8] = [
+    "select", "from", "where", "group", "order", "by", "having", "limit",
 ];
 
 const STOP: [&str; 14] = [
@@ -24,6 +31,15 @@ const STOP: [&str; 14] = [
 ///
 /// A bound passed, a syntax error, or a construct the planner cannot push.
 pub fn parse(sql: &str, limits: &Limits) -> Result<Statement, Error> {
+    let first = sql.split_whitespace().next().map(str::to_ascii_lowercase);
+    match first.as_deref() {
+        None => return Err(Error::empty()),
+        Some("select" | "show" | "describe") => {}
+        Some(_) if sql.len() <= limits.max_statement_bytes => {
+            return Err(Error::not_a_query(sql.trim()));
+        }
+        Some(_) => {}
+    }
     let tokens = lex(sql, limits)?;
     let mut p = Parser {
         tokens,
@@ -219,7 +235,21 @@ impl Parser {
                     self.eat_word("asc");
                     false
                 };
-                sel.order.push(Order { field, desc });
+                let missing = if self.eat_word("nulls") {
+                    if self.eat_word("first") {
+                        Some(true)
+                    } else {
+                        self.expect_word("last")?;
+                        Some(false)
+                    }
+                } else {
+                    None
+                };
+                sel.order.push(Order {
+                    field,
+                    desc,
+                    nulls_first: missing,
+                });
                 if !self.eat_sym(",") {
                     break;
                 }
@@ -320,6 +350,9 @@ impl Parser {
     /// A dotted field path; anything that looks like a call or an operator is refused.
     pub(crate) fn path(&mut self) -> Result<String, Error> {
         let mut out = match self.peek().cloned() {
+            Some(Kind::Word(w)) if RESERVED.contains(&w.to_ascii_lowercase().as_str()) => {
+                return self.fail();
+            }
             Some(Kind::Word(w) | Kind::Quoted(w)) => {
                 self.bump();
                 w

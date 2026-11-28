@@ -160,7 +160,15 @@ impl Parser {
 
     fn relevance(&mut self, func: String, alias: Option<&str>) -> Result<Pred, Error> {
         self.expect_sym("(")?;
-        let multi = func == "multi_match" || func == "query_string";
+        let func = if func == "match_query" {
+            "match".to_owned()
+        } else {
+            func
+        };
+        let multi = matches!(
+            func.as_str(),
+            "multi_match" | "query_string" | "simple_query_string"
+        );
         let mut fields = Vec::new();
         if multi {
             self.expect_sym("[")?;

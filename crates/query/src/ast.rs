@@ -84,6 +84,8 @@ pub struct Order {
     pub field: String,
     /// Whether descending.
     pub desc: bool,
+    /// `NULLS FIRST` (true) or `NULLS LAST` (false) when written.
+    pub nulls_first: Option<bool>,
 }
 
 /// A `SELECT`.

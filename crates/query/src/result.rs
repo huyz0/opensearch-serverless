@@ -27,6 +27,22 @@ fn dig<'a>(src: &'a Value, path: &str) -> Option<&'a Value> {
     Some(cur)
 }
 
+/// A date the way the plugin prints a timestamp: `yyyy-MM-dd HH:mm:ss`, with a fraction
+/// only when there is one. Anything that is not an ISO instant is left as it is.
+fn timestamp(v: Value) -> Value {
+    let Value::String(s) = &v else { return v };
+    let Some((date, time)) = s.split_once('T') else {
+        return v;
+    };
+    let time = time.strip_suffix('Z').unwrap_or(time);
+    let time = time.strip_suffix(".000").unwrap_or(time);
+    if date.len() != 10 || time.contains(['+', 'Z']) {
+        return v;
+    }
+    // ALLOC: one cell, bounded by the source field's length.
+    Value::String(format!("{date} {time}"))
+}
+
 /// Reads one row a hit gives, for each column of the plan.
 ///
 /// # Errors
@@ -46,7 +62,15 @@ pub fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Error> {
             .columns()
             .iter()
             .map(|c| match &c.source {
-                Source::Field(p) => dig(src, p).cloned().unwrap_or(Value::Null),
+                Source::Field(p) => {
+                    let v = dig(src, p).cloned().unwrap_or(Value::Null);
+                    match v {
+                        // The plugin prints an empty array as null.
+                        Value::Array(a) if a.is_empty() => Value::Null,
+                        v if c.sql_type() == "timestamp" => timestamp(v),
+                        v => v,
+                    }
+                }
                 Source::Id => hit.get("_id").cloned().unwrap_or(Value::Null),
                 Source::Index => hit.get("_index").cloned().unwrap_or(Value::Null),
                 Source::Score => hit.get("_score").cloned().unwrap_or(Value::Null),
