@@ -194,6 +194,20 @@ impl Parser {
                 break;
             }
         }
+        if !self.is_word("from") && self.constant_items(&items) {
+            return Ok(Select {
+                dialect: Dialect::Sql,
+                items,
+                from: Vec::new(),
+                filter: None,
+                distinct,
+                group: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: None,
+                offset: 0,
+            });
+        }
         self.expect_word("from")?;
         let from = self.table()?;
         let alias = self.alias()?;
