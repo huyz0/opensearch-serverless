@@ -70,3 +70,4 @@ src/pack_seed.rs	new		the register recording how far the one-time seeding walk o
 src/schedule_registry.rs	new		the alerting registry shards and the run claim value (alerting spec, slice 1); no Java counterpart
 src/monitor_index.rs	new		the alerting monitor index register and its keys (alerting spec, slice 2); no Java counterpart
 src/pack_retired.rs	new		the record of a departed Java node's packs, listed once and kept as a sidecar of the packs that exist, or an over-cap state (ADR 0025, spec pack-retirement); Rust only
+src/alert_set.rs	new		the key and bound of a monitor's alert register (alerting spec, slice 6); no Java counterpart

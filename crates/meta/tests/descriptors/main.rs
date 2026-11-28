@@ -7,6 +7,7 @@
 #![allow(clippy::arithmetic_side_effects)]
 
 mod alert_registry;
+mod alerts;
 mod alias_mutations;
 mod alias_races;
 mod alias_restore;

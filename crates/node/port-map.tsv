@@ -374,3 +374,5 @@ src/alerting_route/search.rs	new		the monitor search route over a tenant's monit
 src/alerting_route/search_query.rs	new		the query clauses a monitor search evaluates over one monitor
 src/alerting_route/misc.rs	new		the destinations, email searches, findings and stats routes that answer none yet
 src/alerting_route/execute.rs	new		one run of a query-level monitor, its trigger conditions in the Rust Painless runtime
+src/alerting_route/alert.rs	new		the alert documents and the moves a run and an acknowledge make
+src/alerting_route/alert_routes.rs	new		the alerts list and acknowledge routes over the monitors' alert registers

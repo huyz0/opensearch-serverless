@@ -10,6 +10,7 @@ use lucene_painless::ir::Constant;
 use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
 
+use super::alert::{Outcome, Subject};
 use super::monitor::Checked;
 use super::{AlertingService, alerting, bad, now_millis, refused, status_cause};
 use crate::route_util::read_body;
@@ -266,19 +267,57 @@ impl AlertingService {
     ) -> Result<(), RestError> {
         let dryrun = crate::route_util::flag(req, "dryrun", false);
         let end = Self::period_end(req, body)?;
-        let monitor = match monitor {
-            Some(m) => m,
+        let (monitor, stored) = match monitor {
+            Some(m) => (m, None),
             None => {
                 let (id, found) = self.load(req)?;
-                let Some((_, stored)) = found else {
+                let Some((entry, stored)) = found else {
                     let reason = format!("Can't find monitor with id: {id}");
                     return Err(alerting(404, reason.clone(), status_cause(&reason)));
                 };
-                stored
+                (stored, Some((id, entry.version)))
             }
         };
         let answer = self.run_monitor(&monitor, end, dryrun)?;
+        if let (false, Some((id, version))) = (dryrun, &stored) {
+            self.record(req, &monitor, &answer, (id, *version))?;
+        }
         resp.send(200, JSON, answer.to_string().as_bytes())
+    }
+
+    /// Opens, keeps or completes the alerts of the run `answer` describes.
+    fn record(
+        &self,
+        req: &Request<'_>,
+        monitor: &Value,
+        answer: &Value,
+        (id, version): (&str, i64),
+    ) -> Result<(), RestError> {
+        let results = answer["trigger_results"].as_object();
+        let mut outcomes = Vec::new();
+        for trigger in monitor["triggers"].as_array().into_iter().flatten() {
+            let Some(body) = trigger.get("query_level_trigger") else {
+                continue;
+            };
+            let tid = body["id"].as_str().unwrap_or_default();
+            let Some(run) = results.and_then(|r| r.get(tid)) else {
+                continue;
+            };
+            outcomes.push(Outcome {
+                id: tid,
+                name: body["name"].as_str().unwrap_or_default(),
+                severity: body["severity"].as_str().unwrap_or("1"),
+                triggered: run["triggered"].as_bool().unwrap_or(false),
+                error: run["error"].as_str(),
+            });
+        }
+        let subject = Subject {
+            id,
+            name: monitor["name"].as_str().unwrap_or_default(),
+            version,
+        };
+        let execution = format!("{id}_{}", answer["period_end"].as_str().unwrap_or_default());
+        self.record_run(req, &subject, &outcomes, &execution)
     }
 
     /// `POST /monitors/{id}/_execute`: a stored monitor.

@@ -22,6 +22,18 @@ const PARAMS: &[&str] = &[
     "timeout",
 ];
 
+/// The parameters of the alerts list.
+const ALERTS: &[&str] = &[
+    "monitorId",
+    "severityLevel",
+    "alertState",
+    "sortString",
+    "sortOrder",
+    "size",
+    "startIndex",
+    "searchString",
+];
+
 /// The parameters of the findings search.
 const FINDINGS: &[&str] = &[
     "findingId",
@@ -36,12 +48,20 @@ type Handler = fn(&AlertingService, &mut Request<'_>, &mut Response<'_>) -> Resu
 
 type Entry = (Method, &'static str, &'static [&'static str], Handler);
 
-fn table() -> [Entry; 19] {
+fn table() -> [Entry; 22] {
     use AlertingService as S;
     [
         (Method::Post, "/monitors", PARAMS, S::create),
         (Method::Post, "/monitors/_search", PARAMS, S::search),
         (Method::Get, "/monitors/_search", PARAMS, S::search),
+        (Method::Get, "/monitors/alerts", ALERTS, S::alerts),
+        (Method::Get, "/alerts", ALERTS, S::alerts),
+        (
+            Method::Post,
+            "/monitors/{id}/_acknowledge/alerts",
+            PARAMS,
+            S::acknowledge,
+        ),
         (Method::Post, "/monitors/_execute", PARAMS, S::execute_body),
         (
             Method::Post,

@@ -34,7 +34,7 @@ pub const MAX_MONITOR_BYTES: usize = 1 << 20;
 /// and a content key, with the field names, quotes and numbers.
 pub const MAX_MONITOR_INDEX_BYTES: usize = MAX_MONITORS * 768;
 
-fn check_base(base: &str) -> Result<(), FormatError> {
+pub(crate) fn check_base(base: &str) -> Result<(), FormatError> {
     if base.is_empty() || base.ends_with('/') {
         Ok(())
     } else {
@@ -97,7 +97,7 @@ pub struct MonitorIndex {
     entries: BTreeMap<String, MonitorEntry>,
 }
 
-fn check_id(id: &str) -> Result<(), FormatError> {
+pub(crate) fn check_id(id: &str) -> Result<(), FormatError> {
     if id.len() > MAX_MONITOR_ID_BYTES {
         return Err(FormatError::TooLarge {
             what: WHAT,

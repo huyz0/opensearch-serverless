@@ -36,6 +36,7 @@
 //! bucketed descriptor ([`FormatError::NotFollowable`]); a reader follows it
 //! through the bucket manifest instead.
 
+mod alert_set;
 mod alias_record;
 mod bucket_manifest;
 mod change_stripe;
@@ -84,6 +85,7 @@ mod transport_secret;
 mod unit_layout;
 mod wal_record;
 
+pub use alert_set::{MAX_ALERT_SET_BYTES, alert_set_key, check_alert_set};
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
 pub use bucket_manifest::{
     BUCKET_OPEN_PREFIX, BUCKETS_PREFIX, BucketEntry, BucketManifest, BucketMember,

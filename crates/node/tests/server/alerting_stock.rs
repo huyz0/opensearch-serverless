@@ -12,6 +12,7 @@ fn replayed(i: usize) -> bool {
     i <= 30
         || (33..=37).contains(&i)
         || (38..=40).contains(&i)
+        || (41..=50).contains(&i)
         || (51..=52).contains(&i)
         || (55..=68).contains(&i)
 }
@@ -46,13 +47,14 @@ fn diff(
         (Value::String(w), _) if is_placeholder(w) && !is_captured(w, labels) => {}
         (Value::String(w), Value::String(g)) if w.contains('<') && expand(w, labels) == *g => {}
         (Value::Object(w), Value::Object(g)) => {
-            for (k, v) in w {
-                match g.get(k) {
+            let keys: Vec<String> = w.keys().map(|k| expand(k, labels)).collect();
+            for ((k, v), key) in w.iter().zip(&keys) {
+                match g.get(key) {
                     Some(x) => diff(v, x, &format!("{path}.{k}"), labels, out),
                     None => out.push(format!("{path}.{k}: missing")),
                 }
             }
-            for k in g.keys().filter(|k| !w.contains_key(*k)) {
+            for k in g.keys().filter(|k| !keys.contains(k)) {
                 out.push(format!("{path}.{k}: extra"));
             }
         }
@@ -75,12 +77,22 @@ fn fixture() -> Value {
     serde_json::from_reader(std::io::BufReader::new(file)).expect("json")
 }
 
-/// The id a step's answer carries under a `<label>` in the recording: later
-/// steps write it as `{label}`.
-fn captured(step: &Value, got: &Value) -> Option<(String, String)> {
-    let want = step["response"]["body"]["_id"].as_str()?;
-    let label = want.strip_prefix('<')?.strip_suffix('>')?;
-    Some((label.to_owned(), got["_id"].as_str()?.to_owned()))
+/// The ids a step's answer carries under a `<label>` in the recording: later
+/// steps write them as `{label}`. A document's `_id` and the first alert's
+/// `id` are captured.
+fn captured(step: &Value, got: &Value) -> Vec<(String, String)> {
+    let at = |want: &Value, have: &Value| {
+        let label = want.as_str()?.strip_prefix('<')?.strip_suffix('>')?;
+        Some((label.to_owned(), have.as_str()?.to_owned()))
+    };
+    let want = &step["response"]["body"];
+    [
+        at(&want["_id"], &got["_id"]),
+        at(&want["alerts"][0]["id"], &got["alerts"][0]["id"]),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 /// Every difference between the recording and this node, by step.
@@ -138,9 +150,7 @@ pub(crate) fn differences() -> Vec<String> {
             diff(&want["body"], &got, "", &labels, &mut d);
             out.extend(d.into_iter().map(|x| format!("step {i} [{name}]: {x}")));
         }
-        if let Some((label, value)) = captured(step, &got) {
-            labels.insert(label, value);
-        }
+        labels.extend(captured(step, &got));
     }
     oss_reader::painless_switch::set_native_compile(false);
     out
