@@ -73,6 +73,7 @@ mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_delete_action;
 mod ism_managed;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ism_rig;

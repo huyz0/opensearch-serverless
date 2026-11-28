@@ -90,14 +90,20 @@ fn run_action(record: &Value, action: &Value, at: usize, now: i64, backend: &dyn
                 .find(|k| !matches!(k.as_str(), "timeout" | "retry"))
         })
         .map_or("", String::as_str);
-    let (step, result) = match block_step(name) {
-        Some((step, on, said)) => (
+    let (step, result) = match (block_step(name), name) {
+        (Some((step, on, said)), _) => (
             step,
             backend
                 .set_read_only(index, on)
                 .map(|()| format!("{said} [index={index}]")),
         ),
-        None => (
+        (None, "delete") => (
+            "attempt_delete",
+            backend
+                .delete(index)
+                .map(|()| format!("Successfully deleted index [index={index}]")),
+        ),
+        _ => (
             "",
             Err(format!("action [{name}] cannot run on this node yet")),
         ),
@@ -119,6 +125,10 @@ fn run_action(record: &Value, action: &Value, at: usize, now: i64, backend: &dyn
         };
     }
     out["action_index"] = json!(at.saturating_add(1));
+    if name == "delete" {
+        // The index is gone: the schedule drops this record.
+        out["deleted"] = json!(true);
+    }
     Step {
         record: out,
         next_eval: Some(now),
@@ -199,6 +209,14 @@ mod tests {
     }
 
     impl Backend for Fake {
+        fn delete(&self, index: &str) -> Result<(), String> {
+            if self.refuse {
+                return Err("index [logs] is missing".to_owned());
+            }
+            self.asked.lock().unwrap().push((index.to_owned(), false));
+            Ok(())
+        }
+
         fn set_read_only(&self, index: &str, on: bool) -> Result<(), String> {
             if self.refuse {
                 return Err("index [logs] is missing".to_owned());
@@ -272,6 +290,24 @@ mod tests {
             s.record["action_index"].is_null(),
             "the action is still the one to run"
         );
+    }
+
+    #[test]
+    fn a_delete_action_deletes_the_index_and_marks_the_record_for_removal() {
+        let p = acting(json!([{"delete":{}}]));
+        let fake = Fake::default();
+        let s = evaluate(&started(), &p, 7000, &fake);
+        assert_eq!(*fake.asked.lock().unwrap(), [("logs".to_owned(), false)]);
+        assert_eq!(s.record["step"]["name"], "attempt_delete");
+        assert_eq!(s.record["step"]["step_status"], "completed");
+        assert_eq!(s.record["deleted"], true);
+        let refused = Fake {
+            refuse: true,
+            ..Fake::default()
+        };
+        let s = evaluate(&started(), &p, 7000, &refused);
+        assert_eq!(s.record["step"]["step_status"], "failed");
+        assert!(s.record["deleted"].is_null());
     }
 
     #[test]
