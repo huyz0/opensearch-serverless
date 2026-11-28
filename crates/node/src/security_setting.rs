@@ -15,3 +15,19 @@ pub const SECURITY_ENABLED: BoolSetting = BoolSetting::new(
 
 /// Every setting this module defines, for the node's registry.
 pub static SETTINGS: &[&Setting] = &[SECURITY_ENABLED.setting()];
+
+/// The static administrator from its two variables: both or neither.
+///
+/// # Errors
+///
+/// A message when only one is set.
+pub fn admin_pair(
+    user: Option<String>,
+    hash: Option<String>,
+) -> Result<Option<(String, String)>, String> {
+    match (user, hash) {
+        (Some(user), Some(hash)) => Ok(Some((user, hash))),
+        (None, None) => Ok(None),
+        _ => Err("OSS_SECURITY_ADMIN_USER and OSS_SECURITY_ADMIN_HASH go together".to_owned()),
+    }
+}

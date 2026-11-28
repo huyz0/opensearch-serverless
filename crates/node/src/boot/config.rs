@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
 
+use crate::security_setting::admin_pair;
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod apply;
@@ -333,28 +334,11 @@ impl NodeConfig {
         let ltr_bounds = ltr::read(&bounded)?;
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
-        let security_admin = match (
+        let security_admin = admin_pair(
             get("OSS_SECURITY_ADMIN_USER").filter(|v| !v.is_empty()),
             get("OSS_SECURITY_ADMIN_HASH").filter(|v| !v.is_empty()),
-        ) {
-            (Some(user), Some(hash)) => Some((user, hash)),
-            (None, None) => None,
-            _ => {
-                return Err(
-                    "OSS_SECURITY_ADMIN_USER and OSS_SECURITY_ADMIN_HASH go together".to_owned(),
-                );
-            }
-        };
-        // No flag is needed: configuring an administrator turns security on, and
-        // OSS_SECURITY=false turns it off. With neither, nobody can sign in, so it stays off.
-        let security = flag(
-            "OSS_SECURITY",
-            if security_admin.is_some() {
-                "true"
-            } else {
-                "false"
-            },
         )?;
+        let security = flag("OSS_SECURITY", &security_admin.is_some().to_string())?;
         let store_usage = flag("OSS_STORE_USAGE", "true")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
         let tenant_levels = match or("OSS_TENANT_LEVELS", "observe").as_str() {
