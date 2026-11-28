@@ -316,3 +316,4 @@ src/ad_route/preview_tests.rs	new		tests of preview.rs
 src/ad_route/preview_route.rs	new		the _preview routes of a stored or inline detector
 src/ad_route/source.rs	new		the seam a detector's windows are searched through
 src/search_window.rs	new		the node's search as that seam
+src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a request through its guard (ADR 0080)

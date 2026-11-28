@@ -27,6 +27,7 @@ mod msearch_template;
 mod never_written;
 mod open_prefetch;
 mod open_prefetch_layout;
+mod plugin_routes;
 mod rank_eval;
 mod rescore;
 mod script_fields;

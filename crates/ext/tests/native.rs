@@ -279,3 +279,33 @@ fn a_tenant_with_nothing_running_holds_no_entry() {
         "freed after a call and after a panic"
     );
 }
+
+#[test]
+fn a_call_with_no_tenant_is_held_to_the_plugins_limit_only() {
+    let (arrived_tx, arrived_rx) = sync_channel(16);
+    let (release_tx, release_rx) = sync_channel(16);
+    let plugin = Arc::new(Blocking {
+        arrived: Mutex::new(arrived_tx),
+        release: Mutex::new(release_rx),
+    });
+    let g = Arc::new(guard());
+    let mut handles = Vec::new();
+    for _ in 0..4 {
+        let (g, p) = (g.clone(), plugin.clone());
+        handles.push(std::thread::spawn(move || {
+            g.call(&*p, "", "rest", &[], 16, now)
+        }));
+    }
+    for _ in 0..4 {
+        arrived_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("four calls with no tenant run at once");
+    }
+    assert_eq!(g.tenants_in_flight(), 0);
+    for _ in 0..4 {
+        release_tx.send(()).expect("release");
+    }
+    for h in handles {
+        assert!(h.join().expect("joined").is_ok());
+    }
+}
