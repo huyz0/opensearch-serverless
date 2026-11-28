@@ -348,3 +348,18 @@ fn the_ml_models_have_their_own_directory_and_the_common_bound() {
     );
     assert_eq!(DocKind::MlModels.max_doc_bytes(), oss_format::MAX_DOC_BYTES);
 }
+
+#[test]
+fn a_plugins_state_lives_under_its_own_base_with_a_quarter_mebibyte_bound() {
+    assert_eq!(
+        doc_set_marker_key("plugins/geo/t1/", DocKind::PluginState).unwrap(),
+        "plugins/geo/t1/state/_version"
+    );
+    assert_eq!(
+        doc_content_key("plugins/geo/t1/", DocKind::PluginState, "k").unwrap(),
+        "plugins/geo/t1/state/blob-k"
+    );
+    assert_eq!(DocKind::PluginState.max_doc_bytes(), 256 * 1024);
+    assert_eq!(oss_format::MAX_PLUGIN_STATE_BYTES, 256 * 1024);
+    assert_eq!(DocKind::PluginState.max_docs(), oss_format::MAX_DOCS);
+}

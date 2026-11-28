@@ -24,6 +24,7 @@ mod manifest_wasm;
 pub mod native;
 pub mod pin;
 pub mod rest;
+pub mod state;
 mod status;
 mod version;
 

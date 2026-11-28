@@ -11,6 +11,9 @@ mod jobs_tests;
 mod policy;
 mod registry;
 mod routes;
+mod state;
+#[cfg(test)]
+mod state_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(feature = "extensions")]
@@ -26,6 +29,7 @@ pub use jobs::PluginJobs;
 pub use policy::{Entry, Policy, PolicyError, PolicyTier};
 pub use registry::{Plugin, Registry, State, Taken};
 pub use routes::mount;
+pub use state::StateBackend;
 #[cfg(feature = "extensions")]
 pub use wasm::WasmPlugin;
 #[cfg(feature = "extensions")]

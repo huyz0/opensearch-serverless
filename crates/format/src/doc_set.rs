@@ -31,6 +31,9 @@ pub const MAX_DOC_BYTES: usize = 1 << 20;
 /// thousand trees is some megabytes of JSON or XML.
 pub const MAX_MODEL_BYTES: usize = 10 << 20;
 
+/// The longest value of a plugin's state: 256 KiB.
+pub const MAX_PLUGIN_STATE_BYTES: usize = 256 * 1024;
+
 /// The longest notification catalogue: 1,000 summaries with a longest name and
 /// description.
 pub const MAX_CATALOGUE_BYTES: usize = 2 << 20;
@@ -103,6 +106,9 @@ pub enum DocKind {
     ObservabilityObjects,
     /// Report definitions, one document each, `reports/definitions/`.
     ReportDefinitions,
+    /// A plugin's state for one tenant, one document a key, `state/` under
+    /// the plugin's own base (`plugins/<id>/<tenant>/`).
+    PluginState,
 }
 
 impl DocKind {
@@ -134,6 +140,7 @@ impl DocKind {
             Self::IsmTemplates => "ism/templates/",
             Self::ObservabilityObjects => "observability/objects/",
             Self::ReportDefinitions => "reports/definitions/",
+            Self::PluginState => "state/",
         }
     }
 }
@@ -145,6 +152,7 @@ impl DocKind {
         match self {
             Self::LtrModels | Self::KnnModels => MAX_MODEL_BYTES,
             Self::NotificationCatalogue => MAX_CATALOGUE_BYTES,
+            Self::PluginState => MAX_PLUGIN_STATE_BYTES,
             _ => MAX_DOC_BYTES,
         }
     }

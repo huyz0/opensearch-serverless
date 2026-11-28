@@ -349,6 +349,12 @@ pub fn assemble(
             Arc::clone(&search) as _
         )),
     ));
+    let state = Arc::new(crate::plugins::StateBackend::new(
+        Arc::clone(&store),
+        &config.base,
+        budget,
+        Arc::new(oss_ext::host::NoBackend),
+    ));
     let router = crate::plugins::install_configured(
         router,
         &config.plugin_policy,
@@ -356,6 +362,7 @@ pub fn assemble(
         plugin_jobs,
         &bus,
         &modules,
+        state,
     )?;
 
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
