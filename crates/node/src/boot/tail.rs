@@ -130,7 +130,16 @@ fn install_warm(
         max_bytes: warm.max_bytes,
         max_concurrent: usize::try_from(warm.max_concurrent).unwrap_or(usize::MAX),
     };
-    let gate = Arc::new(Gate::with_rate(warm.serve_bytes_per_second));
+    let gate = Arc::new(if warm.serve_adaptive {
+        let pressure = Arc::new(crate::warm_pressure::Pressure::new(
+            warm.serve_bytes_per_second,
+            std::time::Instant::now(),
+        ));
+        assembled.search.set_search_pressure(Arc::clone(&pressure));
+        Gate::with_pressure(warm.serve_bytes_per_second, pressure)
+    } else {
+        Gate::with_rate(warm.serve_bytes_per_second)
+    });
     let mut registry = Registry::new(Arc::clone(auth));
     registry
         .add(

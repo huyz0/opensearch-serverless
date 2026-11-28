@@ -77,6 +77,19 @@ impl Gate {
         }
     }
 
+    /// A gate whose rate also follows the node's search latency (`pressure`),
+    /// up to `bytes_per_second`.
+    #[must_use]
+    pub fn with_pressure(
+        bytes_per_second: u64,
+        pressure: Arc<crate::warm_pressure::Pressure>,
+    ) -> Self {
+        Self {
+            serving: AtomicUsize::new(0),
+            rate: ServeRate::adaptive(bytes_per_second, pressure),
+        }
+    }
+
     fn enter(&self, limit: usize) -> Option<Permit<'_>> {
         let before = self.serving.fetch_add(1, Ordering::AcqRel);
         if before >= limit {
