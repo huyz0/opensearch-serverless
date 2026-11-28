@@ -51,7 +51,7 @@ Not here: the **forecasting** plugin routes of the same repository (`/_plugins/_
 
 ## End state
 
-Nothing of the plugin relies on Java. Every route of the stock plugin's anomaly detection API is served natively, with no proxy fallback; the AD prefixes leave the plugin-proxy list in the slice that completes the routes, not at the default flip. Java is never the only oracle: the stock recording of AC-15 is a fixture compared against, and every AC above is held by a test that runs on the Rust node alone. A route the port will not serve is refused with a reason that names it, never forwarded.
+Nothing of the plugin relies on Java. Every route of the stock plugin's anomaly detection API is served natively, with no proxy fallback; the AD prefixes leave the plugin-proxy list in the slice that completes the routes, not at the default flip. Java stays out of the runtime path and is never a fallback, but tests may use it: compatibility against the stock plugin (the recording and live run of AC-15) and performance and memory comparison against the Java build are kept where useful, alongside tests that hold every AC above on the Rust node alone. A route the port will not serve is refused with a reason that names it, never forwarded.
 
 ## Test plan
 
