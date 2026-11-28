@@ -21,6 +21,14 @@ const PARAMS: &[&str] = &[
     "timeout",
 ];
 
+/// What `_topAnomalies` takes besides the detector's own: whether to read a historical analysis.
+const TOP_PARAMS: &[&str] = &[
+    "historical",
+    "master_timeout",
+    "cluster_manager_timeout",
+    "timeout",
+];
+
 type Handler = fn(&AdService, &mut Request<'_>, &mut Response<'_>) -> Result<(), RestError>;
 
 /// The detector routes.
@@ -89,6 +97,26 @@ pub fn routes(router: Router, service: &Arc<AdService>) -> Result<Router, RouteE
                 path,
                 PARAMS,
                 move |q: &mut Request<'_>, r: &mut Response<'_>| handler(&service, q, r),
+            )?;
+        }
+    }
+    for root in [
+        "/_plugins/_anomaly_detection",
+        "/_opendistro/_anomaly_detection",
+    ] {
+        for method in [Method::Get, Method::Post] {
+            // ALLOC: the router keeps its patterns for the life of the process.
+            let path: &'static str = Box::leak(
+                format!("{root}/detectors/{{id}}/results/_topAnomalies").into_boxed_str(),
+            );
+            let service = Arc::clone(service);
+            router = router.route(
+                method,
+                path,
+                TOP_PARAMS,
+                move |q: &mut Request<'_>, r: &mut Response<'_>| {
+                    AdService::top_anomalies(&service, q, r)
+                },
             )?;
         }
     }

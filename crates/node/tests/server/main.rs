@@ -13,6 +13,7 @@ mod ad_preview;
 mod ad_results;
 mod ad_routes;
 mod ad_run;
+mod ad_top;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
