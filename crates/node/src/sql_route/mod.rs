@@ -76,6 +76,8 @@ pub struct SqlLimits {
     pub size_limit: usize,
     /// The largest request body.
     pub max_request_bytes: usize,
+    /// The most groups a grouped statement reads across its pages.
+    pub max_buckets: usize,
 }
 
 /// The SQL endpoint's service.

@@ -49,6 +49,9 @@ fn timestamp(v: Value) -> Value {
 ///
 /// An answer with no `hits.hits` array.
 pub fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Error> {
+    if matches!(plan.shape, crate::plan::Shape::Aggs { .. }) {
+        return crate::aggregate::rows(plan, response);
+    }
     let hits = response
         .get("hits")
         .and_then(|h| h.get("hits"))
@@ -74,6 +77,7 @@ pub fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Error> {
                 Source::Id => hit.get("_id").cloned().unwrap_or(Value::Null),
                 Source::Index => hit.get("_index").cloned().unwrap_or(Value::Null),
                 Source::Score => hit.get("_score").cloned().unwrap_or(Value::Null),
+                Source::Group(_) | Source::Agg(_) => Value::Null,
             })
             .collect();
         out.push(row);

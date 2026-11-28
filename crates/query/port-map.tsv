@@ -11,3 +11,5 @@ src/meta.rs	port	protocol/response and legacy show and describe handlers	SHOW TA
 src/parser_pred.rs	port	sql/sql OpenSearchSQLParser.g4 predicates, relevance functions	conditions
 src/dates.rs	new		the plugin's timestamp literal strings as epoch milliseconds
 src/hashorder.rs	new		the column order the plugin gives SELECT *: a Java HashMap over the names
+src/aggregate.rs	port	sql/sql OpenSearchSQLAggregationParser, sql/opensearch AggregationQueryBuilder	aggregates and GROUP BY lowered to one composite
+src/parser_agg.rs	port	sql/sql OpenSearchSQLParser.g4 aggregate functions, GROUP BY, HAVING	the aggregate parts of a SELECT
