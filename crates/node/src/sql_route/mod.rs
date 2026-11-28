@@ -9,7 +9,9 @@
 
 mod guard;
 mod handle;
+mod lister;
 mod mount;
+mod names;
 mod routes;
 
 use std::sync::Arc;
@@ -18,6 +20,7 @@ use oss_rest::RestError;
 use serde_json::Value;
 
 pub use guard::NameGuard;
+pub use lister::DescriptorLister;
 pub(crate) use mount::mount;
 pub use routes::routes;
 
@@ -97,11 +100,23 @@ pub struct SqlLimits {
     pub max_buckets: usize,
 }
 
+/// The names an index pattern's literal prefix stands for: the one listing `SHOW TABLES` and
+/// `DESCRIBE` over a pattern read.
+pub trait NameLister: Send + Sync {
+    /// The names that begin with `prefix`, at most `cap`.
+    ///
+    /// # Errors
+    ///
+    /// A refusal as the REST layer answers it; more than `cap` names is one.
+    fn names_with_prefix(&self, prefix: &str, cap: usize) -> Result<Vec<String>, SqlFailure>;
+}
+
 /// The SQL endpoint's service.
 pub struct SqlService {
     backend: Arc<dyn SqlBackend>,
     guard: Arc<dyn SqlGuard>,
     limits: SqlLimits,
+    lister: Option<Arc<dyn NameLister>>,
 }
 
 impl SqlService {
@@ -112,6 +127,14 @@ impl SqlService {
             backend,
             guard,
             limits,
+            lister: None,
         }
+    }
+
+    /// The service reading the names a pattern stands for from `lister`.
+    #[must_use]
+    pub fn with_lister(mut self, lister: Arc<dyn NameLister>) -> Self {
+        self.lister = Some(lister);
+        self
     }
 }

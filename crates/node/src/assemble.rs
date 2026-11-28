@@ -290,7 +290,7 @@ pub fn assemble(
         crate::admin_assemble::register(router, &store, config, budget, &script_source)?;
     let router = crate::admin_assemble::ad_routes(router, config, &store, &search)?;
     let (router, notifier) = crate::notifications_assemble::mount(router, config, &store, budget)?;
-    let router = crate::sql_route::mount(router, config, &search, _sec.as_ref())?;
+    let router = crate::sql_route::mount(router, config, &search, &store, _sec.as_ref())?;
     let (router, async_search) =
         crate::async_search::mount(router, config, budget, Arc::clone(&search) as _)?;
     let bus = crate::lifecycle_bus::Bus::default();

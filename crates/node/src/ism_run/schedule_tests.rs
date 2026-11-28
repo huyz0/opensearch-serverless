@@ -131,6 +131,14 @@ impl super::backend::Backend for Deleting {
         self.0.lock().unwrap().push(index.to_owned());
         Ok(())
     }
+
+    fn set_alias(&self, _: &str, _: bool, _: &str, _: Option<bool>) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn notify(&self, _: &str, _: &str) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 #[test]

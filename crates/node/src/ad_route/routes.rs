@@ -29,7 +29,7 @@ type Handler = fn(&AdService, &mut Request<'_>, &mut Response<'_>) -> Result<(),
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<AdService>) -> Result<Router, RouteError> {
-    let table: [(Method, &'static str, Handler); 18] = [
+    let table: [(Method, &'static str, Handler); 20] = [
         (Method::Post, "/detectors", AdService::create),
         (Method::Put, "/detectors/{id}", AdService::replace),
         (Method::Get, "/detectors/{id}", AdService::get),
@@ -48,6 +48,12 @@ pub fn routes(router: Router, service: &Arc<AdService>) -> Result<Router, RouteE
         (Method::Post, "/detectors/{id}/_preview", AdService::preview),
         (Method::Post, "/detectors/{id}/_start", AdService::start),
         (Method::Post, "/detectors/{id}/_stop", AdService::stop),
+        (Method::Get, "/detectors/{id}/_profile", AdService::profile),
+        (
+            Method::Get,
+            "/detectors/{id}/_profile/{type}",
+            AdService::profile,
+        ),
         (
             Method::Get,
             "/detectors/results/_search",

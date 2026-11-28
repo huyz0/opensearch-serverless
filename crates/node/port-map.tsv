@@ -187,6 +187,7 @@ src/warm_boot/tests.rs	new		tests of the three ways a warming node is let in
 src/boot/tail/joining.rs	new		the warm-up of a joining reader on its own thread, ending when enough is in or the wait runs out
 src/warm_setting.rs	new		the per-index switch that leaves an index out of warm copy
 src/alias_route/mod.rs	new		alias add, remove and read routes over the alias mutation protocol; names are literal, the Java's patterns need a listing
+src/alias_route/change.rs	new		one alias change: add or remove a member by compare-and-swap, retried while another writer swaps the alias
 src/alias_route/parse.rs	new		the names, write flag and action list an alias request asks for
 src/boot/config/tests/resident.rs	new		tests for the resident page bound and search queue settings
 src/data_stream_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/DataStreamHandler.java	the put, get and delete routes over the stream's alias record; names are literal, the Java's patterns and comma lists need a listing, and the backing index has no `_data_stream_timestamp` mapper
@@ -420,4 +421,7 @@ src/knn_trainer_tests.rs	new		tests of the trainer; compiled only under cfg(test
 src/ism_run/node_backend.rs	new		the runner backend over the settings service
 src/settings_route/block.rs	new		the write block as the runner sets it, through the route's own merge and swap
 src/ad_route/results_route.rs	new		POST|GET /detectors/results/_search[/{result_index}]: a search of the result index through the node search; no stock recording exists (AC-15 gap)
+src/sql_route/lister.rs	new		the descriptor store as the SQL endpoint name listing, the one capped LIST
+src/sql_route/names.rs	new		SHOW TABLES and DESCRIBE over a pattern: one listing, then like
 src/ism_run/actions.rs	new		what each action asks of the backend and leaves in the record
+src/ad_route/profile_route.rs	new		GET /detectors/{id}/_profile[/{type}]: the state from the stored job and the clock; no stock recording exists (AC-15 gap)

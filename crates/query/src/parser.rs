@@ -152,6 +152,11 @@ impl Parser {
             let columns = if self.eat_word("columns") {
                 self.expect_word("like")?;
                 Some(self.pattern()?)
+            } else if self.eat_word("column") {
+                // Recorded: stock reads the singular form and filters nothing (`describe-columns`).
+                self.expect_word("like")?;
+                self.pattern()?;
+                None
             } else {
                 None
             };
@@ -174,11 +179,26 @@ impl Parser {
         }
     }
 
+    /// A `LIKE` pattern: a string or quoted name, or the plugin's bare form, which runs to the
+    /// next space (`show tables like logs-%`).
     fn pattern(&mut self) -> Result<String, Error> {
         match self.peek().cloned() {
-            Some(Kind::Str(s) | Kind::Quoted(s) | Kind::Word(s)) => {
+            Some(Kind::Str(s) | Kind::Quoted(s)) => {
                 self.bump();
                 Ok(s)
+            }
+            Some(Kind::Word(_) | Kind::Sym("%")) => {
+                let start = self.tokens.get(self.at).map_or(0, |t| t.pos);
+                let rest = self.src.get(start..).unwrap_or_default();
+                let len = rest
+                    .find(|c: char| c.is_whitespace() || c == ';')
+                    .unwrap_or(rest.len());
+                let text = rest.get(..len).unwrap_or_default().to_owned();
+                let end = start.saturating_add(len);
+                while self.tokens.get(self.at).is_some_and(|t| t.pos < end) {
+                    self.bump();
+                }
+                Ok(text)
             }
             _ => self.fail(),
         }
