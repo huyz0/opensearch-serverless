@@ -271,8 +271,9 @@ impl Service {
         }
     }
 
-    /// Whose an id is: 400 for one that is malformed.
+    /// Whose an id is; one that is malformed is no job, so 404 as any id that
+    /// is not this caller's.
     fn target(&self, id: &str) -> Result<Target, RestError> {
-        self.jobs.route(id).map_err(|e| render::refusal(e, id))
+        self.jobs.route(id).map_err(|_| render::not_found(id))
     }
 }

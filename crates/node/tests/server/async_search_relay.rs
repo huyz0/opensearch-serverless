@@ -228,9 +228,9 @@ fn another_user_is_not_found_through_the_relay() {
     assert_eq!(get(&asker, &id, "alice").expect("hers").0, 200);
 }
 
-// AC-10: no live node, no relay and a malformed id.
+// AC-10, AC-6: no live node, no relay and a malformed id.
 #[test]
-fn an_unknown_node_is_not_found_naming_it_and_a_malformed_id_is_a_bad_request() {
+fn an_unknown_node_is_not_found_naming_it_and_a_malformed_id_is_not_found() {
     let owner = service("owner");
     let door = door(&owner);
     let with_relay = asker(Some(&door));
@@ -245,7 +245,7 @@ fn an_unknown_node_is_not_found_naming_it_and_a_malformed_id_is_a_bad_request() 
             get(s, "not-an-id", "alice")
                 .expect_err("malformed")
                 .status(),
-            400
+            404
         );
         assert_eq!(
             s.delete(&who("alice"), "ghost:7")
