@@ -359,7 +359,6 @@ src/knn_train_request.rs	new		the _train request's own checks: TrainingModelRequ
 src/knn_train_request_tests.rs	new		the _train request checks replayed from the stock 3.10.0 recording
 src/knn_train_route.rs	new		POST /_plugins/_knn/models/{id}/_train: the model-exists, index, field and dimension checks (opensearch-project/k-NN 3.10.0.0 TrainingModelRequest)
 src/security_authz_knn.rs	new		the k-NN plugin routes and the transport actions its security plugin names for them (opensearch-project/k-NN 3.10.0.0)
-src/security_authz/tests.rs	new		unit tests of the route rules, moved out of security_authz.rs for its size
 src/async_search/mod.rs	new		the asynchronous search service: submit, get, delete and stats over the job registry, plain bytes in and out (ADR 0084)
 src/async_search/params.rs	new		the request parameters of asynchronous search with the recorded refusals
 src/async_search/render.rs	new		the response envelopes, stats and refusals of asynchronous search
