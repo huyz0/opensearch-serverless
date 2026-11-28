@@ -1,7 +1,7 @@
 //! A small search engine over the recorded documents: enough of the query DSL to run
 //! the bodies the plan lowers to and compare their rows with stock's.
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::cmp::Ordering;
 
 /// The values a field path holds in a document (arrays flatten, `.keyword` is the field).
@@ -270,4 +270,124 @@ pub fn sort(docs: &mut [Value], keys: &[Value]) {
         }
         Ordering::Equal
     });
+}
+
+fn numbers(docs: &[Value], field: &str) -> Vec<f64> {
+    docs.iter()
+        .flat_map(|d| values(d, field))
+        .filter_map(Value::as_f64)
+        .collect()
+}
+
+/// The aggregations of a body over the matching documents: `value_count`, `sum`, `avg`,
+/// `min`, `max` and a `composite` of `terms` sources, as the search engine answers them.
+pub fn aggregate(docs: &[Value], aggs: &Value) -> Value {
+    let mut out = serde_json::Map::new();
+    for (name, spec) in aggs.as_object().unwrap() {
+        let (kind, body) = spec
+            .as_object()
+            .unwrap()
+            .iter()
+            .find(|(k, _)| *k != "aggregations")
+            .unwrap();
+        let field = body.get("field").and_then(Value::as_str).unwrap_or("");
+        let value = match kind.as_str() {
+            "value_count" => {
+                json!({"value": if field == "_index" { docs.len() } else { docs.iter().map(|d| values(d, field).len()).sum() }})
+            }
+            "sum" => json!({"value": numbers(docs, field).iter().sum::<f64>()}),
+            "avg" => {
+                let n = numbers(docs, field);
+                json!({"value": if n.is_empty() { Value::Null } else { json!(n.iter().sum::<f64>() / n.len() as f64) }})
+            }
+            "min" => json!({"value": numbers(docs, field).into_iter().reduce(f64::min)}),
+            "max" => json!({"value": numbers(docs, field).into_iter().reduce(f64::max)}),
+            "composite" => composite(docs, body, spec.get("aggregations")),
+            other => panic!("aggregation [{other}]"),
+        };
+        out.insert(name.clone(), value);
+    }
+    Value::Object(out)
+}
+
+fn composite(docs: &[Value], body: &Value, subs: Option<&Value>) -> Value {
+    let sources: Vec<(String, String, bool)> = body["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            let (k, t) = s.as_object().unwrap().iter().next().unwrap();
+            (
+                k.clone(),
+                t["terms"]["field"].as_str().unwrap().to_owned(),
+                t["terms"]["order"] == "desc",
+            )
+        })
+        .collect();
+    let key_of = |d: &Value| -> Vec<Value> {
+        sources
+            .iter()
+            .map(|(_, f, _)| values(d, f).first().map_or(Value::Null, |v| (*v).clone()))
+            .collect()
+    };
+    let mut groups: Vec<(Vec<Value>, Vec<Value>)> = Vec::new();
+    for d in docs {
+        let k = key_of(d);
+        match groups.iter_mut().find(|(g, _)| *g == k) {
+            Some((_, m)) => m.push(d.clone()),
+            None => groups.push((k, vec![d.clone()])),
+        }
+    }
+    groups.sort_by(|(a, _), (b, _)| {
+        for (i, (_, _, desc)) in sources.iter().enumerate() {
+            let c = match (&a[i], &b[i]) {
+                (Value::Null, Value::Null) => Ordering::Equal,
+                (Value::Null, _) => Ordering::Less,
+                (_, Value::Null) => Ordering::Greater,
+                (x, y) => cmp(x, y).unwrap_or(Ordering::Equal),
+            };
+            let c = if *desc && !a[i].is_null() && !b[i].is_null() {
+                c.reverse()
+            } else {
+                c
+            };
+            if c != Ordering::Equal {
+                return c;
+            }
+        }
+        Ordering::Equal
+    });
+    let after = body.get("after").and_then(Value::as_object);
+    if let Some(after) = after {
+        let a: Vec<Value> = sources.iter().map(|(n, _, _)| after[n].clone()).collect();
+        let pos = groups
+            .iter()
+            .position(|(k, _)| *k == a)
+            .map_or(0, |p| p + 1);
+        groups.drain(..pos);
+    }
+    let size = body["size"].as_u64().unwrap() as usize;
+    let page: Vec<_> = groups.into_iter().take(size).collect();
+    let buckets: Vec<Value> = page
+        .iter()
+        .map(|(k, m)| {
+            let key: serde_json::Map<String, Value> = sources
+                .iter()
+                .zip(k)
+                .map(|((n, _, _), v)| (n.clone(), v.clone()))
+                .collect();
+            let mut b = json!({"key": key, "doc_count": m.len()});
+            if let Some(s) = subs {
+                b.as_object_mut()
+                    .unwrap()
+                    .extend(aggregate(m, s).as_object().unwrap().clone());
+            }
+            b
+        })
+        .collect();
+    let mut out = json!({"buckets": buckets});
+    if buckets.len() == size {
+        out["after_key"] = buckets.last().unwrap()["key"].clone();
+    }
+    out
 }

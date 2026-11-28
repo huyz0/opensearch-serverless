@@ -130,7 +130,7 @@ impl Parser {
 
     fn statement(&mut self) -> Result<Statement, Error> {
         if self.eat_word("select") {
-            return self.select().map(Statement::Select);
+            return self.select().map(|s| Statement::Select(Box::new(s)));
         }
         if self.eat_word("show") {
             self.expect_word("tables")?;
@@ -179,9 +179,7 @@ impl Parser {
     }
 
     fn select(&mut self) -> Result<Select, Error> {
-        if self.is_word("distinct") {
-            return Err(Error::unsupported("SELECT DISTINCT is not supported"));
-        }
+        let distinct = self.eat_word("distinct");
         // ALLOC: bounded by the token limit.
         let mut items = Vec::new();
         loop {
@@ -210,6 +208,9 @@ impl Parser {
             items,
             from: vec![from],
             filter: None,
+            distinct,
+            group: Vec::new(),
+            having: None,
             order: Vec::new(),
             limit: None,
             offset: 0,
@@ -217,14 +218,8 @@ impl Parser {
         if self.eat_word("where") {
             sel.filter = Some(self.or(alias.as_deref())?);
         }
-        for stop in ["group", "having"] {
-            if self.is_word(stop) {
-                return Err(Error::unsupported(format!(
-                    "[{}] is not supported yet: aggregations are a later slice",
-                    stop.to_ascii_uppercase()
-                )));
-            }
-        }
+        sel.group = self.group_by(alias.as_deref())?;
+        sel.having = self.having(alias.as_deref())?;
         if self.eat_word("order") {
             self.expect_word("by")?;
             loop {
@@ -329,12 +324,15 @@ impl Parser {
         if self.eat_sym("*") {
             return Ok(Item::Star);
         }
+        if let Some(agg) = self.agg_call(None)? {
+            return self.agg_item(agg);
+        }
         let path = self.path()?;
         let alias = self.alias_for_item()?;
         Ok(Item::Field(path, alias))
     }
 
-    fn alias_for_item(&mut self) -> Result<Option<String>, Error> {
+    pub(crate) fn alias_for_item(&mut self) -> Result<Option<String>, Error> {
         if self.eat_word("as") {
             return match self.peek().cloned() {
                 Some(Kind::Word(w) | Kind::Quoted(w)) => {

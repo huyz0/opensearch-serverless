@@ -37,6 +37,7 @@ Slice 1:
 - AC-13 (slice 3): a model read costs the marker GET and the content GET and no LIST.
 - AC-14 (slice 4, stage 1): a `faiss` method `hnsw` on a float field (spaces `l2`, `cosinesimil`, `innerproduct`; parameters `m`, `ef_construction`, `ef_search`; encoder `flat`) is accepted and written back with the engine the client named, in the plugin's key order; the dimension limit is 16000.
 - AC-15 (slice 4, stage 1): each refusal the stock 3.10.0 makes for `faiss` and `nmslib` mappings is made with its message: `l1` and `linf` spaces, `sq` without `bits`, `pq` and `ivf` needing training, an unknown parameter, a non-positive or non-integer parameter, an unknown encoder, and `nmslib` for a new index.
+- AC-16 (slice 4, `_train` request): `POST /_plugins/_knn/models/{id}/_train` and `/models/_train` refuse a body the stock 3.10.0 plugin refuses with its exception type and message (missing `training_index` or `dimension`, no `method`, the `lucene` engine, an `hnsw` method with nothing to train, unknown or non-positive parameters), a model id already stored, a training index or field that does not exist, and a dimension that differs from the field's. A request that passes every check is answered 501 until the training job is built; nothing is stored.
 
 ## Test plan
 

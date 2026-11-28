@@ -23,10 +23,6 @@ fn read(p: PathBuf) -> Value {
 
 /// Statements this slice refuses, with the slice that serves them.
 const LATER: &[&str] = &[
-    "distinct",
-    "count-",
-    "sum-avg",
-    "group-by",
     "scalar-",
     "where-in-expression",
     "join",
@@ -117,14 +113,23 @@ fn run(sql: &str, docs: &[Value], mapping: &Value) -> Result<Vec<Value>, oss_que
         });
         hits = order.into_iter().map(|i| hits[i].clone()).collect();
     }
+    if let Some(aggs) = body.get("aggregations") {
+        let srcs: Vec<Value> = hits.iter().map(|h| h["_source"].clone()).collect();
+        let answer = json!({"hits": {"total": {"value": srcs.len()}, "hits": []}, "aggregations": eval::aggregate(&srcs, aggs)});
+        return Ok(finish(&p, &answer));
+    }
     let from = body.get("from").and_then(Value::as_u64).unwrap_or(0) as usize;
     let size = body.get("size").and_then(Value::as_u64).unwrap_or(10) as usize;
     let page: Vec<Value> = hits.into_iter().skip(from).take(size).collect();
     let answer = json!({"hits": {"total": {"value": page.len(), "relation": "eq"}, "hits": page}});
-    let r = rows(&p, &answer)?;
-    let out = write(Format::Jdbc, &p, &r, 1 << 20)?;
+    Ok(finish(&p, &answer))
+}
+
+fn finish(p: &oss_query::Plan, answer: &Value) -> Vec<Value> {
+    let r = rows(p, answer).unwrap();
+    let out = write(Format::Jdbc, p, &r, 1 << 20).unwrap();
     let v: Value = serde_json::from_str(&out).unwrap();
-    Ok(v["datarows"].as_array().cloned().unwrap_or_default())
+    v["datarows"].as_array().cloned().unwrap_or_default()
 }
 
 #[test]
@@ -197,4 +202,33 @@ fn every_statement_gives_stock_rows_or_is_a_listed_refusal() {
         }
     }
     assert!(bad.is_empty(), "{} differ:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// The `aggregations` of an aggregate statement are the plugin's own, key for key.
+#[test]
+fn aggregation_bodies_equal_stock() {
+    let data = read(dir().join("data.json"));
+    let m = Mapping::from_json(&data["indices"]["compat-sql"]["mappings"]).unwrap();
+    let mut checked = 0;
+    for (name, sql) in corpus() {
+        let dsl = dir().join("cases").join(format!("{name}.dsl.json"));
+        if !dsl.exists() || later(&name) {
+            continue;
+        }
+        let want = read(dsl)["dsl"]["aggregations"].clone();
+        if want.is_null() {
+            continue;
+        }
+        let Ok(Statement::Select(sel)) = parse(&sql, &Limits::default()) else {
+            continue;
+        };
+        let p = plan(&sel, &m, 10_000).unwrap();
+        assert_eq!(p.body()["aggregations"], want, "{name}");
+        assert_eq!(p.body()["size"], 0, "{name}");
+        checked += 1;
+    }
+    assert!(
+        checked >= 8,
+        "only {checked} aggregate bodies were compared"
+    );
 }

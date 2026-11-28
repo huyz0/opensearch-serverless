@@ -12,14 +12,30 @@ pub(crate) enum Source {
     Id,
     Index,
     Score,
+    /// A `GROUP BY` key of a bucket.
+    Group(String),
+    /// An aggregate of a bucket or of the whole result.
+    Agg(String),
+}
+
+/// What a plan's answer looks like.
+#[derive(Debug, Clone)]
+pub(crate) enum Shape {
+    /// One row a hit.
+    Hits,
+    /// Rows from aggregations: whether a composite pages them, and the `HAVING` to apply.
+    Aggs {
+        grouped: bool,
+        having: Option<(String, crate::ast::CmpOp, crate::ast::Lit)>,
+    },
 }
 
 /// One output column.
 #[derive(Debug, Clone)]
 pub struct Column {
-    name: String,
-    alias: Option<String>,
-    ty: String,
+    pub(crate) name: String,
+    pub(crate) alias: Option<String>,
+    pub(crate) ty: String,
     pub(crate) source: Source,
 }
 
@@ -46,8 +62,9 @@ impl Column {
 /// A search body and the columns it answers.
 #[derive(Debug, Clone)]
 pub struct Plan {
-    body: Value,
-    columns: Vec<Column>,
+    pub(crate) body: Value,
+    pub(crate) columns: Vec<Column>,
+    pub(crate) shape: Shape,
 }
 
 impl Plan {
@@ -55,6 +72,47 @@ impl Plan {
     #[must_use]
     pub fn body(&self) -> &Value {
         &self.body
+    }
+
+    /// Whether the answer is one page of a composite aggregation, so the caller asks for the
+    /// next page while [`Plan::next_page`] gives one.
+    #[must_use]
+    pub fn is_paged(&self) -> bool {
+        matches!(self.shape, Shape::Aggs { grouped: true, .. })
+    }
+
+    /// The body that asks for the page after the one `response` answers, or `None` when it
+    /// was the last.
+    #[must_use]
+    pub fn next_page(&self, response: &Value) -> Option<Value> {
+        if !self.is_paged() {
+            return None;
+        }
+        let after = response
+            .get("aggregations")?
+            .get(crate::aggregate::COMPOSITE)?
+            .get("after_key")?;
+        let mut body = self.body.clone();
+        body.get_mut("aggregations")?
+            .get_mut(crate::aggregate::COMPOSITE)?
+            .get_mut("composite")?
+            .as_object_mut()?
+            .insert("after".into(), after.clone());
+        Some(body)
+    }
+
+    /// How many buckets `response` holds (one for an ungrouped aggregate, none for hits).
+    #[must_use]
+    pub fn buckets(&self, response: &Value) -> usize {
+        match self.shape {
+            Shape::Aggs { grouped: true, .. } => response
+                .get("aggregations")
+                .and_then(|a| a.get(crate::aggregate::COMPOSITE))
+                .and_then(|c| c.get("buckets"))
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len),
+            _ => 0,
+        }
     }
 
     /// The columns, in select order.
@@ -73,7 +131,7 @@ fn meta(name: &str) -> Option<(Source, &'static str)> {
     }
 }
 
-fn lookup<'a>(mapping: &'a Mapping, name: &str) -> Result<&'a Field, Error> {
+pub(crate) fn lookup<'a>(mapping: &'a Mapping, name: &str) -> Result<&'a Field, Error> {
     mapping.field(name).ok_or_else(|| {
         // ALLOC: one message, bounded by the identifier limit.
         Error::semantic(format!(
@@ -88,6 +146,10 @@ fn lookup<'a>(mapping: &'a Mapping, name: &str) -> Result<&'a Field, Error> {
 ///
 /// A field the mapping lacks, or a construct with no search-body form.
 pub fn plan(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, Error> {
+    if sel.distinct || !sel.group.is_empty() || sel.items.iter().any(|i| matches!(i, Item::Agg(..)))
+    {
+        return crate::aggregate::plan(sel, mapping);
+    }
     let mut columns = Vec::new();
     let mut includes: Vec<Value> = Vec::new();
     let mut score = false;
@@ -104,6 +166,7 @@ pub fn plan(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, 
                     });
                 }
             }
+            Item::Agg(..) => unreachable!("aggregates take the aggregate path"),
             Item::Field(name, alias) => {
                 if let Some((source, ty)) = meta(name) {
                     score |= source == Source::Score;
@@ -166,6 +229,7 @@ pub fn plan(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, 
     Ok(Plan {
         body: Value::Object(body),
         columns,
+        shape: Shape::Hits,
     })
 }
 
@@ -174,13 +238,13 @@ fn order(desc: bool) -> &'static str {
 }
 
 /// The name a term, range, wildcard or sort runs on: a text field's keyword form.
-fn exact_name(name: &str, f: &Field, what: &str) -> Result<String, Error> {
+pub(crate) fn exact_name(name: &str, f: &Field, what: &str) -> Result<String, Error> {
     if f.es_type == "text" {
         if f.keyword_sub {
             // ALLOC: one name, bounded by the identifier limit.
             return Ok(format!("{name}.keyword"));
         }
-        if what != "sort on" {
+        if !matches!(what, "sort on" | "group on") {
             // The plugin runs the term on the analysed field itself.
             return Ok(name.to_owned());
         }
@@ -200,7 +264,7 @@ fn is_rel(p: &Pred) -> bool {
     matches!(p, Pred::Rel(_))
 }
 
-fn query(p: &Pred, mapping: &Mapping) -> Result<Value, Error> {
+pub(crate) fn query(p: &Pred, mapping: &Mapping) -> Result<Value, Error> {
     let conjuncts: Vec<&Pred> = match p {
         Pred::And(parts) => parts.iter().collect(),
         other => vec![other],

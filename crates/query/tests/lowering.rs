@@ -257,9 +257,11 @@ fn string_escapes_and_booleans() {
 #[test]
 fn what_cannot_be_pushed_is_refused_with_a_400_and_no_body() {
     for sql in [
-        "SELECT city, count(*) FROM accounts GROUP BY city",
-        "SELECT count(*) FROM accounts",
         "SELECT * FROM accounts GROUP BY city HAVING count(*) > 1",
+        "SELECT city, count(distinct age) FROM accounts GROUP BY city",
+        "SELECT city, count(*) FROM accounts GROUP BY city ORDER BY count(*)",
+        "SELECT firstname, count(*) FROM accounts GROUP BY city",
+        "SELECT sum(city) FROM accounts",
         "SELECT * FROM a JOIN b ON a.id = b.id",
         "SELECT * FROM a, b",
         "SELECT * FROM accounts WHERE age IN (SELECT age FROM b)",
@@ -267,7 +269,6 @@ fn what_cannot_be_pushed_is_refused_with_a_400_and_no_body() {
         "SELECT upper(city) FROM accounts",
         "SELECT * FROM accounts WHERE upper(city) = 'X'",
         "SELECT * FROM accounts WHERE age + 1 > 3",
-        "SELECT DISTINCT city FROM accounts",
         "SELECT * FROM accounts ORDER BY address",
         "DELETE FROM accounts WHERE age > 3",
         "INSERT INTO accounts VALUES (1)",
