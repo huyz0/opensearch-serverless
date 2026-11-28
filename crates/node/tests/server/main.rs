@@ -96,6 +96,7 @@ mod newest_ask;
 mod notifications_routes;
 mod notifications_send;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod observability_replay;
 mod observability_routes;
 mod pinned_busy;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
