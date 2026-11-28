@@ -50,6 +50,8 @@ pub struct Config {
     pub notifications: bool,
     /// `serverless.ad.enabled`: serve the anomaly detection detector routes.
     pub ad: bool,
+    /// `serverless.observability.enabled`: serve the observability object routes.
+    pub observability: bool,
     /// `OSS_PLUGINS`: the plugin policy text; empty names no plugin.
     pub plugin_policy: String,
     /// `serverless.ltr.max_window`: the most hits an `sltr` rescore scores.
@@ -184,6 +186,7 @@ impl Config {
             ml: false,
             notifications: true,
             ad: false,
+            observability: false,
             plugin_policy: String::new(),
             ltr_max_window: 1_000,
             ltr_cache_ttl_secs: 30,

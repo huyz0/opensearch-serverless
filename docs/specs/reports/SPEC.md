@@ -44,7 +44,7 @@ Management: the stored-scripts shape. A scheduled run: the claim (1 PUT), the se
 
 ## Switch
 
-`serverless.reports.enabled` (`OSS_REPORTS`), default **off**: scheduled reports spend searches by design, as monitors do. It flips on when slices 1 to 3 pass and a one-day soak of 1,000 definitions shows the idle bill equals the scheduler's. `serverless.reports.renderer` (a gRPC address, empty by default) turns on slice 5.
+`serverless.reports.enabled` (`OSS_REPORTS`), default **on** (the owner's rule of 2026-11-28: a ported plugin needs no flag, or its flag is on by default). Scheduled reports spend searches by design, as monitors do, so the floor, the counts and the concurrency bound are the guard, and the one-day soak of 1,000 definitions that shows the idle bill equals the scheduler's is recorded after the default, not before it. `serverless.reports.renderer` (a gRPC address, empty by default) turns on slice 5.
 
 ## Risks
 
