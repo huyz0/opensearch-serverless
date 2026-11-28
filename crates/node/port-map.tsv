@@ -420,3 +420,5 @@ src/knn_trainer_tests.rs	new		tests of the trainer; compiled only under cfg(test
 src/ism_run/node_backend.rs	new		the runner backend over the settings service
 src/settings_route/block.rs	new		the write block as the runner sets it, through the route's own merge and swap
 src/ad_route/results_route.rs	new		POST|GET /detectors/results/_search[/{result_index}]: a search of the result index through the node search; no stock recording exists (AC-15 gap)
+src/sql_route/lister.rs	new		the descriptor store as the SQL endpoint name listing, the one capped LIST
+src/sql_route/names.rs	new		SHOW TABLES and DESCRIBE over a pattern: one listing, then like

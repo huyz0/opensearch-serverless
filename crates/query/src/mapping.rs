@@ -120,6 +120,33 @@ impl Mapping {
             .collect()
     }
 
+    /// Every column `DESCRIBE` lists, with its mapping type: the leaves and the objects that
+    /// hold them, in the order the plugin's hash table gives (a Java `HashMap` filled in name
+    /// order, as `SELECT *` is).
+    pub(crate) fn describe_columns(&self) -> Vec<(String, String)> {
+        let mut all: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+        for (path, f) in &self.fields {
+            all.insert(path.clone(), f.es_type.clone());
+            let mut at = 0;
+            while let Some(dot) = path.get(at..).and_then(|r| r.find('.')) {
+                let end = at.saturating_add(dot);
+                if let Some(parent) = path.get(..end) {
+                    all.entry(parent.to_owned())
+                        .or_insert_with(|| "object".to_owned());
+                }
+                at = end.saturating_add(1);
+            }
+        }
+        let order = crate::hashorder::iteration_order(all.keys().cloned().collect());
+        order
+            .into_iter()
+            .map(|n| {
+                let ty = all.get(&n).cloned().unwrap_or_default();
+                (n, ty)
+            })
+            .collect()
+    }
+
     /// Every leaf in name order.
     pub fn fields(&self) -> impl Iterator<Item = (&str, &Field)> {
         self.fields.iter().map(|(k, v)| (k.as_str(), v))

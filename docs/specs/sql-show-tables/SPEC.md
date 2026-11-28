@@ -13,12 +13,13 @@ The names come from the one derived listing the node already has for `_cat/indic
 - One marked LIST per statement, whatever the pattern and however many indices match, up to the cap; the LIST is the only request a `SHOW TABLES` costs. A `DESCRIBE` adds the mapping read of each matched index, which is the open a search of it would make.
 - A prefix with more than the cap of live names (1,000, the cap `_cat/indices` uses) is a 400 telling the caller to narrow the pattern. It is never cut: a cut listing answers a different question.
 - A name the caller may not read is left out of the answer (the stock plugin shows what the caller can see); it is never an error and never costs a request.
-- `DESCRIBE` of several indices answers their columns one table after another in name order, up to `size_limit` rows, then stops.
+- `DESCRIBE` of several indices answers one table after another in name order, each table's columns (objects included) in the plugin's own order (the `HashMap` order `SELECT *` uses) with that position as `ORDINAL_POSITION`, up to `size_limit` rows, then stops. The recorded `describe` rows differ from what the first slice answered (it listed leaves only, in name order, with JDBC codes and upper-case type names); this slice matches stock.
+- `DESCRIBE ... COLUMN LIKE p` (singular, as `describe-columns` records) filters nothing, as stock does; `COLUMNS LIKE p` filters.
 - A backend with no listing (a node without the coordinator role) answers a 400 saying so, as before, and runs nothing.
 
 ## Acceptance criteria
 
-- AC-1: over a set of indices the node lists, `SHOW TABLES LIKE <pattern>` gives the matching names in the recorded column set and row shape (`TABLE_CAT`, `TABLE_NAME`, `BASE TABLE`), for the shapes of `show-tables` and `show-tables-all`, and `DESCRIBE TABLES LIKE` gives the recorded columns of every matched index, with `COLUMNS LIKE` filtering them.
+- AC-1: over the indices the node lists, `show-tables`, `describe` and `describe-columns` give stock's recorded schema and rows (the cluster column aside; `show-tables-all` lists the recording cluster's own system indices and is checked by pattern shape instead), and `DESCRIBE TABLES LIKE` over a pattern answers every matched index, with `COLUMNS LIKE` filtering.
 - AC-2: the literal prefix of a pattern is what is listed: `a%`, `ab_c`, `%` and `%x` list the prefixes `a`, `ab`, `` and `` and the filter then keeps only the matches (a unit test over generated patterns checks `like` against the listing's prefix and that no match is lost to the prefix).
 - AC-3: a `SHOW TABLES` costs exactly one LIST and nothing else, and a `DESCRIBE` of one named index lists nothing; both counts are read from the meter (budget row `sql.show_tables.requests`).
 - AC-4: a prefix with more than the cap of live names is a 400 that names the cap, and the answer is never a cut listing.
@@ -31,7 +32,7 @@ One LIST per `SHOW TABLES`, on the same derived prefix listing `_cat/indices` ma
 
 ## Crate
 
-`oss-query` gains `meta::prefix_of` and a `describe` over several tables. `oss-node` gains a `NameLister` the SQL service holds and a descriptor-store implementation of it, mounted where the coordinator feature is on.
+`oss-query` gains `meta::prefix_of`, a `describe` over several tables in stock's column order and shape, and an unquoted `LIKE` pattern in the parser (`show tables like logs-%`). `oss-node` gains a `NameLister` the SQL service holds and a descriptor-store implementation of it, mounted where the coordinator feature is on.
 
 ## Switch
 

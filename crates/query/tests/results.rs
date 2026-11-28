@@ -134,8 +134,10 @@ fn show_and_describe_have_the_documented_columns() {
     )
     .unwrap();
     assert_eq!(d["schema"].as_array().unwrap().len(), 24);
-    assert_eq!(d["datarows"][0][3], "active");
-    assert_eq!(d["datarows"].as_array().unwrap().len(), 10);
+    // The plugin's hash order, as the recorded `describe` rows are.
+    assert_eq!(d["datarows"][0][3], "firstname");
+    assert_eq!(d["datarows"][0][16], 1);
+    assert_eq!(d["datarows"].as_array().unwrap().len(), 11);
 }
 
 #[test]

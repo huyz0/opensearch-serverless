@@ -10,11 +10,11 @@ const TEXT: &str = "text/plain; charset=UTF-8";
 /// The permission a statement needs on each index it names.
 const ACTION: &str = "indices:data/read/search";
 
-fn send_error(resp: &mut Response<'_>, e: &Error) -> Result<(), RestError> {
+pub(super) fn send_error(resp: &mut Response<'_>, e: &Error) -> Result<(), RestError> {
     resp.send(e.status(), JSON, e.to_json().to_string().as_bytes())
 }
 
-fn failure(resp: &mut Response<'_>, f: SqlFailure) -> Result<(), RestError> {
+pub(super) fn failure(resp: &mut Response<'_>, f: SqlFailure) -> Result<(), RestError> {
     match f {
         SqlFailure::Rest(e) => Err(e),
         SqlFailure::Body(status, body) => resp.send(status, JSON, &body),
@@ -83,7 +83,7 @@ impl SqlService {
     }
 
     /// Checks `names` against the caller's permissions before any search.
-    fn permit(&self, req: &Request<'_>, names: &[&str]) -> Result<(), String> {
+    pub(super) fn permit(&self, req: &Request<'_>, names: &[&str]) -> Result<(), String> {
         self.guard.allow(req.principal(), ACTION, names)
     }
 
@@ -157,14 +157,11 @@ impl SqlService {
             Ok(Statement::DescribeTables { pattern, columns }) => {
                 self.describe(req, resp, &pattern, columns.as_deref())
             }
-            Ok(Statement::ShowTables { .. }) => send_error(
-                resp,
-                &Error::unsupported("SHOW TABLES is not supported yet"),
-            ),
+            Ok(Statement::ShowTables { pattern }) => self.show_tables(req, resp, &pattern),
         }
     }
 
-    fn mapping_of(&self, name: &str) -> Result<Mapping, SqlFailure> {
+    pub(super) fn mapping_of(&self, name: &str) -> Result<Mapping, SqlFailure> {
         let json = self.backend.mapping(name)?;
         Mapping::from_json(&json)
             .map_err(|e| SqlFailure::Body(e.status(), e.to_json().to_string().into_bytes()))
@@ -177,12 +174,8 @@ impl SqlService {
         pattern: &str,
         columns: Option<&str>,
     ) -> Result<(), RestError> {
-        // A pattern with a wildcard needs the name listing, a later slice.
         if pattern.contains(['%', '_']) {
-            return send_error(
-                resp,
-                &Error::unsupported("DESCRIBE with a pattern is not supported yet; name one index"),
-            );
+            return self.describe_pattern(req, resp, pattern, columns);
         }
         if let Err(body) = self.permit(req, &[pattern]) {
             return resp.send(403, JSON, body.as_bytes());

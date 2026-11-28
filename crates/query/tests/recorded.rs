@@ -31,13 +31,17 @@ const LATER: &[&str] = &[
     "union",
     "window",
     "multi-index",
-    "show-tables",
-    "describe",
 ];
 
 /// Statements over more than one index: the node resolves the names and runs one search
 /// over them, so they are checked there, not over one document set.
-const NODE: &[&str] = &["wildcard-index"];
+const NODE: &[&str] = &[
+    "wildcard-index",
+    "show-tables",
+    "show-tables-all",
+    "describe",
+    "describe-columns",
+];
 
 fn later(name: &str) -> bool {
     LATER.iter().any(|p| name.starts_with(p))

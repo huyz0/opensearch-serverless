@@ -26,7 +26,7 @@ mod result;
 pub use ast::{Agg, CmpOp, Dialect, Having, Item, Lit, Order, Pred, Relevance, Select, Statement};
 pub use error::Error;
 pub use mapping::{Field, Mapping};
-pub use meta::{describe, like, show_tables};
+pub use meta::{describe, describe_many, like, prefix_of, show_tables};
 pub use parser::parse;
 pub use plan::{Column, Plan, plan};
 pub use ppl_parser::parse_ppl;

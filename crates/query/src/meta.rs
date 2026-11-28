@@ -30,6 +30,15 @@ pub fn like(pattern: &str, text: &str) -> bool {
     p[pi..].iter().all(|c| *c == '%')
 }
 
+/// The text of a `LIKE` pattern before its first wildcard: every name the pattern matches
+/// begins with it, so it is the prefix a listing needs to read.
+#[must_use]
+pub fn prefix_of(pattern: &str) -> &str {
+    pattern
+        .find(['%', '_'])
+        .map_or(pattern, |at| pattern.get(..at).unwrap_or_default())
+}
+
 const SHOW: [(&str, &str); 10] = [
     ("TABLE_CAT", "keyword"),
     ("TABLE_SCHEM", "keyword"),
@@ -105,21 +114,6 @@ pub fn show_tables(cluster: &str, names: &[String], limit: usize) -> Result<Stri
     Ok(out.finish())
 }
 
-/// The JDBC type code the plugin gives a mapping type.
-fn jdbc_code(sql_type: &str) -> i64 {
-    match sql_type {
-        "boolean" => 16,
-        "byte" => -6,
-        "short" => 5,
-        "integer" => 4,
-        "long" => -5,
-        "float" => 7,
-        "double" => 8,
-        "timestamp" => 93,
-        _ => 12,
-    }
-}
-
 /// The `DESCRIBE TABLES` answer for one table's `mapping`, keeping the columns that match `column_like`.
 ///
 /// # Errors
@@ -132,45 +126,66 @@ pub fn describe(
     column_like: Option<&str>,
     limit: usize,
 ) -> Result<String, Error> {
+    describe_many(cluster, &[(table, mapping)], column_like, limit)
+}
+
+/// The `DESCRIBE TABLES` answer for several tables, one after another in the order given, at
+/// most `limit` rows in all; each table numbers its own columns from 1.
+///
+/// # Errors
+///
+/// Never in practice; the writer's bound is the limit's.
+pub fn describe_many(
+    cluster: &str,
+    tables: &[(&str, &Mapping)],
+    column_like: Option<&str>,
+    limit: usize,
+) -> Result<String, Error> {
     let mut rows = Vec::new();
-    let mut ordinal = 0i64;
-    for (name, f) in mapping.fields() {
-        if column_like.is_some_and(|p| !like(p, name)) {
-            continue;
+    for (table, mapping) in tables {
+        for (at, (name, ty)) in mapping.describe_columns().iter().enumerate() {
+            if column_like.is_some_and(|p| !like(p, name)) {
+                continue;
+            }
+            if rows.len() >= limit {
+                break;
+            }
+            let ordinal = i64::try_from(at).unwrap_or(i64::MAX).saturating_add(1);
+            rows.push(column_row(cluster, table, name, ty, ordinal));
         }
-        ordinal = ordinal.saturating_add(1);
-        if rows.len() >= limit {
-            break;
-        }
-        let ty = f.sql_type();
-        rows.push(vec![
-            json!(cluster),
-            Value::Null,
-            json!(table),
-            json!(name),
-            json!(jdbc_code(ty)),
-            json!(ty.to_ascii_uppercase()),
-            Value::Null,
-            json!(0),
-            Value::Null,
-            json!(10),
-            json!(2),
-            Value::Null,
-            Value::Null,
-            json!(0),
-            json!(0),
-            Value::Null,
-            json!(ordinal),
-            json!(""),
-            Value::Null,
-            Value::Null,
-            Value::Null,
-            Value::Null,
-            json!("NO"),
-            json!(""),
-        ]);
     }
     let mut out = Out::new(usize::MAX);
     jdbc(&mut out, schema(&DESCRIBE), &rows, true)?;
     Ok(out.finish())
+}
+
+/// One `DESCRIBE` row, as the plugin answers it: the type is the mapping's own name, and the
+/// sizes and the JDBC code are null.
+fn column_row(cluster: &str, table: &str, name: &str, ty: &str, ordinal: i64) -> Vec<Value> {
+    vec![
+        json!(cluster),
+        Value::Null,
+        json!(table),
+        json!(name),
+        Value::Null,
+        json!(ty),
+        Value::Null,
+        Value::Null,
+        Value::Null,
+        json!(10),
+        json!(2),
+        Value::Null,
+        Value::Null,
+        Value::Null,
+        Value::Null,
+        Value::Null,
+        json!(ordinal),
+        json!(""),
+        Value::Null,
+        Value::Null,
+        Value::Null,
+        Value::Null,
+        json!("NO"),
+        json!(""),
+    ]
 }
