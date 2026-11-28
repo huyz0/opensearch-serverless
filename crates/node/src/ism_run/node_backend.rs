@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use super::backend::Backend;
+use crate::alias_route::AliasService;
 use crate::index_delete::DeleteService;
 use crate::settings_route::SettingsService;
 
@@ -11,14 +12,23 @@ use crate::settings_route::SettingsService;
 pub struct NodeBackend {
     settings: Arc<SettingsService>,
     deletes: Arc<DeleteService>,
+    aliases: Arc<AliasService>,
 }
 
 impl NodeBackend {
-    /// A backend whose block actions go through `settings` and whose delete
-    /// goes through `deletes`.
+    /// A backend whose block actions go through `settings`, whose delete
+    /// goes through `deletes` and whose alias changes go through `aliases`.
     #[must_use]
-    pub fn new(settings: Arc<SettingsService>, deletes: Arc<DeleteService>) -> Self {
-        Self { settings, deletes }
+    pub fn new(
+        settings: Arc<SettingsService>,
+        deletes: Arc<DeleteService>,
+        aliases: Arc<AliasService>,
+    ) -> Self {
+        Self {
+            settings,
+            deletes,
+            aliases,
+        }
     }
 }
 
@@ -33,5 +43,15 @@ impl Backend for NodeBackend {
 
     fn delete(&self, index: &str) -> Result<(), String> {
         self.deletes.delete_index(index)
+    }
+
+    fn set_alias(
+        &self,
+        index: &str,
+        add: bool,
+        alias: &str,
+        write: Option<bool>,
+    ) -> Result<(), String> {
+        self.aliases.alter(index, add, alias, write)
     }
 }

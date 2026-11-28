@@ -24,6 +24,20 @@ pub trait Backend: Send + Sync {
     ///
     /// The reason the index could not be deleted.
     fn delete(&self, index: &str) -> Result<(), String>;
+
+    /// Adds `index` to `alias` (`add`) or removes it, as one action of
+    /// `POST /_aliases` does; `write` is the `is_write_index` flag of an add.
+    ///
+    /// # Errors
+    ///
+    /// The reason the alias could not be changed.
+    fn set_alias(
+        &self,
+        index: &str,
+        add: bool,
+        alias: &str,
+        write: Option<bool>,
+    ) -> Result<(), String>;
 }
 
 /// A backend that can do nothing: every action it is asked for fails.
@@ -40,5 +54,15 @@ impl Backend for Unsupported {
 
     fn delete(&self, _index: &str) -> Result<(), String> {
         Err("the node cannot delete an index yet".to_owned())
+    }
+
+    fn set_alias(
+        &self,
+        _index: &str,
+        _add: bool,
+        _alias: &str,
+        _write: Option<bool>,
+    ) -> Result<(), String> {
+        Err("the node cannot change an alias yet".to_owned())
     }
 }

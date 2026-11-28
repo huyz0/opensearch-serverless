@@ -198,6 +198,24 @@ mod tests {
             Ok(())
         }
 
+        fn set_alias(
+            &self,
+            index: &str,
+            add: bool,
+            alias: &str,
+            write: Option<bool>,
+        ) -> Result<(), String> {
+            if self.refuse {
+                return Err("index [logs] is missing".to_owned());
+            }
+            let verb = if add { "add" } else { "remove" };
+            self.asked
+                .lock()
+                .unwrap()
+                .push((format!("{verb} {alias} {index} {write:?}"), false));
+            Ok(())
+        }
+
         fn set_read_only(&self, index: &str, on: bool) -> Result<(), String> {
             if self.refuse {
                 return Err("index [logs] is missing".to_owned());
@@ -309,13 +327,45 @@ mod tests {
     }
 
     #[test]
+    fn an_alias_action_adds_and_removes_each_alias_in_order() {
+        let p = acting(json!([{"alias":{"actions":[
+            {"add":{"aliases":["a","b"],"is_write_index":true}},
+            {"remove":{"alias":"old"}}]}}]));
+        let fake = Fake::default();
+        let s = evaluate(&started(), &p, 7000, &fake);
+        assert_eq!(
+            *fake.asked.lock().unwrap(),
+            [
+                ("add a logs Some(true)".to_owned(), false),
+                ("add b logs Some(true)".to_owned(), false),
+                ("remove old logs None".to_owned(), false),
+            ]
+        );
+        assert_eq!(s.record["step"]["name"], "attempt_alias");
+        assert_eq!(s.record["step"]["step_status"], "completed");
+        assert_eq!(
+            s.record["info"]["message"],
+            "Successfully updated aliases [index=logs]"
+        );
+        let none = acting(json!([{"alias":{"actions":[]}}]));
+        let s = evaluate(&started(), &none, 7000, &fake);
+        assert_eq!(s.record["step"]["step_status"], "failed");
+        let refused = Fake {
+            refuse: true,
+            ..Fake::default()
+        };
+        let s = evaluate(&started(), &p, 7000, &refused);
+        assert_eq!(s.record["step"]["step_status"], "failed");
+    }
+
+    #[test]
     fn an_action_the_node_cannot_run_yet_fails_naming_itself() {
-        let p = acting(json!([{"rollover":{}}]));
+        let p = acting(json!([{"snapshot":{}}]));
         let s = ev(&started(), &p, 7000);
         assert_eq!(s.record["step"]["step_status"], "failed");
         assert_eq!(
             s.record["info"]["message"],
-            "action [rollover] cannot run on this node yet"
+            "action [snapshot] cannot run on this node yet"
         );
     }
 
