@@ -32,6 +32,12 @@ fn assert_z(ignore_z: bool, z: f64) -> Result<(), MappingError> {
     }
 }
 
+/// `Geohash.mortonEncode`'s `IllegalArgumentException`, which `GeoPoint`
+/// wraps in an `OpenSearchParseException` of the same reason.
+fn geohash_error(reason: &str) -> MappingError {
+    parse_error(reason).caused_by(MappingError::illegal_argument(reason))
+}
+
 /// The geohash alphabet, in value order.
 const BASE_32: &[u8; 32] = b"0123456789bcdefghjkmnpqrstuvwxyz";
 
@@ -43,7 +49,7 @@ const BASE_32: &[u8; 32] = b"0123456789bcdefghjkmnpqrstuvwxyz";
 /// The Java's parse exception, as [`MappingError`] data.
 pub fn geohash(text: &str) -> Result<(f64, f64), MappingError> {
     if text.is_empty() {
-        return Err(parse_error("empty geohash"));
+        return Err(geohash_error("empty geohash"));
     }
     let (mut lon_bits, mut lat_bits) = (0u64, 0u64);
     let mut count = 0u32;
@@ -63,7 +69,7 @@ pub fn geohash(text: &str) -> Result<(f64, f64), MappingError> {
                 .position(|b| char::from(*b) == c)
                 .ok_or_else(|| {
                     // ALLOC: error path; one message.
-                    parse_error(&format!("unsupported symbol [{c}] in geohash [{text}]"))
+                    geohash_error(&format!("unsupported symbol [{c}] in geohash [{text}]"))
                 })?,
             None => 0,
         };
@@ -90,7 +96,7 @@ pub fn geohash(text: &str) -> Result<(f64, f64), MappingError> {
 
 /// `GeoPoint.resetFromWKT`: `POINT (lon lat)` or with a z.
 fn wkt(text: &str, ignore_z: bool) -> Result<(f64, f64), MappingError> {
-    let invalid = || parse_error("Invalid WKT format");
+    let invalid = || parse_error("Invalid WKT format").caused_by_opt(wkt_cause(text));
     let rest = text.trim();
     let rest = rest
         .get(..5)
@@ -119,6 +125,48 @@ fn wkt(text: &str, ignore_z: bool) -> Result<(f64, f64), MappingError> {
         return Err(invalid());
     }
     Ok((y, x))
+}
+
+/// What the WKT tokenizer reports of a text it refuses: an unknown
+/// geometry type, a token other than `EMPTY` or `(` after `POINT`, or a
+/// missing number.
+fn wkt_cause(text: &str) -> Option<MappingError> {
+    let text = text.trim();
+    let word: String = text
+        .chars()
+        .take_while(|c| c.is_alphabetic())
+        .collect::<String>()
+        .to_lowercase();
+    if word != "point" {
+        // ALLOC: error path; one message.
+        return Some(MappingError::illegal_argument(&format!(
+            "Unknown geometry type: {word}"
+        )));
+    }
+    let rest = text.get(word.len()..).unwrap_or("").trim_start();
+    let token: String = match rest.chars().next() {
+        Some(c @ ('(' | ')')) => c.to_string(),
+        _ => rest
+            .chars()
+            .take_while(|c| !c.is_whitespace() && *c != '(' && *c != ')')
+            .collect(),
+    };
+    if token != "(" && !token.eq_ignore_ascii_case("empty") {
+        // ALLOC: error path; one message.
+        return Some(MappingError::java_parse(&format!(
+            "expected EMPTY or ( but found: {token}"
+        )));
+    }
+    let inner = rest.strip_prefix('(').unwrap_or("");
+    let numbers = inner
+        .split(')')
+        .next()
+        .unwrap_or("")
+        .split_whitespace()
+        .filter(|t| java_parse_double(t).is_some())
+        .count();
+    (numbers < 2 && inner.contains(')'))
+        .then(|| MappingError::java_parse("expected number but found: ')'"))
 }
 
 /// `GeoPoint.resetFromCoordinates`.
@@ -208,7 +256,13 @@ fn basic_fields(members: &[(String, Json)]) -> Result<(f64, f64), MappingError> 
                 return Err(parse_error(&format!("{key} must be a number")));
             }
         }
-        .ok_or_else(|| parse_error("[lon] and [lat] must be valid double values"))?;
+        .ok_or_else(|| {
+            let error = parse_error("[lon] and [lat] must be valid double values");
+            match value {
+                Json::Str(s) => error.caused_by(MappingError::number_format(s)),
+                _ => error,
+            }
+        })?;
         if key == "lat" {
             lat = Some(d);
         } else {
@@ -441,45 +495,4 @@ impl Parser<'_, '_> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn num(t: &str) -> Json {
-        Json::Num(t.to_owned())
-    }
-
-    #[test]
-    fn a_geohash_decodes_to_its_lower_left_corner() {
-        let (lat, lon) = geohash("u4pruydqqvj").expect("hash");
-        assert!((lat - 57.64911).abs() < 1e-4 && (lon - 10.40744).abs() < 1e-4);
-        assert!(geohash("").is_err() && geohash("a").is_err());
-    }
-
-    #[test]
-    fn every_form_reads_as_the_same_point() {
-        let want = (41.12, -71.34);
-        let obj = Json::Obj(vec![
-            ("lat".into(), num("41.12")),
-            ("lon".into(), num("-71.34")),
-        ]);
-        let s = Json::Str("41.12,-71.34".into());
-        let arr = Json::Arr(vec![num("-71.34"), num("41.12")]);
-        let wkt = Json::Str("POINT (-71.34 41.12)".into());
-        let gj = Json::Obj(vec![
-            ("type".into(), Json::Str("Point".into())),
-            ("coordinates".into(), arr.clone()),
-        ]);
-        for j in [obj, s, arr, wkt, gj] {
-            assert_eq!(parse_point(&j, true).expect("point"), want);
-        }
-    }
-
-    #[test]
-    fn a_point_out_of_range_is_refused_or_normalized() {
-        let (lat, lon) = process("p", (91.0, 0.0), true).expect("normalized");
-        assert_eq!((lat, lon), (89.0, 180.0));
-        let e = process("p", (91.0, 0.0), false).expect_err("refused");
-        assert_eq!(e.reason, "illegal latitude value [91.0] for p");
-        assert!(process("p", (f64::NAN, 0.0), true).is_err());
-    }
-}
+mod tests;
