@@ -88,6 +88,9 @@ pub mod index_route;
 pub mod index_templates;
 #[cfg(feature = "writer")]
 pub mod ingest_run;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod ism_route;
+pub mod ism_setting;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod knn_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]

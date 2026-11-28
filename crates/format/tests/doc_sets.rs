@@ -222,3 +222,19 @@ fn the_learning_to_rank_sets_have_their_own_directories_and_a_model_may_be_large
     );
     assert_eq!(oss_format::MAX_MODEL_BYTES, 10 << 20);
 }
+
+#[test]
+fn the_ism_policies_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::IsmPolicies).unwrap(),
+        "ism/policies/_version"
+    );
+    assert_eq!(
+        doc_content_key("", DocKind::IsmPolicies, "k").unwrap(),
+        "ism/policies/blob-k"
+    );
+    assert_eq!(
+        DocKind::IsmPolicies.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+}
