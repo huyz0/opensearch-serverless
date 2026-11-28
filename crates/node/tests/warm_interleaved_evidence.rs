@@ -10,7 +10,8 @@
 //! `WARM_ROUNDS` (arm pairs, 5), `WARM_SCALE_WINDOW` (seconds, 40),
 //! `WARM_SCALE_GAP_MS` (100), `WARM_SCALE_RUSTFS` (with `RUSTFS_BIN`),
 //! `WARM_JOINER_CPUS` (cores for the joiner, `taskset -c` syntax), and
-//! `WARM_JOINER_ENV` (`K=V,K=V` for the joiner only).
+//! `WARM_JOINER_ENV` (`K=V,K=V` for the joiner only), `WARM_CONTROL` (also
+//! run windows with no joiner at all).
 
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 // ARITH: sums and means of small test numbers; the clippy.toml method bans
@@ -61,6 +62,7 @@ fn the_peers_search_latency_while_a_joiner_warms_alternating_arms() {
     let window = Duration::from_secs(knob("WARM_SCALE_WINDOW", 40) as u64);
     let gap = Duration::from_millis(knob("WARM_SCALE_GAP_MS", 100) as u64);
     let rustfs = std::env::var_os("WARM_SCALE_RUSTFS").is_some();
+    let control = std::env::var_os("WARM_CONTROL").is_some();
     let extra: Vec<(String, String)> = std::env::var("WARM_JOINER_ENV")
         .unwrap_or_default()
         .split(',')
@@ -106,12 +108,18 @@ fn the_peers_search_latency_while_a_joiner_warms_alternating_arms() {
     let mut i = 0;
     for round in 0..rounds {
         // Alternate which arm goes first so a drift does not favour one.
-        let order = if round % 2 == 0 {
-            [false, true]
+        let mut order = if round % 2 == 0 {
+            vec![Some(false), Some(true)]
         } else {
-            [true, false]
+            vec![Some(true), Some(false)]
         };
-        for warm in order {
+        if control {
+            // A window with no joiner at all, to show what drift and the
+            // store sharing the peer's cores do on their own.
+            order.insert(round % 3, None);
+        }
+        for arm in order {
+            let warm = arm.unwrap_or(false);
             std::thread::sleep(Duration::from_secs(5));
             let mut before: Vec<f64> = (0..150)
                 .map(|_| {
@@ -127,8 +135,9 @@ fn the_peers_search_latency_while_a_joiner_warms_alternating_arms() {
             let cpu0 = threads();
             let started = Instant::now();
             let tier = root.join(format!("n2-{round}-{warm}"));
-            let joiner = spawn_joiner(&cluster, &tier, warm, "n2", &extra);
-            let pid = joiner.child.id();
+            let joiner = arm.map(|w| spawn_joiner(&cluster, &tier, w, "n2", &extra));
+            let pid = joiner.as_ref().map_or(0, |j| j.child.id());
+            let mut stamped: Vec<(f64, f64)> = Vec::new();
             let mut during = Vec::new();
             let mut ready = 0.0;
             while started.elapsed() < window
@@ -136,9 +145,13 @@ fn the_peers_search_latency_while_a_joiner_warms_alternating_arms() {
             {
                 let t = Instant::now();
                 i += 1;
-                during.push(query(peer, i));
+                let ms = query(peer, i);
+                during.push(ms);
+                stamped.push((started.elapsed().as_secs_f64(), ms));
                 if ready == 0.0 {
-                    let (status, _) = send(joiner.http, "GET", "/_serverless/ready", "");
+                    let status = joiner
+                        .as_ref()
+                        .map_or(200, |j| send(j.http, "GET", "/_serverless/ready", "").0);
                     if status == 200 {
                         ready = started.elapsed().as_secs_f64();
                     }
@@ -149,18 +162,43 @@ fn the_peers_search_latency_while_a_joiner_warms_alternating_arms() {
             }
             let cpu1 = threads();
             let peer_cpu = cpu1.values().sum::<f64>() - cpu0.values().sum::<f64>();
-            let first = query(joiner.http, 0);
+            let first = joiner.as_ref().map_or(0.0, |j| query(j.http, 0));
             let jcpu = process_seconds(pid);
+            // The same windows by elapsed time: the copy, just after it, and the rest.
+            let slice = |from: f64, to: f64| {
+                let mut v: Vec<f64> = stamped
+                    .iter()
+                    .filter(|(t, _)| *t >= from && *t < to)
+                    .map(|(_, m)| *m)
+                    .collect();
+                let n = v.len();
+                let (m, _, p, _) = stats(&mut v);
+                format!("{m:.1}/{p:.1} (n={n})")
+            };
+            println!(
+                "AC-8 slices arm={} med/p99 0-5s {} | 5-15s {} | 15-30s {} | 30s+ {}",
+                match arm {
+                    None => "none",
+                    Some(true) => "on",
+                    Some(false) => "off",
+                },
+                slice(0.0, 5.0),
+                slice(5.0, 15.0),
+                slice(15.0, 30.0),
+                slice(30.0, 1e9)
+            );
             let (bm, _, bp99, _) = stats(&mut before);
             let (dm, d95, dp99, dmax) = stats(&mut during);
             println!(
                 "AC-8 inter round={round} warm={warm} before: med={bm:.1} p99={bp99:.1} | during: med={dm:.1} p95={d95:.1} p99={dp99:.1} max={dmax:.1} (n={}) | ready={ready:.1}s first={first:.1}ms joiner_cpu={jcpu:.1}s peer_cpu={peer_cpu:.1}s",
                 during.len()
             );
-            results
-                .entry(warm)
-                .or_default()
-                .push((bm, bp99, dm, dp99, dmax, d95));
+            if arm.is_some() {
+                results
+                    .entry(warm)
+                    .or_default()
+                    .push((bm, bp99, dm, dp99, dmax, d95));
+            }
             drop(joiner);
             let _ = std::fs::remove_dir_all(&tier);
         }
