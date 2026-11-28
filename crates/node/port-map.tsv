@@ -385,4 +385,9 @@ src/async_search/runner.rs	new		the runner that plans a submit as one search of 
 src/async_search_setting.rs	new		the serverless.async_search.enabled setting, on by default
 src/bulk_sink.rs	new		index.docs for plugins: documents indexed through the _bulk service
 src/security_route/account.rs	new		the account routes: read the caller, change its own password
+src/reports_setting.rs	new		serverless.reports.enabled
+src/reports_route/mod.rs	new		the report definition service over a document set; the plugin is ported natively by ADR 0089
+src/reports_route/definition.rs	new		what a report definition must hold: the stock report_params, delivery and trigger
+src/reports_route/cron.rs	new		the shape of a five-field cron expression
+src/reports_route/routes.rs	new		the route table under /_plugins/_reports/definition
 src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors from the registry, run the ones this node owns that are due; no stock recording exists (AC-15 gap)
