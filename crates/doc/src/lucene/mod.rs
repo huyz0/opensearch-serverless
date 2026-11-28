@@ -414,6 +414,9 @@ impl Indexer {
     ) -> Result<(), MappingError> {
         match (spec.shape, value) {
             (Shape::Vector, FieldValue::Vector(components)) => out.vector(name, components),
+            (Shape::GeoPoint, FieldValue::GeoPoint { lat, lon }) => {
+                out.geo_point(number, spec, *lat, *lon)?;
+            }
             (Shape::Text { gap }, FieldValue::Text(text)) => {
                 if spec.inverted() {
                     out.inverted(number, spec)

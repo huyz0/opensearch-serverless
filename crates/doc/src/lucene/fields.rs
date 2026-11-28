@@ -46,6 +46,8 @@ pub enum Shape {
     Bool,
     /// A float vector, in a Lucene HNSW graph.
     Vector,
+    /// A `geo_point`: a two-dimension point and a packed doc value.
+    GeoPoint,
 }
 
 /// What a `knn_vector` field gives its `FieldInfo` and its graph.
@@ -181,6 +183,7 @@ impl Spec {
             ),
             FieldType::Date => (Shape::Date, IndexOptions::None, index, false),
             FieldType::Knn => (Shape::Vector, IndexOptions::None, false, false),
+            FieldType::GeoPoint => (Shape::GeoPoint, IndexOptions::None, index, false),
             FieldType::Number(n) => {
                 let shape = match n {
                     NumType::Byte | NumType::Short | NumType::Integer => Shape::Int,
@@ -256,7 +259,11 @@ impl Spec {
                 Shape::Int | Shape::Float => 4,
                 _ => 8,
             };
-            info = info.with_points(1, 1, bytes);
+            info = if self.shape == Shape::GeoPoint {
+                info.with_points(2, 2, 4)
+            } else {
+                info.with_points(1, 1, bytes)
+            };
         }
         info
     }

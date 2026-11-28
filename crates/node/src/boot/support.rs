@@ -195,6 +195,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.merge = config.merge.clone();
     node.knn = config.knn;
     node.nested = config.nested;
+    node.geo = config.geo;
     node.ltr = config.ltr;
     node.sql = config.sql;
     node.ppl = config.ppl;

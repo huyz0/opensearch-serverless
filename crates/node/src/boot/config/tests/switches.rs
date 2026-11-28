@@ -38,6 +38,17 @@ fn nested_is_on_by_default_and_turned_off_by_its_variable() {
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_NESTED", "yes")]))).is_err());
 }
 
+// docs/specs/geospatial AC-11
+#[test]
+fn geo_fields_are_on_by_default_and_turned_off_by_their_variable() {
+    let c = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
+    assert!(c.geo);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_GEOSPATIAL_FIELDS", "false")])))
+        .expect("valid");
+    assert!(!c.geo);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_GEOSPATIAL_FIELDS", "yes")]))).is_err());
+}
+
 // docs/specs/painless-script-score AC-1
 #[test]
 fn painless_source_is_refused_unless_its_variable_turns_the_compiler_on() {

@@ -7,6 +7,7 @@
 //! values and the update is built from it.
 
 mod dynamic;
+mod geo;
 mod lookup;
 mod preview;
 mod reader;
