@@ -22,6 +22,8 @@ use serde_json::Value;
 use super::config::is_channel;
 use super::deliver::{Deliverer, Delivery};
 
+/// The buffer a marker is read into: the most a set's marker can be.
+const MARKER_BYTES: usize = oss_format::MAX_DOC_SET_MARKER_BYTES;
 /// What a parsed config costs to keep, in document bytes.
 const RETAINED_FACTOR: usize = 4;
 /// The most configs a node keeps.
@@ -50,7 +52,6 @@ pub struct NotifierCounts {
 pub struct Notifier {
     store: Arc<dyn BlobStore>,
     base: String,
-    buffer_bytes: usize,
     budget: MemoryBudget,
     deliverer: Arc<Deliverer>,
     ttl: Duration,
@@ -65,12 +66,11 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 impl Notifier {
-    /// A notifier over the configs under `base` in `store`, reading a marker
-    /// into `buffer_bytes` and keeping a config for `ttl`.
+    /// A notifier over the configs under `base` in `store`, keeping a config
+    /// for `ttl`.
     pub fn new(
         store: &Arc<dyn BlobStore>,
         base: &str,
-        buffer_bytes: usize,
         budget: MemoryBudget,
         deliverer: Arc<Deliverer>,
         ttl: Duration,
@@ -79,7 +79,6 @@ impl Notifier {
             store: Arc::clone(store),
             // ALLOC: one copy of the base, once.
             base: base.to_owned(),
-            buffer_bytes,
             budget,
             deliverer,
             ttl,
@@ -158,13 +157,10 @@ impl Notifier {
         let set = DocSet::new(Arc::clone(&self.store), &self.base, kind).map_err(|_| skip())?;
         let _reading = self
             .budget
-            .try_reserve(
-                Pool::OpenIndexes,
-                self.buffer_bytes.saturating_add(doc_bytes),
-            )
+            .try_reserve(Pool::OpenIndexes, MARKER_BYTES.saturating_add(doc_bytes))
             .map_err(|_| skip())?;
         // ALLOC: one marker buffer, reserved above.
-        let mut marker = vec![0u8; self.buffer_bytes];
+        let mut marker = vec![0u8; MARKER_BYTES];
         let version = set.version(&mut marker).map_err(|_| skip())?;
         {
             let mut entries = lock(&self.entries);

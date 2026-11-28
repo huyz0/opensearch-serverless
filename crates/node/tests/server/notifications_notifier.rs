@@ -43,7 +43,7 @@ fn rig_with(budget: MemoryBudget, port: u16) -> Rig {
         open_policy(port),
         Limits::default(),
     ));
-    let notifier = Arc::new(Notifier::new(&blobs, "", 1 << 16, budget, deliverer, TTL));
+    let notifier = Arc::new(Notifier::new(&blobs, "", budget, deliverer, TTL));
     Rig {
         server,
         store,
@@ -212,4 +212,19 @@ fn a_send_past_the_pool_is_a_skipped_delivery_and_what_is_cached_is_charged() {
     let held = budget.in_use(Pool::OpenIndexes);
     assert!(held > 0, "a cached config is charged to the pool");
     assert!(held < 1 << 20, "and only its own size: {held}");
+}
+
+// AC-8: the node hands the one sender to the plugins that call it.
+#[test]
+fn an_assembled_node_holds_the_sender_unless_notifications_are_off() {
+    let config = crate::assemble::config();
+    let (node, _, _) = crate::assemble::assembled_with(&config, 16 << 20);
+    let notifier = node.notifier.expect("on by default");
+    let d = notifier.send("nope", "x");
+    assert_eq!((d.status_code, d.status_text.as_str()), (404, "not found"));
+
+    let mut off = crate::assemble::config();
+    off.notifications = false;
+    let (node, _, _) = crate::assemble::assembled_with(&off, 16 << 20);
+    assert!(node.notifier.is_none());
 }
