@@ -50,10 +50,7 @@ fn types_objects_and_multi_fields() {
     assert_eq!(ty(&m, "when"), Some(FieldType::Date));
     assert_eq!(ty(&m, "user.name"), Some(FieldType::Keyword));
     assert_eq!(ty(&m, "user"), None, "an object is not a field");
-    assert_eq!(
-        ty(&m, "geo"),
-        Some(FieldType::Unsupported("a [geo_point] field".into()))
-    );
+    assert_eq!(ty(&m, "geo"), Some(FieldType::GeoPoint));
     assert_eq!(
         ty(&m, "en"),
         Some(FieldType::Unsupported(

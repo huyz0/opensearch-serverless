@@ -39,6 +39,7 @@ pub(crate) fn type_name(ty: &FieldType) -> &str {
         FieldType::Double => "double",
         FieldType::HalfFloat => "half_float",
         FieldType::Scaled(_) => "scaled_float",
+        FieldType::GeoPoint => "geo_point",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -211,7 +212,8 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
                 ),
             )));
         }
-        FieldType::Unsupported(what) => {
+        other @ (FieldType::Unsupported(_) | FieldType::GeoPoint) => {
+            let what = other.refusal_name();
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.

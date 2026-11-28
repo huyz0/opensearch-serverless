@@ -281,9 +281,10 @@ fn kind_of(name: &str, mapping: &Mapping) -> Result<ValueKind, ShardError> {
             )));
         }
         // ALLOC: error path; one message.
-        FieldType::Unsupported(what) => {
+        other @ (FieldType::Unsupported(_) | FieldType::GeoPoint) => {
             return Err(unsupported(&format!(
-                "[docvalue_fields] of the {what} [{name}]"
+                "[docvalue_fields] of the {} [{name}]",
+                other.refusal_name()
             )));
         }
         FieldType::Keyword => (ValueKind::Term, "keyword"),

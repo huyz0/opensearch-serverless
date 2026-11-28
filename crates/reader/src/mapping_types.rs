@@ -11,6 +11,7 @@ impl FieldType {
             FieldType::Double => "a [double] field",
             FieldType::HalfFloat => "a [half_float] field",
             FieldType::Scaled(_) => "a [scaled_float] field",
+            FieldType::GeoPoint => "a [geo_point] field",
             FieldType::Unsupported(what) => what,
             FieldType::Text => "a [text] field",
             FieldType::Keyword => "a [keyword] field",

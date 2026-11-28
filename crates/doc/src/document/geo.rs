@@ -35,9 +35,13 @@ fn assert_z(ignore_z: bool, z: f64) -> Result<(), MappingError> {
 /// The geohash alphabet, in value order.
 const BASE_32: &[u8; 32] = b"0123456789bcdefghjkmnpqrstuvwxyz";
 
-/// `GeoPoint.resetFromGeoHash`: the cell's lower-left corner, at the 26 bits
-/// a dimension `Geohash.mortonEncode` keeps.
-fn geohash(text: &str) -> Result<(f64, f64), MappingError> {
+/// `GeoPoint.resetFromGeoHash`: `(lat, lon)` of the cell's lower-left corner, at
+/// the 26 bits a dimension `Geohash.mortonEncode` keeps.
+///
+/// # Errors
+///
+/// The Java's parse exception, as [`MappingError`] data.
+pub fn geohash(text: &str) -> Result<(f64, f64), MappingError> {
     if text.is_empty() {
         return Err(parse_error("empty geohash"));
     }
@@ -142,8 +146,12 @@ fn coordinates(text: &str, ignore_z: bool) -> Result<(f64, f64), MappingError> {
     Ok((lat, lon))
 }
 
-/// `GeoPoint.resetFromString`.
-fn string_point(text: &str, ignore_z: bool) -> Result<(f64, f64), MappingError> {
+/// `GeoPoint.resetFromString`: `(lat, lon)` of a `"lat,lon"`, WKT or geohash text.
+///
+/// # Errors
+///
+/// The Java's parse exception, as [`MappingError`] data.
+pub fn string_point(text: &str, ignore_z: bool) -> Result<(f64, f64), MappingError> {
     if text.to_lowercase().contains("point") {
         wkt(text, ignore_z)
     } else if text.contains(',') {
@@ -271,7 +279,8 @@ fn centered_modulus(dividend: f64, divisor: f64) -> f64 {
 }
 
 /// `GeoUtils.normalizePoint(point)`.
-fn normalize(lat: f64, lon: f64) -> (f64, f64) {
+/// `GeoUtils.normalizePoint`: `(lat, lon)` wrapped into range.
+pub fn normalize(lat: f64, lon: f64) -> (f64, f64) {
     let (mut lat, mut lon) = (lat, lon);
     let norm_lat = !(-MAX_LAT..=MAX_LAT).contains(&lat);
     let norm_lon = norm_lat || !(-MAX_LON..=MAX_LON).contains(&lon);
