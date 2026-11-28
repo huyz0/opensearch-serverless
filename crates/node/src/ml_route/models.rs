@@ -56,6 +56,10 @@ fn index_result(id: &str, result: &str) -> Value {
     })
 }
 
+fn is_local(model: &Map<String, Value>) -> bool {
+    model.get("algorithm").and_then(Value::as_str) != Some("REMOTE")
+}
+
 fn state_of(model: &Map<String, Value>) -> &str {
     model
         .get("model_state")
@@ -289,6 +293,7 @@ impl MlService {
             return Err(refuse(404, "status_exception", "Failed to find model"));
         }
         self.cache.forget(&id);
+        self.delete_chunks(&id, &model);
         resp.send(
             200,
             JSON,
@@ -308,6 +313,12 @@ impl MlService {
         let mut doc = Self::doc_buffer(req)?;
         let mut model = self.stored_model(&id, &mut marker, &mut doc)?;
         if state_of(&model) != "DEPLOYED" {
+            if is_local(&model) {
+                if state_of(&model) == "REGISTERING" {
+                    return Err(bad("the model's file is not fully uploaded"));
+                }
+                self.charge_model(&id, &model)?;
+            }
             let t = now_millis();
             model.insert("model_state".into(), json!("DEPLOYED"));
             model.insert("last_deployed_time".into(), json!(t));
@@ -348,6 +359,7 @@ impl MlService {
             model.insert("model_state".into(), json!("UNDEPLOYED"));
             model.insert("last_updated_time".into(), json!(now_millis()));
             self.write_model(&id, &model, false, &mut marker)?;
+            self.release_model(&id);
             "undeployed"
         } else {
             "not_found"

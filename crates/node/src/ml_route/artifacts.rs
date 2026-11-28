@@ -61,12 +61,24 @@ impl MlService {
         format!("{}/ml/artifacts/{id}/{n:08}", self.base)
     }
 
+    /// Removes the chunk blobs a deleted model uploaded: one DELETE each, from the keys the
+    /// model records, so nothing lists. A failed delete leaves a blob no model names.
+    pub(super) fn delete_chunks(&self, id: &str, model: &Map<String, Value>) {
+        let Some(done) = model.get("chunks_uploaded").and_then(Value::as_object) else {
+            return;
+        };
+        for number in done.keys().filter_map(|k| k.parse::<u64>().ok()) {
+            self.store.delete(&self.chunk_key(id, number)).ok();
+        }
+    }
+
     /// `POST /models/meta`: a local model whose file arrives by `upload_chunk`.
     pub(crate) fn register_meta(
         &self,
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
+        self.require_runtime()?;
         let body = Self::body(req)?;
         let text = |k: &str| {
             body.get(k)
@@ -91,7 +103,7 @@ impl MlService {
         model.insert("model_version".into(), json!("1"));
         model.insert("model_state".into(), json!("REGISTERING"));
         model.insert("total_chunks".into(), json!(total));
-        model.insert("chunks_uploaded".into(), json!([]));
+        model.insert("chunks_uploaded".into(), json!({}));
         for key in ["model_format", "model_config", "model_content_hash_value"] {
             if let Some(v) = body.get(key) {
                 model.insert(key.into(), v.clone());
@@ -157,18 +169,19 @@ impl MlService {
         self.store
             .put(&self.chunk_key(&id, number), &mut source, &mut buf)
             .map_err(|e| refuse(500, "ml_store_failure", e.to_string()))?;
-        let mut done: Vec<u64> = model
+        // The bytes of each chunk by its number, so a retried chunk counts once.
+        let mut done: Map<String, Value> = model
             .get("chunks_uploaded")
-            .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(Value::as_u64).collect())
+            .and_then(Value::as_object)
+            .cloned()
             .unwrap_or_default();
-        if !done.contains(&number) {
-            done.push(number);
-        }
+        done.insert(number.to_string(), json!(len));
         let complete = u64::try_from(done.len()).is_ok_and(|n| n == total);
-        model.insert("chunks_uploaded".into(), json!(done));
+        let bytes: u64 = done.values().filter_map(Value::as_u64).sum();
+        model.insert("chunks_uploaded".into(), Value::Object(done));
         if complete {
             model.insert("model_state".into(), json!("REGISTERED"));
+            model.insert("model_content_size_in_bytes".into(), json!(bytes));
         }
         model.insert("last_updated_time".into(), json!(now_millis()));
         self.write_model(&id, &model, false, &mut marker)?;

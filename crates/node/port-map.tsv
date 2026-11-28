@@ -416,3 +416,4 @@ src/plugins/jobs_tests.rs	new		job.*: a plugin starts, reads and deletes its own
 src/search_stop.rs	new		the question a running search asks between shards to learn it should give up
 src/ism_run/backend.rs	new		the effects the runner asks of the node, a trait so the decision is tested with a fake
 src/ml_route/artifacts.rs	new		a local model's register_meta and upload_chunk: each chunk streamed from the request body into one blob
+src/ml_route/local.rs	new		what a node holds for local models: the runtime path, the count bound, and the models-pool charge of each deployed model

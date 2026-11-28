@@ -12,8 +12,8 @@ Slices 1a (model groups and their name claims) 1b (connectors, `crates/node/src/
 - AC-8: `tasks_are_listed_read_deleted_and_only_the_newest_hundred_and_twenty_eight_are_kept`, and `a_model_register_and_a_read_cost_what_the_budget_holds_and_nothing_lists` (a task read or search makes 0 requests). Node-local records only; the asynchronous registry is slice 3.
 - AC-9: `a_warm_predict_makes_no_request_and_a_changed_model_or_connector_is_seen`, `with_no_ttl_every_predict_reads_again` (warm 0 requests, cold 4 GETs, a change seen after the TTL and locally at once; the TTL is real time with a short value, not a mocked clock)
 - AC-10: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)
-- AC-11: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)
-- AC-12: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)
+- AC-11: `deploy_charges_twice_the_file_before_it_loads_and_undeploy_returns_it`, `a_model_past_the_pool_or_the_count_is_refused_429_and_charges_nothing`, `a_node_with_no_runtime_refuses_local_models` (the pool counter returns to its value, 429 past the pool or the count, 400 with no runtime). Partial: the 2x overhead factor is provisional until measured against the runtime, and nothing loads yet (slice 3b)
+- AC-12: `chunks_land_as_blobs_and_the_last_one_registers_the_model` (a 200,000-byte chunk streams into one blob through a body buffer). Partial: the 1 GiB peak-resident measurement and the URL register are NOT-RUN
 - AC-13: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)
 - AC-14: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)
 - AC-15: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)

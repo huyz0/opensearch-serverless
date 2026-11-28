@@ -178,6 +178,7 @@ pub(crate) fn mount(
     router: Router,
     store: &Arc<dyn oss_blob::BlobStore>,
     config: &crate::assemble::Config,
+    budget: &oss_mem::MemoryBudget,
 ) -> Result<Router, crate::assemble::AssembleError> {
     if !config.ml {
         return Ok(router);
@@ -188,6 +189,10 @@ pub(crate) fn mount(
         .map_err(crate::assemble::AssembleError::Security)?;
     let ml = MlService::new(store, &config.base, config.pit_buffer_bytes)
         .with_trusted(trusted)
-        .with_node_id(&config.node_id);
+        .with_node_id(&config.node_id)
+        .with_local(super::Local::new(
+            budget,
+            std::env::var_os("OSS_ML_ONNX_RUNTIME_PATH").map(std::path::PathBuf::from),
+        ));
     routes(router, &Arc::new(ml)).map_err(crate::assemble::AssembleError::Route)
 }

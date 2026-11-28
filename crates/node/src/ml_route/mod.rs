@@ -11,6 +11,7 @@
 mod artifacts;
 mod claims;
 mod connectors;
+mod local;
 mod models;
 mod outbound;
 mod predict;
@@ -28,6 +29,7 @@ use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
 
 use crate::route_util::{read_body, refuse};
+pub use local::Local;
 pub use outbound::{Limits, Outbound, Policy};
 pub(crate) use routes::mount;
 pub use routes::routes;
@@ -55,6 +57,7 @@ pub struct MlService {
     cache: predict::Cache,
     cache_ttl: std::time::Duration,
     outbound: outbound::Outbound,
+    local: Option<local::Local>,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -175,12 +178,20 @@ impl MlService {
             tasks: tasks::Tasks::default(),
             cache: predict::Cache::default(),
             cache_ttl: predict::CACHE_TTL,
+            local: None,
             outbound: outbound::Outbound::new(
                 crate::notifications_route::system_lookup(),
                 outbound::Policy::from_env(),
                 outbound::Limits::default(),
             ),
         }
+    }
+
+    /// Lets this node deploy local models within `local`'s memory.
+    #[must_use]
+    pub fn with_local(mut self, local: local::Local) -> Self {
+        self.local = Some(local);
+        self
     }
 
     /// Replaces the client connectors call through.

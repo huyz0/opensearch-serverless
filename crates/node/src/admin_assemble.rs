@@ -149,7 +149,7 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = crate::ml_route::mount(router, store, config)?;
+    let router = crate::ml_route::mount(router, store, config, budget)?;
     let router = crate::observability_route::mount(router, store, config)?;
     let router = crate::reports_route::mount(router, store, config)?;
     let router = if config.search_pipelines {
