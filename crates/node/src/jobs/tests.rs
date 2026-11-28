@@ -44,6 +44,12 @@ fn rig(limits: Limits) -> (Arc<Jobs>, MemoryBudget, Arc<AtomicU64>) {
     (Jobs::new("n1", &budget, limits, clock), budget, now)
 }
 
+/// A kept job that is not waited on, as these tests read it afterwards.
+fn sub(jobs: &Arc<Jobs>, who: &Who, work: Work, keep_alive: Option<u64>) -> Result<u64, JobError> {
+    jobs.submit(who, work, keep_alive, true, String::new(), 0)
+        .map(|(n, _)| n)
+}
+
 fn instant(body: &'static str) -> Work {
     Box::new(move |_| Ok(body.as_bytes().to_vec()))
 }
@@ -80,13 +86,13 @@ fn settle(jobs: &Jobs, budget: &MemoryBudget) {
 fn a_read_waits_for_the_result_and_never_restarts_it() {
     let (jobs, _, _) = rig(Limits::default());
     let gate = Arc::new(Gate::default());
-    let a = jobs.submit(&who("t"), instant("{}"), None).expect("room");
+    let a = sub(&jobs, &who("t"), instant("{}"), None).expect("room");
     let v = jobs.get(&who("t"), a, 5_000).expect("job");
     assert_eq!(
         (v.state, v.body.as_deref()),
         (State::Succeeded, Some(&b"{}"[..]))
     );
-    let b = jobs.submit(&who("t"), held(&gate), None).expect("room");
+    let b = sub(&jobs, &who("t"), held(&gate), None).expect("room");
     assert_eq!(
         jobs.get(&who("t"), b, 20).expect("job").state,
         State::Running
@@ -102,14 +108,10 @@ fn a_read_waits_for_the_result_and_never_restarts_it() {
 #[test]
 fn keep_alive_is_bounded_and_expiry_runs_on_access() {
     let (jobs, _, now) = rig(Limits::default());
-    let err = jobs
-        .submit(&who("t"), instant("{}"), Some(3_600_001))
-        .expect_err("too large");
+    let err = sub(&jobs, &who("t"), instant("{}"), Some(3_600_001)).expect_err("too large");
     assert_eq!(err.status(), 400);
     assert_eq!(jobs.limits().default_keep_alive_ms(), 3_600_000);
-    let a = jobs
-        .submit(&who("t"), instant("{}"), Some(1_000))
-        .expect("room");
+    let a = sub(&jobs, &who("t"), instant("{}"), Some(1_000)).expect("room");
     jobs.get(&who("t"), a, 5_000).expect("finished");
     now.store(1_000 + 999, Ordering::Relaxed);
     assert!(jobs.get(&who("t"), a, 0).is_ok());
@@ -127,10 +129,10 @@ fn running_limits_refuse_the_next_submit() {
     let (jobs, _, _) = rig(Limits::default());
     let gate = Arc::new(Gate::default());
     for t in ["a", "a", "b", "b", "c", "c", "d", "d"] {
-        jobs.submit(&who(t), held(&gate), None).expect("room");
+        sub(&jobs, &who(t), held(&gate), None).expect("room");
     }
     assert_eq!(
-        jobs.submit(&who("e"), held(&gate), None)
+        sub(&jobs, &who("e"), held(&gate), None)
             .err()
             .map(|e| e.status()),
         Some(429)
@@ -138,15 +140,15 @@ fn running_limits_refuse_the_next_submit() {
     gate.open();
     let (jobs, _, _) = rig(Limits::default());
     let gate = Arc::new(Gate::default());
-    jobs.submit(&who("a"), held(&gate), None).expect("room");
-    jobs.submit(&who("a"), held(&gate), None).expect("room");
+    sub(&jobs, &who("a"), held(&gate), None).expect("room");
+    sub(&jobs, &who("a"), held(&gate), None).expect("room");
     assert_eq!(
-        jobs.submit(&who("a"), held(&gate), None)
+        sub(&jobs, &who("a"), held(&gate), None)
             .err()
             .map(|e| e.status()),
         Some(429)
     );
-    assert!(jobs.submit(&who("b"), held(&gate), None).is_ok());
+    assert!(sub(&jobs, &who("b"), held(&gate), None).is_ok());
     assert_eq!(jobs.stats().rejected, 1);
     gate.open();
 }
@@ -167,7 +169,7 @@ fn a_cancelled_search_keeps_its_slot_and_share_until_its_thread_exits() {
         s.wait();
         Err(Failure::Stopped)
     });
-    let a = jobs.submit(&who("t"), work, None).expect("room");
+    let a = sub(&jobs, &who("t"), work, None).expect("room");
     let per = Limits::default().max_response_bytes + ENTRY_OVERHEAD;
     assert_eq!(budget.in_use(Pool::Extensions), per);
     jobs.delete(&who("t"), a).expect("cancel");
@@ -193,17 +195,13 @@ fn a_result_over_the_cap_fails_and_holds_nothing() {
         ..Limits::default()
     };
     let (jobs, budget, _) = rig(limits);
-    let a = jobs
-        .submit(&who("t"), Box::new(|_| Ok(vec![0; 9])), None)
-        .expect("room");
+    let a = sub(&jobs, &who("t"), Box::new(|_| Ok(vec![0; 9])), None).expect("room");
     let v = jobs.get(&who("t"), a, 5_000).expect("job");
     assert_eq!(
         (v.state, v.error.map(|e| e.0)),
         (State::Failed, Some("response_too_large"))
     );
-    let b = jobs
-        .submit(&who("t"), Box::new(|_| Err(Failure::TooLarge)), None)
-        .expect("room");
+    let b = sub(&jobs, &who("t"), Box::new(|_| Err(Failure::TooLarge)), None).expect("room");
     assert_eq!(
         jobs.get(&who("t"), b, 5_000)
             .expect("job")
@@ -219,9 +217,7 @@ fn a_result_over_the_cap_fails_and_holds_nothing() {
 #[test]
 fn a_kept_result_holds_its_size_and_gives_it_back() {
     let (jobs, budget, _) = rig(Limits::default());
-    let a = jobs
-        .submit(&who("t"), instant("12345"), None)
-        .expect("room");
+    let a = sub(&jobs, &who("t"), instant("12345"), None).expect("room");
     jobs.get(&who("t"), a, 5_000).expect("job");
     settle(&jobs, &budget);
     assert_eq!(budget.in_use(Pool::Extensions), 5 + ENTRY_OVERHEAD);
@@ -233,21 +229,19 @@ fn a_kept_result_holds_its_size_and_gives_it_back() {
 #[test]
 fn a_panicking_search_is_a_failed_job_and_frees_its_slot() {
     let (jobs, budget, _) = rig(Limits::default());
-    let a = jobs
-        .submit(&who("t"), Box::new(|_| panic!("boom")), None)
-        .expect("room");
+    let a = sub(&jobs, &who("t"), Box::new(|_| panic!("boom")), None).expect("room");
     let v = jobs.get(&who("t"), a, 5_000).expect("job");
     assert_eq!(v.error.map(|e| e.0), Some("panic"));
     settle(&jobs, &budget);
     assert_eq!(jobs.stats().running_current, 0);
-    assert!(jobs.submit(&who("t"), instant("{}"), None).is_ok());
+    assert!(sub(&jobs, &who("t"), instant("{}"), None).is_ok());
 }
 
 // AC-12: another tenant or another user of the tenant sees 404.
 #[test]
 fn a_job_is_the_submitters() {
     let (jobs, _, _) = rig(Limits::default());
-    let a = jobs.submit(&who("t"), instant("{}"), None).expect("room");
+    let a = sub(&jobs, &who("t"), instant("{}"), None).expect("room");
     let other_user = Who {
         tenant: "t".into(),
         user: "v".into(),
@@ -271,7 +265,7 @@ fn eviction_takes_the_oldest_finished_of_the_tenant_over_its_half() {
     let mut ids = Vec::new();
     for _ in 0..3 {
         now.fetch_add(1, Ordering::Relaxed);
-        let id = jobs.submit(&who("a"), instant("{}"), None).expect("room");
+        let id = sub(&jobs, &who("a"), instant("{}"), None).expect("room");
         jobs.get(&who("a"), id, 5_000).expect("job");
         settle(&jobs, &budget);
         ids.push(id);
@@ -283,10 +277,10 @@ fn eviction_takes_the_oldest_finished_of_the_tenant_over_its_half() {
     assert!(jobs.get(&who("a"), ids[2], 0).is_ok());
     assert_eq!(jobs.stats().evicted, 1);
     let gate = Arc::new(Gate::default());
-    jobs.submit(&who("b"), held(&gate), None).expect("room");
-    jobs.submit(&who("b"), held(&gate), None).expect("room");
+    sub(&jobs, &who("b"), held(&gate), None).expect("room");
+    sub(&jobs, &who("b"), held(&gate), None).expect("room");
     assert_eq!(
-        jobs.submit(&who("b"), held(&gate), None)
+        sub(&jobs, &who("b"), held(&gate), None)
             .err()
             .map(|e| e.status()),
         Some(429)
@@ -309,7 +303,7 @@ fn a_search_past_its_running_time_stops_by_itself() {
         }
         Err(Failure::Stopped)
     });
-    let a = jobs.submit(&who("t"), work, None).expect("room");
+    let a = sub(&jobs, &who("t"), work, None).expect("room");
     now.store(1_000 + 500, Ordering::Relaxed);
     settle(&jobs, &budget);
     let v = jobs.get(&who("t"), a, 0).expect("job");
@@ -335,6 +329,44 @@ fn an_id_names_its_node_and_is_malformed_when_it_does_not() {
             "{bad}"
         );
     }
-    let a = jobs.submit(&who("t"), instant("{}"), None).expect("room");
+    let a = sub(&jobs, &who("t"), instant("{}"), None).expect("room");
     assert!(a >= 1_000, "ids start from the clock");
+}
+
+// docs/specs/async-search AC-4 (stock recording): a job that is not kept is
+// answered to the submit that waited and is gone afterwards; one that
+// finishes after the wait is gone as soon as it finishes; a kept one stays.
+#[test]
+fn a_job_that_is_not_kept_is_dropped_once_read_or_finished() {
+    let (jobs, budget, _) = rig(Limits::default());
+    let (n, v) = jobs
+        .submit(&who("t"), instant("{}"), None, false, String::new(), 5_000)
+        .expect("room");
+    assert_eq!(v.state, State::Succeeded);
+    assert_eq!(jobs.get(&who("t"), n, 0).err(), Some(JobError::NotFound));
+    let gate = Arc::new(Gate::default());
+    let (m, v) = jobs
+        .submit(&who("t"), held(&gate), None, false, String::new(), 10)
+        .expect("room");
+    assert_eq!(v.state, State::Running);
+    assert_eq!(
+        jobs.get(&who("t"), m, 0).expect("running").state,
+        State::Running
+    );
+    gate.open();
+    settle(&jobs, &budget);
+    assert_eq!(jobs.get(&who("t"), m, 0).err(), Some(JobError::NotFound));
+    assert_eq!(
+        budget.in_use(Pool::Extensions),
+        0,
+        "nothing held for a dropped job"
+    );
+    let (k, v) = jobs
+        .submit(&who("t"), instant("{}"), None, true, String::new(), 5_000)
+        .expect("room");
+    assert_eq!(v.state, State::Succeeded);
+    assert_eq!(
+        jobs.get(&who("t"), k, 0).expect("kept").state,
+        State::Succeeded
+    );
 }
