@@ -17,14 +17,17 @@ mod parser;
 mod parser_agg;
 mod parser_pred;
 mod plan;
+mod plan_query;
+mod ppl_parser;
 mod result;
 
-pub use ast::{Agg, CmpOp, Having, Item, Lit, Order, Pred, Relevance, Select, Statement};
+pub use ast::{Agg, CmpOp, Dialect, Having, Item, Lit, Order, Pred, Relevance, Select, Statement};
 pub use error::Error;
 pub use mapping::{Field, Mapping};
 pub use meta::{describe, like, show_tables};
 pub use parser::parse;
 pub use plan::{Column, Plan, plan};
+pub use ppl_parser::parse_ppl;
 pub use result::{Format, rows, write};
 
 /// The bounds every parse enforces before it allocates in proportion to the input.

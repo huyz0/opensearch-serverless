@@ -7,8 +7,10 @@
 mod support;
 
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ad_job;
 mod ad_preview;
 mod ad_routes;
+mod ad_run;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -95,6 +97,8 @@ mod ml_routes;
 mod newest_ask;
 mod notifications_routes;
 mod notifications_send;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod observability_routes;
 mod pinned_busy;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_cost;
@@ -107,6 +111,8 @@ mod pinned_shard;
 mod pipeline_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod pipeline_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ppl_routes;
 #[cfg(feature = "reader")]
 mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -154,7 +160,6 @@ mod snapshot_restore_search;
 mod snapshot_route;
 mod snapshot_take;
 mod snapshot_take_size;
-#[cfg(all(feature = "reader", feature = "writer"))]
 mod sql_routes;
 mod stock_export;
 mod stock_export_budget;

@@ -73,6 +73,8 @@ pub enum Pred {
 pub enum Item {
     /// `*`
     Star,
+    /// Every field but these (PPL `fields - a, b`).
+    StarExcept(Vec<String>),
     /// A field, with its alias.
     Field(String, Option<String>),
     /// An aggregate (`count`, `sum`, `avg`, `min`, `max`) over a field or `*`, with its alias.
@@ -119,9 +121,19 @@ pub struct Order {
     pub nulls_first: Option<bool>,
 }
 
+/// The language a statement was written in: it decides type names and error texts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dialect {
+    /// SQL.
+    Sql,
+    /// PPL.
+    Ppl,
+}
+
 /// A `SELECT`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Select {
+    pub(crate) dialect: Dialect,
     pub(crate) items: Vec<Item>,
     pub(crate) from: Vec<String>,
     pub(crate) filter: Option<Pred>,

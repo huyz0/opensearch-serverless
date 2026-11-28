@@ -117,9 +117,11 @@ pub struct NodeConfig {
     pub ltr: bool,
     /// `serverless.sql.enabled` (`OSS_SQL`): serve the SQL endpoint. On by default.
     pub sql: bool,
+    /// `serverless.ppl.enabled` (`OSS_PPL`): serve the PPL endpoint. On by default.
+    pub ppl: bool,
     /// The SQL row and request bounds.
     pub sql_bounds: sql::Bounds,
-    /// The ported plugins' switches (`OSS_ISM`, `OSS_AD`, `OSS_ML`).
+    /// The ported plugins' switches (`OSS_ISM`, `OSS_AD`, `OSS_ML`, `OSS_OBSERVABILITY`).
     pub plugins: plugins::Switches,
     /// The `sltr` window and model cache bounds.
     pub ltr_bounds: ltr::Bounds,
@@ -451,6 +453,7 @@ impl NodeConfig {
             node_packs: packs::read(&flag, &bounded)?,
             ltr,
             sql,
+            ppl: flag("OSS_PPL", "true")?,
             sql_bounds,
             plugins,
             ltr_bounds,

@@ -401,11 +401,11 @@ fn budget(top: &Members) -> Result<Budget, DescriptorError> {
     let Value::Obj(items) = value else {
         return Err(DescriptorError::at("budget", "not an object"));
     };
-    // ALLOC: one manifest, at most three members.
+    // ALLOC: one manifest, at most four members.
     let inner = Members::new(
         "budget",
         items.clone(),
-        &["state_ops", "searches", "egress"],
+        &["state_ops", "searches", "egress", "index_ops"],
     )?;
     let one = |key: &str| -> Result<u32, DescriptorError> {
         if inner.get(key).is_none() {
@@ -418,5 +418,6 @@ fn budget(top: &Members) -> Result<Budget, DescriptorError> {
         state_ops: one("state_ops")?,
         searches: one("searches")?,
         egress: one("egress")?,
+        index_ops: one("index_ops")?,
     })
 }

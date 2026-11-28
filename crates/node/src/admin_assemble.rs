@@ -150,6 +150,7 @@ pub(crate) fn register(
         router
     };
     let router = crate::ml_route::mount(router, store, config)?;
+    let router = crate::observability_route::mount(router, store, config)?;
     let router = if config.notifications {
         let service = crate::notifications_route::NotificationsService::new(
             store,
@@ -166,7 +167,6 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = crate::plugins::install_configured(router, &config.plugin_policy)?;
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,

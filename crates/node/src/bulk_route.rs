@@ -111,6 +111,35 @@ impl BulkService {
         self
     }
 
+    /// Applies `body`, a `_bulk` body held in memory, as a request with
+    /// `defaults` would be, and answers its items.
+    ///
+    /// # Errors
+    ///
+    /// What `_bulk` refuses for the same bytes.
+    pub(crate) fn apply(
+        &self,
+        defaults: &Defaults,
+        body: &[u8],
+    ) -> Result<Vec<oss_writer::bulk::Item>, RestError> {
+        let mut buffer = vec![0u8; body.len().clamp(4096, 1 << 20)];
+        let mut target = RoleTarget::new(&self.role);
+        let mut ids = self.ids.generator();
+        let mut updates = RoleUpdates::new(&self.role, self.scripts.as_deref());
+        let mut run =
+            Bulk::new(&mut target, &mut ids, now_millis(), false).with_updates(&mut updates);
+        let mut reader = body;
+        stream(
+            &mut reader,
+            &mut buffer,
+            defaults,
+            &self.budget,
+            self.config,
+            &mut run,
+        )?;
+        run.finish()
+    }
+
     /// Handles one `_bulk`.
     pub fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let started = Instant::now();

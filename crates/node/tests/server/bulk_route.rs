@@ -68,6 +68,7 @@ impl Routes for Local {
 struct Rig {
     server: Server,
     budget: BulkBudget,
+    service: Arc<BulkService>,
 }
 
 fn rig(slice_bytes: usize) -> Rig {
@@ -101,7 +102,7 @@ fn rig(slice_bytes: usize) -> Rig {
         },
         [0; 6],
     ));
-    let router = routes(Router::new(), service).expect("routes");
+    let router = routes(Router::new(), Arc::clone(&service)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let server = Server::start(
         listener,
@@ -110,7 +111,11 @@ fn rig(slice_bytes: usize) -> Rig {
         &MemoryBudget::new(&support::budget_config()),
     )
     .expect("starts");
-    Rig { server, budget }
+    Rig {
+        server,
+        budget,
+        service,
+    }
 }
 
 fn post(r: &Rig, method: &str, target: &str, body: &str) -> support::Reply {
@@ -249,4 +254,52 @@ fn require_alias_refuses_an_index_that_is_not_one() {
     assert!(text.contains(r#""errors":true"#), "{text}");
     let text = post(&r, "POST", "/docs/_bulk?require_alias=false", TWO).text();
     assert!(text.contains(r#""errors":false"#), "{text}");
+}
+
+// docs/specs/plugin-system, Host API 1.0: `index.docs` writes through the `_bulk` service.
+#[test]
+fn a_plugin_indexes_documents_through_the_bulk_service() {
+    use oss_ext::doc_sink::{Doc, DocSink};
+    use oss_ext::host::HostError;
+    let r = rig(1 << 20);
+    let doc = |id: Option<&str>, source: &str| Doc {
+        id: id.map(str::to_owned),
+        source: source.as_bytes().to_vec(),
+    };
+    let first = r
+        .service
+        .index(
+            "docs",
+            &[doc(Some("a"), r#"{"n":1}"#), doc(None, r#"{"n":2}"#)],
+        )
+        .expect("indexes");
+    assert_eq!(first.len(), 2);
+    assert_eq!((first[0].id.as_str(), first[0].status), ("a", 201));
+    assert!(!first[1].id.is_empty(), "an id is generated");
+    assert_eq!(first[1].status, 201);
+    let again = r
+        .service
+        .index("docs", &[doc(Some("a"), r#"{"n":3}"#)])
+        .expect("indexes");
+    assert_eq!(again[0].status, 200, "a second write of an id updates it");
+    let mixed = r
+        .service
+        .index(
+            "docs",
+            &[
+                doc(Some("ok"), r#"{"n":4}"#),
+                doc(Some("bad"), r#"{"n":"x"}"#),
+            ],
+        )
+        .expect("one bad document does not fail the call");
+    assert_eq!(mixed[0].status, 201);
+    assert_eq!(mixed[1].status, 400, "the document that fails fails alone");
+    assert_eq!(r.service.index("docs", &[]), Ok(Vec::new()));
+    for bad in [r#"not json"#, r#"[1]"#, r#""s""#] {
+        assert_eq!(
+            r.service.index("docs", &[doc(None, bad)]),
+            Err(HostError::Invalid),
+            "{bad}"
+        );
+    }
 }

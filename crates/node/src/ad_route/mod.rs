@@ -8,14 +8,21 @@
 //! another detector never moves it.
 
 mod detector;
+mod job;
 mod preview;
 mod preview_route;
 mod routes;
+mod run;
 mod search;
+mod sink;
+mod slots;
 mod source;
 mod validate_route;
 pub mod windows;
 
+pub use run::{MAX_HELD_MODELS, Outcome, RunError, Runner};
+pub use sink::{Doc, DocSink, HostError, IndexReport};
+pub use slots::Timing;
 pub use source::WindowSearch;
 
 use std::sync::Arc;
@@ -176,10 +183,15 @@ impl AdService {
         id: &str,
         seq: i64,
         detector: &Value,
+        job: &Value,
         create: bool,
         marker: &mut [u8],
     ) -> Result<Value, RestError> {
-        let stored = json!({"seq_no": seq, "detector": detector});
+        let stored = if job.is_null() {
+            json!({"seq_no": seq, "detector": detector})
+        } else {
+            json!({"seq_no": seq, "detector": detector, "job": job})
+        };
         // ALLOC: the document's text, at most the kind's bound, checked by the put.
         let bytes = stored.to_string().into_bytes();
         self.set()?
@@ -197,7 +209,7 @@ impl AdService {
         let detector = Self::checked(req)?;
         let id = fresh_id().map_err(|e| refuse(500, "ad_store_failure", e))?;
         let mut marker = self.marker(req)?;
-        let stored = self.write(&id, 0, &detector, true, &mut marker)?;
+        let stored = self.write(&id, 0, &detector, &Value::Null, true, &mut marker)?;
         resp.send(201, JSON, shown(&id, &stored).to_string().as_bytes())
     }
 
@@ -231,7 +243,14 @@ impl AdService {
         if if_seq.is_some_and(|s| s != seq) || if_term.is_some_and(|t| t != 1) {
             return Err(conflict(&id));
         }
-        let stored = self.write(&id, seq.saturating_add(1), &detector, false, &mut marker)?;
+        let stored = self.write(
+            &id,
+            seq.saturating_add(1),
+            &detector,
+            &current["job"],
+            false,
+            &mut marker,
+        )?;
         resp.send(200, JSON, shown(&id, &stored).to_string().as_bytes())
     }
 
@@ -247,7 +266,11 @@ impl AdService {
         let stored = self
             .stored(&id, &mut marker, &mut doc)?
             .ok_or_else(|| not_found(&id))?;
-        resp.send(200, JSON, shown(&id, &stored).to_string().as_bytes())
+        let mut out = shown(&id, &stored);
+        if req.param("job").as_deref() == Some("true") && !stored["job"].is_null() {
+            out["anomaly_detector_job"] = stored["job"].clone();
+        }
+        resp.send(200, JSON, out.to_string().as_bytes())
     }
 
     /// `DELETE /detectors/{id}`.

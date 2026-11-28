@@ -38,6 +38,7 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::notifications_setting::SETTINGS,
         crate::ltr_setting::SETTINGS,
         crate::sql_setting::SETTINGS,
+        crate::observability_setting::SETTINGS,
         #[cfg(feature = "extensions")]
         crate::extension_setting::SETTINGS,
         #[cfg(feature = "writer")]
@@ -107,6 +108,7 @@ mod tests {
                 crate::notifications_setting::SETTINGS,
                 crate::ltr_setting::SETTINGS,
                 crate::sql_setting::SETTINGS,
+                crate::observability_setting::SETTINGS,
             ]
             .iter()
             .map(|s| s.len())

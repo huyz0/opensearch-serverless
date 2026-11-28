@@ -1165,7 +1165,7 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 [[package]]
 name = "lucene-aggs"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "jiff",
  "lucene-analysis",
@@ -1180,7 +1180,7 @@ dependencies = [
 [[package]]
 name = "lucene-analysis"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-util",
  "miniz_oxide",
@@ -1192,7 +1192,7 @@ dependencies = [
 [[package]]
 name = "lucene-analysis-icu"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-index",
@@ -1202,7 +1202,7 @@ dependencies = [
 [[package]]
 name = "lucene-codecs"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "crc32fast",
  "lucene-store",
@@ -1215,7 +1215,7 @@ dependencies = [
 [[package]]
 name = "lucene-disk-hnsw"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-ivf",
@@ -1229,7 +1229,7 @@ dependencies = [
 [[package]]
 name = "lucene-engine"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-aggs",
  "lucene-analysis",
@@ -1252,7 +1252,7 @@ dependencies = [
 [[package]]
 name = "lucene-expressions"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-index",
  "lucene-search",
@@ -1264,7 +1264,7 @@ dependencies = [
 [[package]]
 name = "lucene-facet"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1278,7 +1278,7 @@ dependencies = [
 [[package]]
 name = "lucene-highlighter"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1292,7 +1292,7 @@ dependencies = [
 [[package]]
 name = "lucene-index"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1309,7 +1309,7 @@ dependencies = [
 [[package]]
 name = "lucene-ivf"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-store",
  "lucene-util",
@@ -1321,7 +1321,7 @@ dependencies = [
 [[package]]
 name = "lucene-misc"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1334,7 +1334,7 @@ dependencies = [
 [[package]]
 name = "lucene-ml"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "aws-lc-rs",
  "lucene-util",
@@ -1347,7 +1347,7 @@ dependencies = [
 [[package]]
 name = "lucene-painless"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-util",
@@ -1358,7 +1358,7 @@ dependencies = [
 [[package]]
 name = "lucene-pattern-text"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1369,7 +1369,7 @@ dependencies = [
 [[package]]
 name = "lucene-queryparser"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1383,7 +1383,7 @@ dependencies = [
 [[package]]
 name = "lucene-sandbox"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1397,7 +1397,7 @@ dependencies = [
 [[package]]
 name = "lucene-search"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1416,7 +1416,7 @@ dependencies = [
 [[package]]
 name = "lucene-sparse"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1429,7 +1429,7 @@ dependencies = [
 [[package]]
 name = "lucene-spatial3d"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-util",
  "thiserror",
@@ -1438,7 +1438,7 @@ dependencies = [
 [[package]]
 name = "lucene-spatial4j"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-spatial3d",
  "lucene-util",
@@ -1448,7 +1448,7 @@ dependencies = [
 [[package]]
 name = "lucene-store"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "crc32fast",
  "libc",
@@ -1460,7 +1460,7 @@ dependencies = [
 [[package]]
 name = "lucene-tensor"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1472,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "lucene-util"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "matrixmultiply",
  "thiserror",
@@ -1481,16 +1481,17 @@ dependencies = [
 [[package]]
 name = "lucene-vector-quant"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-util",
+ "rayon",
  "thiserror",
 ]
 
 [[package]]
 name = "lucene-zstd"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "thiserror",
  "zstd-safe 8.4.0",

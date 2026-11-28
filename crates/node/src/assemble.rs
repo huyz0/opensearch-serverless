@@ -262,7 +262,7 @@ pub fn assemble(
     } else {
         router
     };
-    let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
+    let router = bulk_route::routes(router, Arc::clone(&bulk)).map_err(AssembleError::Route)?;
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = get_route::routes(router, Arc::new(GetService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
@@ -318,6 +318,7 @@ pub fn assemble(
     };
     #[cfg(not(feature = "coordinator"))]
     let drain: Option<()> = None;
+    let router = crate::plugins::install_configured(router, &config.plugin_policy, &bulk)?;
 
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(

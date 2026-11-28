@@ -178,6 +178,10 @@ fn a_body_over_the_points_ceiling_is_a_413_before_the_plugin_is_called() {
     server.shutdown();
 }
 
+fn no_backend() -> Arc<dyn oss_ext::host::Backend> {
+    Arc::new(oss_ext::host::NoBackend)
+}
+
 fn served(router: Router) -> Server {
     let budget = MemoryBudget::new(&support::budget_config());
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
@@ -192,7 +196,7 @@ fn the_status_route_lists_each_plugin_and_why_one_is_refused() {
     });
     let linked = HashMap::from([("echo".to_owned(), echo)]);
     let policy = r#"{"plugins":[{"id":"echo","tier":"native"},{"id":"gone","tier":"native"}]}"#;
-    let router = install(Router::new(), policy, &linked, || 0).expect("installs");
+    let router = install(Router::new(), policy, &linked, &no_backend(), || 0).expect("installs");
     let server = served(router);
     let r = support::request(
         server.local_addr(),
@@ -218,7 +222,8 @@ fn the_status_route_lists_each_plugin_and_why_one_is_refused() {
 // docs/specs/plugin-system AC-3: no policy loads nothing; a bad policy is refused whole.
 #[test]
 fn an_empty_policy_loads_nothing_and_a_bad_one_is_refused() {
-    let router = install(Router::new(), "  ", &HashMap::new(), || 0).expect("installs");
+    let router =
+        install(Router::new(), "  ", &HashMap::new(), &no_backend(), || 0).expect("installs");
     let server = served(router);
     let r = support::request(
         server.local_addr(),
@@ -229,6 +234,12 @@ fn an_empty_policy_loads_nothing_and_a_bad_one_is_refused() {
     assert_eq!(r.status, 200);
     assert_eq!(r.text(), r#"{"plugins":[]}"#);
     server.shutdown();
-    let bad = install(Router::new(), "{not json", &HashMap::new(), || 0);
+    let bad = install(
+        Router::new(),
+        "{not json",
+        &HashMap::new(),
+        &no_backend(),
+        || 0,
+    );
     assert!(matches!(bad, Err(InstallError::Policy(_))));
 }
