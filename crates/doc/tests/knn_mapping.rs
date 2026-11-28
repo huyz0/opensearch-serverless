@@ -7,6 +7,7 @@ use oss_doc::mapping::{Mapping, MappingError, ParseOptions};
 const ON: ParseOptions = ParseOptions {
     knn: Some(true),
     nested: false,
+    geo: false,
 };
 
 fn field(extra: &str) -> String {

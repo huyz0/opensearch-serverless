@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use oss_mem::{MemoryBudget, Pool, Reservation};
+use oss_mem::{MemoryBudget, Reservation};
 
 pub use types::{
     Clock, Ctx, ENTRY_OVERHEAD, Failure, JobError, Limits, State, Stats, View, Who, Work,
@@ -208,7 +208,7 @@ impl Jobs {
         let held = self
             .budget
             .try_reserve(
-                Pool::Extensions,
+                self.limits.pool,
                 self.limits
                     .max_response_bytes
                     .saturating_add(ENTRY_OVERHEAD),

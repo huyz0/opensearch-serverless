@@ -30,6 +30,7 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::knn_setting::SETTINGS,
         #[cfg(all(feature = "writer", feature = "coordinator"))]
         crate::nested_setting::SETTINGS,
+        crate::geospatial_setting::SETTINGS,
         crate::security_setting::SETTINGS,
         crate::ad_setting::SETTINGS,
         crate::ism_setting::SETTINGS,
@@ -111,6 +112,7 @@ mod tests {
                 crate::sql_setting::SETTINGS,
                 crate::observability_setting::SETTINGS,
                 crate::reports_setting::SETTINGS,
+                crate::geospatial_setting::SETTINGS,
             ]
             .iter()
             .map(|s| s.len())

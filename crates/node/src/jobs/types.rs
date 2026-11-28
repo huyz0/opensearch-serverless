@@ -4,6 +4,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use oss_mem::Pool;
+
 /// The wall clock, in milliseconds; passed in so a test drives it.
 pub type Clock = Arc<dyn Fn() -> u64 + Send + Sync>;
 
@@ -27,6 +29,10 @@ pub struct Limits {
     pub max_keep_alive_ms: u64,
     /// The longest a search may run, in milliseconds.
     pub max_running_time_ms: u64,
+    /// The memory pool entries are reserved from: the plugin pool for a
+    /// plugin's jobs, the query pool for the node's own routes (the plugin
+    /// pool is empty on a node that runs no extension).
+    pub pool: Pool,
 }
 
 impl Default for Limits {
@@ -39,6 +45,7 @@ impl Default for Limits {
             max_response_bytes: 1 << 20,
             max_keep_alive_ms: 3_600_000,
             max_running_time_ms: 600_000,
+            pool: Pool::Extensions,
         }
     }
 }

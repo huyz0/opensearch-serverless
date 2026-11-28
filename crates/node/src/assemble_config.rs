@@ -80,6 +80,8 @@ pub struct Config {
     pub knn: bool,
     /// `serverless.nested.enabled`: whether a create accepts `nested` objects.
     pub nested: bool,
+    /// `serverless.geospatial.index_fields`: whether a create accepts `geo_point` fields.
+    pub geo: bool,
     /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
@@ -207,6 +209,7 @@ impl Config {
             security_bcrypt_cost: crate::security_route::DEFAULT_COST,
             knn: false,
             nested: false,
+            geo: false,
             snapshots: false,
             snapshots_take: false,
             snapshots_capture_aliases: false,

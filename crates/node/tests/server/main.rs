@@ -96,6 +96,7 @@ mod ml_models;
 mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;
+mod notifications_notifier;
 mod notifications_routes;
 mod notifications_send;
 #[cfg(all(feature = "reader", feature = "writer"))]
