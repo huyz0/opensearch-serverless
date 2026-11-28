@@ -379,4 +379,8 @@ src/plugins/assemble.rs	new		reading the policy, loading the registry and mounti
 src/boot/config/plugin_policy.rs	new		the OSS_PLUGINS variable
 src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins from bounded queues
 src/ism_run/mod.rs	new		the runner decision: a managed index record, its policy and the time give the next record and the next evaluation time; cron conditions and actions come later
+src/async_search/mount.rs	new		mounting the asynchronous search routes over the node search
+src/async_search/routes.rs	new		the route table of asynchronous search under both prefixes
+src/async_search/runner.rs	new		the runner that plans a submit as one search of the reader
+src/async_search_setting.rs	new		the serverless.async_search.enabled setting, on by default
 src/bulk_sink.rs	new		index.docs for plugins: documents indexed through the _bulk service
