@@ -109,7 +109,7 @@ struct Carol;
 
 impl oss_rest::Guard for Carol {
     fn admit(&self, _: &oss_rest::Admission<'_>) -> oss_rest::Verdict {
-        oss_rest::Verdict::Allow(Some(Arc::from("carol")))
+        oss_rest::Verdict::Allow(Some(oss_rest::Identity::stored(Arc::from("carol"))))
     }
 }
 

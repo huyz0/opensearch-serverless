@@ -35,6 +35,7 @@ mod security_authn;
 mod security_authz;
 mod security_builtin;
 mod security_info;
+mod security_jwt;
 mod security_patch;
 mod settings_update;
 mod template_admin;

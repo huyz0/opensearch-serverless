@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 #[test]
 fn securityconfig_is_json_with_basic_as_the_only_domain() {
-    let v: Value = serde_json::from_str(securityconfig()).expect("json");
+    let v: Value = serde_json::from_str(&securityconfig(None)).expect("json");
     let authc = v["config"]["dynamic"]["authc"].as_object().expect("authc");
     assert_eq!(authc.len(), 1);
     assert_eq!(authc["basic_internal_auth_domain"]["order"], 4);

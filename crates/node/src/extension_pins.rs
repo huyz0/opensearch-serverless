@@ -22,7 +22,7 @@ const PROBE: &str = "probe";
 const PROBE_TENANT: &str = "_pin";
 
 /// Who may pin: the node says, from the request's user.
-pub type Admin = Arc<dyn Fn(Option<&str>) -> bool + Send + Sync>;
+pub type Admin = Arc<dyn Fn(Option<&oss_rest::Identity>) -> bool + Send + Sync>;
 
 /// A [`PinPolicy`] that reads modules from a store.
 pub struct ModulePins {
@@ -75,7 +75,7 @@ impl ModulePins {
 }
 
 impl PinPolicy for ModulePins {
-    fn authorised(&self, principal: Option<&str>) -> bool {
+    fn authorised(&self, principal: Option<&oss_rest::Identity>) -> bool {
         (self.admin)(principal)
     }
 

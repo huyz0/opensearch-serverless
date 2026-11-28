@@ -31,3 +31,8 @@ pub fn admin_pair(
         _ => Err("OSS_SECURITY_ADMIN_USER and OSS_SECURITY_ADMIN_HASH go together".to_owned()),
     }
 }
+
+#[cfg(feature = "writer")]
+mod jwt;
+#[cfg(feature = "writer")]
+pub use jwt::{JwtSettings, Settings, read};

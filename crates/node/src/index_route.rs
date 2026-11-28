@@ -141,7 +141,7 @@ impl IndexService {
                 "pinned analyzers are not enabled on this node",
             ));
         };
-        if !policy.authorised(req.principal()) {
+        if !policy.authorised(req.identity()) {
             return Err(refuse(
                 403,
                 "security_exception",

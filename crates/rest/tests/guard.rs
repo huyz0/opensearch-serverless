@@ -17,7 +17,9 @@ impl Guard for Token {
     fn admit(&self, req: &Admission<'_>) -> Verdict {
         self.0.fetch_add(1, Ordering::SeqCst);
         match req.authorization() {
-            Some("Basic YWxpY2U6cHc=") => Verdict::Allow(Some(Arc::from("alice"))),
+            Some("Basic YWxpY2U6cHc=") => {
+                Verdict::Allow(Some(oss_rest::Identity::stored(Arc::from("alice"))))
+            }
             Some("Basic Ym9iOm5v") => Verdict::Deny(Denial {
                 status: 429,
                 content_type: "text/plain; charset=UTF-8",

@@ -5,7 +5,9 @@
 
 use std::sync::Arc;
 
-use oss_coordinator::security::{Kind, account, account_reserved, password_change, wrong_current};
+use oss_coordinator::security::{
+    Kind, account, account_has_no_password, account_reserved, password_change, wrong_current,
+};
 use oss_doc::mapping::json::Json;
 use oss_format::MAX_DOC_BYTES;
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
@@ -33,7 +35,7 @@ pub fn account_routes(
         &[],
         move |req: &mut Request<'_>, resp: &mut Response<'_>| {
             let config = held.config().map_err(|_| unavailable())?;
-            let body = account(&config, req.principal().unwrap_or_default());
+            let body = account(&config, super::who_of(req));
             resp.send(200, JSON, body.as_bytes())
         },
     )?;
@@ -45,6 +47,10 @@ pub fn account_routes(
         move |req: &mut Request<'_>, resp: &mut Response<'_>| {
             let config = held.config().map_err(|_| unavailable())?;
             let name = req.principal().unwrap_or_default().to_owned();
+            if req.identity().is_some_and(|i| i.token_roles().is_some()) {
+                let refused = account_has_no_password();
+                return resp.send(refused.status, JSON, refused.body.as_bytes());
+            }
             let answer = write.change_password(&config, &name, req)?;
             resp.send(answer.status, JSON, answer.body.as_bytes())
         },

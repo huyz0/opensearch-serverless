@@ -31,6 +31,43 @@ impl<'a> Admission<'a> {
     }
 }
 
+/// Who a request acts as: a name, and for a request a token vouched for the
+/// backend roles that token carried. A token identity takes its roles only
+/// from those, never from a stored user of the same name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Identity {
+    name: Arc<str>,
+    token_roles: Option<Arc<[String]>>,
+}
+
+impl Identity {
+    /// A stored user, whose roles the security snapshot holds.
+    pub fn stored(name: Arc<str>) -> Arc<Self> {
+        Arc::new(Self {
+            name,
+            token_roles: None,
+        })
+    }
+
+    /// A user a token vouched for, holding `backend_roles`.
+    pub fn token(name: Arc<str>, backend_roles: Vec<String>) -> Arc<Self> {
+        Arc::new(Self {
+            name,
+            token_roles: Some(backend_roles.into()),
+        })
+    }
+
+    /// The user's name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The token's backend roles; `None` for a stored user.
+    pub fn token_roles(&self) -> Option<&[String]> {
+        self.token_roles.as_deref()
+    }
+}
+
 /// A refusal: sent as it is, in place of the route's answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Denial {
@@ -47,8 +84,8 @@ pub struct Denial {
 /// What a guard decides.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Verdict {
-    /// Serve the request; the name, when there is one, is who it acts as.
-    Allow(Option<Arc<str>>),
+    /// Serve the request; the identity, when there is one, is who it acts as.
+    Allow(Option<Arc<Identity>>),
     /// Refuse it.
     Deny(Denial),
 }

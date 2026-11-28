@@ -25,7 +25,7 @@ struct Policy {
 }
 
 impl PinPolicy for Policy {
-    fn authorised(&self, _principal: Option<&str>) -> bool {
+    fn authorised(&self, _principal: Option<&oss_rest::Identity>) -> bool {
         self.allow
     }
 

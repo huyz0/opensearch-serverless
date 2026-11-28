@@ -2,7 +2,7 @@
 
 use oss_doc::mapping::json::write_str;
 
-use super::config::Config;
+use super::config::{Config, Who};
 
 /// The most bytes of an `Authorization` header read; a longer one is no
 /// credentials.
@@ -61,9 +61,11 @@ pub fn basic(header: &str) -> Option<(String, String)> {
 }
 
 /// The body `GET /_plugins/_security/authinfo` answers for `name`.
-pub fn authinfo(config: &Config, name: &str) -> String {
-    let user = config.user(name);
-    let backend = user.map(|u| u.backend_roles.as_slice()).unwrap_or_default();
+pub fn authinfo<'a>(config: &'a Config, who: impl Into<Who<'a>>) -> String {
+    let who = who.into();
+    let name = who.name;
+    let user = config.user(name).filter(|_| who.token.is_none());
+    let backend = config.backend_roles_of(who);
     // ALLOC: one answer a request.
     let mut out = String::new();
     let mut label = String::new();
@@ -94,10 +96,10 @@ pub fn authinfo(config: &Config, name: &str) -> String {
         .unwrap_or_default();
     array(&mut out, attributes.iter().map(String::as_str));
     out.push_str(",\"roles\":");
-    let roles = config.roles_of(name);
+    let roles = config.roles_of(who);
     array(&mut out, roles.iter().map(String::as_str));
     out.push_str(",\"tenants\":{");
-    for (i, t) in config.tenants_of(name).iter().enumerate() {
+    for (i, t) in config.tenants_of(who).iter().enumerate() {
         if i > 0 {
             out.push(',');
         }
@@ -121,11 +123,10 @@ fn array<'a>(out: &mut String, items: impl Iterator<Item = &'a str>) {
 
 /// The body of the `403` a user is refused an `action` with, as the stock
 /// plugin answers it.
-pub fn forbidden(config: &Config, name: &str, action: &str) -> String {
-    let backend = config
-        .user(name)
-        .map(|u| u.backend_roles.as_slice())
-        .unwrap_or_default();
+pub fn forbidden<'a>(config: &'a Config, who: impl Into<Who<'a>>, action: &str) -> String {
+    let who = who.into();
+    let name = who.name;
+    let backend = config.backend_roles_of(who);
     // ALLOC: one answer a request, bounded by the stored document.
     let mut reason = String::new();
     write_str(

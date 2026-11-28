@@ -144,6 +144,7 @@ src/boot/config/search_slots.rs	new		the OSS_SEARCH_* settings of the search gat
 src/boot/config/roles.rs	new		OSS_ROLES, the roles a node's lease names; the shell reads serverless.roles (ingest, search; empty is coordinating only)
 src/id_lanes.rs	new		a generator of auto ids a write request; the shell shares one generator, and a lock held across a request is what this removes
 src/security_state.rs	new		the node snapshot of the security configuration
+src/security_who.rs	new		the security snapshot's view of a request's identity
 src/security_auth.rs	new		credential checks with bounded bcrypt, and the guard
 src/clock.rs	new		the wall clock in milliseconds
 src/boot/config/tests/security.rs	new		tests for the security settings of the node configuration
@@ -391,12 +392,14 @@ src/reports_route/definition.rs	new		what a report definition must hold: the sto
 src/reports_route/cron.rs	new		the shape of a five-field cron expression
 src/reports_route/routes.rs	new		the route table under /_plugins/_reports/definition
 src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors from the registry, run the ones this node owns that are due; no stock recording exists (AC-15 gap)
-src/boot/ad_loop.rs	new		the thread that ticks the anomaly detection scheduler with the live nodes; no stock recording exists (AC-15 gap)
-src/boot/node_impl.rs	new		the running node's accessors and drop order, moved out of boot/mod.rs to keep it under the module size limit
-src/notifications_route/notifier.rs	new		the in-process sender alerting and ISM call: a config by id through a per-node cache
+src/security_jwt.rs	new		the signature check of a JSON Web Token against the configured key
 src/ism_run/schedule.rs	new		the runner schedule: the indices this node owns and evaluates, found by registry and rendezvous, claimed by slot
 src/ism_run/schedule_tests.rs	new		the schedule over an emulator
 src/lifecycle_bus.rs	new		the fill-once handle index and node events are published through
+src/security_setting/jwt.rs	new		the JSON Web Token domain settings read from the variables
+src/boot/ad_loop.rs	new		the thread that ticks the anomaly detection scheduler with the live nodes; no stock recording exists (AC-15 gap)
+src/boot/node_impl.rs	new		the running node's accessors and drop order, moved out of boot/mod.rs to keep it under the module size limit
+src/notifications_route/notifier.rs	new		the in-process sender alerting and ISM call: a config by id through a per-node cache
 src/geospatial_setting.rs	new		the node setting that accepts the geo_point field type; the Java shell always maps it
 src/index_route/options.rs	new		the create-time switches (nested, geo_point) read when a mapping is parsed
 src/notifications_assemble.rs	new		mounts the notifications routes and builds the shared in-process sender

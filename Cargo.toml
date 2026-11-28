@@ -61,6 +61,8 @@ chunkjson = { path = "crates/chunkjson" }
 self_cell = "1"
 # Password hashes of internal users, as the security plugin stores them (bcrypt, `$2b$`).
 bcrypt = { version = "=0.17.1", default-features = false, features = ["std"] }
+# Signature checks of JSON Web Tokens (ADR 0090): already in the build through rustls.
+ring = "=0.17.14"
 oss-reader = { path = "crates/reader" }
 oss-writer = { path = "crates/writer" }
 oss-janitor = { path = "crates/janitor" }

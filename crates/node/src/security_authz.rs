@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use oss_coordinator::security::{Config, forbidden};
+use oss_coordinator::security::{Config, Who, forbidden};
 use oss_rest::{Authorization, Authorizer, Denial, Method};
 
 use crate::security_route::admin_refusal;
@@ -354,7 +354,7 @@ impl RouteAuthorizer {
     }
 }
 
-fn refuse(config: &Config, user: &str, action: &str) -> Denial {
+fn refuse(config: &Config, user: Who<'_>, action: &str) -> Denial {
     Denial {
         status: 403,
         content_type: JSON,
@@ -363,7 +363,12 @@ fn refuse(config: &Config, user: &str, action: &str) -> Denial {
     }
 }
 
-fn allowed(config: &Config, user: &str, rule: Rule, req: &Authorization<'_>) -> Result<(), String> {
+fn allowed(
+    config: &Config,
+    user: Who<'_>,
+    rule: Rule,
+    req: &Authorization<'_>,
+) -> Result<(), String> {
     match rule {
         Rule::Open | Rule::Handler | Rule::Body(_) => Ok(()),
         Rule::Cluster(action) => config
@@ -421,14 +426,15 @@ impl Authorizer for RouteAuthorizer {
                 challenge: None,
             });
         };
-        let Some(user) = req.principal() else {
+        let Some(identity) = req.identity() else {
             return Some(Denial {
                 status: 403,
                 content_type: JSON,
-                body: forbidden(&config, "", "rest:unauthenticated"),
+                body: forbidden(&config, Who::stored(""), "rest:unauthenticated"),
                 challenge: None,
             });
         };
+        let user = crate::security_who::who(identity);
         let rule = rule_of(req.is_prefix(), req.method(), req.pattern());
         if rule == Rule::Handler {
             // The management API answers the plugin's own refusal body; the

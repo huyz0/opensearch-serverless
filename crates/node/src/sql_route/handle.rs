@@ -84,7 +84,7 @@ impl SqlService {
 
     /// Checks `names` against the caller's permissions before any search.
     fn permit(&self, req: &Request<'_>, names: &[&str]) -> Result<(), String> {
-        self.guard.allow(req.principal(), ACTION, names)
+        self.guard.allow(req.identity(), ACTION, names)
     }
 
     /// `POST /_plugins/_sql`.

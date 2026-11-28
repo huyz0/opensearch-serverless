@@ -68,7 +68,7 @@ impl SqlBackend for Counting {
 struct NoSecret;
 
 impl SqlGuard for NoSecret {
-    fn allow(&self, _: Option<&str>, _: &str, names: &[&str]) -> Result<(), String> {
+    fn allow(&self, _: Option<&oss_rest::Identity>, _: &str, names: &[&str]) -> Result<(), String> {
         if names.contains(&"secret") {
             Err(
                 r#"{"error":{"type":"security_exception","reason":"no permissions"},"status":403}"#

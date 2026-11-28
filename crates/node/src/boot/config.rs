@@ -7,7 +7,6 @@ use std::path::PathBuf;
 
 use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
 
-use crate::security_setting::admin_pair;
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod apply;
@@ -131,6 +130,8 @@ pub struct NodeConfig {
     pub security: bool,
     /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).
     pub security_admin: Option<(String, String)>,
+    /// The JSON Web Token domain (`OSS_SECURITY_JWT_*`), when a key is set.
+    pub security_jwt: Option<crate::security_setting::JwtSettings>,
     /// `OSS_SECURITY_REFRESH_MS`: how long a snapshot of the security configuration is used.
     pub security_refresh_millis: u64,
     /// `serverless.knn.enabled`.
@@ -336,10 +337,7 @@ impl NodeConfig {
         let (sql, sql_bounds) = (flag("OSS_SQL", "true")?, sql::read(&bounded)?);
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
-        let security_admin = admin_pair(
-            get("OSS_SECURITY_ADMIN_USER").filter(|v| !v.is_empty()),
-            get("OSS_SECURITY_ADMIN_HASH").filter(|v| !v.is_empty()),
-        )?;
+        let (security_admin, security_jwt) = crate::security_setting::read(&get)?;
         let security = flag("OSS_SECURITY", &security_admin.is_some().to_string())?;
         let store_usage = flag("OSS_STORE_USAGE", "true")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
@@ -461,6 +459,7 @@ impl NodeConfig {
             script_cache_ttl_secs,
             security,
             security_admin,
+            security_jwt,
             security_refresh_millis,
             knn,
             nested: flag("OSS_NESTED", "true")?,

@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::body::Body;
+use crate::guard::Identity;
 use crate::head::Head;
 use crate::method::Method;
 use crate::query::{QueryParams, decode_component};
@@ -22,7 +23,7 @@ pub struct Request<'a> {
     pub(crate) params: &'a QueryParams,
     pub(crate) path_params: &'a [PathParam],
     pub(crate) head: &'a Head,
-    pub(crate) principal: Option<Arc<str>>,
+    pub(crate) principal: Option<Arc<Identity>>,
     pub(crate) head_buf: &'a [u8],
     pub(crate) body: Body<'a>,
     pub(crate) renamed: Option<(&'static str, String)>,
@@ -68,6 +69,11 @@ impl<'a> Request<'a> {
 
     /// Who the request acts as, when a guard admitted it with a name.
     pub fn principal(&self) -> Option<&str> {
+        self.principal.as_deref().map(Identity::name)
+    }
+
+    /// Who the request acts as, with the roles a token carried.
+    pub fn identity(&self) -> Option<&Identity> {
         self.principal.as_deref()
     }
 

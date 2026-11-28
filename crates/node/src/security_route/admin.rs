@@ -52,7 +52,7 @@ pub fn config_routes(
             if let Some(refused) = read.admin_only(req)? {
                 return resp.send(refused.status, JSON, refused.body.as_bytes());
             }
-            resp.send(200, JSON, securityconfig().as_bytes())
+            resp.send(200, JSON, securityconfig(read.jwt_rules()).as_bytes())
         },
     )?;
     let (info, held) = (Arc::clone(service), Arc::clone(state));
@@ -71,7 +71,7 @@ pub fn config_routes(
                     "the security configuration is unavailable",
                 )
             })?;
-            let body = permissionsinfo(&config, req.principal().unwrap_or_default());
+            let body = permissionsinfo(&config, super::who_of(req));
             resp.send(200, JSON, body.as_bytes())
         },
     )?;

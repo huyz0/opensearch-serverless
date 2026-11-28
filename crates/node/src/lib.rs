@@ -204,13 +204,16 @@ pub mod search_slots;
 #[cfg(feature = "writer")]
 pub mod security_auth;
 #[cfg(feature = "writer")]
-#[cfg(feature = "writer")]
 pub mod security_authz;
+#[cfg(feature = "writer")]
+pub mod security_jwt;
 #[cfg(feature = "writer")]
 pub mod security_route;
 pub mod security_setting;
 #[cfg(feature = "writer")]
 pub mod security_state;
+#[cfg(feature = "writer")]
+pub mod security_who;
 pub mod settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod settings_route;

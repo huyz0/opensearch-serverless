@@ -3,7 +3,7 @@
 
 use std::borrow::Cow;
 
-use crate::guard::Denial;
+use crate::guard::{Denial, Identity};
 use crate::method::Method;
 use crate::query::decode_component;
 use crate::router::PathParam;
@@ -11,7 +11,7 @@ use crate::router::PathParam;
 /// What an authorizer sees of a request that found its route.
 #[derive(Debug, Clone, Copy)]
 pub struct Authorization<'a> {
-    pub(crate) principal: Option<&'a str>,
+    pub(crate) identity: Option<&'a Identity>,
     pub(crate) method: Option<Method>,
     pub(crate) pattern: &'static str,
     pub(crate) prefix: bool,
@@ -22,7 +22,12 @@ pub struct Authorization<'a> {
 impl<'a> Authorization<'a> {
     /// Who the request acts as, as the guard said; none when no guard ran.
     pub fn principal(&self) -> Option<&'a str> {
-        self.principal
+        self.identity.map(Identity::name)
+    }
+
+    /// Who the request acts as, with the roles a token carried.
+    pub fn identity(&self) -> Option<&'a Identity> {
+        self.identity
     }
 
     /// The method, or `None` for one this server does not know.

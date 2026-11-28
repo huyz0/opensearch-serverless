@@ -146,6 +146,7 @@ mod security_authz;
 mod security_builtin;
 mod security_config_api;
 mod security_hardening;
+mod security_jwt;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_limits;
 mod security_patch;

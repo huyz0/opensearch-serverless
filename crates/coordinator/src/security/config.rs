@@ -11,6 +11,38 @@ use super::authz::Authz;
 /// The built-in role a static administrator holds.
 pub const ALL_ACCESS: &str = "all_access";
 
+/// Who a request acts as: a name, and for a token-authenticated request the
+/// backend roles its token carried. A token identity takes its roles only
+/// from those, never from a stored user of the same name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Who<'a> {
+    /// The user's name.
+    pub name: &'a str,
+    /// The token's backend roles; `None` for a stored user.
+    pub token: Option<&'a [String]>,
+}
+
+impl<'a> Who<'a> {
+    /// A stored user.
+    pub fn stored(name: &'a str) -> Self {
+        Self { name, token: None }
+    }
+
+    /// A user a token vouched for, holding `backend_roles`.
+    pub fn token(name: &'a str, backend_roles: &'a [String]) -> Self {
+        Self {
+            name,
+            token: Some(backend_roles),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for Who<'a> {
+    fn from(name: &'a str) -> Self {
+        Self::stored(name)
+    }
+}
+
 /// An internal user.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct User {
@@ -140,30 +172,49 @@ impl Config {
         self.users.get(name)
     }
 
-    /// Whether `name` is the static administrator.
-    pub fn is_admin(&self, name: &str) -> bool {
-        self.admin.as_deref() == Some(name)
+    /// Whether `who` is the static administrator. A token identity never is.
+    pub fn is_admin<'a>(&self, who: impl Into<Who<'a>>) -> bool {
+        let who = who.into();
+        who.token.is_none() && self.admin.as_deref() == Some(who.name)
     }
 
-    /// The roles `name` holds, sorted: its own, and those of every mapping
-    /// that names it, one of its backend roles, or all of the mapping's
-    /// `and_backend_roles`.
-    pub fn roles_of(&self, name: &str) -> Vec<String> {
-        let Some(user) = self.users.get(name) else {
+    /// The backend roles of `who`: the token's for a token identity, the
+    /// stored user's otherwise.
+    pub fn backend_roles_of<'a>(&'a self, who: impl Into<Who<'a>>) -> &'a [String] {
+        let who = who.into();
+        match who.token {
+            Some(roles) => roles,
+            None => self
+                .users
+                .get(who.name)
+                .map_or(&[][..], |u| u.backend_roles.as_slice()),
+        }
+    }
+
+    /// The roles `who` holds, sorted: for a stored user its own, and those
+    /// of every mapping that names it, one of its backend roles, or all of
+    /// the mapping's `and_backend_roles`; for a token identity only the
+    /// mappings of its backend roles (a mapping's `users` list never
+    /// applies to a token).
+    pub fn roles_of<'a>(&self, who: impl Into<Who<'a>>) -> Vec<String> {
+        let who = who.into();
+        let user = self.users.get(who.name);
+        if who.token.is_none() && user.is_none() {
             // ALLOC: a refresh copies each stored document once, at most 1000 a kind.
             return Vec::new();
+        }
+        let backend = self.backend_roles_of(who);
+        let has = |role: &String| backend.contains(role) || (role == "*" && !backend.is_empty());
+        let mut roles = match (who.token, user) {
+            (None, Some(u)) => u.roles.clone(),
+            // ALLOC: a refresh copies each stored document once, at most 1000 a kind.
+            _ => Vec::new(),
         };
-        let has = |role: &String| {
-            user.backend_roles.contains(role) || (role == "*" && !user.backend_roles.is_empty())
-        };
-        let mut roles = user.roles.clone();
         for (role, m) in &self.mappings {
-            let by_name = m.users.iter().any(|u| u == name || u == "*");
+            let by_name = who.token.is_none() && m.users.iter().any(|u| u == who.name || u == "*");
             let by_backend = m.backend_roles.iter().any(has);
             let by_all = !m.and_backend_roles.is_empty()
-                && m.and_backend_roles
-                    .iter()
-                    .all(|r| user.backend_roles.contains(r));
+                && m.and_backend_roles.iter().all(|r| backend.contains(r));
             if by_name || by_backend || by_all {
                 roles.push(role.clone());
             }
@@ -173,29 +224,36 @@ impl Config {
         roles
     }
 
-    /// Whether the user `name` holds what `all_access` holds.
-    pub fn all_access(&self, name: &str) -> bool {
-        self.authz.all_access(&self.roles_of(name))
+    /// Whether `who` holds what `all_access` holds.
+    pub fn all_access<'a>(&self, who: impl Into<Who<'a>>) -> bool {
+        self.authz.all_access(&self.roles_of(who))
     }
 
-    /// Whether the user `name` may take the cluster-level `action`.
-    pub fn cluster_allows(&self, name: &str, action: &str) -> bool {
-        self.authz.cluster_allows(&self.roles_of(name), action)
+    /// Whether `who` may take the cluster-level `action`.
+    pub fn cluster_allows<'a>(&self, who: impl Into<Who<'a>>, action: &str) -> bool {
+        self.authz.cluster_allows(&self.roles_of(who), action)
     }
 
-    /// Whether the user `name` may take `action` on every one of `indices`
-    /// (none meaning all of them).
-    pub fn indices_allow(&self, name: &str, action: &str, indices: &[&str]) -> bool {
+    /// Whether `who` may take `action` on every one of `indices` (none
+    /// meaning all of them).
+    pub fn indices_allow<'a>(
+        &self,
+        who: impl Into<Who<'a>>,
+        action: &str,
+        indices: &[&str],
+    ) -> bool {
+        let who = who.into();
         self.authz
-            .indices_allow(&self.roles_of(name), name, action, indices)
+            .indices_allow(&self.roles_of(who), who.name, action, indices)
     }
 
     /// The tenants `name` can use: its own private one, and for the
     /// administrator the global, admin and every stored tenant too.
-    pub fn tenants_of(&self, name: &str) -> Vec<String> {
+    pub fn tenants_of<'a>(&self, who: impl Into<Who<'a>>) -> Vec<String> {
+        let who = who.into();
         // ALLOC: a refresh copies each stored document once, at most 1000 a kind.
-        let mut tenants = vec![name.to_owned()];
-        if self.is_admin(name) {
+        let mut tenants = vec![who.name.to_owned()];
+        if self.is_admin(who) {
             // ALLOC: a refresh copies each stored document once, at most 1000 a kind.
             tenants.extend(["global_tenant".to_owned(), "admin_tenant".to_owned()]);
             tenants.extend(self.tenants.iter().cloned());
