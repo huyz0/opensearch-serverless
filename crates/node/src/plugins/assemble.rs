@@ -97,6 +97,7 @@ pub fn install(
         .map_err(InstallError::Route)
 }
 
+#[cfg(feature = "writer")]
 /// [`install`] for the node's own assembly: no plugin is linked into this
 /// build, and the wall clock drives the breakers.
 ///

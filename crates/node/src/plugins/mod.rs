@@ -10,6 +10,7 @@ mod routes;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "writer")]
 pub(crate) use assemble::install_configured;
 pub use assemble::{InstallError, STATUS_PATH, install};
 pub use events::{Counts, Dispatcher, QUEUE};
