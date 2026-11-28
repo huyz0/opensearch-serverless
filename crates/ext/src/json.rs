@@ -2,7 +2,7 @@
 //! keys, integers kept apart from other numbers, nothing after the value.
 
 /// A parsed value.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
     /// `null`.
     Null,

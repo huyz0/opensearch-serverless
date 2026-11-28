@@ -196,7 +196,15 @@ fn the_status_route_lists_each_plugin_and_why_one_is_refused() {
     });
     let linked = HashMap::from([("echo".to_owned(), echo)]);
     let policy = r#"{"plugins":[{"id":"echo","tier":"native"},{"id":"gone","tier":"native"}]}"#;
-    let router = install(Router::new(), policy, &linked, &no_backend(), || 0).expect("installs");
+    let router = install(
+        Router::new(),
+        policy,
+        &linked,
+        &no_backend(),
+        || 0,
+        &oss_node::lifecycle_bus::Bus::default(),
+    )
+    .expect("installs");
     let server = served(router);
     let r = support::request(
         server.local_addr(),
@@ -211,6 +219,7 @@ fn the_status_route_lists_each_plugin_and_why_one_is_refused() {
     assert_eq!(list[0]["id"], "echo");
     assert_eq!(list[0]["state"], "ready");
     assert_eq!(list[0]["breaker"], "closed");
+    assert!(list[0]["events"].is_null(), "it subscribed to no event");
     assert_eq!(list[1]["id"], "gone");
     assert_eq!(list[1]["state"], "refused");
     assert!(list[1]["reason"].is_string());
@@ -222,8 +231,15 @@ fn the_status_route_lists_each_plugin_and_why_one_is_refused() {
 // docs/specs/plugin-system AC-3: no policy loads nothing; a bad policy is refused whole.
 #[test]
 fn an_empty_policy_loads_nothing_and_a_bad_one_is_refused() {
-    let router =
-        install(Router::new(), "  ", &HashMap::new(), &no_backend(), || 0).expect("installs");
+    let router = install(
+        Router::new(),
+        "  ",
+        &HashMap::new(),
+        &no_backend(),
+        || 0,
+        &oss_node::lifecycle_bus::Bus::default(),
+    )
+    .expect("installs");
     let server = served(router);
     let r = support::request(
         server.local_addr(),
@@ -240,6 +256,7 @@ fn an_empty_policy_loads_nothing_and_a_bad_one_is_refused() {
         &HashMap::new(),
         &no_backend(),
         || 0,
+        &oss_node::lifecycle_bus::Bus::default(),
     );
     assert!(matches!(bad, Err(InstallError::Policy(_))));
 }

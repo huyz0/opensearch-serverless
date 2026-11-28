@@ -48,6 +48,11 @@ const WRITES: &[Method] = &[Method::Put, Method::Post];
 const RULES: &[(&[Method], &str, Rule)] = &[
     (GET, "/_plugins/_security/authinfo", Rule::Open),
     (
+        &[Method::Get, Method::Put],
+        "/_plugins/_security/api/account",
+        Rule::Open,
+    ),
+    (
         &[Method::Get],
         "/_cluster/health",
         Rule::Cluster("cluster:monitor/health"),
@@ -281,6 +286,14 @@ const ALL_ACCESS: &[&str] = &[
     "/_plugins/_notifications/features",
     "/_plugins/_notifications/channels",
     "/_plugins/_notifications/feature/test/{id}",
+    "/_plugins/_asynchronous_search",
+    "/_plugins/_asynchronous_search/{id}",
+    "/_plugins/_asynchronous_search/stats",
+    "/{index}/_plugins/_asynchronous_search",
+    "/_opendistro/_asynchronous_search",
+    "/_opendistro/_asynchronous_search/{id}",
+    "/_opendistro/_asynchronous_search/stats",
+    "/{index}/_opendistro/_asynchronous_search",
 ];
 
 /// The rule for a registered route, or none when the table has no row for

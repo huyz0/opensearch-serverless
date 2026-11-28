@@ -1,8 +1,6 @@
 //! Index admin over REST: create an index and ask whether a name holds one.
-//!
-//! Ported from `serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java`
-//! (its create and exists routes), over `oss-meta`'s descriptor store and
-//! `oss-coordinator`'s decisions.
+//! Ported from `serverless/shell/.../indexadmin/IndexAdminHandler.java` (its create and
+//! exists routes), over `oss-meta`'s descriptor store and `oss-coordinator`.
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -20,8 +18,10 @@ use oss_writer::mapping::{Mapping, ParseOptions};
 mod backing;
 mod created;
 mod mapping;
+mod options;
 
 use crate::index_templates::TemplateSets;
+use crate::lifecycle_bus::Bus;
 use crate::pin_policy::{PinPolicy, with_members};
 use crate::route_util::read_body;
 pub use created::Created;
@@ -67,16 +67,17 @@ pub struct IndexService {
     templates: Option<Arc<TemplateSets>>,
     knn: bool,
     nested: bool,
+    geo: bool,
     pins: Option<Arc<dyn PinPolicy>>,
     pipelines: bool,
     search_pipelines: bool,
     created: Option<Created>,
+    events: Option<Bus>,
 }
 
 impl IndexService {
-    /// A service over `descriptors`, telling the time by `clock`
-    /// (milliseconds). Each create holds one buffer of `buffer_bytes` for
-    /// the descriptor, charged to the request-body pool.
+    /// A service over `descriptors`, timed by `clock` (ms); each create holds
+    /// one `buffer_bytes` buffer, charged to the request-body pool.
     pub fn new(descriptors: DescriptorStore, clock: PitClock, buffer_bytes: usize) -> Self {
         Self {
             descriptors,
@@ -87,10 +88,12 @@ impl IndexService {
             templates: None,
             knn: false,
             nested: false,
+            geo: false,
             pins: None,
             pipelines: false,
             search_pipelines: false,
             created: None,
+            events: None,
         }
     }
 
@@ -99,14 +102,6 @@ impl IndexService {
     #[must_use]
     pub fn with_knn(mut self, on: bool) -> Self {
         self.knn = on;
-        self
-    }
-
-    /// Accepts a `nested` object in a created index's mapping when `on`
-    /// (`serverless.nested.enabled`); off, it is refused as unsupported.
-    #[must_use]
-    pub fn with_nested(mut self, on: bool) -> Self {
-        self.nested = on;
         self
     }
 
@@ -296,6 +291,7 @@ impl IndexService {
             let options = ParseOptions {
                 knn: self.knn.then_some(true),
                 nested: self.nested,
+                geo: self.geo,
             };
             let parsed = if pins.is_empty() {
                 Mapping::parse_with(text.as_bytes(), options)

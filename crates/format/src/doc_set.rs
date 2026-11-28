@@ -85,6 +85,8 @@ pub enum DocKind {
     MlModelGroups,
     /// ML Commons connectors, `ml/connectors/`.
     MlConnectors,
+    /// ML Commons models, `ml/models/`.
+    MlModels,
     /// Anomaly detection detectors, `ad/detectors/`.
     AdDetectors,
     /// The indices an ISM policy manages, one document each, `ism/managed/`.
@@ -99,6 +101,8 @@ pub enum DocKind {
     /// Observability objects (saved queries, visualisations, panels,
     /// notebooks), one document each, `observability/objects/`.
     ObservabilityObjects,
+    /// Report definitions, one document each, `reports/definitions/`.
+    ReportDefinitions,
 }
 
 impl DocKind {
@@ -122,12 +126,14 @@ impl DocKind {
             Self::IsmPolicies => "ism/policies/",
             Self::MlModelGroups => "ml/model_groups/",
             Self::MlConnectors => "ml/connectors/",
+            Self::MlModels => "ml/models/",
             Self::AdDetectors => "ad/detectors/",
             Self::IsmManaged => "ism/managed/",
             Self::NotificationConfigs => "notifications/configs/",
             Self::NotificationCatalogue => "notifications/catalogue/",
             Self::IsmTemplates => "ism/templates/",
             Self::ObservabilityObjects => "observability/objects/",
+            Self::ReportDefinitions => "reports/definitions/",
         }
     }
 }
@@ -143,6 +149,20 @@ impl DocKind {
         }
     }
 }
+
+impl DocKind {
+    /// The most documents the set holds: [`MAX_DOCS`], or for report
+    /// definitions [`MAX_REPORT_DEFINITIONS`].
+    pub const fn max_docs(self) -> usize {
+        match self {
+            Self::ReportDefinitions => MAX_REPORT_DEFINITIONS,
+            _ => MAX_DOCS,
+        }
+    }
+}
+
+/// The most report definitions a deployment holds.
+pub const MAX_REPORT_DEFINITIONS: usize = 500;
 
 fn check_base(base: &str) -> Result<(), FormatError> {
     if base.is_empty() || base.ends_with('/') {

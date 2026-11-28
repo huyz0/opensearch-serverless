@@ -20,3 +20,4 @@ src/host.rs	new		what a plugin may ask the host for during a call: operations, g
 tests/host.rs	new		the host rules: unknown, denied, budget, ceiling
 src/doc_sink.rs	new		the index.docs seam: the DocSink trait, its bytes and the backend that serves it
 tests/doc_sink.rs	new		index.docs: codec bounds and the backend routing
+src/manifest_wasm.rs	new		the manifest of a WASM module: its descriptor and a plugin section read into the one manifest

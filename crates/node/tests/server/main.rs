@@ -15,6 +15,8 @@ mod ad_run;
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod async_search_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -90,12 +92,17 @@ mod ltr_routes;
 mod metadata_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ml_connectors;
+mod ml_models;
 mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;
+mod notifications_aws;
+mod notifications_notifier;
 mod notifications_routes;
 mod notifications_send;
+mod notifications_smtp;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod observability_replay;
 mod observability_routes;
 mod pinned_busy;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
@@ -118,6 +125,7 @@ mod read_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
 mod reindex_route;
+mod reports_routes;
 mod restore_flags;
 mod restore_settings;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -130,6 +138,7 @@ mod script_route;
 mod search_default_pipeline_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod search_pipeline_route;
+mod security_account;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authn;
 #[cfg(all(feature = "reader", feature = "writer"))]

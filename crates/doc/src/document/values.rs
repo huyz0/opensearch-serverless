@@ -24,6 +24,13 @@ pub enum FieldValue {
     Bool(bool),
     /// A `knn_vector`'s components.
     Vector(Vec<f32>),
+    /// A `geo_point`'s latitude and longitude.
+    GeoPoint {
+        /// Degrees north.
+        lat: f64,
+        /// Degrees east.
+        lon: f64,
+    },
 }
 
 /// 2^63, `(double) Long.MAX_VALUE`.
@@ -92,6 +99,8 @@ pub fn take(leaf: &Leaf, tok: &Tok, at: At) -> Result<Taken, MappingError> {
         FieldType::Number(ty) => number(leaf, ty, tok, at),
         // Read by the walker, which holds the array's tokens.
         FieldType::Knn => Err(MappingError::unsupported("knn_vector values")),
+        // Read by the walker, which holds the value's tokens.
+        FieldType::GeoPoint => Err(MappingError::unsupported("geo_point values")),
     }
 }
 

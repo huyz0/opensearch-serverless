@@ -46,6 +46,8 @@ pub struct Config {
     pub sql_max_buckets: usize,
     /// `serverless.ism.enabled`: serve the index state management policy routes.
     pub ism: bool,
+    /// `serverless.async_search.enabled`: serve the asynchronous search routes.
+    pub async_search: bool,
     /// `serverless.ml.enabled`: serve the ML Commons model group routes.
     pub ml: bool,
     /// `serverless.notifications.enabled`: serve the notifications config routes.
@@ -54,6 +56,8 @@ pub struct Config {
     pub ad: bool,
     /// `serverless.observability.enabled`: serve the observability object routes.
     pub observability: bool,
+    /// `serverless.reports.enabled`: serve the report definition routes.
+    pub reports: bool,
     /// `OSS_PLUGINS`: the plugin policy text; empty names no plugin.
     pub plugin_policy: String,
     /// `serverless.ltr.max_window`: the most hits an `sltr` rescore scores.
@@ -76,6 +80,8 @@ pub struct Config {
     pub knn: bool,
     /// `serverless.nested.enabled`: whether a create accepts `nested` objects.
     pub nested: bool,
+    /// `serverless.geospatial.index_fields`: whether a create accepts `geo_point` fields.
+    pub geo: bool,
     /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
@@ -186,10 +192,12 @@ impl Config {
             sql_max_request_bytes: 1 << 20,
             sql_max_buckets: 10_000,
             ism: false,
+            async_search: true,
             ml: false,
             notifications: true,
             ad: false,
             observability: false,
+            reports: false,
             plugin_policy: String::new(),
             ltr_max_window: 1_000,
             ltr_cache_ttl_secs: 30,
@@ -201,6 +209,7 @@ impl Config {
             security_bcrypt_cost: crate::security_route::DEFAULT_COST,
             knn: false,
             nested: false,
+            geo: false,
             snapshots: false,
             snapshots_take: false,
             snapshots_capture_aliases: false,

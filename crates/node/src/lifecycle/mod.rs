@@ -148,7 +148,8 @@ impl Assembled {
         readiness: Arc<Readiness>,
         settle: Duration,
     ) -> Result<Self, AssembleError> {
-        self.router = routes(self.router, readiness, settle).map_err(AssembleError::Route)?;
+        self.router = routes(self.router, readiness, settle, self.events.clone())
+            .map_err(AssembleError::Route)?;
         Ok(self)
     }
 }

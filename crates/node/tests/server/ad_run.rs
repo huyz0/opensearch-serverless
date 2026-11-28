@@ -7,9 +7,9 @@
 use std::sync::{Arc, Mutex};
 
 use oss_blob::{BlobStore, S3Op};
-use oss_node::ad_route::{
-    Doc, DocSink, HostError, IndexReport, Outcome, Runner, Timing, WindowSearch,
-};
+use oss_ext::doc_sink::{Doc, DocResult, DocSink};
+use oss_ext::host::HostError;
+use oss_node::ad_route::{Outcome, Runner, Scheduler, Timing, WindowSearch};
 use oss_rest::RestError;
 use serde_json::{Value, json};
 
@@ -57,15 +57,18 @@ impl WindowSearch for Series {
 struct Written(Mutex<Vec<(String, Value)>>);
 
 impl DocSink for Written {
-    fn index(&self, index: &str, docs: &[Doc]) -> Result<IndexReport, HostError> {
+    fn index(&self, index: &str, docs: &[Doc]) -> Result<Vec<DocResult>, HostError> {
         for d in docs {
             let v: Value = serde_json::from_slice(&d.source).expect("json");
             self.0.lock().unwrap().push((index.to_owned(), v));
         }
-        Ok(IndexReport {
-            indexed: docs.len(),
-            failed: 0,
-        })
+        Ok(docs
+            .iter()
+            .map(|_| DocResult {
+                id: String::new(),
+                status: 201,
+            })
+            .collect())
     }
 }
 
@@ -156,12 +159,20 @@ fn a_slot_is_claimed_once_and_costs_a_claim_and_one_search() {
     assert_eq!(*search.searches.lock().unwrap(), 1);
 
     let again = run.run(&f.id, &f.detector, due(0) + 1_000).unwrap();
-    assert_eq!(again, Outcome::Lost { slot: 0 }, "a slot is run once");
+    assert_eq!(again, Outcome::NotDue, "a slot is run once");
     assert_eq!(
         *search.searches.lock().unwrap(),
         1,
-        "a lost slot is not searched"
+        "a slot already run is not searched"
     );
+
+    let (other, other_search) = runner(&f, &sink);
+    assert_eq!(
+        other.run(&f.id, &f.detector, due(0) + 1_000).unwrap(),
+        Outcome::Lost { slot: 0 },
+        "another node loses a claimed slot"
+    );
+    assert_eq!(*other_search.searches.lock().unwrap(), 0);
 
     let (gets, puts) = (total(&f.rig, S3Op::Get), total(&f.rig, S3Op::Put));
     assert_eq!(
@@ -230,4 +241,145 @@ fn another_nodes_claim_drops_the_model_so_two_lineages_never_feed_one_detector()
     // a's next claim finds the register moved: its model is dropped, not fed
     let next = a.run(&f.id, &f.detector, due(SPIKE + 1)).unwrap();
     assert_eq!(next, Outcome::Filling { slot: SPIKE + 1 }, "{next:?}");
+}
+
+/// A scheduler for node `name` over the fixture's store.
+fn scheduler(f: &Fixture, sink: &Arc<Written>, name: &str) -> Scheduler {
+    let (run, _) = runner(f, sink);
+    let store: Arc<dyn BlobStore> = Arc::clone(&f.rig.store) as Arc<dyn BlobStore>;
+    Scheduler::new(&store, "", run, name, 30_000, 1 << 16).expect("a scheduler")
+}
+
+fn start(f: &Fixture) {
+    let started = call(
+        &f.rig,
+        "POST",
+        &format!("{ROOT}/detectors/{}/_start", f.id),
+        None,
+    );
+    assert_eq!(started.status, 200, "{}", started.text());
+}
+
+const NODES: [&str; 3] = ["a", "b", "c"];
+/// A fleet of one: its node owns every detector.
+const ALONE: [&str; 1] = ["a"];
+
+#[test]
+fn three_nodes_run_a_detector_once_a_slot_and_only_its_owner_runs_it() {
+    let f = fixture();
+    let sink = Arc::new(Written::default());
+    let nodes: Vec<Scheduler> = NODES.iter().map(|n| scheduler(&f, &sink, n)).collect();
+    start(&f);
+    let mut ran: Vec<(usize, u64)> = Vec::new();
+    for slot in 0..6u64 {
+        for (i, node) in nodes.iter().enumerate() {
+            let report = node.tick(due(slot), &NODES).unwrap();
+            assert!(report.failed.is_empty(), "{:?}", report.failed);
+            for (id, outcome) in report.outcomes {
+                assert_eq!(id, f.id);
+                assert_eq!(outcome, Outcome::Filling { slot });
+                ran.push((i, slot));
+            }
+        }
+    }
+    let slots: Vec<u64> = ran.iter().map(|(_, s)| *s).collect();
+    assert_eq!(slots, [0, 1, 2, 3, 4, 5], "each slot ran once");
+    assert!(
+        ran.iter().all(|(i, _)| *i == ran[0].0),
+        "one owner ran them all: {ran:?}"
+    );
+}
+
+#[test]
+fn between_refreshes_a_tick_with_nothing_due_makes_no_request() {
+    let f = fixture();
+    let sink = Arc::new(Written::default());
+    let node = scheduler(&f, &sink, "a");
+    start(&f);
+    let t0 = due(0);
+    node.tick(t0, &ALONE).unwrap();
+    let (gets, puts) = (total(&f.rig, S3Op::Get), total(&f.rig, S3Op::Put));
+    for step in 1..=20 {
+        let report = node.tick(t0 + step * 1_000, &ALONE).unwrap();
+        assert!(!report.refreshed && report.outcomes.is_empty());
+    }
+    assert_eq!(
+        (total(&f.rig, S3Op::Get), total(&f.rig, S3Op::Put)),
+        (gets, puts),
+        "nothing is due and no refresh is: nothing is requested"
+    );
+    // a refresh reads the set's marker, and no detector
+    let before = total(&f.rig, S3Op::Get);
+    let report = node.tick(t0 + 31_000, &ALONE).unwrap();
+    assert!(report.refreshed);
+    assert_eq!(total(&f.rig, S3Op::Get) - before, 1);
+    assert_eq!(total(&f.rig, S3Op::List), 0);
+}
+
+#[test]
+fn a_cluster_with_a_created_detector_reads_the_set_once_and_the_detector_once() {
+    let f = fixture();
+    let sink = Arc::new(Written::default());
+    let node = scheduler(&f, &sink, "a");
+    let before = total(&f.rig, S3Op::Get);
+    let report = node.tick(due(0), &ALONE).unwrap();
+    assert!(report.refreshed && report.outcomes.is_empty());
+    // the marker, the names, and the one detector's two reads
+    assert_eq!(total(&f.rig, S3Op::Get) - before, 4);
+}
+
+#[test]
+fn when_the_owner_leaves_another_node_runs_the_detector_with_a_new_model() {
+    let f = fixture();
+    let sink = Arc::new(Written::default());
+    let nodes: Vec<Scheduler> = NODES.iter().map(|n| scheduler(&f, &sink, n)).collect();
+    start(&f);
+    let owner = (0..3)
+        .find(|i| {
+            nodes[*i]
+                .tick(due(0), &NODES)
+                .is_ok_and(|r| !r.outcomes.is_empty())
+        })
+        .expect("one node owns it");
+    let rest: Vec<&str> = NODES
+        .iter()
+        .copied()
+        .filter(|n| *n != NODES[owner])
+        .collect();
+    let mut took = None;
+    for (i, node) in nodes.iter().enumerate().filter(|(i, _)| *i != owner) {
+        let report = node.tick(due(1), &rest).unwrap();
+        if let Some((_, outcome)) = report.outcomes.first() {
+            took = Some((i, outcome.clone()));
+        }
+    }
+    let (new_owner, outcome) = took.expect("another node took the detector");
+    assert_ne!(new_owner, owner);
+    assert_eq!(
+        outcome,
+        Outcome::Filling { slot: 1 },
+        "the new owner starts a model"
+    );
+}
+
+#[test]
+fn a_stopped_detector_costs_nothing_after_the_next_refresh() {
+    let f = fixture();
+    let sink = Arc::new(Written::default());
+    let node = scheduler(&f, &sink, "a");
+    start(&f);
+    assert_eq!(node.tick(due(0), &ALONE).unwrap().outcomes.len(), 1);
+    let stopped = call(
+        &f.rig,
+        "POST",
+        &format!("{ROOT}/detectors/{}/_stop", f.id),
+        None,
+    );
+    assert_eq!(stopped.status, 200);
+    let report = node.tick(due(1), &ALONE).unwrap();
+    assert!(report.refreshed, "the refresh interval has passed");
+    assert!(
+        report.outcomes.is_empty(),
+        "the stopped detector does not run"
+    );
 }

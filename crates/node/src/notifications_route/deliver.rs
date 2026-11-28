@@ -1,7 +1,7 @@
 //! Posting a message to a channel's URL: bounded in size, time and
 //! concurrency, with no redirect and no proxy (ADR 0081).
 
-use std::sync::{Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -21,7 +21,7 @@ pub struct Delivery {
 }
 
 impl Delivery {
-    fn failed(code: u16, text: &str) -> Self {
+    pub(super) fn failed(code: u16, text: &str) -> Self {
         // ALLOC: one short word, once a failed delivery.
         Self {
             status_code: code,
@@ -66,6 +66,7 @@ impl Default for Limits {
 /// Delivers to the HTTP-shaped channels.
 pub struct Deliverer {
     agent: ureq::Agent,
+    lookup: Lookup,
     policy: EgressPolicy,
     limits: Limits,
     slots: Mutex<(usize, usize)>,
@@ -85,12 +86,13 @@ impl Deliverer {
             .timeout_connect(Some(limits.connect))
             .build();
         let resolver = GuardedResolver {
-            lookup,
+            lookup: Arc::clone(&lookup),
             policy: policy.clone(),
         };
         let agent = ureq::Agent::with_parts(config, DefaultConnector::default(), resolver);
         Self {
             agent,
+            lookup,
             policy,
             limits,
             slots: Mutex::new((0, 0)),
@@ -163,14 +165,125 @@ impl Deliverer {
             return Delivery::failed(403, "blocked");
         }
         let method = block["method"].as_str().unwrap_or("POST");
-        let mut request = Request::builder()
-            .method(method)
-            .uri(uri)
-            .header("content-type", "application/json");
+        let mut headers: Vec<(String, String)> =
+            vec![("content-type".to_owned(), "application/json".to_owned())];
         if let Some(h) = block["header_params"].as_object() {
             for (name, value) in h {
-                request = request.header(name.as_str(), value.as_str().unwrap_or_default());
+                headers.push((name.clone(), value.as_str().unwrap_or_default().to_owned()));
             }
+        }
+        self.exchange(method, uri, &headers, body)
+    }
+
+    /// Posts `body` to `url` under the same bounds as a channel delivery: the
+    /// egress guard, the slots, the time and no redirect. The answer is a
+    /// status; nothing the target sent back is kept.
+    #[must_use]
+    pub(super) fn post(&self, url: &str, headers: &[(String, String)], body: Vec<u8>) -> Delivery {
+        if body.len() > self.limits.max_body {
+            return Delivery::failed(413, "too large");
+        }
+        let Ok(uri) = url.parse::<ureq::http::Uri>() else {
+            return Delivery::failed(400, "no url");
+        };
+        let port = uri
+            .port_u16()
+            .unwrap_or(if uri.scheme_str() == Some("https") {
+                443
+            } else {
+                80
+            });
+        if self
+            .policy
+            .refuses(uri.host().unwrap_or_default(), port)
+            .is_some()
+        {
+            return Delivery::failed(403, "blocked");
+        }
+        self.exchange("POST", uri, headers, body)
+    }
+
+    /// Opens a connection to `host` and `port` under the same rules as a
+    /// delivery: the policy on the name, the lookup, every address checked, the
+    /// connect and total time bounds. The refusal is a status, never an address.
+    ///
+    /// The host and port are one an operator declared, so the webhook port
+    /// list does not apply; the name rules and the address rules do. The
+    /// attempts share `deadline`.
+    pub(super) fn connect(
+        &self,
+        host: &str,
+        port: u16,
+        deadline: std::time::Instant,
+    ) -> Result<std::net::TcpStream, Delivery> {
+        use std::net::{IpAddr, TcpStream};
+        if self.policy.refuses_host(host).is_some() {
+            return Err(Delivery::failed(403, "blocked"));
+        }
+        let addrs = match host.parse::<IpAddr>() {
+            Ok(ip) => vec![std::net::SocketAddr::new(ip, port)],
+            Err(_) => (self.lookup)(host, port).map_err(|_| Delivery::failed(403, "blocked"))?,
+        };
+        if addrs.is_empty()
+            || addrs
+                .iter()
+                .any(|a| !super::egress::permitted(a.ip(), self.policy.allow_private))
+        {
+            return Err(Delivery::failed(403, "blocked"));
+        }
+        let stream = addrs
+            .iter()
+            .take(16)
+            .find_map(|a| {
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                let wait = left.min(self.limits.connect);
+                (!wait.is_zero())
+                    .then(|| TcpStream::connect_timeout(a, wait).ok())
+                    .flatten()
+            })
+            .ok_or_else(|| Delivery::failed(502, "refused"))?;
+        let _ = stream.set_nodelay(true);
+        Ok(stream)
+    }
+
+    /// Runs `work` in a slot; none when the queue is full.
+    pub(super) fn slotted<T>(&self, work: impl FnOnce() -> T) -> Option<T> {
+        if !self.take() {
+            return None;
+        }
+        // Frees the slot even if `work` panics.
+        struct Held<'a>(&'a Deliverer);
+        impl Drop for Held<'_> {
+            fn drop(&mut self) {
+                self.0.give();
+            }
+        }
+        let _held = Held(self);
+        Some(work())
+    }
+
+    /// The most bytes of a message.
+    pub(super) fn max_body(&self) -> usize {
+        self.limits.max_body
+    }
+
+    /// How long a whole send may take.
+    pub(super) fn total(&self) -> Duration {
+        self.limits.total
+    }
+
+    /// One request, once a slot is free; the guard has already looked at the
+    /// address and the resolver looks again at the name.
+    fn exchange(
+        &self,
+        method: &str,
+        uri: ureq::http::Uri,
+        headers: &[(String, String)],
+        body: Vec<u8>,
+    ) -> Delivery {
+        let mut request = Request::builder().method(method).uri(uri);
+        for (name, value) in headers {
+            request = request.header(name.as_str(), value.as_str());
         }
         let Ok(request) = request.body(body) else {
             return Delivery::failed(400, "no url");

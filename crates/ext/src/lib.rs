@@ -19,6 +19,7 @@ mod json;
 pub mod lifecycle;
 pub mod manifest;
 mod manifest_routes;
+mod manifest_wasm;
 pub mod native;
 pub mod pin;
 pub mod rest;

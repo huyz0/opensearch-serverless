@@ -105,3 +105,9 @@ impl Dispatcher {
         })
     }
 }
+
+impl crate::lifecycle_bus::Events for Dispatcher {
+    fn publish(&self, event: &Event) {
+        Dispatcher::publish(self, event);
+    }
+}

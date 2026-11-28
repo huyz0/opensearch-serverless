@@ -36,27 +36,52 @@ pub(crate) fn mount(
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<ObservabilityService>) -> Result<Router, RouteError> {
-    let table: [(Method, &'static str, &'static str, Handler); 2] = [
+    let list_params = super::list::LIST_PARAMS;
+    let table: [(Method, &'static str, &'static [&'static str], Handler); 6] = [
         (
             Method::Post,
             "/_plugins/_observability/object",
-            "create",
+            PARAMS,
             ObservabilityService::create,
         ),
         (
             Method::Get,
+            "/_plugins/_observability/object",
+            list_params,
+            ObservabilityService::list,
+        ),
+        (
+            Method::Delete,
+            "/_plugins/_observability/object",
+            list_params,
+            ObservabilityService::delete,
+        ),
+        (
+            Method::Get,
             "/_plugins/_observability/object/{id}",
-            "read",
+            PARAMS,
             ObservabilityService::get,
+        ),
+        (
+            Method::Put,
+            "/_plugins/_observability/object/{id}",
+            PARAMS,
+            ObservabilityService::replace,
+        ),
+        (
+            Method::Delete,
+            "/_plugins/_observability/object/{id}",
+            PARAMS,
+            ObservabilityService::delete,
         ),
     ];
     let mut router = router;
-    for (method, path, _name, handler) in table {
+    for (method, path, params, handler) in table {
         let service = Arc::clone(service);
         router = router.route(
             method,
             path,
-            PARAMS,
+            params,
             move |q: &mut Request<'_>, r: &mut Response<'_>| handler(&service, q, r),
         )?;
     }

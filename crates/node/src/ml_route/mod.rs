@@ -10,8 +10,10 @@
 
 mod claims;
 mod connectors;
+mod models;
 mod routes;
 mod search;
+mod tasks;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -44,6 +46,8 @@ pub struct MlService {
     stale_millis: u64,
     trusted: oss_ml::connector::Trusted,
     master_key: std::sync::OnceLock<String>,
+    node_id: String,
+    tasks: tasks::Tasks,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -160,7 +164,17 @@ impl MlService {
             stale_millis: STALE_CLAIM_MILLIS,
             trusted: oss_ml::connector::Trusted::default(),
             master_key: std::sync::OnceLock::new(),
+            node_id: String::from("node"),
+            tasks: tasks::Tasks::default(),
         }
+    }
+
+    /// The id this node shows as a model's worker node.
+    #[must_use]
+    pub fn with_node_id(mut self, node_id: &str) -> Self {
+        // ALLOC: one copy of the node id, once.
+        node_id.clone_into(&mut self.node_id);
+        self
     }
 
     /// The endpoints a connector may name; with none set, none is trusted.
