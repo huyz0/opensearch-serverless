@@ -219,6 +219,7 @@ fn the_status_route_lists_each_plugin_and_why_one_is_refused() {
     assert_eq!(list[0]["id"], "echo");
     assert_eq!(list[0]["state"], "ready");
     assert_eq!(list[0]["breaker"], "closed");
+    assert!(list[0]["events"].is_null(), "it subscribed to no event");
     assert_eq!(list[1]["id"], "gone");
     assert_eq!(list[1]["state"], "refused");
     assert!(list[1]["reason"].is_string());
