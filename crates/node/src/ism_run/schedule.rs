@@ -21,6 +21,7 @@ use oss_format::{DocKind, REGISTRY_SHARDS};
 use oss_meta::{DocSet, MetaError, ScheduleRegistry};
 use serde_json::{Value, json};
 
+use super::backend::Backend;
 use super::evaluate;
 
 /// The registry namespace of this plugin.
@@ -63,6 +64,7 @@ pub struct Scheduler {
     registry: ScheduleRegistry,
     managed: DocSet,
     policies: DocSet,
+    backend: Arc<dyn Backend>,
     node: String,
     refresh_ms: i64,
     buffer_bytes: usize,
@@ -87,6 +89,7 @@ impl Scheduler {
     pub fn new(
         store: &Arc<dyn BlobStore>,
         base: &str,
+        backend: Arc<dyn Backend>,
         node: &str,
         refresh_ms: i64,
         buffer_bytes: usize,
@@ -95,6 +98,7 @@ impl Scheduler {
             registry: ScheduleRegistry::in_namespace(Arc::clone(store), base, NAMESPACE)?,
             managed: DocSet::new(Arc::clone(store), base, DocKind::IsmManaged)?,
             policies: DocSet::new(Arc::clone(store), base, DocKind::IsmPolicies)?,
+            backend,
             // ALLOC: one copy of the node id, once.
             node: node.to_owned(),
             refresh_ms,
@@ -184,7 +188,7 @@ impl Scheduler {
         {
             return Ok(None);
         }
-        let step = evaluate(&fresh, &owned.policy, now_ms);
+        let step = evaluate(&fresh, &owned.policy, now_ms, self.backend.as_ref());
         let mut next = step.record;
         let floor = i64::try_from(slot).unwrap_or(i64::MAX).saturating_add(1);
         next["next_eval"] = step.next_eval.map_or(Value::Null, |t| json!(t.max(floor)));
