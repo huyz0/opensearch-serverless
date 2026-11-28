@@ -384,3 +384,5 @@ src/async_search/runner.rs	new		the runner that plans a submit as one search of 
 src/async_search_setting.rs	new		the serverless.async_search.enabled setting, on by default
 src/bulk_sink.rs	new		index.docs for plugins: documents indexed through the _bulk service
 src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors from the registry, run the ones this node owns that are due; no stock recording exists (AC-15 gap)
+src/boot/ad_loop.rs	new		the thread that ticks the anomaly detection scheduler with the live nodes; no stock recording exists (AC-15 gap)
+src/boot/node_impl.rs	new		the running node's accessors and drop order, moved out of boot/mod.rs to keep it under the module size limit
