@@ -41,6 +41,7 @@
 //!   retried create, and finishing a delete from the [`ReclaimQueue`] once a
 //!   writer that missed it has stopped.
 
+mod alert_registry;
 mod alias_mutations;
 mod alias_restore;
 mod changes;
@@ -72,6 +73,7 @@ mod stock_read;
 mod stock_restore;
 mod sweep;
 
+pub use alert_registry::{AlertRegistry, Claim};
 pub use alias_mutations::{AliasAt, AliasClock, AliasMutations};
 pub use changes::{ChangeStripes, Snapshot};
 pub use cluster_config::{ClusterConfig, ConfigValue};
