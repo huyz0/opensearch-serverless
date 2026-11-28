@@ -230,6 +230,9 @@ src/aggs/metric/script_values.rs	new		a metric script as the engine values sourc
 src/aggs/metric/sub_rules.rs	new		which bucket aggregations may hold which sub-aggregations, moved out of parse.rs
 src/aggs/bucket/terms_sub_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/BucketSelectionStrategy.java@3.10.0	the shard and reduce ordering of a numeric terms by a sub-aggregation: every bucket kept, ordered by the value, cut to the size
 src/aggs/bucket/keyword_partition_tests.rs	new		tests of a partition-based include of a keyword terms against the reference hash
+src/dsl/sort_geo.rs	port	server/src/main/java/org/opensearch/search/sort/GeoDistanceSortBuilder.java	the _geo_distance sort key: origins in every point form, unit, order, mode, distance_type, validation_method, ignore_unmapped (fromXContent)
+src/dsl/sort_geo_tests.rs	new		tests of sort_geo.rs
+src/search_sort_geo.rs	port	server/src/main/java/org/opensearch/search/sort/GeoDistanceSortBuilder.java	the sort key as the engine's OpenSearchGeoDistanceSort comparator, with the origin validation (build, localPoints)
 src/dsl/queries/geo_bounding_box.rs	port	server/src/main/java/org/opensearch/index/query/GeoBoundingBoxQueryBuilder.java	the geo_bounding_box query: corner forms, WKT envelope, geohash cell corners, validation, and the rectangle query on a point field (GeoBoundingBox.parseBoundingBox is folded in)
 src/dsl/queries/geo_bounding_box_tests.rs	new		tests of geo_bounding_box.rs
 src/dsl/queries/geo_polygon.rs	port	server/src/main/java/org/opensearch/index/query/GeoPolygonQueryBuilder.java	the geo_polygon query: points in every form, the closed shell, validation, and the polygon query on a point field
@@ -366,3 +369,7 @@ src/painless_cache_tests.rs	new		tests of the compile cache
 src/knn/stats.rs	new		process-wide counts of knn queries run, for the plugin stats API (docs/specs/knn-plugin-api)
 src/knn/stats_tests.rs	new		tests of knn/stats.rs over a real shard
 src/knn/unmapped_tests.rs	new		tests of knn ignore_unmapped over a real shard
+src/aggs/metric/geo.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/InternalGeoCentroid.java	geo_centroid and geo_bounds: shard values, reduce (InternalGeoCentroid.reduce, InternalGeoBounds.reduce) and bodies (resolveGeoBoundingBox)
+src/aggs/metric/geo_tests.rs	new		tests of geo.rs
+src/aggs/metric/geo_parse.rs	port	modules/geo/src/main/java/org/opensearch/geo/search/aggregations/metrics/GeoBoundsAggregationBuilder.java	the bodies of geo_centroid and geo_bounds: field and wrap_longitude
+src/aggs/metric/collect_needs.rs	new		which parts of the engine's metric state each metric reads

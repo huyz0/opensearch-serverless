@@ -239,14 +239,20 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
     fn run(&self, targets: &[String], routing: Option<&str>, source: &mut SearchSource) -> Vec<u8> {
         let [index] = targets else {
             // No index's default pipeline runs over several indexes.
-            return Self::answered(self.service.search_bytes_many(targets, source, routing));
+            return Self::answered(
+                self.service
+                    .search_bytes_many(targets, source, routing, None),
+            );
         };
         // Held until the item is answered.
         let _pipeline = match self.service.run_item_pipeline(index, source) {
             Ok(held) => held,
             Err(answer) => return answer_item(answer),
         };
-        Self::answered(self.service.search_bytes_routed(index, source, routing))
+        Self::answered(
+            self.service
+                .search_bytes_routed(index, source, routing, None),
+        )
     }
 
     fn answered(result: Result<Vec<u8>, Answer>) -> Vec<u8> {
@@ -399,7 +405,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         index: &str,
         source: &SearchSource,
     ) -> Result<Vec<u8>, Answer> {
-        self.search_bytes_routed(index, source, None)
+        self.search_bytes_routed(index, source, None, None)
     }
 
     /// As [`Self::search_bytes`], over the shards `routing` names.
@@ -408,6 +414,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         index: &str,
         source: &SearchSource,
         routing: Option<&str>,
+        stop: Option<super::Stop<'_>>,
     ) -> Result<Vec<u8>, Answer> {
         let started = Instant::now();
         #[cfg(feature = "coordinator")]
@@ -418,12 +425,16 @@ impl<S: BlobStore + 'static> SearchService<S> {
                     shards,
                     only: only.as_deref(),
                     members: None,
+                    stop,
                 };
                 return self.coordinate_bytes(index, visit, source, started);
             }
         }
         #[cfg(not(feature = "coordinator"))]
         let _ = routing;
+        if stop.is_some_and(|stop| stop()) {
+            return Err(Answer::Search(super::cancelled()));
+        }
         let held = self.shard(index)?;
         let (held, view) = self.fresh_held(held, true)?;
         let shard = view.as_deref().unwrap_or(&held.shard);

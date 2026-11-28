@@ -150,6 +150,8 @@ pub fn sub_nodes<S: BlobStore + 'static>(
             Resolved::Hits => subs.push(top_hits_sub::sub_node(sub, shard)?),
             // The parser refuses a `composite` under another aggregation.
             Resolved::Unmapped | Resolved::Composite(_) => queries.skip_tree(sub),
+            // `sub_rules` refuses a geo metric under another aggregation.
+            Resolved::Geo => return Err(engine_error("a geo aggregation under a bucket")),
         }
     }
     Ok(subs)
@@ -212,6 +214,7 @@ pub fn sub_values<S: BlobStore + 'static>(
             Resolved::Keyword => (Format::Raw, engine.next()),
             Resolved::Queries | Resolved::Hits => (Format::Raw, engine.next()),
             Resolved::Unmapped | Resolved::Composite(_) => (Format::Raw, None),
+            Resolved::Geo => return Err(engine_error("a geo aggregation under a bucket")),
         };
         let made = if numeric_terms {
             nested_subs::numeric_terms(sub, shard, result, total)?

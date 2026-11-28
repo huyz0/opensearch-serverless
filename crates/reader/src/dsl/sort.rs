@@ -49,6 +49,8 @@ pub enum SortKey {
         /// Lowest first.
         ascending: bool,
     },
+    /// By the distance from origins (`GeoDistanceSortBuilder`).
+    GeoDistance(Box<crate::dsl::sort_geo::GeoDistanceSort>),
 }
 
 impl SortKey {
@@ -75,12 +77,16 @@ impl SortKey {
                 nested,
             },
             SortKey::Script { script, .. } => SortKey::Script { script, ascending },
+            SortKey::GeoDistance(mut sort) => {
+                sort.ascending = ascending;
+                SortKey::GeoDistance(sort)
+            }
         }
     }
 }
 
 /// `SortOrder.fromString`.
-fn order(text: &str) -> Result<bool, DslError> {
+pub(crate) fn order(text: &str) -> Result<bool, DslError> {
     match text.to_ascii_uppercase().as_str() {
         "ASC" => Ok(true),
         "DESC" => Ok(false),
@@ -142,6 +148,9 @@ fn compound(p: &mut Parser<'_>, keys: &mut Vec<SortKey>) -> Result<(), DslError>
         let name = p.text();
         match p.next_token() {
             Some(Kind::StartObject) if name == "_script" => push(keys, script_key(p)?)?,
+            Some(Kind::StartObject) if name == "_geo_distance" => {
+                push(keys, crate::dsl::sort_geo::parse(p)?)?;
+            }
             Some(Kind::String) => push(keys, SortKey::named(name).with_order(order(p.text())?))?,
             _ => push(keys, options(p, name)?)?,
         }

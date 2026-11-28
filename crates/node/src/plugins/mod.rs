@@ -4,6 +4,10 @@
 
 mod assemble;
 mod events;
+mod jobs;
+#[cfg(test)]
+#[path = "jobs_tests.rs"]
+mod jobs_tests;
 mod policy;
 mod registry;
 mod routes;
@@ -18,6 +22,7 @@ pub use assemble::{InstallError, STATUS_PATH, install};
 #[cfg(feature = "writer")]
 pub(crate) use assemble::{configured_modules, install_configured};
 pub use events::{Counts, Dispatcher, QUEUE};
+pub use jobs::PluginJobs;
 pub use policy::{Entry, Policy, PolicyError, PolicyTier};
 pub use registry::{Plugin, Registry, State, Taken};
 pub use routes::mount;

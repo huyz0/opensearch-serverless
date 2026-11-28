@@ -29,6 +29,7 @@ fn terms(name: &str, field: &str, t: TermsRequest) -> AggRequest {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }
 }
@@ -111,6 +112,7 @@ fn a_terms_with_a_sub_aggregation_reads_and_writes_as_java_wrote_it() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }];
     let mut input = Input::new(&wire);

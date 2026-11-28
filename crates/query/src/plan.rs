@@ -7,9 +7,11 @@ use crate::plan_query::query;
 use crate::{Error, Field, Mapping};
 
 /// Where a column's value comes from in a hit.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Source {
     Field(String),
+    /// A scalar expression, evaluated over each hit's `_source`.
+    Expr(crate::expr::Expr),
     Id,
     Index,
     Score,
@@ -251,6 +253,23 @@ fn plan_sql(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, 
                 }
             }
             Item::Agg(..) => unreachable!("aggregates take the aggregate path"),
+            Item::Expr(expr, alias, text) => {
+                let mut read = Vec::new();
+                expr.fields(&mut read);
+                for f in read {
+                    lookup(mapping, &f)?;
+                    let f = Value::String(f);
+                    if !includes.contains(&f) {
+                        includes.push(f);
+                    }
+                }
+                columns.push(Column {
+                    name: text.clone(),
+                    alias: alias.clone(),
+                    ty: expr.sql_type(mapping),
+                    source: Source::Expr(expr.clone()),
+                });
+            }
             Item::Field(name, alias) => {
                 if let Some((source, ty)) = meta(name) {
                     score |= source == Source::Score;

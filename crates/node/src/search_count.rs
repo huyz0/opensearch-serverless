@@ -107,6 +107,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             shards: members.len(),
             only: None,
             members: Some(&members),
+            stop: None,
         };
         let first = indexes.first().map_or("", String::as_str);
         self.handle_sharded_with(resp, first, visit, source, started, &|bytes| {
@@ -183,6 +184,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                         shards,
                         only: only.as_deref(),
                         members: None,
+                        stop: None,
                     },
                     &source,
                     started,

@@ -63,7 +63,7 @@ const UNITS: &[(&[&str], f64)] = &[
 ];
 
 /// `DistanceUnit.fromString`: the metres in the unit `name`.
-fn unit_meters(name: &str) -> Result<f64, DslError> {
+pub(crate) fn unit_meters(name: &str) -> Result<f64, DslError> {
     UNITS
         .iter()
         .find(|(names, _)| names.contains(&name))
@@ -103,7 +103,7 @@ fn parse_distance(text: &str, default_unit: f64) -> Result<f64, DslError> {
     Ok(java_double(text)? * default_unit)
 }
 
-pub(super) fn double_value(p: &Parser<'_>) -> Result<f64, DslError> {
+pub(crate) fn double_value(p: &Parser<'_>) -> Result<f64, DslError> {
     match p.current_token() {
         Some(Kind::Number | Kind::String) => java_double(p.text().trim()),
         _ => Err(number_format(p.text())),
@@ -287,7 +287,7 @@ fn geohash(p: &Parser<'_>) -> Result<(f64, f64), DslError> {
 }
 
 /// `GeoValidationMethod.fromString`.
-pub(super) fn validation_method(text: &str) -> Result<Validation, DslError> {
+pub(crate) fn validation_method(text: &str) -> Result<Validation, DslError> {
     match text.to_uppercase().as_str() {
         "COERCE" => Ok(Validation::Coerce),
         "IGNORE_MALFORMED" => Ok(Validation::IgnoreMalformed),

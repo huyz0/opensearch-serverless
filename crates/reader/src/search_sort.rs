@@ -69,6 +69,7 @@ pub(crate) fn sort_fields<S: BlobStore + 'static>(
                 ascending,
                 nested: Some(nested),
             } => nested_field_sort(field, !*ascending, nested, shard, index, cx)?,
+            SortKey::GeoDistance(sort) => crate::search_sort_geo::geo_sort(sort, shard)?,
             SortKey::Script { script, ascending } => {
                 let Some(cx) = cx else {
                     return Err(ShardError::bad_request(Failure::plain(

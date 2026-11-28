@@ -35,6 +35,7 @@ use serde_json::{Map, Value, json};
 use crate::route_util::refuse;
 pub use accounts::{Accounts, AwsAccount, SmtpAccount};
 pub use deliver::{Deliverer, Delivery, Limits};
+pub(crate) use egress::GuardedResolver;
 pub use egress::{EgressPolicy, Lookup, permitted, system_lookup};
 pub use notifier::{Notifier, NotifierCounts};
 pub use routes::routes;

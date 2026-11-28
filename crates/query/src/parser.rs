@@ -47,7 +47,7 @@ pub fn parse(sql: &str, limits: &Limits) -> Result<Statement, Error> {
         depth: 0,
         max_depth: limits.max_depth,
         end: sql.len(),
-        src: String::new(),
+        src: sql.to_owned(),
         ppl: false,
     };
     let stmt = p.statement()?;
@@ -334,6 +334,14 @@ impl Parser {
         if let Some(agg) = self.agg_call(None)? {
             return self.agg_item(agg);
         }
+        if self.looks_like_expr() {
+            let start = self.tokens.get(self.at).map_or(self.end, |t| t.pos);
+            let expr = self.expr()?;
+            let stop = self.tokens.get(self.at).map_or(self.end, |t| t.pos);
+            let text = self.src.get(start..stop).unwrap_or("").trim().to_owned();
+            let alias = self.alias_for_item()?;
+            return Ok(Item::Expr(expr, alias, text));
+        }
         let path = self.path()?;
         let alias = self.alias_for_item()?;
         Ok(Item::Field(path, alias))
@@ -354,6 +362,11 @@ impl Parser {
 
     /// A dotted field path; anything that looks like a call or an operator is refused.
     pub(crate) fn path(&mut self) -> Result<String, Error> {
+        self.path_in(true)
+    }
+
+    /// A dotted path; `bare` refuses a trailing operator (an expression reads it itself).
+    pub(crate) fn path_in(&mut self, bare: bool) -> Result<String, Error> {
         let mut out = match self.peek().cloned() {
             Some(Kind::Word(w)) if RESERVED.contains(&w.to_ascii_lowercase().as_str()) => {
                 return self.fail();
@@ -380,7 +393,7 @@ impl Parser {
             }
         }
         for op in ["+", "/", "%"] {
-            if self.is_sym(op) {
+            if bare && self.is_sym(op) {
                 return Err(Error::unsupported(
                     "an arithmetic expression is not supported yet",
                 ));

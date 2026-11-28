@@ -34,12 +34,17 @@ fn the_meter_counts_each_tenants_calls_bytes_and_fuel() {
     let big = vec![0_u8; IO as usize + 1];
     m.call("a", 0, &big).expect_err("refused");
     assert_eq!(host.meter().usage("a").calls, 3);
-    let spin = load(&host, &with_body("(loop $l (br $l)) (i32.const 0)"));
+    // Fuel far smaller than the deadline, so a slow runner runs out of fuel
+    // before the deadline can end the call first.
+    let config = HostConfig {
+        fuel: 1_000_000,
+        deadline_ms: 60_000,
+        ..HostConfig::default()
+    };
+    let spinner = Host::new(config.clone());
+    let spin = load(&spinner, &with_body("(loop $l (br $l)) (i32.const 0)"));
     spin.call("c", 0, b"x").expect_err("out of fuel");
-    let c = host.meter().usage("c");
+    let c = spinner.meter().usage("c");
     assert_eq!((c.calls, c.input_bytes, c.output_bytes), (1, 1, 0));
-    assert!(
-        c.fuel >= HostConfig::default().fuel,
-        "the whole budget was spent"
-    );
+    assert!(c.fuel >= config.fuel, "the whole budget was spent");
 }

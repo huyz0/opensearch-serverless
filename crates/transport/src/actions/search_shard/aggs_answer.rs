@@ -51,6 +51,8 @@ pub(super) fn write_one(
             AggValue::Avg { .. } => (AggKind::Avg, ()),
             AggValue::ValueCount(_) => (AggKind::ValueCount, ()),
             AggValue::Stats { .. } => (AggKind::Stats, ()),
+            AggValue::GeoCentroid { .. } => (AggKind::GeoCentroid, ()),
+            AggValue::GeoBounds { .. } => (AggKind::GeoBounds, ()),
             AggValue::Cardinality(_) => (AggKind::Cardinality, ()),
             AggValue::Terms(_) => (AggKind::Terms, ()),
             AggValue::DateHistogram(_) => (AggKind::DateHistogram, ()),
@@ -101,6 +103,31 @@ pub(super) fn write_one(
                 out.vlong(*count)?;
             }
             AggValue::ValueCount(n) => out.vlong(*n)?,
+            // `InternalGeoCentroid.doWriteTo`: no format.
+            AggValue::GeoCentroid { count, lat, lon } => {
+                out.vlong(*count)?;
+                out.bool(*count > 0)?;
+                if *count > 0 {
+                    for v in [lat, lon] {
+                        out.bytes(&v.to_bits().to_be_bytes())?;
+                    }
+                }
+            }
+            // `InternalGeoBounds.doWriteTo`.
+            AggValue::GeoBounds {
+                top,
+                bottom,
+                pos_left,
+                pos_right,
+                neg_left,
+                neg_right,
+                wrap,
+            } => {
+                for v in [top, bottom, pos_left, pos_right, neg_left, neg_right] {
+                    out.bytes(&v.to_bits().to_be_bytes())?;
+                }
+                out.bool(*wrap)?;
+            }
             AggValue::Stats {
                 count,
                 min,

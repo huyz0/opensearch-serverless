@@ -138,6 +138,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         indexes: &[String],
         source: &oss_reader::dsl::SearchSource,
         routing: Option<&str>,
+        stop: Option<super::Stop<'_>>,
     ) -> Result<Vec<u8>, Answer> {
         #[cfg(feature = "coordinator")]
         {
@@ -146,13 +147,14 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 shards: members.len(),
                 only: None,
                 members: Some(&members),
+                stop,
             };
             let first = indexes.first().map_or("", String::as_str);
             self.coordinate_bytes(first, visit, source, Instant::now())
         }
         #[cfg(not(feature = "coordinator"))]
         {
-            let _ = (indexes, source, routing);
+            let _ = (indexes, source, routing, stop);
             Err(Answer::Rest(RestError::illegal_argument(
                 "a search over several indexes needs the coordinator role",
             )))
@@ -252,6 +254,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 shards: members.len(),
                 only: None,
                 members: Some(&members),
+                stop: None,
             };
             // The coordinator names each shard's index from `members`; this
             // one only labels the call.

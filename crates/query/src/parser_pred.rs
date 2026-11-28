@@ -14,7 +14,7 @@ impl Parser {
         Ok(())
     }
 
-    fn leave(&mut self) {
+    pub(crate) fn leave(&mut self) {
         self.depth = self.depth.saturating_sub(1);
     }
 
@@ -151,6 +151,11 @@ impl Parser {
     }
 
     pub(crate) fn literal(&mut self) -> Result<Lit, Error> {
+        self.literal_in(true)
+    }
+
+    /// A literal; `bare` refuses a trailing operator (an expression reads it itself).
+    pub(crate) fn literal_in(&mut self, bare: bool) -> Result<Lit, Error> {
         let neg = self.eat_sym("-");
         let lit = match self.peek().cloned() {
             Some(Kind::Str(s)) if !neg => Lit::Str(s),
@@ -170,7 +175,7 @@ impl Parser {
         };
         self.bump();
         for op in ["+", "/", "%"] {
-            if self.is_sym(op) {
+            if bare && self.is_sym(op) {
                 return Err(Error::unsupported(
                     "an arithmetic expression is not supported yet",
                 ));
