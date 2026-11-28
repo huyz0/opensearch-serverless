@@ -358,6 +358,7 @@ src/sql_setting.rs	new		serverless.sql.enabled
 src/knn_model_route.rs	new		the k-NN plugin model store (get, delete, search) over a document set; plugin source not in this repository (docs/specs/knn-plugin-api, ADR 0086)
 src/ad_route/validate_route.rs	new		the _validate route: what a create would refuse, answered without writing
 src/sql_route/mount.rs	new		the SQL routes mounted on the node router
+src/security_authz/tests.rs	new		unit tests of the route rules, moved out of security_authz.rs for its size
 src/observability_setting.rs	new		serverless.observability.enabled
 src/observability_route/mod.rs	new		the observability object service over a document set; the plugin is ported natively by ADR 0088
 src/observability_route/object.rs	new		what an object body holds: one of the plugin object types, reduced to the fields it keeps
@@ -367,7 +368,6 @@ src/knn_train_request.rs	new		the _train request's own checks: TrainingModelRequ
 src/knn_train_request_tests.rs	new		the _train request checks replayed from the stock 3.10.0 recording
 src/knn_train_route.rs	new		POST /_plugins/_knn/models/{id}/_train: the model-exists, index, field and dimension checks (opensearch-project/k-NN 3.10.0.0 TrainingModelRequest)
 src/security_authz_knn.rs	new		the k-NN plugin routes and the transport actions its security plugin names for them (opensearch-project/k-NN 3.10.0.0)
-src/security_authz/tests.rs	new		unit tests of the route rules, moved out of security_authz.rs for its size
 src/async_search/mod.rs	new		the asynchronous search service: submit, get, delete and stats over the job registry, plain bytes in and out (ADR 0084)
 src/async_search/params.rs	new		the request parameters of asynchronous search with the recorded refusals
 src/async_search/render.rs	new		the response envelopes, stats and refusals of asynchronous search
@@ -378,6 +378,7 @@ src/plugins/assemble.rs	new		reading the policy, loading the registry and mounti
 src/boot/config/plugin_policy.rs	new		the OSS_PLUGINS variable
 src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins from bounded queues
 src/ism_run/mod.rs	new		the runner decision: a managed index record, its policy and the time give the next record and the next evaluation time; cron conditions and actions come later
+src/notifications_route/write.rs	new		the create, replace and delete routes of the notifications configs, split from mod.rs for its size
 src/async_search/mount.rs	new		mounting the asynchronous search routes over the node search
 src/async_search/routes.rs	new		the route table of asynchronous search under both prefixes
 src/async_search/runner.rs	new		the runner that plans a submit as one search of the reader
