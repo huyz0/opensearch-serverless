@@ -1,4 +1,4 @@
-#![cfg(test)]
+//! The model blob's round trip and refusals; compiled only under `#[cfg(test)]`.
 
 use super::*;
 
