@@ -337,8 +337,26 @@ pub fn assemble(
     let drain: Option<()> = None;
     let modules =
         crate::plugins::configured_modules(&config.plugin_policy, &*store, &config.base, budget);
-    let router =
-        crate::plugins::install_configured(router, &config.plugin_policy, &bulk, &bus, &modules)?;
+    // The plugins' own job registry, reserved from the plugin pool.
+    let plugin_jobs = Arc::new(crate::plugins::PluginJobs::new(
+        crate::jobs::Jobs::new(
+            &config.node_id,
+            budget,
+            crate::jobs::Limits::default(),
+            Arc::new(crate::clock::now_millis),
+        ),
+        Arc::new(crate::async_search::SearchRunner::new(
+            Arc::clone(&search) as _
+        )),
+    ));
+    let router = crate::plugins::install_configured(
+        router,
+        &config.plugin_policy,
+        &bulk,
+        plugin_jobs,
+        &bus,
+        &modules,
+    )?;
 
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(
