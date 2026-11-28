@@ -75,7 +75,7 @@ impl Parser {
         Ok(Some(Having { target, op, lit }))
     }
 
-    fn cmp_op(&mut self) -> Result<CmpOp, Error> {
+    pub(crate) fn cmp_op(&mut self) -> Result<CmpOp, Error> {
         for (sym, op) in [
             ("=", CmpOp::Eq),
             ("<>", CmpOp::Ne),

@@ -267,6 +267,14 @@ impl SqlService {
                 "description": {"request": {"index": names, "sourceBuilder": plan.body()}}}});
             return resp.send(200, JSON, out.to_string().as_bytes());
         }
+        if plan.uses_script() && !oss_reader::painless_switch::native_compile() {
+            return send_error(
+                resp,
+                &Error::unsupported(
+                    "a function in WHERE runs as a Painless script; enable serverless.scripting.painless.native_compile",
+                ),
+            );
+        }
         // A grouped statement is one search a page of the composite, up to the bucket bound.
         let mut body = plan.body().clone();
         let mut all = Vec::new();
