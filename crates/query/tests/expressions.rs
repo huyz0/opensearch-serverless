@@ -10,7 +10,7 @@ fn mapping() -> Mapping {
     Mapping::from_json(&json!({"properties": {
         "name": {"type": "keyword"}, "age": {"type": "integer"},
         "balance": {"type": "double"}, "city": {"type": "keyword"},
-        "joined": {"type": "date"}, "none": {"type": "keyword"}, "absent": {"type": "long"}}}))
+        "joined": {"type": "date"}, "none": {"type": "keyword"}, "absent": {"type": "long"}, "score": {"type": "long"}}}))
     .unwrap()
 }
 
@@ -238,4 +238,30 @@ fn column_types_and_names_follow_the_recordings() {
     assert_eq!(ty("SELECT upper(name) AS u FROM t").0, json!("upper(name)"));
     assert_eq!(ty("SELECT 1.5 FROM t").1, json!("double"));
     assert_eq!(ty("SELECT 'a' FROM t").1, json!("keyword"));
+}
+
+#[test]
+fn a_condition_reads_its_fields_once_each_and_a_long_stays_long() {
+    let p =
+        planned("SELECT CASE WHEN age > 1 AND NOT (city = 'x' OR age < 5) THEN name END FROM t");
+    assert_eq!(
+        p.body()["_source"]["includes"],
+        json!(["age", "city", "name"])
+    );
+    let p = planned("SELECT if(none IS NULL, age, score) FROM t");
+    assert_eq!(
+        p.body()["_source"]["includes"],
+        json!(["none", "age", "score"])
+    );
+    let ty = |sql: &str| {
+        let p = planned(sql);
+        let out: Value =
+            serde_json::from_str(&write(Format::Jdbc, &p, &[vec![Value::Null]], 1 << 16).unwrap())
+                .unwrap();
+        out["schema"][0]["type"].clone()
+    };
+    assert_eq!(ty("SELECT score + 1 FROM t"), json!("long"));
+    assert_eq!(ty("SELECT age + score FROM t"), json!("long"));
+    assert_eq!(ty("SELECT age + age FROM t"), json!("integer"));
+    assert_eq!(ty("SELECT score + balance FROM t"), json!("double"));
 }
