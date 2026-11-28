@@ -116,6 +116,21 @@ fn fresh_id() -> Result<String, RestError> {
     }
 }
 
+/// Stock refuses the access parameters while its model access control is off, as it is
+/// here: there is no owner or backend role to scope a group by.
+fn refuse_access_parameters(body: &Map<String, Value>) -> Result<(), RestError> {
+    if ["access_mode", "backend_roles", "add_all_backend_roles"]
+        .iter()
+        .any(|k| body.get(*k).is_some_and(|v| !v.is_null()))
+    {
+        return Err(bad(
+            "You cannot specify model access control parameters because the Security plugin or \
+             model access control is disabled on your cluster.",
+        ));
+    }
+    Ok(())
+}
+
 /// A group's name from a body: present, a string, not blank, bounded.
 fn checked_name(value: &Value) -> Result<&str, RestError> {
     let name = value
@@ -327,6 +342,15 @@ impl MlService {
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
         let body = Self::body(req)?;
+        // Stock answers a body with no name as a null pointer, 500.
+        if body.get("name").is_none_or(Value::is_null) {
+            return Err(refuse(
+                500,
+                "null_pointer_exception",
+                "model group name must not be null",
+            ));
+        }
+        refuse_access_parameters(&body)?;
         let name = checked_name(body.get("name").unwrap_or(&Value::Null))?.to_owned();
         let description = match body.get("description") {
             None | Some(Value::Null) => None,
@@ -380,6 +404,7 @@ impl MlService {
     ) -> Result<(), RestError> {
         let id = Self::id_of(req)?;
         let body = Self::body(req)?;
+        refuse_access_parameters(&body)?;
         let mut marker = self.marker(req)?;
         let mut doc = Self::doc_buffer(req)?;
         let mut group = self

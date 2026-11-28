@@ -93,6 +93,31 @@ fn matches(filter: &Filter, group: &Map<String, Value>) -> bool {
     }
 }
 
+/// The direction of a `name.keyword` sort (`Some(true)` for descending), none when the
+/// body has no sort; any other sort is refused.
+fn sort_of(body: &Map<String, Value>) -> Result<Option<bool>, RestError> {
+    let Some(sort) = body.get("sort") else {
+        return Ok(None);
+    };
+    let entry = match sort {
+        Value::Array(a) if a.len() == 1 => &a[0],
+        other @ Value::Object(_) => other,
+        _ => return Err(bad("[sort] supports one [name.keyword] entry")),
+    };
+    let order = entry
+        .get("name.keyword")
+        .or_else(|| entry.get("name"))
+        .ok_or_else(|| bad("[sort] supports [name.keyword] only"))?;
+    match order
+        .as_str()
+        .or_else(|| order.get("order").and_then(Value::as_str))
+    {
+        Some("asc") => Ok(Some(false)),
+        Some("desc") => Ok(Some(true)),
+        _ => Err(bad("[sort] order must be asc or desc")),
+    }
+}
+
 impl MlService {
     /// `GET|POST /model_groups/_search`.
     pub(crate) fn search_groups(
@@ -116,6 +141,7 @@ impl MlService {
         if size > MAX_SIZE {
             return Err(bad(format!("[size] must be at most {MAX_SIZE}")));
         }
+        let descending = sort_of(&body)?;
         let mut marker = self.marker(req)?;
         let mut doc = Self::doc_buffer(req)?;
         let mut names = self
@@ -125,7 +151,7 @@ impl MlService {
         let mut hits: Vec<(String, Map<String, Value>)> = Vec::new();
         let total;
         match &filter {
-            Filter::All => {
+            Filter::All if descending.is_none() => {
                 total = names.len();
                 names.sort();
                 for id in names.iter().skip(from).take(size) {
@@ -144,10 +170,10 @@ impl MlService {
                 total = hits.len();
                 hits = hits.into_iter().skip(from).take(size).collect();
             }
-            Filter::Tokens(..) => {
+            Filter::All | Filter::Tokens(..) => {
                 if names.len() > TOKEN_SCAN_MAX {
                     return Err(bad(format!(
-                        "a name search reads every model group and the set holds {}; \
+                        "a name or sorted search reads every model group and the set holds {}; \
                          search with a [name.keyword] term instead",
                         names.len()
                     )));
@@ -161,17 +187,35 @@ impl MlService {
                         found.push((id.clone(), g));
                     }
                 }
+                let by_name = |g: &Map<String, Value>| {
+                    g.get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned()
+                };
+                if descending.is_some() {
+                    found.sort_by_key(|(_, g)| by_name(g));
+                }
+                if descending == Some(true) {
+                    found.reverse();
+                }
                 total = found.len();
                 hits = found.into_iter().skip(from).take(size).collect();
             }
         }
+        let sorted = descending.is_some();
         let hits: Vec<Value> = hits
             .into_iter()
             .map(|(id, g)| {
-                json!({
+                let mut hit = json!({
                     "_index": INDEX, "_id": id, "_version": 1, "_seq_no": 0,
-                    "_primary_term": 1, "_score": 1.0, "_source": Value::Object(g),
-                })
+                    "_primary_term": 1, "_score": if sorted { Value::Null } else { json!(1.0) },
+                    "_source": Value::Object(g.clone()),
+                });
+                if sorted {
+                    hit["sort"] = json!([g.get("name").cloned().unwrap_or(Value::Null)]);
+                }
+                hit
             })
             .collect();
         let out = json!({
@@ -179,7 +223,7 @@ impl MlService {
             "_shards": {"total": 1, "successful": 1, "skipped": 0, "failed": 0},
             "hits": {
                 "total": {"value": total, "relation": "eq"},
-                "max_score": if hits.is_empty() { Value::Null } else { json!(1.0) },
+                "max_score": if hits.is_empty() || sorted { Value::Null } else { json!(1.0) },
                 "hits": hits,
             },
         });

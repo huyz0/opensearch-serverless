@@ -196,14 +196,13 @@ fn a_name_in_use_is_refused_naming_its_holder_and_is_free_after_a_delete_or_rena
 fn a_malformed_register_is_400_and_never_a_panic() {
     let r = rig();
     for body in [
-        "",
-        "{}",
         r#"{"name":""}"#,
         r#"{"name":"   "}"#,
         r#"{"name":7}"#,
         r#"{"name":"a","description":5}"#,
         "[1]",
         "{not json",
+        "",
     ] {
         let reply = register(&r, body);
         assert_eq!(reply.status, 400, "{body}: {}", reply.text());
@@ -394,4 +393,79 @@ fn a_name_word_search_over_a_large_set_is_refused() {
         Some(r#"{"query":{"term":{"name.keyword":"g5"}}}"#),
     ));
     assert_eq!(exact["hits"]["total"]["value"], 1);
+}
+
+// AC-1: the texts and statuses below are those of the stock 3.10.0 recording
+// (`fixtures/stock-plugins/ml.json`, steps "register group without name",
+// "register group with access mode").
+#[test]
+fn stock_answers_a_nameless_register_500_and_refuses_the_access_parameters() {
+    let r = rig();
+    let nameless = register(&r, r#"{"description":"d"}"#);
+    assert_eq!(nameless.status, 500, "{}", nameless.text());
+    assert!(nameless.text().contains("\"null_pointer_exception\""));
+    assert!(
+        nameless
+            .text()
+            .contains("model group name must not be null")
+    );
+    for body in [
+        r#"{"name":"g","access_mode":"public"}"#,
+        r#"{"name":"g","backend_roles":["a"]}"#,
+        r#"{"name":"g","add_all_backend_roles":true}"#,
+    ] {
+        let refused = register(&r, body);
+        assert_eq!(refused.status, 400, "{body}: {}", refused.text());
+        assert!(
+            refused.text().contains(
+                "You cannot specify model access control parameters because the Security plugin or model access control is disabled on your cluster."
+            ),
+            "{}",
+            refused.text()
+        );
+    }
+    assert_eq!(
+        register(&r, r#"{"name":"g"}"#).status,
+        200,
+        "no claim was left"
+    );
+}
+
+// AC-1: the recording's search carries `sort: ["<name>"]` and no score.
+#[test]
+fn a_name_sorted_search_carries_the_sort_value_and_no_score() {
+    let r = rig();
+    for n in ["b", "a", "c"] {
+        register(&r, &format!(r#"{{"name":"{n}"}}"#));
+    }
+    let q = |order: &str| {
+        json(&call(
+            &r,
+            "POST",
+            &format!("{BASE}/_search"),
+            Some(&format!(
+                r#"{{"query":{{"match_all":{{}}}},"sort":[{{"name.keyword":"{order}"}}]}}"#
+            )),
+        ))
+    };
+    let asc = q("asc");
+    let names: Vec<_> = asc["hits"]["hits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|h| h["_source"]["name"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(names, ["a", "b", "c"]);
+    assert_eq!(asc["hits"]["hits"][0]["sort"][0], "a");
+    assert!(asc["hits"]["hits"][0]["_score"].is_null());
+    assert!(asc["hits"]["max_score"].is_null());
+    let desc = q("desc");
+    assert_eq!(desc["hits"]["hits"][0]["_source"]["name"], "c");
+    let bad_sort = call(
+        &r,
+        "POST",
+        &format!("{BASE}/_search"),
+        Some(r#"{"sort":[{"created_time":"asc"}]}"#),
+    );
+    assert_eq!(bad_sort.status, 400, "{}", bad_sort.text());
 }
