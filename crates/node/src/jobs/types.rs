@@ -121,6 +121,8 @@ pub struct View {
     pub body: Option<Vec<u8>>,
     /// The error type and body, once failed.
     pub error: Option<(&'static str, String)>,
+    /// What a read of the running job shows.
+    pub note: String,
 }
 
 /// A refusal, with the HTTP status it answers.

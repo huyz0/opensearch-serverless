@@ -21,6 +21,8 @@ mod assemble_error;
 mod assemble_publishing;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod assemble_writer;
+#[cfg(feature = "reader")]
+pub mod async_search;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]

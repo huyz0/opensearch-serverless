@@ -27,6 +27,9 @@ pub(crate) fn time_millis(name: &str, value: &str) -> Result<u64, RestError> {
         .find(|c: char| !c.is_ascii_digit())
         .ok_or_else(|| bad("unit is missing or unrecognized"))?;
     let (digits, unit) = value.split_at(split);
+    if digits.is_empty() {
+        return Err(bad("unit is missing or unrecognized"));
+    }
     let number: u64 = digits
         .parse()
         .map_err(|_| bad("not a whole number of units"))?;
