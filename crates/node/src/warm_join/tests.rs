@@ -75,6 +75,8 @@ fn run(peers: usize, parallel: usize, pool_bytes: usize) -> (Vec<Outcome>, usize
             max_bytes: 1,
             bytes_per_second: 1,
             open_parallel: 1,
+            // The probe never answers, and each test counts the asks.
+            ask_attempts: 1,
         },
         parallel_peers: parallel,
         pool: Pool::Transport,

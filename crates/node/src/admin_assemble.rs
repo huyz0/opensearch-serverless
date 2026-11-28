@@ -139,6 +139,12 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = if config.ism {
+        let ism = crate::ism_route::IsmService::new(store, &config.base, config.pit_buffer_bytes);
+        crate::ism_route::routes(router, &Arc::new(ism)).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,

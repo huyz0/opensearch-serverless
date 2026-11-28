@@ -100,6 +100,7 @@ fn a_nested_index_is_written_searched_updated_and_deleted_through_a_node() {
 #[test]
 fn a_nested_mapping_is_refused_with_the_switch_off() {
     let mut cluster = Cluster::new(3_000, 4, false).expect("emulated");
+    cluster.set("OSS_NESTED", "false");
     cluster.add("n1");
     wait_for("the node sees itself", 30, || cluster.nodes_seen(0) == 1);
     let made = cluster.call(0, "PUT", "/blog", Some(MAPPING));

@@ -64,6 +64,8 @@ mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_routes;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_cache;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_routes;
