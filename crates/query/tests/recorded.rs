@@ -23,23 +23,26 @@ fn read(p: PathBuf) -> Value {
 
 /// Statements this slice refuses, with the slice that serves them.
 const LATER: &[&str] = &[
-    "scalar-",
-    "where-in-expression",
     "join",
     "left-join",
     "subquery",
     "union",
     "window",
     "multi-index",
-    "show-tables",
-    "describe",
-    "select-no-from",
-    "select-function-no-from",
 ];
 
-/// Statements over more than one index: the node resolves the names and runs one search
-/// over them, so they are checked there, not over one document set.
-const NODE: &[&str] = &["wildcard-index"];
+/// Statements the node checks: `wildcard-index` runs one search over several indices, a
+/// function in a `WHERE` is a Painless `script` query that only the reader's compiler runs, and
+/// the metadata statements read the node's name listing.
+const NODE: &[&str] = &[
+    "wildcard-index",
+    "scalar-where",
+    "where-in-expression",
+    "show-tables",
+    "show-tables-all",
+    "describe",
+    "describe-columns",
+];
 
 fn later(name: &str) -> bool {
     LATER.iter().any(|p| name.starts_with(p))
@@ -179,8 +182,9 @@ fn every_statement_gives_stock_rows_or_is_a_listed_refusal() {
         match got {
             Err(_) if later(&name) => {}
             Err(e) => bad.push(format!(
-                "{name}: refused ({}), stock answers: {sql}",
-                e.status()
+                "{name}: refused ({}: {}), stock answers: {sql}",
+                e.status(),
+                e.to_json()["error"]["details"]
             )),
             Ok(_) if later(&name) => bad.push(format!("{name}: now served, remove it from LATER")),
             Ok(mut rows) => {

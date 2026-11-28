@@ -248,6 +248,18 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
             sigma,
         } => write_extended(out, dated, count, sum, min, max, sum_of_squares, sigma),
         Value::ValueCount(n) => write!(out, "\"value\":{n}"),
+        Value::GeoCentroid { count, lat, lon } => super::geo::write_centroid(out, count, lat, lon),
+        Value::GeoBounds {
+            top,
+            bottom,
+            pos_left,
+            pos_right,
+            neg_left,
+            neg_right,
+            wrap,
+        } => super::geo::write_bounds(
+            out, top, bottom, pos_left, pos_right, neg_left, neg_right, wrap,
+        ),
         Value::Percentiles {
             ranks,
             ref keys,

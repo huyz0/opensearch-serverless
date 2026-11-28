@@ -19,6 +19,7 @@ const ACK: &str = r#"{"acknowledged":true}"#;
 struct Rig {
     server: Server,
     store: Arc<Emulator>,
+    settings: Arc<SettingsService>,
 }
 
 fn descriptors(store: &Arc<Emulator>) -> DescriptorStore {
@@ -53,7 +54,11 @@ fn rig_capped(cap: usize) -> Rig {
     let budget = MemoryBudget::new(&support::budget_config());
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
-    let r = Rig { server, store };
+    let r = Rig {
+        server,
+        store,
+        settings,
+    };
     assert_eq!(call(&r, "PUT", "/a", None).status, 200);
     r
 }
@@ -338,4 +343,47 @@ fn a_metadata_blocked_index_among_several_refuses_before_any_write() {
     let reply = call(&r, "PUT", "/a,b/_settings", Some(SET));
     assert_eq!(reply.status, 403, "{}", reply.text());
     assert_eq!((version(&r, "a"), version(&r, "b")), (a, b));
+}
+
+// docs/specs/ism AC-15: the runner's block is the settings route's swap
+#[test]
+fn the_runner_sets_and_lifts_the_write_block_as_the_route_does() {
+    use oss_node::descriptor_routes::DescriptorRoutes;
+    use oss_node::writer::Routes;
+    use oss_writer::bulk::WriteBlock;
+    let r = rig();
+    let routes = DescriptorRoutes::new(descriptors(&r.store), BUF);
+    let block = || routes.index("a").expect("found").write_block;
+    let (_, before) = stored(&r);
+    r.settings.set_write_block("a", true).expect("sets");
+    assert_eq!(block(), WriteBlock::Full);
+    assert_eq!(stored(&r).1, before + 1);
+    r.settings.set_write_block("a", true).expect("again");
+    assert_eq!(
+        stored(&r).1,
+        before + 1,
+        "setting what is set writes nothing"
+    );
+    r.settings.set_write_block("a", false).expect("lifts");
+    assert_eq!(block(), WriteBlock::None);
+    let missing = r
+        .settings
+        .set_write_block("nope", true)
+        .expect_err("no index");
+    assert!(missing.contains("no such index"), "{missing}");
+}
+
+// docs/specs/ism AC-15: the runner's replica count is the route's update
+#[test]
+fn the_runner_sets_zero_replicas_and_is_refused_any_other_count_as_the_route_does() {
+    let r = rig();
+    r.settings
+        .set_replicas("a", 0)
+        .expect("zero is the only count");
+    let refused = r.settings.set_replicas("a", 2).expect_err("not supported");
+    assert!(
+        refused.contains("number_of_replicas is not supported"),
+        "{refused}"
+    );
+    assert!(r.settings.set_replicas("nope", 0).is_err());
 }

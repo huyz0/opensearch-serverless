@@ -11,7 +11,7 @@ use std::time::Duration;
 use oss_blob::{BlobStore, Emulator, S3Op};
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
 use oss_node::notifications_route::{
-    Deliverer, Limits, NotificationsService, Notifier, routes, system_lookup,
+    Accounts, Deliverer, Limits, NotificationsService, Notifier, Senders, routes, system_lookup,
 };
 use oss_rest::{Router, Server};
 use serde_json::{Value, json};
@@ -43,7 +43,8 @@ fn rig_with(budget: MemoryBudget, port: u16) -> Rig {
         open_policy(port),
         Limits::default(),
     ));
-    let notifier = Arc::new(Notifier::new(&blobs, "", budget, deliverer, TTL));
+    let senders = Arc::new(Senders::new(deliverer, Accounts::default()));
+    let notifier = Arc::new(Notifier::new(&blobs, "", budget, senders, TTL));
     Rig {
         server,
         store,

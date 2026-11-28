@@ -160,9 +160,12 @@ fn source_type(
         ))
     };
     let ty = match &field.ty {
-        FieldType::Unsupported(what) => {
+        other @ (FieldType::Unsupported(_) | FieldType::GeoPoint) => {
             // ALLOC: error path; one message.
-            return Err(unsupported(&format!("[fields] of the {what} [{name}]")));
+            return Err(unsupported(&format!(
+                "[fields] of the {} [{name}]",
+                other.refusal_name()
+            )));
         }
         FieldType::Text if format.is_some() => {
             // ALLOC: error path; one message.

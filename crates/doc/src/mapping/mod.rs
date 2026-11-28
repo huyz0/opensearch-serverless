@@ -33,7 +33,7 @@ mod read;
 mod types;
 
 pub use dates::{Format, Formats};
-pub use error::{MappingError, UNSUPPORTED};
+pub use error::{JAVA_PARSE, MappingError, UNSUPPORTED};
 pub use field::Leaf;
 pub use intern::{MappingInterner, TextInterner};
 pub use numbers::{Num, NumType, java_parse_double};

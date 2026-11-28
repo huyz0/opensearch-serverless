@@ -61,5 +61,6 @@ mod search_url_params;
 mod shards;
 #[cfg(feature = "writer")]
 mod sql_budgets;
+mod sql_where;
 mod uri_query;
 mod validate_query;

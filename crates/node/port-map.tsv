@@ -187,6 +187,7 @@ src/warm_boot/tests.rs	new		tests of the three ways a warming node is let in
 src/boot/tail/joining.rs	new		the warm-up of a joining reader on its own thread, ending when enough is in or the wait runs out
 src/warm_setting.rs	new		the per-index switch that leaves an index out of warm copy
 src/alias_route/mod.rs	new		alias add, remove and read routes over the alias mutation protocol; names are literal, the Java's patterns need a listing
+src/alias_route/change.rs	new		one alias change: add or remove a member by compare-and-swap, retried while another writer swaps the alias
 src/alias_route/parse.rs	new		the names, write flag and action list an alias request asks for
 src/boot/config/tests/resident.rs	new		tests for the resident page bound and search queue settings
 src/data_stream_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/DataStreamHandler.java	the put, get and delete routes over the stream's alias record; names are literal, the Java's patterns and comma lists need a listing, and the backing index has no `_data_stream_timestamp` mapper
@@ -391,6 +392,8 @@ src/reports_route/definition.rs	new		what a report definition must hold: the sto
 src/reports_route/cron.rs	new		the shape of a five-field cron expression
 src/reports_route/routes.rs	new		the route table under /_plugins/_reports/definition
 src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors from the registry, run the ones this node owns that are due; no stock recording exists (AC-15 gap)
+src/ml_route/outbound.rs	new		the guarded outbound HTTPS client for remote model calls: egress guard, bounded concurrency, timeout and response size
+src/ml_route/predict.rs	new		POST _predict for remote models: opens the connector (cached), prepares, calls, parses
 src/boot/ad_loop.rs	new		the thread that ticks the anomaly detection scheduler with the live nodes; no stock recording exists (AC-15 gap)
 src/boot/node_impl.rs	new		the running node's accessors and drop order, moved out of boot/mod.rs to keep it under the module size limit
 src/notifications_route/notifier.rs	new		the in-process sender alerting and ISM call: a config by id through a per-node cache
@@ -399,8 +402,28 @@ src/ism_run/schedule_tests.rs	new		the schedule over an emulator
 src/lifecycle_bus.rs	new		the fill-once handle index and node events are published through
 src/geospatial_setting.rs	new		the node setting that accepts the geo_point field type; the Java shell always maps it
 src/index_route/options.rs	new		the create-time switches (nested, geo_point) read when a mapping is parsed
+src/async_search/relay.rs	new		the call a read or delete of another node's search makes, and the seam it goes through
+src/async_search/forward.rs	new		the owner's handler and the send side of a relayed asynchronous search call
+src/boot/async_search.rs	new		the relayed asynchronous search call's handler slot and its wiring at boot
 src/notifications_assemble.rs	new		mounts the notifications routes and builds the shared in-process sender
 src/plugins/wasm.rs	new		a WASM module as a plugin: its descriptor is its manifest and each call is one call into the extension host
+src/notifications_route/accounts.rs	new		the operator's AWS and SMTP accounts, read from a file and bound to configs by role or relay
+src/notifications_route/aws.rs	new		SNS Publish and SES SendEmail requests signed with SigV4 under an operator account
+src/notifications_route/send.rs	new		one message to one config of any type: channels, SNS and email
+src/notifications_route/smtp.rs	new		mail through a declared SMTP relay: STARTTLS or TLS, AUTH over TLS only, per-recipient status
 src/plugins/wasm_load.rs	new		reads the WASM modules a policy names by hash from the store at start, one GET each
 src/plugins/state.rs	new		a plugin's tenant-scoped state over a document set under plugins/<id>/<tenant>/
 src/plugins/state_tests.rs	new		the state operations over a metered emulator
+src/plugins/jobs.rs	new		the job.* host operations over a registry of the plugins own, reserved from the plugin pool
+src/plugins/jobs_tests.rs	new		job.*: a plugin starts, reads and deletes its own job and no other plugin or tenant sees it
+src/search_stop.rs	new		the question a running search asks between shards to learn it should give up
+src/ism_run/backend.rs	new		the effects the runner asks of the node, a trait so the decision is tested with a fake
+src/knn_trainer.rs	new		k-means and product-quantizer training of a k-NN model from a vector sample: Faiss Clustering as lucene-faiss ports it, PQ on residuals
+src/knn_trainer_tests.rs	new		tests of the trainer; compiled only under cfg(test)
+src/ism_run/node_backend.rs	new		the runner backend over the settings service
+src/settings_route/block.rs	new		the write block as the runner sets it, through the route's own merge and swap
+src/ad_route/results_route.rs	new		POST|GET /detectors/results/_search[/{result_index}]: a search of the result index through the node search; no stock recording exists (AC-15 gap)
+src/sql_route/lister.rs	new		the descriptor store as the SQL endpoint name listing, the one capped LIST
+src/sql_route/names.rs	new		SHOW TABLES and DESCRIBE over a pattern: one listing, then like
+src/ism_run/actions.rs	new		what each action asks of the backend and leaves in the record
+src/ad_route/profile_route.rs	new		GET /detectors/{id}/_profile[/{type}]: the state from the stored job and the clock; no stock recording exists (AC-15 gap)

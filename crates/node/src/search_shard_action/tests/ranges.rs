@@ -27,6 +27,7 @@ fn request(kind: AggKind) -> AggRequest {
         }),
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }
 }
@@ -116,6 +117,7 @@ fn a_bucket_carries_its_sub_aggregations() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }];
     let subs = BucketSubs {

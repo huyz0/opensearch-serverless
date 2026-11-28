@@ -10,11 +10,11 @@ const TEXT: &str = "text/plain; charset=UTF-8";
 /// The permission a statement needs on each index it names.
 const ACTION: &str = "indices:data/read/search";
 
-fn send_error(resp: &mut Response<'_>, e: &Error) -> Result<(), RestError> {
+pub(super) fn send_error(resp: &mut Response<'_>, e: &Error) -> Result<(), RestError> {
     resp.send(e.status(), JSON, e.to_json().to_string().as_bytes())
 }
 
-fn failure(resp: &mut Response<'_>, f: SqlFailure) -> Result<(), RestError> {
+pub(super) fn failure(resp: &mut Response<'_>, f: SqlFailure) -> Result<(), RestError> {
     match f {
         SqlFailure::Rest(e) => Err(e),
         SqlFailure::Body(status, body) => resp.send(status, JSON, &body),
@@ -83,7 +83,7 @@ impl SqlService {
     }
 
     /// Checks `names` against the caller's permissions before any search.
-    fn permit(&self, req: &Request<'_>, names: &[&str]) -> Result<(), String> {
+    pub(super) fn permit(&self, req: &Request<'_>, names: &[&str]) -> Result<(), String> {
         self.guard.allow(req.principal(), ACTION, names)
     }
 
@@ -157,14 +157,11 @@ impl SqlService {
             Ok(Statement::DescribeTables { pattern, columns }) => {
                 self.describe(req, resp, &pattern, columns.as_deref())
             }
-            Ok(Statement::ShowTables { .. }) => send_error(
-                resp,
-                &Error::unsupported("SHOW TABLES is not supported yet"),
-            ),
+            Ok(Statement::ShowTables { pattern }) => self.show_tables(req, resp, &pattern),
         }
     }
 
-    fn mapping_of(&self, name: &str) -> Result<Mapping, SqlFailure> {
+    pub(super) fn mapping_of(&self, name: &str) -> Result<Mapping, SqlFailure> {
         let json = self.backend.mapping(name)?;
         Mapping::from_json(&json)
             .map_err(|e| SqlFailure::Body(e.status(), e.to_json().to_string().into_bytes()))
@@ -177,12 +174,8 @@ impl SqlService {
         pattern: &str,
         columns: Option<&str>,
     ) -> Result<(), RestError> {
-        // A pattern with a wildcard needs the name listing, a later slice.
         if pattern.contains(['%', '_']) {
-            return send_error(
-                resp,
-                &Error::unsupported("DESCRIBE with a pattern is not supported yet; name one index"),
-            );
+            return self.describe_pattern(req, resp, pattern, columns);
         }
         if let Err(body) = self.permit(req, &[pattern]) {
             return resp.send(403, JSON, body.as_bytes());
@@ -203,6 +196,40 @@ impl SqlService {
         }
     }
 
+    /// A `SELECT` with no `FROM`: one row of constants, no permission to check and no search.
+    fn constant(
+        resp: &mut Response<'_>,
+        sel: &Select,
+        format: Format,
+        explain: bool,
+        size_limit: usize,
+    ) -> Result<(), RestError> {
+        let plan = match oss_query::plan(sel, &Mapping::default(), size_limit) {
+            Ok(p) => p,
+            Err(e) => return send_error(resp, &e),
+        };
+        if explain {
+            let out = json!({"root": {"name": "ProjectOperator", "description": {}}});
+            return resp.send(200, JSON, out.to_string().as_bytes());
+        }
+        let rows = match oss_query::rows(&plan, &Value::Null) {
+            Ok(r) => r,
+            Err(e) => return send_error(resp, &e),
+        };
+        match oss_query::write(format, &plan, &rows, 1 << 20) {
+            Ok(t) => resp.send(
+                200,
+                if matches!(format, Format::Jdbc) {
+                    JSON
+                } else {
+                    TEXT
+                },
+                t.as_bytes(),
+            ),
+            Err(e) => send_error(resp, &e),
+        }
+    }
+
     fn select(
         &self,
         req: &mut Request<'_>,
@@ -212,6 +239,9 @@ impl SqlService {
         explain: bool,
     ) -> Result<(), RestError> {
         let names: Vec<String> = sel.index_names().to_vec();
+        if names.is_empty() {
+            return Self::constant(resp, sel, format, explain, self.limits.size_limit);
+        }
         let refs: Vec<&str> = names.iter().map(String::as_str).collect();
         if let Err(body) = self.permit(req, &refs) {
             return resp.send(403, JSON, body.as_bytes());
@@ -229,6 +259,14 @@ impl SqlService {
             let out = json!({"root": {"name": "OpenSearchIndexScan",
                 "description": {"request": {"index": names, "sourceBuilder": plan.body()}}}});
             return resp.send(200, JSON, out.to_string().as_bytes());
+        }
+        if plan.uses_script() && !oss_reader::painless_switch::native_compile() {
+            return send_error(
+                resp,
+                &Error::unsupported(
+                    "a function in WHERE runs as a Painless script; enable serverless.scripting.painless.native_compile",
+                ),
+            );
         }
         // A grouped statement is one search a page of the composite, up to the bucket bound.
         let mut body = plan.body().clone();

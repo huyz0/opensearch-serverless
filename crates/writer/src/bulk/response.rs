@@ -78,7 +78,11 @@ pub fn shard_failure(
 /// A document or mapping refusal as its exception chain.
 pub fn mapping_failure(e: &MappingError) -> Exception {
     // ALLOC: the refusal's message; an item that failed.
-    let mut out = Exception::new(e.ty, e.reason.clone());
+    let mut out = if e.ty == oss_doc::mapping::JAVA_PARSE {
+        Exception::new("parse_exception", e.reason.clone()).plain()
+    } else {
+        Exception::new(e.ty, e.reason.clone())
+    };
     if let Some(cause) = &e.caused_by {
         out = out.caused_by(mapping_failure(cause));
     }
@@ -201,7 +205,9 @@ pub fn write_doc(out: &mut dyn Write, item: &Item) -> io::Result<()> {
             )
         }
         ItemResult::Failed { status, error } => {
-            out.write_all(b"{\"error\":{")?;
+            out.write_all(b"{\"error\":{\"root_cause\":[{")?;
+            error.root().write_members(out, false)?;
+            out.write_all(b"}],")?;
             error.write_members(out, true)?;
             write!(out, "}},\"status\":{status}}}")
         }
@@ -276,5 +282,30 @@ mod tests {
         assert_eq!(mapping_status(&refusal("extension_busy")), 429);
         assert_eq!(mapping_status(&refusal("extension_malformed")), 502);
         assert_eq!(mapping_status(&refusal("extension_failed")), 400);
+    }
+
+    #[test]
+    fn a_failed_single_document_answer_names_its_root_cause() {
+        let refusal = MappingError::mapper_parsing("failed to parse").caused_by(
+            MappingError::opensearch_parse("bad point")
+                .caused_by(MappingError::illegal_argument("bad point")),
+        );
+        let item = Item {
+            action: "index",
+            index: "i".to_owned(),
+            id: "1".to_owned(),
+            result: ItemResult::Failed {
+                status: 400,
+                error: mapping_failure(&refusal),
+            },
+        };
+        let mut out = Vec::new();
+        write_doc(&mut out, &item).expect("writes");
+        let got: serde_json::Value = serde_json::from_slice(&out).expect("json");
+        assert_eq!(
+            got["error"]["root_cause"],
+            serde_json::json!([{"type": "parse_exception", "reason": "bad point"}])
+        );
+        assert_eq!(got["status"], 400);
     }
 }

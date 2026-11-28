@@ -49,6 +49,9 @@ pub struct Assembled {
     pub search: Arc<SearchService<Shared>>,
     /// The role the write routes write through.
     pub role: Arc<WriterRole>,
+    /// Asynchronous search, when the setting is on: the service that answers
+    /// its routes and the calls other nodes relay.
+    pub async_search: Option<Arc<crate::async_search::Service>>,
     /// The bulk service a background writer indexes documents through.
     pub(crate) bulk: Arc<BulkService>,
     timer: PublishTimer,
@@ -287,8 +290,9 @@ pub fn assemble(
         crate::admin_assemble::register(router, &store, config, budget, &script_source)?;
     let router = crate::admin_assemble::ad_routes(router, config, &store, &search)?;
     let (router, notifier) = crate::notifications_assemble::mount(router, config, &store, budget)?;
-    let router = crate::sql_route::mount(router, config, &search, _sec.as_ref())?;
-    let router = crate::async_search::mount(router, config, budget, Arc::clone(&search) as _)?;
+    let router = crate::sql_route::mount(router, config, &search, &store, _sec.as_ref())?;
+    let (router, async_search) =
+        crate::async_search::mount(router, config, budget, Arc::clone(&search) as _)?;
     let bus = crate::lifecycle_bus::Bus::default();
     #[cfg(feature = "coordinator")]
     let (router, drain, tasks) = {
@@ -333,6 +337,18 @@ pub fn assemble(
     let drain: Option<()> = None;
     let modules =
         crate::plugins::configured_modules(&config.plugin_policy, &*store, &config.base, budget);
+    // The plugins' own job registry, reserved from the plugin pool.
+    let plugin_jobs = Arc::new(crate::plugins::PluginJobs::new(
+        crate::jobs::Jobs::new(
+            &config.node_id,
+            budget,
+            crate::jobs::Limits::default(),
+            Arc::new(crate::clock::now_millis),
+        ),
+        Arc::new(crate::async_search::SearchRunner::new(
+            Arc::clone(&search) as _
+        )),
+    ));
     let state = Arc::new(crate::plugins::StateBackend::new(
         Arc::clone(&store),
         &config.base,
@@ -343,6 +359,7 @@ pub fn assemble(
         router,
         &config.plugin_policy,
         &bulk,
+        plugin_jobs,
         &bus,
         &modules,
         state,
@@ -364,6 +381,7 @@ pub fn assemble(
     let sweep = config.sweep;
     let janitor = JanitorTimer::spawn(pass, config.janitor_every, Box::new(move || sweep));
     Ok(Assembled {
+        async_search,
         search_queue: None,
         events: bus,
         notifier,

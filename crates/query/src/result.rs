@@ -16,7 +16,7 @@ pub enum Format {
     Raw,
 }
 
-fn dig<'a>(src: &'a Value, path: &str) -> Option<&'a Value> {
+pub(crate) fn dig<'a>(src: &'a Value, path: &str) -> Option<&'a Value> {
     if let Some(v) = src.get(path) {
         return Some(v);
     }
@@ -52,6 +52,17 @@ pub fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Error> {
     if matches!(plan.shape, crate::plan::Shape::Aggs { .. }) {
         return crate::aggregate::rows(plan, response);
     }
+    if matches!(plan.shape, crate::plan::Shape::Const) {
+        let row = plan
+            .columns()
+            .iter()
+            .map(|c| match &c.source {
+                Source::Expr(e) => e.eval(&Value::Null),
+                _ => Value::Null,
+            })
+            .collect();
+        return Ok(vec![row]);
+    }
     let hits = response
         .get("hits")
         .and_then(|h| h.get("hits"))
@@ -77,6 +88,7 @@ pub fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Error> {
                 Source::Id => hit.get("_id").cloned().unwrap_or(Value::Null),
                 Source::Index => hit.get("_index").cloned().unwrap_or(Value::Null),
                 Source::Score => hit.get("_score").cloned().unwrap_or(Value::Null),
+                Source::Expr(e) => e.eval(src),
                 Source::Group(_) | Source::Agg(_) => Value::Null,
             })
             .collect();

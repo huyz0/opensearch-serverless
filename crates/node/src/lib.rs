@@ -113,6 +113,12 @@ pub(crate) mod knn_train_request;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod knn_train_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the training job calls it in the next change")
+)]
+pub(crate) mod knn_trainer;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod lease_age;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod lease_announce;

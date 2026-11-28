@@ -52,6 +52,8 @@ pub enum FieldType {
     /// `scaled_float`: `LongPoint`s and doc values of `Math.round(value * scaling_factor)`;
     /// holds the bits of the factor.
     Scaled(u64),
+    /// `geo_point`: `LatLonPoint`s and sorted numeric doc values of the packed point.
+    GeoPoint,
     /// A type, or an option, this reader does not search yet.
     Unsupported(String),
 }
@@ -441,6 +443,7 @@ impl Mapping {
             ("float", None) => FieldType::Float,
             ("double", None) => FieldType::Double,
             ("half_float", None) => FieldType::HalfFloat,
+            ("geo_point", None) => FieldType::GeoPoint,
             ("scaled_float", None) if scaling.is_some_and(|f| f.is_finite() && f > 0.0) => {
                 FieldType::Scaled(scaling.unwrap_or(1.0).to_bits())
             }

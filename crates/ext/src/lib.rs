@@ -15,6 +15,7 @@ mod descriptor;
 pub mod doc_sink;
 mod error;
 pub mod host;
+pub mod job;
 mod json;
 pub mod lifecycle;
 pub mod manifest;

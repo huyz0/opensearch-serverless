@@ -129,7 +129,7 @@ fn stats_rows_are_ordered_after_the_pages_are_read() {
 #[test]
 fn what_cannot_be_pushed_and_syntax_errors_cost_no_search() {
     let (s, b) = rig(true);
-    let (status, _) = post(&s, "/_plugins/_ppl", "source=accounts | eval x = age * 2");
+    let (status, _) = post(&s, "/_plugins/_ppl", "source=accounts | dedup city");
     assert_eq!(status, 400);
     let (status, v) = post(&s, "/_plugins/_ppl", "source=accounts | where");
     assert_eq!(status, 400);

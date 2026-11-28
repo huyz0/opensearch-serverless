@@ -19,6 +19,7 @@ pub mod registered;
 pub mod rescore;
 pub mod search_after;
 pub mod sort;
+pub mod sort_geo;
 pub mod source;
 pub mod tokens;
 pub mod uri_query;
@@ -58,3 +59,6 @@ pub fn parse_chunks<'a>(
     tokenizer.finish(&mut rec)?;
     SearchSource::parse(&rec)
 }
+
+#[cfg(test)]
+mod sort_geo_tests;

@@ -275,11 +275,7 @@ fn exists_finds_fields_by_name_pattern_or_object() {
     assert_eq!(one(r#"{"exists":{"field":"ob"}}"#), none());
     assert_eq!(one(r#"{"exists":{"field":"z*"}}"#), none());
     assert_eq!(one(r#"{"exists":{"field":"nothing"}}"#), none());
-    assert!(
-        failure(r#"{"exists":{"field":"geo"}}"#)
-            .reason
-            .contains("not supported")
-    );
+    assert_eq!(one(r#"{"exists":{"field":"geo"}}"#), exists("geo"));
 }
 
 #[test]

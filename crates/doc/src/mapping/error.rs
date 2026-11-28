@@ -21,6 +21,9 @@ pub struct MappingError {
 /// The type of a mapping that is valid but not indexed by this node.
 pub const UNSUPPORTED: &str = "unsupported_mapping";
 
+/// The internal type of a `java.text.ParseException`; it renders as `parse_exception`.
+pub const JAVA_PARSE: &str = "java_parse_exception";
+
 impl MappingError {
     fn new(ty: &'static str, reason: &str) -> Self {
         Self {
@@ -149,6 +152,12 @@ impl MappingError {
         Self::new("parse_exception", reason)
     }
 
+    /// `java.text.ParseException`, which renders as `parse_exception` but is
+    /// not an `OpenSearchException`.
+    pub fn java_parse(reason: &str) -> Self {
+        Self::new(JAVA_PARSE, reason)
+    }
+
     /// Malformed JSON in a mapping (`parse_exception`).
     pub fn parse(reason: &str) -> Self {
         Self::new("parse_exception", reason)
@@ -157,6 +166,14 @@ impl MappingError {
     /// A valid mapping this node does not index yet.
     pub fn unsupported(reason: &str) -> Self {
         Self::new(UNSUPPORTED, reason)
+    }
+
+    /// This error, caused by `cause` when there is one.
+    pub fn caused_by_opt(self, cause: Option<MappingError>) -> Self {
+        match cause {
+            Some(cause) => self.caused_by(cause),
+            None => self,
+        }
     }
 
     /// This error, caused by `cause`.

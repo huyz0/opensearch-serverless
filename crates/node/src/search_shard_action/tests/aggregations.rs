@@ -34,6 +34,7 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             ranges: None,
             rare: None,
             multi: None,
+            wrap_longitude: true,
             subs: Vec::new(),
         },
         AggRequest {
@@ -47,6 +48,7 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             ranges: None,
             rare: None,
             multi: None,
+            wrap_longitude: true,
             subs: Vec::new(),
         },
     ];
@@ -201,6 +203,7 @@ fn terms_request(
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }
 }
@@ -305,6 +308,7 @@ fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_a_bucket_carries_it
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }];
     let meta = vec![("m".to_owned(), Format::Raw)];
@@ -359,6 +363,7 @@ fn histogram_request(
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }
 }
@@ -407,6 +412,7 @@ fn a_date_histogram_is_answered_with_its_rounding_buckets_and_empty_bucket_sub_a
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }];
     let subs = BucketSubs {

@@ -76,7 +76,7 @@ impl MlService {
 
     /// The cluster's master key, read once a node and remembered: made by
     /// conditional create on the first connector, so two nodes agree on one.
-    fn master_key(&self) -> Result<&str, RestError> {
+    pub(super) fn master_key(&self) -> Result<&str, RestError> {
         if let Some(key) = self.master_key.get() {
             return Ok(key);
         }
@@ -205,6 +205,7 @@ impl MlService {
         oss_ml::connector::validate(&def, &self.trusted).map_err(bad)?;
         def.insert("last_updated_time".into(), json!(now_millis()));
         self.write_connector(&id, &def, false, &mut marker)?;
+        self.cache.clear();
         resp.send(
             200,
             JSON,
@@ -241,6 +242,7 @@ impl MlService {
         {
             return Err(missing(&id));
         }
+        self.cache.clear();
         resp.send(
             200,
             JSON,

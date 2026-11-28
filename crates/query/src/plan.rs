@@ -7,9 +7,11 @@ use crate::plan_query::query;
 use crate::{Error, Field, Mapping};
 
 /// Where a column's value comes from in a hit.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Source {
     Field(String),
+    /// A scalar expression, evaluated over each hit's `_source`.
+    Expr(crate::expr::Expr),
     Id,
     Index,
     Score,
@@ -24,6 +26,8 @@ pub(crate) enum Source {
 pub(crate) enum Shape {
     /// One row a hit.
     Hits,
+    /// One row of constants: a `SELECT` with no `FROM`, answered without a search.
+    Const,
     /// Rows from aggregations: whether a composite pages them, and the `HAVING` to apply.
     Aggs {
         grouped: bool,
@@ -79,6 +83,13 @@ impl Plan {
     #[must_use]
     pub fn body(&self) -> &Value {
         &self.body
+    }
+
+    /// Whether the search body holds a `script` query, which a node serves only with its
+    /// Painless compiler on.
+    #[must_use]
+    pub fn uses_script(&self) -> bool {
+        self.body.get("query").is_some_and(has_script)
     }
 
     /// Whether the answer is one page of a composite aggregation, so the caller asks for the
@@ -192,7 +203,34 @@ fn ppl_names(mut p: Plan) -> Plan {
     p
 }
 
+/// `SELECT <constants>` with no `FROM`: one row, no search.
+fn plan_const(sel: &Select) -> Result<Plan, Error> {
+    let mut columns = Vec::new();
+    for item in &sel.items {
+        let Item::Expr(expr, alias, text) = item else {
+            return Err(Error::unsupported(
+                "a SELECT with no FROM takes expressions only",
+            ));
+        };
+        columns.push(Column {
+            name: text.clone(),
+            alias: alias.clone(),
+            ty: expr.sql_type(&Mapping::default()),
+            source: Source::Expr(expr.clone()),
+        });
+    }
+    Ok(Plan {
+        body: json!({}),
+        columns,
+        shape: Shape::Const,
+        ppl: false,
+    })
+}
+
 fn plan_sql(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, Error> {
+    if sel.from.is_empty() {
+        return plan_const(sel);
+    }
     if sel.distinct || !sel.group.is_empty() || sel.items.iter().any(|i| matches!(i, Item::Agg(..)))
     {
         return crate::aggregate::plan(sel, mapping, size_limit);
@@ -251,6 +289,23 @@ fn plan_sql(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, 
                 }
             }
             Item::Agg(..) => unreachable!("aggregates take the aggregate path"),
+            Item::Expr(expr, alias, text) => {
+                let mut read = Vec::new();
+                expr.fields(&mut read);
+                for f in read {
+                    lookup(mapping, &f)?;
+                    let f = Value::String(f);
+                    if !includes.contains(&f) {
+                        includes.push(f);
+                    }
+                }
+                columns.push(Column {
+                    name: text.clone(),
+                    alias: alias.clone(),
+                    ty: expr_type(sel, expr, mapping),
+                    source: Source::Expr(expr.clone()),
+                });
+            }
             Item::Field(name, alias) => {
                 if let Some((source, ty)) = meta(name) {
                     score |= source == Source::Score;
@@ -343,4 +398,24 @@ pub(crate) fn exact_name(name: &str, f: &Field, what: &str) -> Result<String, Er
         )));
     }
     Ok(name.to_owned())
+}
+
+fn has_script(v: &Value) -> bool {
+    match v {
+        Value::Object(m) => {
+            m.get("script").is_some_and(|s| s.get("script").is_some()) || m.values().any(has_script)
+        }
+        Value::Array(a) => a.iter().any(has_script),
+        _ => false,
+    }
+}
+
+/// The type an expression column reports: PPL's arithmetic is `long` wide.
+fn expr_type(sel: &Select, expr: &crate::expr::Expr, mapping: &Mapping) -> String {
+    let ty = expr.sql_type(mapping);
+    if sel.dialect == Dialect::Ppl && matches!(expr, crate::expr::Expr::Bin(..)) && ty == "integer"
+    {
+        return "long".to_owned();
+    }
+    ty
 }

@@ -15,8 +15,11 @@ mod body_keys;
 pub mod collect;
 pub mod collect_auto;
 pub mod collect_global;
+mod collect_needs;
 pub mod date_text;
 pub mod double;
+pub mod geo;
+mod geo_parse;
 pub mod hash_order;
 pub mod hll;
 pub mod keyword_cardinality;
@@ -131,11 +134,15 @@ pub enum Metric {
     /// `auto_date_histogram`: the documents counted by a date interval the
     /// shard and reduce choose.
     AutoDateHistogram,
+    /// `geo_centroid`: the mean of a `geo_point` field's points.
+    GeoCentroid,
+    /// `geo_bounds`: the box around a `geo_point` field's points.
+    GeoBounds,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 29] = [
+    pub const ALL: [Metric; 31] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -165,6 +172,8 @@ impl Metric {
         Metric::ScriptedMetric,
         Metric::AdjacencyMatrix,
         Metric::AutoDateHistogram,
+        Metric::GeoCentroid,
+        Metric::GeoBounds,
     ];
 
     /// The aggregation type name.
@@ -199,6 +208,8 @@ impl Metric {
             Metric::ScriptedMetric => "scripted_metric",
             Metric::AdjacencyMatrix => "adjacency_matrix",
             Metric::AutoDateHistogram => "auto_date_histogram",
+            Metric::GeoCentroid => "geo_centroid",
+            Metric::GeoBounds => "geo_bounds",
         }
     }
 
@@ -257,6 +268,8 @@ pub struct MetricAgg {
     pub script: Option<Box<crate::dsl::queries::function_score_script::ScriptScore>>,
     /// A `scripted_metric`'s scripts; `None` for every other aggregation.
     pub scripted: Option<Box<scripted_metric::ScriptedMetricSpec>>,
+    /// A `geo_bounds`' `wrap_longitude`; true for every other aggregation.
+    pub wrap_longitude: bool,
 }
 
 impl MetricAgg {
@@ -284,6 +297,7 @@ impl MetricAgg {
             rare: None,
             scripted: None,
             script: None,
+            wrap_longitude: true,
             // ALLOC: empty.
             subs: Vec::new(),
         }

@@ -10,7 +10,8 @@ use oss_rest::Router;
 
 use crate::assemble::{AssembleError, Config};
 use crate::notifications_route::{
-    Deliverer, EgressPolicy, Limits, NotificationsService, Notifier, routes, system_lookup,
+    Accounts, Deliverer, EgressPolicy, Limits, NotificationsService, Notifier, Senders, routes,
+    system_lookup,
 };
 
 /// How long a node keeps a channel config before it checks the set again.
@@ -33,14 +34,16 @@ pub(crate) fn mount(
         EgressPolicy::from_env(),
         Limits::default(),
     ));
+    let accounts = Accounts::from_env().map_err(|e| AssembleError::Store(e.to_string()))?;
+    let senders = Arc::new(Senders::new(deliverer, accounts));
     let service = NotificationsService::new(store, &config.base, config.pit_buffer_bytes)
-        .with_deliverer(Arc::clone(&deliverer));
+        .with_senders(Arc::clone(&senders));
     let router = routes(router, &Arc::new(service)).map_err(AssembleError::Route)?;
     let notifier = Arc::new(Notifier::new(
         store,
         &config.base,
         budget.clone(),
-        deliverer,
+        senders,
         CACHE_TTL,
     ));
     Ok((router, Some(notifier)))

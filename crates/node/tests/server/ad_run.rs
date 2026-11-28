@@ -226,21 +226,48 @@ fn a_spike_after_enough_windows_is_scored_and_written() {
 fn another_nodes_claim_drops_the_model_so_two_lineages_never_feed_one_detector() {
     let f = fixture();
     let sink = Arc::new(Written::default());
-    let (a, _) = runner(&f, &sink);
+    let (a, a_search) = runner(&f, &sink);
     let (b, _) = runner(&f, &sink);
     for slot in 0..SPIKE {
         a.run(&f.id, &f.detector, due(slot)).unwrap();
     }
     assert_eq!(a.held(), 1);
     // b takes a slot, as it would after a takeover, with a model of its own
-    assert_eq!(
+    // that is warmed from the windows before it, so it scores at once
+    assert!(matches!(
         b.run(&f.id, &f.detector, due(SPIKE)).unwrap(),
-        Outcome::Filling { slot: SPIKE },
-        "a node with no model scores nothing yet"
-    );
-    // a's next claim finds the register moved: its model is dropped, not fed
+        Outcome::Scored { slot: SPIKE, .. }
+    ));
+    // a's next claim finds the register moved: its model is dropped, not fed,
+    // and a new one costs a search for its history besides the window's
+    let before = *a_search.searches.lock().unwrap();
     let next = a.run(&f.id, &f.detector, due(SPIKE + 1)).unwrap();
-    assert_eq!(next, Outcome::Filling { slot: SPIKE + 1 }, "{next:?}");
+    assert!(matches!(next, Outcome::Scored { .. }), "{next:?}");
+    assert_eq!(*a_search.searches.lock().unwrap() - before, 2);
+}
+
+#[test]
+fn a_new_model_is_warmed_with_one_search_for_its_history_and_scores_at_once() {
+    let f = fixture();
+    let sink = Arc::new(Written::default());
+    let (run, search) = runner(&f, &sink);
+    let first = run.run(&f.id, &f.detector, due(SPIKE)).unwrap();
+    assert!(
+        matches!(first, Outcome::Scored { slot: SPIKE, .. }),
+        "{first:?}"
+    );
+    assert_eq!(
+        *search.searches.lock().unwrap(),
+        2,
+        "history, then the window"
+    );
+    let again = run.run(&f.id, &f.detector, due(SPIKE + 1)).unwrap();
+    assert!(matches!(again, Outcome::Scored { .. }));
+    assert_eq!(
+        *search.searches.lock().unwrap(),
+        3,
+        "a held model needs the window only"
+    );
 }
 
 /// A scheduler for node `name` over the fixture's store.

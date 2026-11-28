@@ -9,7 +9,9 @@
 
 mod guard;
 mod handle;
+mod lister;
 mod mount;
+mod names;
 mod routes;
 
 use std::sync::Arc;
@@ -18,6 +20,7 @@ use oss_rest::RestError;
 use serde_json::Value;
 
 pub use guard::NameGuard;
+pub use lister::DescriptorLister;
 pub(crate) use mount::mount;
 pub use routes::routes;
 
@@ -36,6 +39,21 @@ pub trait SqlBackend: Send + Sync {
     ///
     /// A refusal as the REST layer answers it, or a search error body.
     fn search(&self, names: &[String], body: &Value) -> Result<Vec<u8>, SqlFailure>;
+
+    /// As [`Self::search`], giving up with an error between shards once
+    /// `stop` answers true. A backend that cannot stop early runs to the end.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::search`]; a search that stopped is an error.
+    fn search_until(
+        &self,
+        names: &[String],
+        body: &Value,
+        _stop: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Vec<u8>, SqlFailure> {
+        self.search(names, body)
+    }
 }
 
 /// Why a backend call gave no answer.
@@ -82,11 +100,23 @@ pub struct SqlLimits {
     pub max_buckets: usize,
 }
 
+/// The names an index pattern's literal prefix stands for: the one listing `SHOW TABLES` and
+/// `DESCRIBE` over a pattern read.
+pub trait NameLister: Send + Sync {
+    /// The names that begin with `prefix`, at most `cap`.
+    ///
+    /// # Errors
+    ///
+    /// A refusal as the REST layer answers it; more than `cap` names is one.
+    fn names_with_prefix(&self, prefix: &str, cap: usize) -> Result<Vec<String>, SqlFailure>;
+}
+
 /// The SQL endpoint's service.
 pub struct SqlService {
     backend: Arc<dyn SqlBackend>,
     guard: Arc<dyn SqlGuard>,
     limits: SqlLimits,
+    lister: Option<Arc<dyn NameLister>>,
 }
 
 impl SqlService {
@@ -97,6 +127,14 @@ impl SqlService {
             backend,
             guard,
             limits,
+            lister: None,
         }
+    }
+
+    /// The service reading the names a pattern stands for from `lister`.
+    #[must_use]
+    pub fn with_lister(mut self, lister: Arc<dyn NameLister>) -> Self {
+        self.lister = Some(lister);
+        self
     }
 }

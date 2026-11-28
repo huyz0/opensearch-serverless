@@ -31,3 +31,4 @@ src/parked.rs	new		the search queue of parked connections (ADR 0056)
 src/shared.rs	new		the state every worker shares, split from conn.rs
 src/linger.rs	new		the graceful close of a connection, split from conn.rs
 src/cost.rs	new		the response header of a request that asked what its store requests cost (ADR 0061)
+src/error/tests.rs	new		tests of the error bodies and the root cause

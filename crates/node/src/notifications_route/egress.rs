@@ -129,11 +129,17 @@ impl EgressPolicy {
 
     /// Why a URL's authority may not be used, before any lookup.
     pub(super) fn refuses(&self, host: &str, port: u16) -> Option<&'static str> {
-        let host = host.trim_end_matches('.').to_lowercase();
-        if self.deny_hosts.contains(&host) {
+        if !self.ports.contains(&port) {
             return Some("blocked");
         }
-        if !self.ports.contains(&port) {
+        self.refuses_host(host)
+    }
+
+    /// As [`EgressPolicy::refuses`] for the name alone, for a host and port
+    /// the operator declared, whose port is not a webhook's to choose.
+    pub(super) fn refuses_host(&self, host: &str) -> Option<&'static str> {
+        let host = host.trim_end_matches('.').to_lowercase();
+        if self.deny_hosts.contains(&host) {
             return Some("blocked");
         }
         // A literal that is not in dotted or colon form (decimal, octal, hex)
@@ -149,9 +155,9 @@ impl EgressPolicy {
 }
 
 /// The resolver a delivery's agent uses: the lookup, then the address rules.
-pub(super) struct GuardedResolver {
-    pub(super) lookup: Lookup,
-    pub(super) policy: EgressPolicy,
+pub(crate) struct GuardedResolver {
+    pub(crate) lookup: Lookup,
+    pub(crate) policy: EgressPolicy,
 }
 
 impl fmt::Debug for GuardedResolver {

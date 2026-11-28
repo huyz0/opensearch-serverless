@@ -69,6 +69,7 @@ pub(crate) fn sort_fields<S: BlobStore + 'static>(
                 ascending,
                 nested: Some(nested),
             } => nested_field_sort(field, !*ascending, nested, shard, index, cx)?,
+            SortKey::GeoDistance(sort) => crate::search_sort_geo::geo_sort(sort, shard)?,
             SortKey::Script { script, ascending } => {
                 let Some(cx) = cx else {
                     return Err(ShardError::bad_request(Failure::plain(
@@ -217,7 +218,9 @@ pub(crate) fn field_sort<S: BlobStore + 'static>(
             return Ok((f, KeyKind::Float));
         }
         // ALLOC: error path; one message.
-        FieldType::Unsupported(what) => return Err(unsupported(&format!("{what} [{name}]"))),
+        other @ (FieldType::Unsupported(_) | FieldType::GeoPoint) => {
+            return Err(unsupported(&format!("{} [{name}]", other.refusal_name())));
+        }
         FieldType::Text => return Err(unsupported("a text field")),
     };
     let mut f = SortField::numeric(name, ty, reverse);

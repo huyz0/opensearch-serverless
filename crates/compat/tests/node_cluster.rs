@@ -162,6 +162,11 @@ fn replay_with(fixture: Fixture, knn: bool) -> Vec<String> {
 /// [`replay`] with the k-NN index setting, the security API and nested
 /// objects on or off.
 fn replay_full(fixture: Fixture, knn: bool, security: bool, nested: bool) -> Vec<String> {
+    replay_geo(fixture, knn, security, nested, false)
+}
+
+/// [`replay_full`] with `geo_point` fields accepted on or off.
+fn replay_geo(fixture: Fixture, knn: bool, security: bool, nested: bool, geo: bool) -> Vec<String> {
     let fixtures = vec![fixture];
     let store = Arc::new(Emulator::new(1 << 28, 9));
     let budget = MemoryBudget::new(
@@ -176,6 +181,7 @@ fn replay_full(fixture: Fixture, knn: bool, security: bool, nested: bool) -> Vec
         publish_age_millis: 0,
         knn,
         nested,
+        geo,
         security,
         security_admin: security.then(|| {
             (
@@ -316,6 +322,9 @@ fn an_assembled_node_answers_every_metric_fixture_as_stock_opensearch_did() {
         failed.join("\n")
     );
 }
+
+#[path = "node_cluster/geo.rs"]
+mod geo;
 
 #[test]
 fn an_assembled_node_answers_every_nested_fixture_as_stock_opensearch_did() {

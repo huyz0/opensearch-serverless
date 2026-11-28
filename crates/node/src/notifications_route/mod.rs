@@ -10,12 +10,16 @@
 //! compares the config marker's names with the catalogue's ids and repairs a
 //! difference. Nothing lists the store.
 
+mod accounts;
+mod aws;
 mod config;
 mod deliver;
 mod egress;
 mod list;
 mod notifier;
 mod routes;
+mod send;
+mod smtp;
 mod test_send;
 mod write;
 
@@ -29,10 +33,13 @@ use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
 
 use crate::route_util::refuse;
+pub use accounts::{Accounts, AwsAccount, SmtpAccount};
 pub use deliver::{Deliverer, Delivery, Limits};
+pub(crate) use egress::GuardedResolver;
 pub use egress::{EgressPolicy, Lookup, permitted, system_lookup};
 pub use notifier::{Notifier, NotifierCounts};
 pub use routes::routes;
+pub use send::{Outcome, Resolve, Senders};
 
 /// The catalogue's one document name.
 const CATALOGUE: &str = "catalogue";
@@ -45,7 +52,7 @@ pub struct NotificationsService {
     base: String,
     buffer_bytes: usize,
     allowed: Vec<&'static str>,
-    deliverer: Option<std::sync::Arc<Deliverer>>,
+    senders: Option<Arc<Senders>>,
 }
 
 pub(crate) fn bad(reason: impl Into<String>) -> RestError {
@@ -142,7 +149,7 @@ impl NotificationsService {
             base: base.to_owned(),
             buffer_bytes,
             allowed: config::TYPES.to_vec(),
-            deliverer: None,
+            senders: None,
         }
     }
 
@@ -153,11 +160,17 @@ impl NotificationsService {
         self
     }
 
-    /// Sends the test route's message through `deliverer`; without one the
-    /// route answers 501.
+    /// Sends the test route's message through `deliverer`, with no account
+    /// declared; without one the route answers 501.
     #[must_use]
-    pub fn with_deliverer(mut self, deliverer: std::sync::Arc<Deliverer>) -> Self {
-        self.deliverer = Some(deliverer);
+    pub fn with_deliverer(self, deliverer: Arc<Deliverer>) -> Self {
+        self.with_senders(Arc::new(Senders::new(deliverer, Accounts::none())))
+    }
+
+    /// Sends the test route's message through `senders`.
+    #[must_use]
+    pub fn with_senders(mut self, senders: Arc<Senders>) -> Self {
+        self.senders = Some(senders);
         self
     }
 

@@ -84,7 +84,7 @@ fn address(s: &str, what: &str) -> Checked {
 
 /// `us-east-1` and its kin: lower-case words and one digit, so a region can
 /// not carry a host.
-fn region(s: &str) -> Checked {
+pub(super) fn region(s: &str) -> Checked {
     let parts: Vec<&str> = s.split('-').collect();
     let lower = |p: &&str| !p.is_empty() && p.bytes().all(|b| b.is_ascii_lowercase());
     let ok = match parts.split_first().zip(parts.split_last()) {

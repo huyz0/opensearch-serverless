@@ -19,6 +19,7 @@ fn terms_free_sum() -> AggRequest {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }
 }

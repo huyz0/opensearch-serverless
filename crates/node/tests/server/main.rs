@@ -9,12 +9,15 @@ mod support;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ad_job;
 mod ad_preview;
+mod ad_results;
 mod ad_routes;
 mod ad_run;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod async_search_relay;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod async_search_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -71,6 +74,7 @@ mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_delete_action;
 mod ism_managed;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ism_rig;
@@ -93,12 +97,15 @@ mod metadata_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ml_connectors;
 mod ml_models;
+mod ml_predict;
 mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;
+mod notifications_aws;
 mod notifications_notifier;
 mod notifications_routes;
 mod notifications_send;
+mod notifications_smtp;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod observability_replay;
 mod observability_routes;
@@ -166,6 +173,7 @@ mod snapshot_restore_search;
 mod snapshot_route;
 mod snapshot_take;
 mod snapshot_take_size;
+mod sql_names;
 mod sql_routes;
 mod stock_export;
 mod stock_export_budget;

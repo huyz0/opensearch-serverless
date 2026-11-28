@@ -52,6 +52,7 @@ fn base(name: &str, kind: AggKind, field: &str) -> AggRequest {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }
 }

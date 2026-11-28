@@ -37,3 +37,4 @@ src/mapping/nested.rs	port	server/src/main/java/org/opensearch/index/mapper/Obje
 src/lucene/metered.rs	new		the time one document's calls to a pinned analyzer may take; the Java has no module analyzers
 src/document/geo.rs	port	server/src/main/java/org/opensearch/common/geo/GeoUtils.java@429b4cbc	parseGeoPoint (object, string, array, GeoJSON), GeoPoint.resetFromString/Coordinates/WKT/GeoHash, normalizePoint; AbstractPointGeometryFieldMapper.PointParser and GeoPointFieldMapper (validate or normalize, failed to parse field wrapping, ignore_malformed); null_value and multi-fields refused as unsupported
 src/mapping/geo.rs	new		the switch that refuses geo_point as unsupported on a node that does not index it
+src/document/geo/tests.rs	new		tests of the geo_point forms and their refusal chains

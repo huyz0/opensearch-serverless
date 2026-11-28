@@ -66,7 +66,7 @@ fn a_pipeline_lowers_to_the_body_of_its_sql_twin() {
 fn no_pipeline_body_holds_a_script() {
     let b = ppl("source=t | where age > 1 | stats count() by city | sort - city");
     assert!(!b.to_string().contains("\"script\""), "{b}");
-    assert!(parse_ppl("source=t | eval x = age * 2", &Limits::default()).is_err());
+    assert!(parse_ppl("source=t | dedup city", &Limits::default()).is_err());
 }
 
 // AC-4

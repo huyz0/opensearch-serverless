@@ -31,6 +31,7 @@ fn agg(name: &str, metric: Metric, subs: Vec<MetricAgg>) -> MetricAgg {
         rare: None,
         scripted: None,
         script: None,
+        wrap_longitude: true,
     }
 }
 

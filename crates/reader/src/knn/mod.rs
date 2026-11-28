@@ -22,6 +22,7 @@ use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build};
 use crate::mapping::{KnnField, Space};
 
+pub mod sample;
 pub mod stats;
 
 /// The answer of each `knn` node of a query.
@@ -227,6 +228,8 @@ pub fn run(
     Ok(results)
 }
 
+#[cfg(test)]
+mod sample_tests;
 #[cfg(test)]
 mod stats_tests;
 #[cfg(test)]
