@@ -1643,6 +1643,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-query"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "oss-reader"
 version = "0.1.0"
 dependencies = [

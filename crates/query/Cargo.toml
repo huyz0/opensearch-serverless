@@ -1,0 +1,15 @@
+[package]
+name = "oss-query"
+description = "opensearch-serverless: SQL and PPL parsers, the logical plan, its lowering to a search body and the response writers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde_json = "=1.0.145"
+
+[lints]
+workspace = true

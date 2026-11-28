@@ -132,6 +132,8 @@ CASES = [
     (["check-pack-references.py"], "a malformed list row",
      {"docs/pack-reference-sources.tsv": "crates/reader/src/shard_files.rs\tmaybe\t\n"}),
     (["check-dev-notes.py"], "milestone id in a comment", {"crates/reader/src/lib.rs": "//! S.\n// added in M3\n"}),
+    (["check-notifications-no-proxy.py"], "the notifications port naming the plugin proxy",
+     {"crates/node/src/notifications_route/mod.rs": "//! S.\nuse crate::plugin_proxy::Proxy;\n"}),
     (["check-links.py"], "broken relative link", {"README.md": "See [gone](missing.md).\n"}),
     (["check-unsafe.py"], "crate-wide allow(unsafe_code)", {"crates/reader/src/lib.rs": "//! S.\n#![allow(unsafe_code)]\n"}),
     (["check-unsafe.py"], "item-level warn(unsafe_code)", {"crates/reader/src/lib.rs": "//! S.\n#[warn(unsafe_code)]\nfn f() {}\n"}),

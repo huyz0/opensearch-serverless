@@ -307,6 +307,14 @@ src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusal
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
 src/plugins/tests.rs	new		the policy reader and the registry's refusals, tested (ADR 0080)
+src/notifications_setting.rs	new		serverless.notifications.enabled
+src/notifications_route/mod.rs	new		the notifications plugin config service over two document sets; the Java plugin is ported natively by ADR 0081
+src/notifications_route/config.rs	new		config validation per type, from the plugin documentation
+src/notifications_route/list.rs	new		the catalogue view, filters, sorts and pages of the config and channel lists
+src/notifications_route/routes.rs	new		the route table on /_plugins/_notifications
+src/notifications_route/deliver.rs	new		posting a message to a channel URL: bounded, no redirect, no proxy
+src/notifications_route/egress.rs	new		the address rules and the guarded resolver of a delivery
+src/notifications_route/test_send.rs	new		the plugin test route that sends a test message through a config
 src/search_knn.rs	new		the k-NN plugin node calls (stats, warmup, clear_cache) answered for this node; the plugin source is not in this repository (docs/specs/knn-plugin-api)
 src/ad_setting.rs	new		serverless.ad.enabled
 src/ad_route/mod.rs	new		the anomaly detection detector service over a document set; the Java plugin is ported natively by ADR 0078
@@ -325,3 +333,4 @@ src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded
 src/jobs/types.rs	new		the registry's limits, caller, context and errors
 src/jobs/tests.rs	new		the registry bounds, with the clock and the search gates passed in
 src/knn_model_route.rs	new		the k-NN plugin model store (get, delete, search) over a document set; plugin source not in this repository (docs/specs/knn-plugin-api, ADR 0086)
+src/ad_route/validate_route.rs	new		the _validate route: what a create would refuse, answered without writing

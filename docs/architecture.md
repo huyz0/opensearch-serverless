@@ -57,6 +57,7 @@ graph TD
     oss-node -.-> oss-transport
     oss-node --> oss-types
     oss-node -.-> oss-writer
+    oss-query
     oss-reader --> oss-blob
     oss-reader --> oss-cluster
     oss-reader --> oss-doc

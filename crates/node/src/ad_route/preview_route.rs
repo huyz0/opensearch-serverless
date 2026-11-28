@@ -49,11 +49,6 @@ impl AdService {
                 .ok_or_else(|| bad("[detector] is required"))?;
             super::detector::checked(given, now_millis(), &mut fresh_id).map_err(bad)?
         };
-        if detector.get("category_field").is_some() {
-            return Err(bad(
-                "a preview of a detector with [category_field] is not served yet",
-            ));
-        }
         let search = self.search.as_ref().ok_or_else(|| {
             refuse(
                 500,
@@ -71,8 +66,14 @@ impl AdService {
             .unwrap_or(0);
         let count = usize::try_from(whole).unwrap_or(usize::MAX);
         let plan = preview::plan(start, interval, count, &params).map_err(bad)?;
+        let categories = windows::categories(&detector);
+        let entities = if categories.is_empty() {
+            1
+        } else {
+            windows::MAX_ENTITIES
+        };
         // The model, its workspace and the windows, the search answer and the result are held until the answer is written.
-        req.body().reserve(preview::reserved(&params))?;
+        req.body().reserve(preview::reserved(&params, entities))?;
         let indices: Vec<String> = detector["indices"]
             .as_array()
             .map(|a| {
@@ -83,18 +84,33 @@ impl AdService {
             .unwrap_or_default();
         let request = windows::request(&detector, &plan.all).map_err(bad)?;
         let answer = search.search(&indices, &request)?;
-        let values = windows::parse(&answer, &detector, &plan.all).map_err(bad)?;
-        let scored = preview::score(params, &values, plan.history).map_err(bad)?;
         let span = windows::Span {
             from_ms: plan.all.start_of(plan.history),
             interval_ms: interval,
             count,
         };
-        let range = values.get(plan.history..).unwrap_or_default();
-        let out = json!({
-            "anomaly_result": preview::results(&features, &span, range, &scored),
-            "anomaly_detector": detector,
-        });
+        let mut results = Vec::new();
+        if categories.is_empty() {
+            let values = windows::parse(&answer, &detector, &plan.all).map_err(bad)?;
+            let scored = preview::score(params, &values, plan.history).map_err(bad)?;
+            let range = values.get(plan.history..).unwrap_or_default();
+            results = preview::results(&features, &span, range, &scored, None);
+        } else {
+            let found = windows::parse_entities(&answer, &detector, &plan.all).map_err(bad)?;
+            for entity in &found {
+                let scored =
+                    preview::score(params.clone(), &entity.windows, plan.history).map_err(bad)?;
+                let range = entity.windows.get(plan.history..).unwrap_or_default();
+                results.extend(preview::results(
+                    &features,
+                    &span,
+                    range,
+                    &scored,
+                    Some(&entity.key),
+                ));
+            }
+        }
+        let out = json!({"anomaly_result": results, "anomaly_detector": detector});
         resp.send(200, JSON, out.to_string().as_bytes())
     }
 }
