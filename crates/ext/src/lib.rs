@@ -15,6 +15,7 @@ mod descriptor;
 mod error;
 mod json;
 pub mod manifest;
+mod manifest_routes;
 pub mod native;
 pub mod pin;
 pub mod rest;

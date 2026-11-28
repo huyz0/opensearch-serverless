@@ -309,3 +309,4 @@ src/ad_route/mod.rs	new		the anomaly detection detector service over a document 
 src/ad_route/detector.rs	new		detector validation: the features, filters and bounds a serverless node can run
 src/ad_route/search.rs	new		the _search query a detectors id can answer without reading every detector
 src/ad_route/routes.rs	new		the route table under /_plugins/_anomaly_detection and /_opendistro/_anomaly_detection
+src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a request through its guard (ADR 0080)
