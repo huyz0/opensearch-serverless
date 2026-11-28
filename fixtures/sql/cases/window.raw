@@ -1,0 +1,7 @@
+name|rank() over (order by age)
+dee|1
+bob|2
+ann|3
+cy|4
+eve|5
+"Al's ""quoted"", name"|6

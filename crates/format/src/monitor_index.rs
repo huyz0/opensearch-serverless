@@ -11,10 +11,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::alert_registry::check_tenant_id;
 use crate::error::{FormatError, corrupt};
 use crate::json::out::Out;
 use crate::json::{Reader, Token};
+use crate::schedule_registry::check_tenant_id;
 
 const WHAT: &str = "alerting monitor index";
 

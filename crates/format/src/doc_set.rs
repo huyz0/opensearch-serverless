@@ -81,6 +81,8 @@ pub enum DocKind {
     KnnModels,
     /// Index state management policies, `ism/policies/`.
     IsmPolicies,
+    /// ML Commons model groups, `ml/model_groups/`.
+    MlModelGroups,
     /// Anomaly detection detectors, `ad/detectors/`.
     AdDetectors,
     /// The indices an ISM policy manages, one document each, `ism/managed/`.
@@ -113,6 +115,7 @@ impl DocKind {
             Self::LtrModels => "models/",
             Self::KnnModels => "knn/models/",
             Self::IsmPolicies => "ism/policies/",
+            Self::MlModelGroups => "ml/model_groups/",
             Self::AdDetectors => "ad/detectors/",
             Self::IsmManaged => "ism/managed/",
             Self::NotificationConfigs => "notifications/configs/",

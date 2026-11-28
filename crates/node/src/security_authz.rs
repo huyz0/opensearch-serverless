@@ -24,6 +24,8 @@ pub enum Rule {
     /// A `_bulk`: the cluster permission `indices:data/write/bulk` and
     /// write on every index, since its items name their own.
     Bulk,
+    /// An action on the indices the body names: the handler checks each name.
+    Body(&'static str),
     /// Decided by the handler, which answers the recorded `FORBIDDEN` of the
     /// management API to a user without the administrator role.
     Handler,
@@ -35,6 +37,7 @@ pub enum Rule {
 const GET: &[Method] = &[Method::Get];
 const GET_POST: &[Method] = &[Method::Get, Method::Post];
 const GET_HEAD: &[Method] = &[Method::Get, Method::Head];
+const SQL: Rule = Rule::Body("indices:data/read/search");
 const WRITES: &[Method] = &[Method::Put, Method::Post];
 
 /// The rules: methods, pattern, rule. A pattern in [`ALL_ACCESS`] is
@@ -56,6 +59,10 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         "/_cluster/settings",
         Rule::Cluster("cluster:admin/settings/update"),
     ),
+    (GET_POST, "/_plugins/_sql", SQL),
+    (GET_POST, "/_opendistro/_sql", SQL),
+    (GET_POST, "/_plugins/_sql/_explain", SQL),
+    (GET_POST, "/_opendistro/_sql/_explain", SQL),
     (WRITES, "/_bulk", Rule::Bulk),
     (WRITES, "/{index}/_bulk", Rule::Bulk),
     (
@@ -370,7 +377,7 @@ fn refuse(config: &Config, user: &str, action: &str) -> Denial {
 
 fn allowed(config: &Config, user: &str, rule: Rule, req: &Authorization<'_>) -> Result<(), String> {
     match rule {
-        Rule::Open | Rule::Handler => Ok(()),
+        Rule::Open | Rule::Handler | Rule::Body(_) => Ok(()),
         Rule::Cluster(action) => config
             .cluster_allows(user, action)
             .then_some(())

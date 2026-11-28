@@ -51,6 +51,8 @@ pub enum Method {
     Delete,
     /// `HEAD`
     Head,
+    /// `PATCH`
+    Patch,
 }
 
 impl Method {
@@ -62,13 +64,21 @@ impl Method {
             Self::Post => "POST",
             Self::Delete => "DELETE",
             Self::Head => "HEAD",
+            Self::Patch => "PATCH",
         }
     }
 
     fn parse(text: &str) -> Option<Self> {
-        [Self::Get, Self::Put, Self::Post, Self::Delete, Self::Head]
-            .into_iter()
-            .find(|m| m.as_str() == text)
+        [
+            Self::Get,
+            Self::Put,
+            Self::Post,
+            Self::Delete,
+            Self::Head,
+            Self::Patch,
+        ]
+        .into_iter()
+        .find(|m| m.as_str() == text)
     }
 }
 

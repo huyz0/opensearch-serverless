@@ -409,7 +409,7 @@ pub(crate) fn check_base(base: &str) -> Result<(), FormatError> {
 }
 
 /// One path segment: not empty, not a dot segment, no `/`.
-fn check_segment(part: &str) -> Result<(), FormatError> {
+pub(crate) fn check_segment(part: &str) -> Result<(), FormatError> {
     if part.is_empty() || part == "." || part == ".." || part.contains('/') {
         return Err(corrupt(
             WHAT,

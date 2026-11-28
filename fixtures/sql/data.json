@@ -1,0 +1,178 @@
+{
+ "indices": {
+  "compat-sql": {
+   "mappings": {
+    "properties": {
+     "name": {
+      "type": "keyword"
+     },
+     "age": {
+      "type": "integer"
+     },
+     "city": {
+      "type": "keyword"
+     },
+     "bio": {
+      "type": "text"
+     },
+     "balance": {
+      "type": "double"
+     },
+     "active": {
+      "type": "boolean"
+     },
+     "joined": {
+      "type": "date"
+     },
+     "ip": {
+      "type": "ip"
+     },
+     "score": {
+      "type": "long"
+     },
+     "address": {
+      "properties": {
+       "zip": {
+        "type": "keyword"
+       },
+       "street": {
+        "type": "text"
+       }
+      }
+     },
+     "tags": {
+      "type": "keyword"
+     }
+    }
+   },
+   "docs": [
+    {
+     "name": "ann",
+     "age": 30,
+     "city": "x",
+     "bio": "likes tea",
+     "balance": 10.5,
+     "active": true,
+     "joined": "2024-01-05T10:00:00Z",
+     "ip": "10.0.0.1",
+     "score": 100,
+     "address": {
+      "zip": "111",
+      "street": "main st"
+     },
+     "tags": [
+      "a",
+      "b"
+     ]
+    },
+    {
+     "name": "bob",
+     "age": 25,
+     "city": "y",
+     "bio": "likes coffee",
+     "balance": 0.0,
+     "active": false,
+     "joined": "2024-02-10T00:00:00Z",
+     "ip": "10.0.0.2",
+     "score": 50,
+     "address": {
+      "zip": "222",
+      "street": "side st"
+     },
+     "tags": [
+      "b"
+     ]
+    },
+    {
+     "name": "cy",
+     "age": 35,
+     "city": "x",
+     "bio": "likes tea and coffee",
+     "balance": 99.99,
+     "active": true,
+     "joined": "2023-12-31T23:59:59Z",
+     "ip": "192.168.1.1",
+     "score": 7,
+     "address": {
+      "zip": "111",
+      "street": "main st"
+     },
+     "tags": []
+    },
+    {
+     "name": "dee",
+     "age": null,
+     "city": "z",
+     "bio": "no age",
+     "balance": -5.25,
+     "active": null,
+     "joined": "2024-03-01T12:30:00Z",
+     "ip": "::1",
+     "score": 0,
+     "address": {
+      "zip": "333",
+      "street": "hill rd"
+     }
+    },
+    {
+     "name": "eve",
+     "age": 41,
+     "city": null,
+     "bio": "quiet",
+     "balance": 1000000.0,
+     "active": true,
+     "joined": "2022-06-15T08:00:00Z",
+     "ip": "172.16.0.9",
+     "score": 9999999999,
+     "address": {
+      "zip": "222",
+      "street": "side st"
+     },
+     "tags": [
+      "c"
+     ]
+    },
+    {
+     "name": "Al's \"quoted\", name",
+     "age": 50,
+     "city": "x",
+     "bio": "comma, quote\" and newline\n",
+     "balance": 3.0,
+     "active": false,
+     "joined": "2021-01-01T00:00:00Z",
+     "ip": "10.0.0.3",
+     "score": 1,
+     "address": {
+      "zip": "111",
+      "street": "x"
+     },
+     "tags": [
+      "a"
+     ]
+    }
+   ]
+  },
+  "compat-sql-b": {
+   "mappings": {
+    "properties": {
+     "name": {
+      "type": "keyword"
+     },
+     "n": {
+      "type": "integer"
+     }
+    }
+   },
+   "docs": [
+    {
+     "name": "ann",
+     "n": 1
+    },
+    {
+     "name": "zed",
+     "n": 2
+    }
+   ]
+  }
+ }
+}

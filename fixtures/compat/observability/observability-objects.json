@@ -1,0 +1,2596 @@
+{
+  "name": "observability objects: every type, list filters, paging and refusals",
+  "description": "The plugin's object store routes under /_plugins/_observability/object, recorded with a refresh of its system index between a write and a list because the plugin lists by search.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/.opensearch-observability",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "list empty",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 0,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": []
+        }
+      }
+    },
+    {
+      "name": "create o-query",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "savedQuery": {
+            "name": "q1",
+            "description": "d",
+            "query": "source=logs | head 5",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            }
+          },
+          "objectId": "o-query"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-query"
+        }
+      }
+    },
+    {
+      "name": "create o-vis",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "savedVisualization": {
+            "name": "v1",
+            "description": "d",
+            "query": "source=logs | stats count()",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            },
+            "type": "bar",
+            "sub_type": "visualization"
+          },
+          "objectId": "o-vis"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-vis"
+        }
+      }
+    },
+    {
+      "name": "create o-app",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "application": {
+            "name": "app1",
+            "description": "",
+            "baseQuery": "source=x",
+            "servicesEntities": [
+              "svc"
+            ],
+            "traceGroups": [
+              "tg"
+            ],
+            "panelId": "",
+            "availability": {
+              "name": "",
+              "color": "",
+              "availabilityVisId": ""
+            }
+          },
+          "objectId": "o-app"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-app"
+        }
+      }
+    },
+    {
+      "name": "create o-panel",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "operationalPanel": {
+            "name": "panel1",
+            "visualizationIds": [
+              "a",
+              "b"
+            ],
+            "applicationIds": [
+              "x"
+            ]
+          },
+          "objectId": "o-panel"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-panel"
+        }
+      }
+    },
+    {
+      "name": "create o-ts",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "timestampBased": {
+            "name": "tsb",
+            "description": "",
+            "type": "x"
+          },
+          "objectId": "o-ts"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Object type field absent"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Object type field absent"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create o-nb",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "notebook": {
+            "name": "nb1",
+            "description": "",
+            "dateCreated": "2026-01-01T00:00:00Z",
+            "dateModified": "2026-01-01T00:00:00Z",
+            "backendRoles": [],
+            "paragraphs": []
+          },
+          "objectId": "o-nb"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-nb"
+        }
+      }
+    },
+    {
+      "name": "create o-sq2",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "savedQuery": {
+            "name": "q2",
+            "description": "d",
+            "query": "source=logs | where a>1",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            }
+          },
+          "objectId": "o-sq2"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-sq2"
+        }
+      }
+    },
+    {
+      "name": "create generated id",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "savedQuery": {
+            "name": "gen",
+            "description": "d",
+            "query": "source=g",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/objectId",
+          "reason": "generated id"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "auYlIaIBcBidM-oTCIBu"
+        }
+      }
+    },
+    {
+      "name": "create duplicate id",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "savedQuery": {
+            "name": "q1",
+            "description": "d",
+            "query": "source=logs | head 5",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            }
+          },
+          "objectId": "o-query"
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "[o-query]: version conflict, document already exists (current version [1])"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "[o-query]: version conflict, document already exists (current version [1])"
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "create no type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {}
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Object type field absent"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Object type field absent"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create unknown type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "foo": {}
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Object type field absent"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Object type field absent"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create two types",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "objectId": "o-two",
+          "savedQuery": {
+            "name": "a",
+            "description": "d",
+            "query": "x",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            }
+          },
+          "savedVisualization": {
+            "name": "b",
+            "description": "d",
+            "query": "source=logs | stats count()",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            },
+            "type": "bar",
+            "sub_type": "visualization"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-two"
+        }
+      }
+    },
+    {
+      "name": "create empty savedQuery",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "objectId": "o-empty",
+          "savedQuery": {}
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-empty"
+        }
+      }
+    },
+    {
+      "name": "create savedQuery missing query",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "objectId": "o-nq",
+          "savedQuery": {
+            "name": "n"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-nq"
+        }
+      }
+    },
+    {
+      "name": "create bad json type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object",
+        "body": {
+          "objectId": "o-bad",
+          "savedQuery": "nope"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Failed to parse object: expecting token of type [START_OBJECT] but found [VALUE_STRING]",
+                "line": 1,
+                "col": 34
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Failed to parse object: expecting token of type [START_OBJECT] but found [VALUE_STRING]",
+            "line": 1,
+            "col": 34
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create no body",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_observability/object"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "request body is required"
+              }
+            ],
+            "type": "parse_exception",
+            "reason": "request body is required"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refresh system index",
+      "request": {
+        "method": "POST",
+        "path": "/.opensearch-observability/_refresh"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "get one",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object/o-query"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 1,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404817,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1",
+                "description": "d",
+                "query": "source=logs | head 5",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get panel",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object/o-panel"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 1,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-panel",
+              "lastUpdatedTimeMs": 1795852404832,
+              "createdTimeMs": 1795852404832,
+              "tenant": "",
+              "operationalPanel": {
+                "name": "panel1"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get app",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object/o-app"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 1,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-app",
+              "lastUpdatedTimeMs": 1795852404828,
+              "createdTimeMs": 1795852404828,
+              "tenant": "",
+              "application": {
+                "name": "app1",
+                "description": "",
+                "baseQuery": "source=x",
+                "servicesEntities": [
+                  "svc"
+                ],
+                "traceGroups": [
+                  "tg"
+                ],
+                "panelId": ""
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get notebook",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object/o-nb"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 1,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-nb",
+              "lastUpdatedTimeMs": 1795852404838,
+              "createdTimeMs": 1795852404838,
+              "tenant": "",
+              "notebook": {
+                "name": "nb1",
+                "dateCreated": "2026-01-01T00:00:00Z",
+                "dateModified": "2026-01-01T00:00:00Z",
+                "paragraphs": []
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get missing",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object/nope"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "ObservabilityObject nope not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "ObservabilityObject nope not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "get list",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/objectId",
+          "reason": "generated id for one object"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 10,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404817,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1",
+                "description": "d",
+                "query": "source=logs | head 5",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-vis",
+              "lastUpdatedTimeMs": 1795852404823,
+              "createdTimeMs": 1795852404823,
+              "tenant": "",
+              "savedVisualization": {
+                "name": "v1",
+                "description": "d",
+                "query": "source=logs | stats count()",
+                "type": "bar",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                },
+                "sub_type": "visualization"
+              }
+            },
+            {
+              "objectId": "o-app",
+              "lastUpdatedTimeMs": 1795852404828,
+              "createdTimeMs": 1795852404828,
+              "tenant": "",
+              "application": {
+                "name": "app1",
+                "description": "",
+                "baseQuery": "source=x",
+                "servicesEntities": [
+                  "svc"
+                ],
+                "traceGroups": [
+                  "tg"
+                ],
+                "panelId": ""
+              }
+            },
+            {
+              "objectId": "o-panel",
+              "lastUpdatedTimeMs": 1795852404832,
+              "createdTimeMs": 1795852404832,
+              "tenant": "",
+              "operationalPanel": {
+                "name": "panel1"
+              }
+            },
+            {
+              "objectId": "o-nb",
+              "lastUpdatedTimeMs": 1795852404838,
+              "createdTimeMs": 1795852404838,
+              "tenant": "",
+              "notebook": {
+                "name": "nb1",
+                "dateCreated": "2026-01-01T00:00:00Z",
+                "dateModified": "2026-01-01T00:00:00Z",
+                "paragraphs": []
+              }
+            },
+            {
+              "objectId": "o-sq2",
+              "lastUpdatedTimeMs": 1795852404842,
+              "createdTimeMs": 1795852404842,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q2",
+                "description": "d",
+                "query": "source=logs | where a>1",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "auYlIaIBcBidM-oTCIBu",
+              "lastUpdatedTimeMs": 1795852404846,
+              "createdTimeMs": 1795852404846,
+              "tenant": "",
+              "savedQuery": {
+                "name": "gen",
+                "description": "d",
+                "query": "source=g",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-two",
+              "lastUpdatedTimeMs": 1795852404856,
+              "createdTimeMs": 1795852404856,
+              "tenant": "",
+              "savedQuery": {
+                "name": "a",
+                "description": "d",
+                "query": "x",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-empty",
+              "lastUpdatedTimeMs": 1795852404860,
+              "createdTimeMs": 1795852404860,
+              "tenant": "",
+              "savedQuery": {}
+            },
+            {
+              "objectId": "o-nq",
+              "lastUpdatedTimeMs": 1795852404863,
+              "createdTimeMs": 1795852404863,
+              "tenant": "",
+              "savedQuery": {
+                "name": "n"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "list by objectType",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "objectType": "savedQuery"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/objectId",
+          "reason": "generated id for one object"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 5,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404817,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1",
+                "description": "d",
+                "query": "source=logs | head 5",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-sq2",
+              "lastUpdatedTimeMs": 1795852404842,
+              "createdTimeMs": 1795852404842,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q2",
+                "description": "d",
+                "query": "source=logs | where a>1",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "auYlIaIBcBidM-oTCIBu",
+              "lastUpdatedTimeMs": 1795852404846,
+              "createdTimeMs": 1795852404846,
+              "tenant": "",
+              "savedQuery": {
+                "name": "gen",
+                "description": "d",
+                "query": "source=g",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-two",
+              "lastUpdatedTimeMs": 1795852404856,
+              "createdTimeMs": 1795852404856,
+              "tenant": "",
+              "savedQuery": {
+                "name": "a",
+                "description": "d",
+                "query": "x",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-nq",
+              "lastUpdatedTimeMs": 1795852404863,
+              "createdTimeMs": 1795852404863,
+              "tenant": "",
+              "savedQuery": {
+                "name": "n"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "list by two objectTypes",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "objectType": "savedQuery,application"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/objectId",
+          "reason": "generated id for one object"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 6,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404817,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1",
+                "description": "d",
+                "query": "source=logs | head 5",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-app",
+              "lastUpdatedTimeMs": 1795852404828,
+              "createdTimeMs": 1795852404828,
+              "tenant": "",
+              "application": {
+                "name": "app1",
+                "description": "",
+                "baseQuery": "source=x",
+                "servicesEntities": [
+                  "svc"
+                ],
+                "traceGroups": [
+                  "tg"
+                ],
+                "panelId": ""
+              }
+            },
+            {
+              "objectId": "o-sq2",
+              "lastUpdatedTimeMs": 1795852404842,
+              "createdTimeMs": 1795852404842,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q2",
+                "description": "d",
+                "query": "source=logs | where a>1",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "auYlIaIBcBidM-oTCIBu",
+              "lastUpdatedTimeMs": 1795852404846,
+              "createdTimeMs": 1795852404846,
+              "tenant": "",
+              "savedQuery": {
+                "name": "gen",
+                "description": "d",
+                "query": "source=g",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-two",
+              "lastUpdatedTimeMs": 1795852404856,
+              "createdTimeMs": 1795852404856,
+              "tenant": "",
+              "savedQuery": {
+                "name": "a",
+                "description": "d",
+                "query": "x",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-nq",
+              "lastUpdatedTimeMs": 1795852404863,
+              "createdTimeMs": 1795852404863,
+              "tenant": "",
+              "savedQuery": {
+                "name": "n"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "list unknown objectType",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "objectType": "nope"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 0,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": []
+        }
+      }
+    },
+    {
+      "name": "list by objectIdList",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "objectIdList": "o-query,o-vis"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 2,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404817,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1",
+                "description": "d",
+                "query": "source=logs | head 5",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-vis",
+              "lastUpdatedTimeMs": 1795852404823,
+              "createdTimeMs": 1795852404823,
+              "tenant": "",
+              "savedVisualization": {
+                "name": "v1",
+                "description": "d",
+                "query": "source=logs | stats count()",
+                "type": "bar",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                },
+                "sub_type": "visualization"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "list objectIdList with missing",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "objectIdList": "o-query,nope"
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "ObservabilityObject [nope] not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "ObservabilityObject [nope] not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "list sortField name asc",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "sortField": "name",
+          "sortOrder": "asc",
+          "objectType": "savedQuery"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/objectId",
+          "reason": "generated id for one object"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 5,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-two",
+              "lastUpdatedTimeMs": 1795852404856,
+              "createdTimeMs": 1795852404856,
+              "tenant": "",
+              "savedQuery": {
+                "name": "a",
+                "description": "d",
+                "query": "x",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "auYlIaIBcBidM-oTCIBu",
+              "lastUpdatedTimeMs": 1795852404846,
+              "createdTimeMs": 1795852404846,
+              "tenant": "",
+              "savedQuery": {
+                "name": "gen",
+                "description": "d",
+                "query": "source=g",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-nq",
+              "lastUpdatedTimeMs": 1795852404863,
+              "createdTimeMs": 1795852404863,
+              "tenant": "",
+              "savedQuery": {
+                "name": "n"
+              }
+            },
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404817,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1",
+                "description": "d",
+                "query": "source=logs | head 5",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-sq2",
+              "lastUpdatedTimeMs": 1795852404842,
+              "createdTimeMs": 1795852404842,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q2",
+                "description": "d",
+                "query": "source=logs | where a>1",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "list sortField name desc",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "sortField": "name",
+          "sortOrder": "desc",
+          "objectType": "savedQuery"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/objectId",
+          "reason": "generated id for one object"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 5,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-sq2",
+              "lastUpdatedTimeMs": 1795852404842,
+              "createdTimeMs": 1795852404842,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q2",
+                "description": "d",
+                "query": "source=logs | where a>1",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404817,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1",
+                "description": "d",
+                "query": "source=logs | head 5",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-nq",
+              "lastUpdatedTimeMs": 1795852404863,
+              "createdTimeMs": 1795852404863,
+              "tenant": "",
+              "savedQuery": {
+                "name": "n"
+              }
+            },
+            {
+              "objectId": "auYlIaIBcBidM-oTCIBu",
+              "lastUpdatedTimeMs": 1795852404846,
+              "createdTimeMs": 1795852404846,
+              "tenant": "",
+              "savedQuery": {
+                "name": "gen",
+                "description": "d",
+                "query": "source=g",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-two",
+              "lastUpdatedTimeMs": 1795852404856,
+              "createdTimeMs": 1795852404856,
+              "tenant": "",
+              "savedQuery": {
+                "name": "a",
+                "description": "d",
+                "query": "x",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "list sortField unknown",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "sortField": "nope"
+        }
+      },
+      "response": {
+        "status": 406,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Field nope not acceptable"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Field nope not acceptable"
+          },
+          "status": 406
+        }
+      }
+    },
+    {
+      "name": "list bad sortOrder",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "sortOrder": "up"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "No enum constant org.opensearch.search.sort.SortOrder.UP"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "No enum constant org.opensearch.search.sort.SortOrder.UP"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "list fromIndex maxItems",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "fromIndex": "1",
+          "maxItems": "2",
+          "sortField": "name",
+          "sortOrder": "asc"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/objectId",
+          "reason": "generated id for one object"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 1,
+          "totalHits": 10,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-vis",
+              "lastUpdatedTimeMs": 1795852404823,
+              "createdTimeMs": 1795852404823,
+              "tenant": "",
+              "savedVisualization": {
+                "name": "v1",
+                "description": "d",
+                "query": "source=logs | stats count()",
+                "type": "bar",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                },
+                "sub_type": "visualization"
+              }
+            },
+            {
+              "objectId": "o-app",
+              "lastUpdatedTimeMs": 1795852404828,
+              "createdTimeMs": 1795852404828,
+              "tenant": "",
+              "application": {
+                "name": "app1",
+                "description": "",
+                "baseQuery": "source=x",
+                "servicesEntities": [
+                  "svc"
+                ],
+                "traceGroups": [
+                  "tg"
+                ],
+                "panelId": ""
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "list maxItems 0",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "maxItems": "0"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: maxItems is not +ve;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: maxItems is not +ve;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "list fromIndex negative",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "fromIndex": "-1"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: fromIndex is -ve;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: fromIndex is -ve;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "list name filter",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "name": "q1"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 1,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404817,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1",
+                "description": "d",
+                "query": "source=logs | head 5",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "replace",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_observability/object/o-query",
+        "body": {
+          "savedQuery": {
+            "name": "q1 renamed",
+            "description": "d",
+            "query": "source=logs | head 1",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "objectId": "o-query"
+        }
+      }
+    },
+    {
+      "name": "replace with other type",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_observability/object/o-query",
+        "body": {
+          "savedVisualization": {
+            "name": "v-x",
+            "description": "d",
+            "query": "source=logs | stats count()",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            },
+            "type": "bar",
+            "sub_type": "visualization"
+          }
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Object type cannot be changed after creation"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Object type cannot be changed after creation"
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "replace missing",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_observability/object/nope",
+        "body": {
+          "savedQuery": {
+            "name": "q",
+            "description": "d",
+            "query": "x",
+            "selected_date_range": {
+              "start": "now-15m",
+              "end": "now",
+              "text": ""
+            },
+            "selected_timestamp": {
+              "name": "ts",
+              "type": "timestamp"
+            },
+            "selected_fields": {
+              "text": "",
+              "tokens": []
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "ObservabilityObject nope not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "ObservabilityObject nope not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "replace no body",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_observability/object/o-query"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "request body is required"
+              }
+            ],
+            "type": "parse_exception",
+            "reason": "request body is required"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refresh system index",
+      "request": {
+        "method": "POST",
+        "path": "/.opensearch-observability/_refresh"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "get replaced",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object/o-query"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 1,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404939,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1 renamed",
+                "description": "d",
+                "query": "source=logs | head 1",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "delete one",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_observability/object/o-sq2"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "deleteResponseList": {
+            "o-sq2": "OK"
+          }
+        }
+      }
+    },
+    {
+      "name": "delete missing",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_observability/object/o-sq2"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "ObservabilityObject o-sq2 not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "ObservabilityObject o-sq2 not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete list",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "objectIdList": "o-ts,o-nb,nope"
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "ObservabilityObject [o-ts, nope] not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "ObservabilityObject [o-ts, nope] not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete list all found",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_observability/object",
+        "query": {
+          "objectIdList": "o-app,o-panel"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "deleteResponseList": {
+            "o-app": "OK",
+            "o-panel": "OK"
+          }
+        }
+      }
+    },
+    {
+      "name": "delete none named",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_observability/object"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "either objectId or objectIdList is required"
+      }
+    },
+    {
+      "name": "refresh system index",
+      "request": {
+        "method": "POST",
+        "path": "/.opensearch-observability/_refresh"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "get after delete",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object/o-app"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "ObservabilityObject o-app not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "ObservabilityObject o-app not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "list after deletes",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/object"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/observabilityObjectList/*/lastUpdatedTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/createdTimeMs",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/observabilityObjectList/*/objectId",
+          "reason": "generated id for one object"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "startIndex": 0,
+          "totalHits": 7,
+          "totalHitRelation": "eq",
+          "observabilityObjectList": [
+            {
+              "objectId": "o-vis",
+              "lastUpdatedTimeMs": 1795852404823,
+              "createdTimeMs": 1795852404823,
+              "tenant": "",
+              "savedVisualization": {
+                "name": "v1",
+                "description": "d",
+                "query": "source=logs | stats count()",
+                "type": "bar",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                },
+                "sub_type": "visualization"
+              }
+            },
+            {
+              "objectId": "o-nb",
+              "lastUpdatedTimeMs": 1795852404838,
+              "createdTimeMs": 1795852404838,
+              "tenant": "",
+              "notebook": {
+                "name": "nb1",
+                "dateCreated": "2026-01-01T00:00:00Z",
+                "dateModified": "2026-01-01T00:00:00Z",
+                "paragraphs": []
+              }
+            },
+            {
+              "objectId": "auYlIaIBcBidM-oTCIBu",
+              "lastUpdatedTimeMs": 1795852404846,
+              "createdTimeMs": 1795852404846,
+              "tenant": "",
+              "savedQuery": {
+                "name": "gen",
+                "description": "d",
+                "query": "source=g",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-two",
+              "lastUpdatedTimeMs": 1795852404856,
+              "createdTimeMs": 1795852404856,
+              "tenant": "",
+              "savedQuery": {
+                "name": "a",
+                "description": "d",
+                "query": "x",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            },
+            {
+              "objectId": "o-empty",
+              "lastUpdatedTimeMs": 1795852404860,
+              "createdTimeMs": 1795852404860,
+              "tenant": "",
+              "savedQuery": {}
+            },
+            {
+              "objectId": "o-nq",
+              "lastUpdatedTimeMs": 1795852404863,
+              "createdTimeMs": 1795852404863,
+              "tenant": "",
+              "savedQuery": {
+                "name": "n"
+              }
+            },
+            {
+              "objectId": "o-query",
+              "lastUpdatedTimeMs": 1795852404939,
+              "createdTimeMs": 1795852404817,
+              "tenant": "",
+              "savedQuery": {
+                "name": "q1 renamed",
+                "description": "d",
+                "query": "source=logs | head 1",
+                "selected_date_range": {
+                  "start": "now-15m",
+                  "end": "now",
+                  "text": ""
+                },
+                "selected_timestamp": {
+                  "name": "ts",
+                  "type": "timestamp"
+                },
+                "selected_fields": {
+                  "text": "",
+                  "tokens": []
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "stats",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_observability/stats"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_observability/stats] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "legacy notebooks route",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notebooks/notebooks"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_notebooks/notebooks] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "legacy observability objects v1",
+      "request": {
+        "method": "GET",
+        "path": "/_opendistro/_observability/object"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_opendistro/_observability/object] and method [GET]"
+        }
+      }
+    }
+  ]
+}

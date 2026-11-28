@@ -307,3 +307,23 @@ fn a_damaged_claim_register_is_refused() {
         Err(MetaError::Format(_))
     ));
 }
+
+#[test]
+fn two_namespaces_share_a_store_without_seeing_each_other() {
+    use oss_meta::ScheduleRegistry;
+    for b in all() {
+        let alerting = registry(&b);
+        let ad =
+            ScheduleRegistry::in_namespace(std::sync::Arc::clone(&b.store), BASE, "ad").unwrap();
+        alerting.register("acme").unwrap();
+        assert!(!ad.is_registered("acme").unwrap());
+        ad.register("other").unwrap();
+        assert!(!alerting.is_registered("other").unwrap());
+        assert!(ad.claim("acme", "d1", 5, None).unwrap().won);
+        assert!(alerting.claim("acme", "d1", 5, None).unwrap().won);
+        assert!(!ad.claim("acme", "d1", 5, None).unwrap().won);
+        assert!(
+            ScheduleRegistry::in_namespace(std::sync::Arc::clone(&b.store), BASE, "a/b").is_err()
+        );
+    }
+}

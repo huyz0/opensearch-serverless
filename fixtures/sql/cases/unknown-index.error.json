@@ -1,0 +1,16 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "status": 404,
+  "body": {
+    "error": {
+      "reason": "Error occurred in OpenSearch engine: no such index [compat-sql-missing]",
+      "details": "[compat-sql-missing] IndexNotFoundException[no such index [compat-sql-missing]]\nFor more details, please send request for Json format to see the raw response from OpenSearch engine.",
+      "type": "IndexNotFoundException"
+    },
+    "status": 404
+  }
+}

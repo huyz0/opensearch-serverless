@@ -1,0 +1,103 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "explain": {
+    "Physical Plan": {
+      "Project [ columns=[compat-sql_0.name] ]": {
+        "Top [ count=200 ]": {
+          "BlockHashJoin[ conditions=( compat-sql_0.age = compat-sql-b_1.n ), type=JOIN, blockSize=[FixedBlockSize with size=10000] ]": {
+            "PointInTime [ compat-sql as compat-sql_0, pageSize=10000 ]": {
+              "request": {
+                "size": 200,
+                "from": 0,
+                "_source": {
+                  "includes": [
+                    "name",
+                    "age"
+                  ]
+                }
+              }
+            },
+            "useTermsFilterOptimization": false,
+            "PointInTime [ compat-sql-b as compat-sql-b_1, pageSize=10000 ]": {
+              "request": {
+                "size": 200,
+                "query": {
+                  "bool": {
+                    "filter": [
+                      {
+                        "bool": {
+                          "adjust_pure_negative": true,
+                          "must": [
+                            {
+                              "bool": {
+                                "adjust_pure_negative": true,
+                                "must_not": [
+                                  {
+                                    "bool": {
+                                      "adjust_pure_negative": true,
+                                      "must_not": [
+                                        {
+                                          "exists": {
+                                            "field": "n",
+                                            "boost": 1
+                                          }
+                                        }
+                                      ],
+                                      "boost": 1
+                                    }
+                                  }
+                                ],
+                                "boost": 1
+                              }
+                            }
+                          ],
+                          "boost": 1
+                        }
+                      }
+                    ],
+                    "adjust_pure_negative": true,
+                    "boost": 1
+                  }
+                },
+                "from": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "description": "Hash Join algorithm builds hash table based on result of first query, and then probes hash table to find matched rows for each row returned by second query",
+    "Logical Plan": {
+      "Project [ columns=[compat-sql_0.name] ]": {
+        "Top [ count=200 ]": {
+          "Join [ conditions=( compat-sql_0.age = compat-sql-b_1.n ) type=JOIN ]": {
+            "Group": [
+              {
+                "Project [ columns=[compat-sql_0.name, compat-sql_0.age] ]": {
+                  "TableScan": {
+                    "tableAlias": "compat-sql_0",
+                    "tableName": "compat-sql"
+                  }
+                }
+              },
+              {
+                "Project [ columns=[compat-sql-b_1.n] ]": {
+                  "Filter [ conditions=[AND ( AND n ISN null ) ] ]": {
+                    "TableScan": {
+                      "tableAlias": "compat-sql-b_1",
+                      "tableName": "compat-sql-b"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

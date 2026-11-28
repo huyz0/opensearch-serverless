@@ -99,9 +99,38 @@ fn entries(doc: &Json, key: &str, defaults: &[&str]) -> (String, Json) {
     (key.to_owned(), Json::Arr(list))
 }
 
+/// The most a list answer holds: a list over it is refused whole.
+pub const MAX_LIST_BYTES: usize = 4 << 20;
+
 /// A stored document as the plugin answers a read: `{"<name>": {...}}`,
 /// with the defaults the plugin adds. A user's `hash` is never returned.
 pub fn render(kind: Kind, name: &str, doc: &Json) -> String {
+    // ALLOC: one answer a request, bounded by the 1 MiB body and its key count.
+    let mut text = String::new();
+    write_str(&mut text, name);
+    // ALLOC: one answer a request, bounded by the 1 MiB body and its key count.
+    format!("{{{text}:{}}}", rendered(kind, doc).to_json())
+}
+
+/// Every document of a kind as the list answer holds them:
+/// `{"<name>": {...}, ...}`, each as [`render`] renders it, in the order
+/// given.
+pub fn render_list(kind: Kind, entries: &[(String, Json)]) -> String {
+    // ALLOC: one answer a request, bounded by MAX_LIST_BYTES by the caller.
+    let mut out = String::from("{");
+    for (i, (name, doc)) in entries.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        write_str(&mut out, name);
+        out.push(':');
+        out.push_str(&rendered(kind, doc).to_json());
+    }
+    out.push('}');
+    out
+}
+
+fn rendered(kind: Kind, doc: &Json) -> Json {
     // ALLOC: one answer a request, bounded by the 1 MiB body and its key count.
     let mut out: Vec<(String, Json)> = Vec::new();
     match kind {
@@ -135,9 +164,5 @@ pub fn render(kind: Kind, name: &str, doc: &Json) -> String {
         }
     }
     flags(kind, &mut out);
-    // ALLOC: one answer a request, bounded by the 1 MiB body and its key count.
-    let mut text = String::new();
-    write_str(&mut text, name);
-    // ALLOC: one answer a request, bounded by the 1 MiB body and its key count.
-    format!("{{{text}:{}}}", Json::Obj(out).to_json())
+    Json::Obj(out)
 }

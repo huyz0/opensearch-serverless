@@ -84,6 +84,8 @@ mod ltr_cache;
 mod ltr_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod metadata_block;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;
 mod notifications_routes;
@@ -126,6 +128,7 @@ mod security_authz;
 mod security_hardening;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_limits;
+mod security_patch;
 mod security_route;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod settings_route;
@@ -145,6 +148,8 @@ mod snapshot_restore_search;
 mod snapshot_route;
 mod snapshot_take;
 mod snapshot_take_size;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod sql_routes;
 mod stock_export;
 mod stock_export_budget;
 mod stock_export_refusals;
