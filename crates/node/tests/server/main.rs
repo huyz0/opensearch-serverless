@@ -71,6 +71,8 @@ mod ism_managed;
 mod ism_rig;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ism_routes;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod ism_template;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_cache;
 #[cfg(all(feature = "reader", feature = "writer"))]

@@ -241,6 +241,10 @@ fn the_ism_policies_have_their_own_directory_and_the_common_bound() {
         doc_set_marker_key("", DocKind::IsmManaged).unwrap(),
         "ism/managed/_version"
     );
+    assert_eq!(
+        doc_content_key("", DocKind::IsmTemplates, "all").unwrap(),
+        "ism/templates/blob-all"
+    );
 }
 
 #[test]
