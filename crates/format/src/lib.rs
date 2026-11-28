@@ -59,6 +59,7 @@ mod node_log;
 mod node_pack;
 mod node_pack_ledger;
 mod pack_index;
+mod pack_retired;
 mod pack_seed;
 mod pack_sidecar;
 mod point_in_time;
@@ -132,6 +133,7 @@ pub use node_log::{
 pub use node_pack::{Block, EncodedPack, NodePackHeader, PlannedBlock, encode as encode_node_pack};
 pub use node_pack_ledger::{NodePackLedger, PackEpoch, encode as encode_pack_ledger};
 pub use pack_index::{INDEX_SLOTS, PackIndex, pack_index_key, pack_index_slot};
+pub use pack_retired::{PackRetired, pack_retired_key};
 pub use pack_seed::{PackSeed, pack_seed_key};
 pub use pack_sidecar::{
     MAX_SIDECAR_EPOCHS, ORDINALS_PER_EPOCH, PackSidecar, SIDECAR_EPOCH_BYTES, SidecarEpoch,
