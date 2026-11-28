@@ -116,6 +116,7 @@ mod read_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
 mod reindex_route;
+mod reports_routes;
 mod restore_flags;
 mod restore_settings;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]

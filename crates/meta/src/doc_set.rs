@@ -13,9 +13,7 @@ use std::sync::Arc;
 
 use oss_blob::register::ABSENT_GENERATION;
 use oss_blob::{BlobError, BlobStore, ByteRange, SliceSource, SwapOutcome};
-use oss_format::{
-    DocKind, DocSetMarker, MAX_DOC_NAME_BYTES, MAX_DOCS, doc_content_key, doc_set_marker_key,
-};
+use oss_format::{DocKind, DocSetMarker, MAX_DOC_NAME_BYTES, doc_content_key, doc_set_marker_key};
 
 use crate::error::MetaError;
 use crate::pit::new_id;
@@ -314,7 +312,7 @@ impl DocSet {
             let exists = marker.content(name).is_some();
             let refusal = if require_absent && exists {
                 Some(MetaError::AlreadyExists)
-            } else if !exists && marker.entries.len() >= MAX_DOCS {
+            } else if !exists && marker.entries.len() >= self.kind.max_docs() {
                 Some(MetaError::TooManyDocs)
             } else {
                 None
@@ -444,6 +442,7 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::NotificationConfigs | DocKind::NotificationCatalogue => "notification config",
         DocKind::IsmTemplates => "template",
         DocKind::ObservabilityObjects => "observability object",
+        DocKind::ReportDefinitions => "report definition",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers

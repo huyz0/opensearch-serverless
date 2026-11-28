@@ -99,6 +99,8 @@ pub enum DocKind {
     /// Observability objects (saved queries, visualisations, panels,
     /// notebooks), one document each, `observability/objects/`.
     ObservabilityObjects,
+    /// Report definitions, one document each, `reports/definitions/`.
+    ReportDefinitions,
 }
 
 impl DocKind {
@@ -128,6 +130,7 @@ impl DocKind {
             Self::NotificationCatalogue => "notifications/catalogue/",
             Self::IsmTemplates => "ism/templates/",
             Self::ObservabilityObjects => "observability/objects/",
+            Self::ReportDefinitions => "reports/definitions/",
         }
     }
 }
@@ -143,6 +146,20 @@ impl DocKind {
         }
     }
 }
+
+impl DocKind {
+    /// The most documents the set holds: [`MAX_DOCS`], or for report
+    /// definitions [`MAX_REPORT_DEFINITIONS`].
+    pub const fn max_docs(self) -> usize {
+        match self {
+            Self::ReportDefinitions => MAX_REPORT_DEFINITIONS,
+            _ => MAX_DOCS,
+        }
+    }
+}
+
+/// The most report definitions a deployment holds.
+pub const MAX_REPORT_DEFINITIONS: usize = 500;
 
 fn check_base(base: &str) -> Result<(), FormatError> {
     if base.is_empty() || base.ends_with('/') {
