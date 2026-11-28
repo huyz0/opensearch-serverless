@@ -130,6 +130,22 @@ pub fn render_list(kind: Kind, entries: &[(String, Json)]) -> String {
     out
 }
 
+/// A shipped document as a read renders it: reserved, and static when the
+/// plugin builds it in.
+pub(super) fn rendered_built_in(kind: Kind, doc: &Json, is_static: bool) -> Json {
+    let Json::Obj(mut members) = rendered(kind, doc) else {
+        return Json::Null;
+    };
+    for (key, value) in &mut members {
+        match key.as_str() {
+            "reserved" => *value = Json::Bool(true),
+            "static" => *value = Json::Bool(is_static),
+            _ => {}
+        }
+    }
+    Json::Obj(members)
+}
+
 fn rendered(kind: Kind, doc: &Json) -> Json {
     // ALLOC: one answer a request, bounded by the 1 MiB body and its key count.
     let mut out: Vec<(String, Json)> = Vec::new();
