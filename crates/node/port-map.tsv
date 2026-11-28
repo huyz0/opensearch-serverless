@@ -399,6 +399,7 @@ src/boot/node_impl.rs	new		the running node's accessors and drop order, moved ou
 src/notifications_route/notifier.rs	new		the in-process sender alerting and ISM call: a config by id through a per-node cache
 src/ism_run/schedule.rs	new		the runner schedule: the indices this node owns and evaluates, found by registry and rendezvous, claimed by slot
 src/ism_run/schedule_tests.rs	new		the schedule over an emulator
+src/ism_run/tests.rs	new		the decision tests over a fake backend
 src/lifecycle_bus.rs	new		the fill-once handle index and node events are published through
 src/geospatial_setting.rs	new		the node setting that accepts the geo_point field type; the Java shell always maps it
 src/index_route/options.rs	new		the create-time switches (nested, geo_point) read when a mapping is parsed
