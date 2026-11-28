@@ -411,3 +411,39 @@ fn an_assembled_node_authenticates_and_authorizes_as_the_stock_plugin_did() {
         failed.join("\n")
     );
 }
+
+/// Steps of the notifications recording this node answers differently on
+/// purpose; each is covered by its own test in `crates/node/tests/server`.
+/// A send to the recorder's own loopback webhook is refused by this node's
+/// egress guard (ADR 0081), and email and SNS sends are not served yet.
+const NOTIFICATIONS_SKIPPED: &[&str] = &[
+    "test send 200",
+    "test send 201",
+    "test send to 404",
+    "test send to 500",
+    "test send to redirect",
+    "test send to refused port",
+    "test send email group",
+    "test send POST",
+];
+
+#[test]
+fn an_assembled_node_answers_every_notifications_fixture_as_the_stock_plugin_did() {
+    let fixtures: Vec<Fixture> = load_dir(&root().join("compat/notifications"))
+        .expect("fixtures load")
+        .into_iter()
+        .map(|(_, mut f)| {
+            f.steps
+                .retain(|step| !NOTIFICATIONS_SKIPPED.contains(&step.name.as_str()));
+            f
+        })
+        .collect();
+    assert!(!fixtures.is_empty());
+    let failed: Vec<String> = fixtures.into_iter().flat_map(replay).collect();
+    assert!(
+        failed.is_empty(),
+        "{} differ:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}

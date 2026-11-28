@@ -19,9 +19,10 @@ use oss_meta::{MetaError, ScheduleRegistry};
 use oss_rest::RestError;
 use serde_json::{Value, json};
 
-use super::sink::{Doc, DocSink, HostError};
 use super::slots::{Timing, latest_due, window};
 use super::{WindowSearch, preview, windows};
+use oss_ext::doc_sink::{Doc, DocSink};
+use oss_ext::host::HostError;
 
 /// The registry namespace of anomaly detection.
 pub(super) const NAMESPACE: &str = "ad";
@@ -35,7 +36,7 @@ const RESULT_INDEX: &str = "opensearch-ad-plugin-result";
 /// What a run did.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Outcome {
-    /// No slot is due yet.
+    /// No slot is due that this node has not already run.
     NotDue,
     /// Another node holds the slot, or already ran it.
     Lost {
@@ -77,6 +78,8 @@ pub enum RunError {
     Search(RestError),
     /// The result sink failed.
     Sink(HostError),
+    /// The index refused the result document with this status.
+    Rejected(u16),
     /// The detector or the model cannot be run.
     Bad(String),
 }
@@ -150,9 +153,10 @@ impl Runner {
             (state.map(|h| h.generation), state.map(|h| h.slot))
         };
         // A hinted claim swaps without reading, so a slot this node already
-        // claimed would be claimed again: it is not asked for.
+        // claimed would be claimed again: it is not asked for, and the
+        // newest slot being the one already run, nothing is due.
         if last.is_some_and(|last| slot <= last) {
-            return Ok(Outcome::Lost { slot });
+            return Ok(Outcome::NotDue);
         }
         let claim = self
             .registry
@@ -242,9 +246,20 @@ impl Runner {
             "schema_version": 0,
         });
         let index = detector["result_index"].as_str().unwrap_or(RESULT_INDEX);
-        self.sink
-            .index(index, &[Doc::of(&doc)])
+        let results = self
+            .sink
+            .index(
+                index,
+                &[Doc {
+                    id: None,
+                    // ALLOC: one result document's text, a few hundred bytes.
+                    source: doc.to_string().into_bytes(),
+                }],
+            )
             .map_err(RunError::Sink)?;
+        if let Some(r) = results.iter().find(|r| r.status >= 300) {
+            return Err(RunError::Rejected(r.status));
+        }
         Ok(Outcome::Scored {
             slot,
             grade: scored.grade,
