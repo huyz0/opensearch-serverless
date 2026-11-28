@@ -103,7 +103,7 @@ fn parse_distance(text: &str, default_unit: f64) -> Result<f64, DslError> {
     Ok(java_double(text)? * default_unit)
 }
 
-fn double_value(p: &Parser<'_>) -> Result<f64, DslError> {
+pub(super) fn double_value(p: &Parser<'_>) -> Result<f64, DslError> {
     match p.current_token() {
         Some(Kind::Number | Kind::String) => java_double(p.text().trim()),
         _ => Err(number_format(p.text())),
@@ -111,7 +111,7 @@ fn double_value(p: &Parser<'_>) -> Result<f64, DslError> {
 }
 
 /// `GeoUtils.parseGeoPoint(parser, point)` of an array, at its `[`.
-fn parse_array(p: &mut Parser<'_>) -> Result<(f64, f64), DslError> {
+pub(super) fn parse_array(p: &mut Parser<'_>) -> Result<(f64, f64), DslError> {
     let (mut x, mut y, mut n) = (f64::NAN, f64::NAN, 0usize);
     while p.next_token() != Some(Kind::EndArray) {
         if p.current_token() != Some(Kind::Number) {
@@ -142,7 +142,7 @@ fn parse_array(p: &mut Parser<'_>) -> Result<(f64, f64), DslError> {
     Ok((y, x))
 }
 
-fn parse_failure(_p: &Parser<'_>, reason: impl Into<String>) -> DslError {
+pub(super) fn parse_failure(_p: &Parser<'_>, reason: impl Into<String>) -> DslError {
     DslError::Failure(Failure::plain("opensearch_parse_exception", reason))
 }
 
@@ -287,7 +287,7 @@ fn geohash(p: &Parser<'_>) -> Result<(f64, f64), DslError> {
 }
 
 /// `GeoValidationMethod.fromString`.
-fn validation_method(text: &str) -> Result<Validation, DslError> {
+pub(super) fn validation_method(text: &str) -> Result<Validation, DslError> {
     match text.to_uppercase().as_str() {
         "COERCE" => Ok(Validation::Coerce),
         "IGNORE_MALFORMED" => Ok(Validation::IgnoreMalformed),
@@ -301,8 +301,25 @@ fn validation_method(text: &str) -> Result<Validation, DslError> {
     }
 }
 
-fn shard_failure(reason: impl Into<String>) -> Failure {
+pub(super) fn shard_failure(reason: impl Into<String>) -> Failure {
     Failure::plain("query_shard_exception", reason)
+}
+
+/// The shard failure `QueryShardException(context, "couldn't validate
+/// latitude/ longitude values", exception)` makes of the numbered errors.
+pub(super) fn validation_failure(errors: &[String]) -> Failure {
+    let numbered: String = errors
+        .iter()
+        .enumerate()
+        // ALLOC: one per request; bounded by the body's recording.
+        .map(|(i, e)| format!("{}: {e};", i.saturating_add(1)))
+        // ALLOC: one string per request; bounded by the body's recording.
+        .collect();
+    shard_failure("couldn't validate latitude/ longitude values").caused_by(Failure::plain(
+        "validation_exception",
+        // ALLOC: error path; one message.
+        format!("Validation Failed: {numbered}"),
+    ))
 }
 
 /// `GeoDistanceQueryBuilder.doToQuery`.
@@ -338,22 +355,7 @@ pub fn build(cx: &QueryContext<'_>, q: &GeoDistance) -> Result<Clause, Failure> 
             errors.push(format!("center point longitude is invalid: {lon:?}"));
         }
         if !errors.is_empty() {
-            let numbered: String = errors
-                .iter()
-                .enumerate()
-                // ALLOC: one per request; bounded by the body's recording.
-                .map(|(i, e)| format!("{}: {e};", i.saturating_add(1)))
-                // ALLOC: one string per request; bounded by the body's recording.
-                .collect();
-            return Err(
-                shard_failure("couldn't validate latitude/ longitude values").caused_by(
-                    Failure::plain(
-                        "validation_exception",
-                        // ALLOC: error path; one message.
-                        format!("Validation Failed: {numbered}"),
-                    ),
-                ),
-            );
+            return Err(validation_failure(&errors));
         }
     }
     if q.validation == Validation::Coerce {

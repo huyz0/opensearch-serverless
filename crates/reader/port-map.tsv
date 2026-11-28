@@ -230,6 +230,10 @@ src/aggs/metric/script_values.rs	new		a metric script as the engine values sourc
 src/aggs/metric/sub_rules.rs	new		which bucket aggregations may hold which sub-aggregations, moved out of parse.rs
 src/aggs/bucket/terms_sub_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/BucketSelectionStrategy.java@3.10.0	the shard and reduce ordering of a numeric terms by a sub-aggregation: every bucket kept, ordered by the value, cut to the size
 src/aggs/bucket/keyword_partition_tests.rs	new		tests of a partition-based include of a keyword terms against the reference hash
+src/dsl/queries/geo_bounding_box.rs	port	server/src/main/java/org/opensearch/index/query/GeoBoundingBoxQueryBuilder.java	the geo_bounding_box query: corner forms, WKT envelope, geohash cell corners, validation, and the rectangle query on a point field (GeoBoundingBox.parseBoundingBox is folded in)
+src/dsl/queries/geo_bounding_box_tests.rs	new		tests of geo_bounding_box.rs
+src/dsl/queries/geo_polygon.rs	port	server/src/main/java/org/opensearch/index/query/GeoPolygonQueryBuilder.java	the geo_polygon query: points in every form, the closed shell, validation, and the polygon query on a point field
+src/dsl/queries/geo_polygon_tests.rs	new		tests of geo_polygon.rs
 src/dsl/queries/geo_distance.rs	port	server/src/main/java/org/opensearch/index/query/GeoDistanceQueryBuilder.java	the geo_distance query: centre forms, distance units, validation methods, and the point-field radius query
 src/dsl/queries/geo_distance_tests.rs	new		tests of geo_distance.rs
 src/dsl/queries/knn.rs	new		the k-NN plugin's knn query parser, written to the answers the stock 3.10.0 node recorded (fixtures/compat/knn-search); its Java source is not in this repository
