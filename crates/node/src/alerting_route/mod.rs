@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 
 use crate::route_util::{read_body, refuse};
 use monitor::Checked;
-pub use routes::routes;
+pub use routes::{install, routes};
 
 /// The tenant a request without a security tenant belongs to.
 const DEFAULT_TENANT: &str = "_default_";

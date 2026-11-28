@@ -6,6 +6,7 @@ use std::sync::Arc;
 use oss_rest::{Method, Request, Response, RestError, RouteError, Router};
 
 use super::AlertingService;
+use crate::assemble::AssembleError;
 
 /// The query parameters a monitor request accepts: the plugin's own, and
 /// the timeouts every admin route takes.
@@ -50,4 +51,17 @@ pub fn routes(router: Router, service: &Arc<AlertingService>) -> Result<Router, 
         }
     }
     Ok(router)
+}
+
+/// The monitor routes over `store`, with the default limits.
+///
+/// # Errors
+///
+/// [`AssembleError::Route`] for a route registered twice.
+pub fn install(
+    router: Router,
+    store: &Arc<dyn oss_blob::BlobStore>,
+    base: &str,
+) -> Result<Router, AssembleError> {
+    routes(router, &Arc::new(AlertingService::new(store, base))).map_err(AssembleError::Route)
 }

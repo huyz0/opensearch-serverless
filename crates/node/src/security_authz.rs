@@ -6,6 +6,7 @@ use std::sync::Arc;
 use oss_coordinator::security::{Config, forbidden};
 use oss_rest::{Authorization, Authorizer, Denial, Method};
 
+use crate::security_authz_all_access::ALL_ACCESS;
 use crate::security_route::admin_refusal;
 use crate::security_state::SecurityState;
 
@@ -244,73 +245,6 @@ pub const HANDLER: &[&str] = &[
     "/_plugins/_security/api/rolesmapping/{name}",
     "/_plugins/_security/api/tenants",
     "/_plugins/_security/api/tenants/{name}",
-];
-
-/// Routes that are `all_access` for every method, each named so that a
-/// route added without a row is seen. See the ADR for why each is here.
-const ALL_ACCESS: &[&str] = &[
-    "/_serverless/extensions/modules",
-    "/_analyze",
-    "/_field_caps",
-    "/_msearch",
-    "/_msearch/template",
-    "/_search",
-    "/_rank_eval",
-    "/_render/template",
-    "/_render/template/{id}",
-    "/_search/template",
-    "/_validate/query",
-    "/{index}/_msearch",
-    "/{index}/_msearch/template",
-    "/{index}/_delete_by_query",
-    "/{index}/_update_by_query",
-    "/_reindex",
-    "/_tasks",
-    "/_tasks/{task_id}",
-    "/_tasks/{task_id}/_cancel",
-    "/_cat",
-    "/_cat/health",
-    "/_cat/indices",
-    "/_cat/indices/{index}",
-    "/_list/indices",
-    "/_list/indices/{index}",
-    "/_cluster/health/{index}",
-    "/_component_template",
-    "/_component_template/{name}",
-    "/_index_template",
-    "/_index_template/{name}",
-    "/_ingest/pipeline",
-    "/_ingest/pipeline/{id}",
-    "/_ingest/pipeline/_simulate",
-    "/_ingest/pipeline/{id}/_simulate",
-    "/_aliases",
-    "/_data_stream",
-    "/{index}/_rollover",
-    "/{index}/_rollover/{new_index}",
-    "/_data_stream/{name}",
-    "/_scripts/{id}",
-    "/_scripts/{id}/{context}",
-    "/_alias",
-    "/_alias/{name}",
-    "/{index}/_alias",
-    "/{index}/_alias/{name}",
-    "/{index}/_settings",
-    "/_settings",
-    "/_snapshot",
-    "/_snapshot/{repo}",
-    "/_snapshot/{repo}/_verify",
-    "/_snapshot/{repo}/{name}/_restore",
-    "/_snapshot/{repo}/{name}",
-    "/_search/point_in_time",
-    "/_search/point_in_time/_all",
-    "/_search/point_in_time/{id}",
-    "/_pit/{id}",
-    "/_serverless/usage",
-    "/_prometheus/metrics",
-    "/_plugins/_alerting/monitors",
-    "/_plugins/_alerting/monitors/{id}",
-    "/_opendistro/_alerting/monitors",
-    "/_opendistro/_alerting/monitors/{id}",
 ];
 
 /// The rule for a registered route, or none when the table has no row for

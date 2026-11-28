@@ -187,6 +187,7 @@ pub mod security_auth;
 #[cfg(feature = "writer")]
 #[cfg(feature = "writer")]
 pub mod security_authz;
+pub(crate) mod security_authz_all_access;
 #[cfg(feature = "writer")]
 pub mod security_route;
 pub mod security_setting;
