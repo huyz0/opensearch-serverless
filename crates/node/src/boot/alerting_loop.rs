@@ -27,8 +27,12 @@ pub(super) fn run_monitors(
     assembled: &Assembled,
     (store, membership, clock): (&Arc<dyn BlobStore>, &Arc<Membership>, &Arc<dyn LeaseClock>),
 ) -> Option<Renewal> {
-    let service =
-        AlertingService::new(store, &boot.base).with_search(Arc::clone(&assembled.search) as _);
+    let mut service = AlertingService::new(store, &boot.base)
+        .with_search(Arc::clone(&assembled.search) as _)
+        .with_history(Arc::clone(&assembled.bulk) as _);
+    if let Some(notifier) = &assembled.notifier {
+        service = service.with_sender(Arc::clone(notifier) as _);
+    }
     let scheduler = Scheduler::new(
         store,
         &boot.base,

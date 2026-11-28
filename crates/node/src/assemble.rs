@@ -64,6 +64,8 @@ pub struct Assembled {
     pub(crate) search_queue: Option<Arc<crate::search_queue::QueueAdmission>>,
     /// Where lifecycle events go, for the plugins that subscribe.
     pub(crate) events: crate::lifecycle_bus::Bus,
+    /// The sender alerting and ISM post through; none when notifications are off.
+    pub notifier: Option<Arc<crate::notifications_route::Notifier>>,
 }
 
 /// A node listening.
@@ -285,6 +287,7 @@ pub fn assemble(
         crate::admin_assemble::register(router, &store, config, budget, &script_source)?;
     let router = crate::admin_assemble::ad_routes(router, config, &store, &search)?;
     let router = crate::alerting_route::install(router, &store, config, Arc::clone(&search) as _)?;
+    let (router, notifier) = crate::notifications_assemble::mount(router, config, &store, budget)?;
     let router = crate::sql_route::mount(router, config, &search, _sec.as_ref())?;
     let router = crate::async_search::mount(router, config, budget, Arc::clone(&search) as _)?;
     let bus = crate::lifecycle_bus::Bus::default();
@@ -329,7 +332,10 @@ pub fn assemble(
     };
     #[cfg(not(feature = "coordinator"))]
     let drain: Option<()> = None;
-    let router = crate::plugins::install_configured(router, &config.plugin_policy, &bulk, &bus)?;
+    let modules =
+        crate::plugins::configured_modules(&config.plugin_policy, &*store, &config.base, budget);
+    let router =
+        crate::plugins::install_configured(router, &config.plugin_policy, &bulk, &bus, &modules)?;
 
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(
@@ -349,6 +355,7 @@ pub fn assemble(
     Ok(Assembled {
         search_queue: None,
         events: bus,
+        notifier,
         router,
         search,
         role,

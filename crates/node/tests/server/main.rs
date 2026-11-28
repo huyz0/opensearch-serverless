@@ -101,9 +101,11 @@ mod ml_models;
 mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;
+mod notifications_aws;
 mod notifications_notifier;
 mod notifications_routes;
 mod notifications_send;
+mod notifications_smtp;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod observability_replay;
 mod observability_routes;

@@ -48,6 +48,8 @@ writer = [
     "dep:oss-doc",
     "dep:bcrypt",
     "dep:ureq",
+    "dep:rustls",
+    "dep:webpki-roots",
     "dep:oss-ml",
 ]
 # The extension module runtime and its upload route (docs/adr/0052). Off by default; with it
@@ -87,6 +89,9 @@ self_cell = { workspace = true, optional = true }
 oss-mem = { workspace = true, optional = true }
 # The plugin proxy's client (docs/adr/0043): plain HTTP(S) to Java nodes.
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls"], optional = true }
+# The SMTP client of the notifications plugin (docs/adr/0081): TLS to a relay the operator declared.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"], optional = true }
+webpki-roots = { version = "1", optional = true }
 
 # The binary retires the node on SIGTERM and SIGINT (docs/adr/0048); a safe
 # iterator over the signals, no `unsafe` here.

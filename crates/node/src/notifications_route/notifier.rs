@@ -1,5 +1,5 @@
 //! The sender alerting and ISM call in process: a config by id, through a
-//! per-node cache, delivered with the same [`Deliverer`] the test route uses.
+//! per-node cache, delivered with the same `Senders` the test route uses.
 //!
 //! A config is used for `ttl`; the first send that finds it older reads the
 //! configs set's marker (one GET) and reads the config again only when the
@@ -19,9 +19,11 @@ use oss_mem::{MemoryBudget, Pool, Reservation};
 use oss_meta::DocSet;
 use serde_json::Value;
 
-use super::config::is_channel;
-use super::deliver::{Deliverer, Delivery};
+use super::deliver::Delivery;
+use super::send::Senders;
 
+/// The buffer a marker is read into: the most a set's marker can be.
+const MARKER_BYTES: usize = oss_format::MAX_DOC_SET_MARKER_BYTES;
 /// What a parsed config costs to keep, in document bytes.
 const RETAINED_FACTOR: usize = 4;
 /// The most configs a node keeps.
@@ -50,9 +52,8 @@ pub struct NotifierCounts {
 pub struct Notifier {
     store: Arc<dyn BlobStore>,
     base: String,
-    buffer_bytes: usize,
     budget: MemoryBudget,
-    deliverer: Arc<Deliverer>,
+    senders: Arc<Senders>,
     ttl: Duration,
     entries: Mutex<HashMap<String, Entry>>,
     flights: Mutex<HashMap<String, Arc<Mutex<()>>>>,
@@ -65,23 +66,21 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 impl Notifier {
-    /// A notifier over the configs under `base` in `store`, reading a marker
-    /// into `buffer_bytes` and keeping a config for `ttl`.
+    /// A notifier over the configs under `base` in `store`, keeping a config
+    /// for `ttl`.
     pub fn new(
         store: &Arc<dyn BlobStore>,
         base: &str,
-        buffer_bytes: usize,
         budget: MemoryBudget,
-        deliverer: Arc<Deliverer>,
+        senders: Arc<Senders>,
         ttl: Duration,
     ) -> Self {
         Self {
             store: Arc::clone(store),
             // ALLOC: one copy of the base, once.
             base: base.to_owned(),
-            buffer_bytes,
             budget,
-            deliverer,
+            senders,
             ttl,
             entries: Mutex::new(HashMap::new()),
             flights: Mutex::new(HashMap::new()),
@@ -103,6 +102,11 @@ impl Notifier {
     /// disabled or of a type this node does not send to is a failed delivery,
     /// never a panic or an error the caller must handle.
     pub fn send(&self, config_id: &str, text: &str) -> Delivery {
+        self.send_with_title(config_id, "Notification", text)
+    }
+
+    /// As [`Notifier::send`], with the title an email or SNS subject carries.
+    pub fn send_with_title(&self, config_id: &str, title: &str, text: &str) -> Delivery {
         self.sends.fetch_add(1, Ordering::Relaxed);
         let config = match self.config(config_id) {
             Ok(Some(c)) => c,
@@ -112,14 +116,11 @@ impl Notifier {
                 return skip;
             }
         };
-        let ty = config["config_type"].as_str().unwrap_or_default();
         if config["is_enabled"].as_bool() != Some(true) {
-            Delivery::failed(403, "disabled")
-        } else if is_channel(ty) && !matches!(ty, "email" | "sns") {
-            self.deliverer.deliver(&config, text)
-        } else {
-            Delivery::failed(501, "not served")
+            return Delivery::failed(403, "disabled");
         }
+        let resolve = |id: &str| self.config(id).ok().flatten();
+        self.senders.send(&config, title, text, &resolve).summary()
     }
 
     /// The config held fresh, or the one a refresh read.
@@ -158,13 +159,10 @@ impl Notifier {
         let set = DocSet::new(Arc::clone(&self.store), &self.base, kind).map_err(|_| skip())?;
         let _reading = self
             .budget
-            .try_reserve(
-                Pool::OpenIndexes,
-                self.buffer_bytes.saturating_add(doc_bytes),
-            )
+            .try_reserve(Pool::OpenIndexes, MARKER_BYTES.saturating_add(doc_bytes))
             .map_err(|_| skip())?;
         // ALLOC: one marker buffer, reserved above.
-        let mut marker = vec![0u8; self.buffer_bytes];
+        let mut marker = vec![0u8; MARKER_BYTES];
         let version = set.version(&mut marker).map_err(|_| skip())?;
         {
             let mut entries = lock(&self.entries);

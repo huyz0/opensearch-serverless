@@ -11,13 +11,17 @@ mod routes;
 mod tests;
 #[cfg(feature = "extensions")]
 mod wasm;
+#[cfg(feature = "extensions")]
+mod wasm_load;
 
-#[cfg(feature = "writer")]
-pub(crate) use assemble::install_configured;
 pub use assemble::{InstallError, STATUS_PATH, install};
+#[cfg(feature = "writer")]
+pub(crate) use assemble::{configured_modules, install_configured};
 pub use events::{Counts, Dispatcher, QUEUE};
 pub use policy::{Entry, Policy, PolicyError, PolicyTier};
 pub use registry::{Plugin, Registry, State, Taken};
 pub use routes::mount;
 #[cfg(feature = "extensions")]
 pub use wasm::WasmPlugin;
+#[cfg(feature = "extensions")]
+pub use wasm_load::load_modules;

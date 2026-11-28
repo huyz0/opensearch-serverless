@@ -266,7 +266,8 @@ fn a_disabled_config_and_a_type_not_served_are_not_sent() {
         &s,
         json!({"name": "e", "config_type": "sns", "sns": {"topic_arn": "arn:aws:sns:us-east-1:1:t"}}),
     );
-    assert_eq!(test_it(&s, &id)["status_code"], "503");
+    // No operator account declares the topic's role: nothing is signed or sent.
+    assert_eq!(test_it(&s, &id)["status_code"], "500");
     assert_eq!(t.seen.lock().unwrap().len(), 0);
     let (status, _) = call(&s, "GET", &format!("{ROOT}/feature/test/missing"), None);
     assert_eq!(status, 404);
