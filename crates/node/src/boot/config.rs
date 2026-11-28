@@ -17,6 +17,7 @@ pub(super) mod edge;
 pub(super) mod ltr;
 mod packs;
 pub(super) mod page_cache;
+pub(super) mod plugins;
 mod reader_ramp;
 pub(super) mod roles;
 pub(super) mod search_queue;
@@ -110,10 +111,8 @@ pub struct NodeConfig {
     pub commit_logged: commits::Logged,
     /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
     pub ltr: bool,
-    /// `serverless.ism.enabled` (`OSS_ISM`): serve the ISM policy routes. Off by default.
-    pub ism: bool,
-    /// `serverless.ad.enabled` (`OSS_AD`): serve the anomaly detection detector routes. Off by default.
-    pub ad: bool,
+    /// Which ported plugins' routes are served (`OSS_ISM`, `OSS_AD`, `OSS_OBSERVABILITY`); each off by default.
+    pub plugins: plugins::Switches,
     /// The `sltr` window and model cache bounds.
     pub ltr_bounds: ltr::Bounds,
     /// `OSS_SCRIPT_CACHE_TTL`: seconds a stored script is trusted before the set is checked.
@@ -161,8 +160,7 @@ pub struct NodeConfig {
     pub tenant_default_tier: &'static str,
     /// `OSS_TENANT_TICK_MS`: how often tenant levels are stepped.
     pub tenant_tick_millis: u64,
-    /// `serverless.write.backpressure.*`: what limits the writes waiting on
-    /// the write log.
+    /// `serverless.write.backpressure.*`: what limits the writes waiting on the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
     /// `OSS_SEARCH_*`: the gate that orders searches under pressure; 0 slots is off.
     pub search_slots: crate::search_slots::Config,
@@ -320,7 +318,7 @@ impl NodeConfig {
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
-        let (ltr, ism) = (flag("OSS_LTR", "true")?, flag("OSS_ISM", "false")?);
+        let (ltr, plugins) = (flag("OSS_LTR", "true")?, plugins::read(&flag)?);
         let ltr_bounds = ltr::read(&bounded)?;
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
         let security = flag("OSS_SECURITY", "false")?;
@@ -448,8 +446,7 @@ impl NodeConfig {
             commit_logged,
             node_packs: packs::read(&flag, &bounded)?,
             ltr,
-            ism,
-            ad: flag("OSS_AD", "false")?,
+            plugins,
             ltr_bounds,
             script_cache_ttl_secs,
             security,

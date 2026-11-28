@@ -79,6 +79,8 @@ mod ltr_routes;
 mod metadata_block;
 #[cfg(feature = "reader")]
 mod newest_ask;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod observability_routes;
 mod pinned_busy;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_cost;

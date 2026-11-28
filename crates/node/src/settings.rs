@@ -34,6 +34,7 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::ad_setting::SETTINGS,
         crate::ism_setting::SETTINGS,
         crate::ltr_setting::SETTINGS,
+        crate::observability_setting::SETTINGS,
         #[cfg(feature = "extensions")]
         crate::extension_setting::SETTINGS,
         #[cfg(feature = "writer")]
@@ -93,7 +94,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                13 + 10 * usize::from(reader)
+                14 + 10 * usize::from(reader)
                     + if writer { 51 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + 2 * usize::from(writer && cfg!(feature = "coordinator"))

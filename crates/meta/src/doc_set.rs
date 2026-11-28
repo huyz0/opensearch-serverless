@@ -437,6 +437,7 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::IsmPolicies => "policy",
         DocKind::AdDetectors => "detector",
         DocKind::IsmManaged => "managed index",
+        DocKind::ObservabilityObjects => "observability object",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers

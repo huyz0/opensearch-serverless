@@ -154,6 +154,17 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = if config.observability {
+        let objects = crate::observability_route::ObservabilityService::new(
+            store,
+            &config.base,
+            config.pit_buffer_bytes,
+        );
+        crate::observability_route::routes(router, &Arc::new(objects))
+            .map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,

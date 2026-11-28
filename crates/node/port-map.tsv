@@ -309,3 +309,8 @@ src/ad_route/mod.rs	new		the anomaly detection detector service over a document 
 src/ad_route/detector.rs	new		detector validation: the features, filters and bounds a serverless node can run
 src/ad_route/search.rs	new		the _search query a detectors id can answer without reading every detector
 src/ad_route/routes.rs	new		the route table under /_plugins/_anomaly_detection and /_opendistro/_anomaly_detection
+src/observability_setting.rs	new		serverless.observability.enabled
+src/observability_route/mod.rs	new		the observability object service over a document set; the plugin is ported natively by ADR 0086
+src/observability_route/object.rs	new		what an object body must hold: one of the plugin object types
+src/observability_route/routes.rs	new		the route table under /_plugins/_observability/object
+src/boot/config/plugins.rs	new		the off-by-default plugin switches read from the environment
