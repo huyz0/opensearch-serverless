@@ -58,7 +58,14 @@ fn vm_mib(who: &str, field: &str) -> f64 {
     let status = std::fs::read_to_string(format!("/proc/{who}/status")).unwrap_or_default();
     status
         .lines()
-        .find_map(|l| l.strip_prefix(field)?.trim_start_matches(':').split_whitespace().next()?.parse::<f64>().ok())
+        .find_map(|l| {
+            l.strip_prefix(field)?
+                .trim_start_matches(':')
+                .split_whitespace()
+                .next()?
+                .parse::<f64>()
+                .ok()
+        })
         .unwrap_or(0.0)
         / 1024.0
 }

@@ -295,3 +295,6 @@ src/painless_setting.rs	new		the switch that compiles Painless in Rust; Java com
 src/reader_ramp_setting.rs	new		the slow start settings; the shell reads them from ReaderPlacementSettings
 src/boot/config/reader_ramp.rs	new		the slow start variables, split out of the boot config to keep it under the size limit
 src/boot/support/ramp_feed.rs	new		what a joining reader's slow start reads at each lease renewal
+src/search/start_error.rs	new		why a reader node did not start, split out of search.rs
+src/warm_pressure.rs	new		the peer serve rate that follows the slowest search of each second against a quiet baseline: backs off while searches are slowed, climbs back otherwise
+src/warm_pressure/tests.rs	new		tests of the adaptive serve rate on injected instants

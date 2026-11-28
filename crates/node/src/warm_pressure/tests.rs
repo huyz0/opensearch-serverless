@@ -1,3 +1,6 @@
+// ARITH: instants and sums of small test numbers; the lint is for shipping code.
+#![allow(clippy::arithmetic_side_effects)]
+
 use super::*;
 
 const MIB: u64 = 1 << 20;
