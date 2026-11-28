@@ -3,6 +3,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use oss_ext::breaker::{BreakerConfig, BreakerState};
 use oss_ext::native::{Guard, GuardError, NativeInstance};
@@ -119,7 +120,11 @@ impl NativeInstance for Blocking {
 
     fn call(&self, _p: &str, _i: &[u8], _m: usize) -> Result<Vec<u8>, CallError> {
         self.arrived.lock().expect("lock").send(()).expect("send");
-        let _ = self.release.lock().expect("lock").recv();
+        let _ = self
+            .release
+            .lock()
+            .expect("lock")
+            .recv_timeout(Duration::from_secs(5));
         Ok(Vec::new())
     }
 }
@@ -142,7 +147,9 @@ fn the_bulkhead_holds_eight_a_plugin_and_two_a_tenant_and_queues_nothing() {
         }));
     }
     for _ in 0..8 {
-        arrived_rx.recv().expect("each of the eight arrives");
+        arrived_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("each of the eight arrives");
     }
     // The ninth, for a fresh tenant, and a third for tenant "a".
     let e = g
@@ -177,7 +184,7 @@ fn the_bulkhead_holds_eight_a_plugin_and_two_a_tenant_and_queues_nothing() {
         }));
     }
     for _ in 0..2 {
-        r2.recv().expect("arrives");
+        r2.recv_timeout(Duration::from_secs(5)).expect("arrives");
     }
     let e = g2.call(&*p2, "x", "rest", &[], 16, now).expect_err("third");
     assert_eq!(e, GuardError::TenantBusy);
@@ -223,4 +230,52 @@ fn no_lock_is_held_across_a_call_and_a_panic_frees_its_place() {
             Err(GuardError::Panicked)
         );
     }
+}
+
+#[test]
+fn each_failure_has_its_status_and_error_type() {
+    let status = |e: GuardError| (e.http_status(), e.code());
+    assert_eq!(
+        status(GuardError::Failed(CallError::busy())),
+        (429, "plugin_busy")
+    );
+    assert_eq!(
+        status(GuardError::Failed(CallError::from_status(
+            Status::Module,
+            b""
+        ))),
+        (400, "plugin_failed")
+    );
+    assert_eq!(
+        status(GuardError::Failed(CallError::trap("t"))),
+        (400, "plugin_failed")
+    );
+    assert_eq!(
+        status(GuardError::Failed(CallError::malformed(9))),
+        (502, "plugin_malformed")
+    );
+    assert_eq!(
+        status(GuardError::Failed(CallError::from_status(
+            Status::Limit,
+            b""
+        ))),
+        (400, "plugin_rejected")
+    );
+    assert_eq!(status(GuardError::PluginBusy), (429, "plugin_busy"));
+    assert_eq!(status(GuardError::TenantBusy), (429, "plugin_busy"));
+    assert_eq!(status(GuardError::BreakerOpen), (503, "plugin_unavailable"));
+    assert_eq!(status(GuardError::Panicked), (500, "plugin_failed"));
+}
+
+#[test]
+fn a_tenant_with_nothing_running_holds_no_entry() {
+    let (g, p) = (guard(), scripted());
+    assert_eq!(g.tenants_in_flight(), 0);
+    let _ = g.call(&p, "a", "rest", &[0], 16, now);
+    let _ = g.call(&p, "b", "rest", &[1], 16, now);
+    assert_eq!(
+        g.tenants_in_flight(),
+        0,
+        "freed after a call and after a panic"
+    );
 }

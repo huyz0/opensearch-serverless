@@ -148,6 +148,11 @@ impl Guard {
         self.lock().breaker.state()
     }
 
+    /// How many tenants have a call running now.
+    pub fn tenants_in_flight(&self) -> usize {
+        self.lock().tenants.len()
+    }
+
     /// Calls `plugin` for `tenant` at `now_ms`. No lock is held while the
     /// plugin runs; a panic is caught and counted as a failure.
     ///

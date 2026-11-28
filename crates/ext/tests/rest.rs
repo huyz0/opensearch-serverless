@@ -148,3 +148,12 @@ fn every_method_code_reads_back_as_its_method() {
         assert_eq!(RestRequest::decode(&r.encode(), 2).map(|r| r.method), Ok(m));
     }
 }
+
+#[test]
+fn a_string_of_exactly_the_part_ceiling_is_read() {
+    let r = RestRequest {
+        tenant: "t".repeat(oss_ext::rest::MAX_PART_BYTES),
+        ..request()
+    };
+    assert_eq!(RestRequest::decode(&r.encode(), 2), Ok(r));
+}
