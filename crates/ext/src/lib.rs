@@ -15,7 +15,9 @@ mod descriptor;
 mod error;
 mod json;
 pub mod manifest;
+pub mod native;
 pub mod pin;
+pub mod rest;
 mod status;
 mod version;
 
