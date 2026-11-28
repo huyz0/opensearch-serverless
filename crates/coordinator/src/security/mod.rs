@@ -8,6 +8,7 @@
 //! defaults the plugin adds on a read are added when it is rendered.
 //! Decisions of authentication and authorization live in sibling modules.
 
+mod account;
 mod authn;
 mod authz;
 mod builtin;
@@ -18,6 +19,7 @@ mod render;
 mod schema;
 mod validate;
 
+pub use account::{account, account_reserved, password_change, wrong_current};
 pub use authn::{MAX_HEADER_BYTES, authinfo, basic, forbidden};
 pub use authz::{Authz, IndexPermission, Role};
 use builtin::DATA as BUILTIN_DATA;

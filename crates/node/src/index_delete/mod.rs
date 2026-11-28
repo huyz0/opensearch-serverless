@@ -55,6 +55,7 @@ pub struct DeleteService {
     buffer_bytes: usize,
     inline_purge_max_shards: u32,
     leave: Option<crate::index_route::BucketLeave>,
+    events: Option<crate::lifecycle_bus::Bus>,
 }
 
 impl DeleteService {
@@ -86,7 +87,15 @@ impl DeleteService {
             buffer_bytes,
             inline_purge_max_shards,
             leave: None,
+            events: None,
         })
+    }
+
+    /// Publishes `index.deleted` to `bus` after every delete.
+    #[must_use]
+    pub fn with_events(mut self, bus: crate::lifecycle_bus::Bus) -> Self {
+        self.events = Some(bus);
+        self
     }
 
     /// Takes a deleted bucketed index's member out of its bucket through
@@ -170,6 +179,14 @@ impl DeleteService {
         match deleted {
             Some(done) => {
                 self.leave_bucket(&done);
+                if let Some(bus) = &self.events {
+                    bus.publish(
+                        "index.deleted",
+                        req.principal().unwrap_or_default(),
+                        &index,
+                        u64::try_from(self.now()).unwrap_or(0),
+                    );
+                }
                 resp.send(200, JSON, delete_ack(&index).as_bytes())
             }
             // The pass found no index, or a change to it won the race.

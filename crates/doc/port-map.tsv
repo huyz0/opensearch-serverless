@@ -35,3 +35,5 @@ src/lucene/parts.rs	new		a document's metadata, the _id term and the mapping lea
 src/lucene/block.rs	port	server/src/main/java/org/opensearch/index/mapper/DocumentParser.java@429b4cbc	a nested object's Lucene document (nestedContext) with _id and _nested_path, written before its parent as one block
 src/mapping/nested.rs	port	server/src/main/java/org/opensearch/index/mapper/ObjectMapper.java@429b4cbc	the nested object type: its paths and the refusal of what this node does not index in one
 src/lucene/metered.rs	new		the time one document's calls to a pinned analyzer may take; the Java has no module analyzers
+src/document/geo.rs	port	server/src/main/java/org/opensearch/common/geo/GeoUtils.java@429b4cbc	parseGeoPoint (object, string, array, GeoJSON), GeoPoint.resetFromString/Coordinates/WKT/GeoHash, normalizePoint; AbstractPointGeometryFieldMapper.PointParser and GeoPointFieldMapper (validate or normalize, failed to parse field wrapping, ignore_malformed); null_value and multi-fields refused as unsupported
+src/mapping/geo.rs	new		the switch that refuses geo_point as unsupported on a node that does not index it

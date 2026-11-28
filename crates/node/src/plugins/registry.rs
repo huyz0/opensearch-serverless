@@ -139,13 +139,23 @@ fn judge(
     linked: &HashMap<String, Arc<dyn NativeInstance>>,
     taken: &[Taken],
 ) -> Result<(Manifest, Arc<dyn NativeInstance>), String> {
-    if entry.tier != PolicyTier::Native {
-        return refuse("this tier is not available in this build");
-    }
+    let tier = match entry.tier {
+        PolicyTier::Native => Tier::Native,
+        PolicyTier::Wasm => Tier::Wasm,
+        PolicyTier::Grpc => return refuse("this tier is not available in this build"),
+    };
     let Some(instance) = linked.get(&entry.name) else {
         return refuse(format!("no plugin is registered as `{}`", entry.name));
     };
-    let manifest = match Manifest::parse(&instance.manifest()) {
+    if instance.tier() != tier {
+        return refuse(format!(
+            "`{}` is registered as a {} plugin, and the policy says {}",
+            entry.name,
+            instance.tier().name(),
+            tier.name()
+        ));
+    }
+    let manifest = match instance.read_manifest() {
         Ok(m) => m,
         Err(ManifestError::Api(e)) => return refuse(format!("plugin api: {e:?}")),
         Err(ManifestError::Invalid(e)) => {
@@ -155,7 +165,7 @@ fn judge(
     if manifest.id() != entry.id {
         return refuse("the manifest's id is not the policy's");
     }
-    if let Err(e) = manifest.for_tier(Tier::Native) {
+    if let Err(e) = manifest.for_tier(tier) {
         return refuse(format!("manifest: {}: {}", e.key(), e.reason()));
     }
     for c in manifest.capabilities() {

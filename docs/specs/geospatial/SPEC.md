@@ -4,6 +4,10 @@
 
 The "Geospatial" row of [java-dependencies](../../java-dependencies.md), which says "partly native". **That is overstated and this spec corrects it:** `geo_point` and `geo_shape` are in `OTHER_TYPES` of `crates/doc/src/mapping/types.rs` (the writer does not index them) and read back as `FieldType::Unsupported` (`mapping_tests.rs`); `geo_bounding_box`, `geo_distance`, `geo_polygon`, `geo_shape` and the geo aggregations appear only in the registered-name lists that feed "did you mean". There is no geo query or aggregation. Owner rule (2026-11-28): native, no Java in the runtime path.
 
+## Status
+
+Slice 1a, `geo_point` in the writer: done. `FieldType::GeoPoint` in `oss-doc` (parameters `index`, `doc_values`, `store`, `meta`, `ignore_malformed`, `ignore_z_value`), every input form of AC-1 parsed as `GeoUtils.parseGeoPoint` does, indexed as a two-dimension point and a `LatLonDocValuesField` value, and the node switch `serverless.geospatial.index_fields` (`OSS_GEOSPATIAL_FIELDS`, default on, read at create). Not yet: `null_value`, multi-fields and `copy_to` on a geo field (refused as unsupported), a per-index override of the switch and put-mapping with a geo field (the node setting is read at create only, as `serverless.nested.enabled` is), the reader's field type and read back through `fields` and `docvalue_fields`, `geo_shape`, `xy_*`, and slices 2 to 5. Expected points come from the encoding's definition and the Java source; no stock-server recordings exist yet, so AC-1's comparison against recorded outputs is open.
+
 ## Change
 
 lucene-rust already has the engine side: `LatLonPoint`, `XYPointField`, the doc-values fields and the shape fields in `lucene-index/src/document/` (`geo.rs`, `shape.rs`, `shape_doc_values.rs`), and queries, sorts and distance features in `lucene-search/src/document/geo/` (`shape_queries.rs`, `sort.rs`, `distance_feature.rs`), plus `lucene-spatial3d`. This spec wires them, then ports the plugin.

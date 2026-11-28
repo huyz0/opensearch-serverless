@@ -49,6 +49,8 @@ pub struct Assembled {
     pub search: Arc<SearchService<Shared>>,
     /// The role the write routes write through.
     pub role: Arc<WriterRole>,
+    /// The bulk service a background writer indexes documents through.
+    pub(crate) bulk: Arc<BulkService>,
     timer: PublishTimer,
     janitor: JanitorTimer,
     drain: Drain,
@@ -60,6 +62,10 @@ pub struct Assembled {
     /// What the page cache's records are charged, held for the node's life.
     cache_records: Option<oss_mem::Reservation>,
     pub(crate) search_queue: Option<Arc<crate::search_queue::QueueAdmission>>,
+    /// Where lifecycle events go, for the plugins that subscribe.
+    pub(crate) events: crate::lifecycle_bus::Bus,
+    /// The sender alerting and ISM post through; none when notifications are off.
+    pub notifier: Option<Arc<crate::notifications_route::Notifier>>,
 }
 
 /// A node listening.
@@ -280,17 +286,24 @@ pub fn assemble(
     let (router, _sec) =
         crate::admin_assemble::register(router, &store, config, budget, &script_source)?;
     let router = crate::admin_assemble::ad_routes(router, config, &store, &search)?;
+    let (router, notifier) = crate::notifications_assemble::mount(router, config, &store, budget)?;
     let router = crate::sql_route::mount(router, config, &search, _sec.as_ref())?;
     let router = crate::async_search::mount(router, config, budget, Arc::clone(&search) as _)?;
+    let bus = crate::lifecycle_bus::Bus::default();
     #[cfg(feature = "coordinator")]
     let (router, drain, tasks) = {
         use crate::index_assemble::{index_service, pin_policy, restore_routes, stream_routes};
         let pins = pin_policy(config, &store, budget, _sec)?;
-        let indices = index_service(config, &store, &clock, bucket_wiring.as_ref(), pins)?;
+        let indices = index_service(config, &store, &clock, bucket_wiring.as_ref(), pins, &bus)?;
         let aliases = crate::index_assemble::alias_service(config, &store, &clock)?;
         let router = crate::alias_route::routes(router, aliases).map_err(AssembleError::Route)?;
-        let deletes =
-            crate::index_assemble::delete_service(config, &store, &clock, bucket_wiring.as_ref())?;
+        let deletes = crate::index_assemble::delete_service(
+            config,
+            &store,
+            &clock,
+            bucket_wiring.as_ref(),
+            &bus,
+        )?;
         let (router, restores) = restore_routes(router, config, &store, &clock, &deletes, budget)?;
         let drain =
             DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every).with_restores(restores);
@@ -318,7 +331,10 @@ pub fn assemble(
     };
     #[cfg(not(feature = "coordinator"))]
     let drain: Option<()> = None;
-    let router = crate::plugins::install_configured(router, &config.plugin_policy, &bulk)?;
+    let modules =
+        crate::plugins::configured_modules(&config.plugin_policy, &*store, &config.base, budget);
+    let router =
+        crate::plugins::install_configured(router, &config.plugin_policy, &bulk, &bus, &modules)?;
 
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(
@@ -337,9 +353,12 @@ pub fn assemble(
     let janitor = JanitorTimer::spawn(pass, config.janitor_every, Box::new(move || sweep));
     Ok(Assembled {
         search_queue: None,
+        events: bus,
+        notifier,
         router,
         search,
         role,
+        bulk,
         timer,
         janitor,
         drain,

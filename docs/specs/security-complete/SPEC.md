@@ -13,7 +13,7 @@ Each slice is one PR with its own acceptance criteria below (added when the slic
 | 1 | Management API completeness: list form (`GET` with no name) and `PATCH` (one document, and the bulk form) for the five kinds | this change |
 | 2 | Built-in documents: the stock static roles, action groups and `global_tenant` and the reserved roles of the default configuration, shipped as data (`builtin.json`, the recorded lists), listed and read with their flags, changes refused with the recorded 403 | this change |
 | 3 | `securityconfig` (the effective configuration, read only), the routes stock keeps closed (`allowlist`, `ssl/certs`, changing `securityconfig`), `permissionsinfo`, the cache flush | this change |
-| 4 | `authinfo` parity, `whoami`, `account` API (`GET`/`PUT /_plugins/_security/api/account`), `health`, `ssl/certs` | |
+| 4 | The `account` API (`GET`/`PUT /_plugins/_security/api/account`); `whoami`, `health` and `nodesdn` have no handler on stock 3.10.0 and none here | this change |
 | 5 | JWT authentication (HS and RS/ES keys, `jwks`, subject and roles keys, header and URL parameter) | |
 | 6 | OIDC (discovery document and JWKS fetched by the node, cached, bounded) | |
 | 7 | LDAP and client-certificate authentication (the LDAP client is the native-tier question) | |
@@ -34,6 +34,10 @@ Not shipped on purpose: the default configuration's demo users (`admin`, `kibana
 ## Slice 3: configuration and information routes
 
 `GET /_plugins/_security/api/securityconfig` answers the configuration this node enforces in the recorded shape: HTTP basic against the internal users is the one authentication domain, nothing authorizes beyond roles, tenancy is off. Slices that add an authentication backend (JWT, OIDC, LDAP) add their domain to it; the configuration is code, not a stored document, so there is nothing to keep in step across nodes. `PUT /securityconfig/config`, `PATCH /securityconfig`, `GET` and `PUT /allowlist` and `GET /ssl/certs` answer the recorded `403 Access denied` that stock answers by default (`restapi.allow_securityconfig_modification` off). `GET /permissionsinfo` names the caller as recorded. `DELETE /cache` answers `Cache flushed successfully.` and makes the next request read the document sets again. All are administrator-only, and none makes a store request of its own. `GET /audit` and its changes belong to the audit slice; `whoami`, `health` and `nodesdn` have no handler on stock 3.10.0 and none here.
+
+## Slice 4: the account API
+
+`GET /_plugins/_security/api/account` answers the caller as recorded: `user_name`, `is_reserved` (true for the static administrator only), `is_hidden`, `is_internal_user`, `user_requested_tenant`, `backend_roles`, `custom_attribute_names` (`attr.internal.<name>`), `tenants` and `roles`. `PUT` with `{"current_password","password"}` changes the caller's own password: a current password that does not verify is `400 Could not validate your current password.`, a weak new one is the recorded weak-password `400`, success is `'<name>' updated.` and the next request reads the new hash. The static administrator's password is not stored, so its change is `403 Resource '<name>' is reserved.`. A body that is not an object with both strings is `400` (not recorded; the plugin's wording is not captured). Open to every authenticated user and only about the caller, so it needs no administrator role. A change costs what a replacing `PUT` of a user costs, and a read costs nothing beyond the snapshot. `authinfo` is unchanged: its `remote_address` and verbose size fields are not reproduced (the sizes are Java object sizes).
 
 ## Slice 1 change
 
@@ -63,6 +67,9 @@ The answers follow the recording of stock 3.10.0 in `fixtures/compat/security-ap
 - AC-15: The closed routes answer the recorded `403 Access denied` and make no store request. Test: `the_configuration_that_stock_keeps_closed_is_403_and_makes_no_request`.
 - AC-16: `permissionsinfo` answers the recorded shape for the caller. Test: `permissionsinfo_names_the_caller`.
 - AC-17: A flush makes the next request read the sets, and a non-administrator is refused every route of this slice. Tests: `flushing_the_cache_makes_the_next_request_read_the_sets`, `a_user_without_admin_access_is_refused_every_one_of_these_routes`.
+- AC-18: `GET account` answers the recorded shape for the caller (a stored user with attributes and a mapped role, and the administrator as reserved). Tests: `account_answers_the_recorded_shape`, `the_account_of_the_administrator_is_reserved`.
+- AC-19: `PUT account` with the right current password stores a new hash, the old password stops working and the new one works; a wrong current password, a weak new one and a malformed body change nothing; the administrator's change is `403`. Tests: `a_user_changes_its_own_password`, `a_wrong_current_password_changes_nothing`, `a_malformed_password_change_is_400`, `the_administrator_cannot_change_a_stored_password`.
+- AC-20: Both methods are open to a user without the administrator role, and the action table has a row for them. Tests: `a_user_without_admin_access_reads_its_own_account`, `every_registered_route_has_an_action_row`.
 
 ## Test plan
 

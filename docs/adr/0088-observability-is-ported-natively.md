@@ -8,7 +8,7 @@ The observability plugin's server side is a store of typed JSON objects (saved q
 
 ## Decision
 
-Objects are documents of a new document-set kind, `DocKind::ObservabilityObjects`, container `observability/objects/` under the deployment's base: a marker register naming immutable content blobs, written by compare-and-swap, never listed. This adds one directory name to the shared blob formats and changes no existing byte; a Java node ignores it, and no Java node reads it. The bounds are the kind's own: at most 1,000 objects a deployment and 1 MiB each, the document set's common bounds. The routes sit behind `serverless.observability.enabled` (`OSS_OBSERVABILITY`), default off until the spec's criteria pass.
+Objects are documents of a new document-set kind, `DocKind::ObservabilityObjects`, container `observability/objects/` under the deployment's base: a marker register naming immutable content blobs, written by compare-and-swap, never listed. This adds one directory name to the shared blob formats and changes no existing byte; a Java node ignores it, and no Java node reads it. The bounds are the kind's own: at most 1,000 objects a deployment and 1 MiB each, the document set's common bounds. The routes sit behind `serverless.observability.enabled` (`OSS_OBSERVABILITY`), default on, by the owner's rule that a ported plugin needs no flag.
 
 ## Consequences
 

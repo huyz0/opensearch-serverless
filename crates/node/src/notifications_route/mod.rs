@@ -10,12 +10,18 @@
 //! compares the config marker's names with the catalogue's ids and repairs a
 //! difference. Nothing lists the store.
 
+mod accounts;
+mod aws;
 mod config;
 mod deliver;
 mod egress;
 mod list;
+mod notifier;
 mod routes;
+mod send;
+mod smtp;
 mod test_send;
+mod write;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,11 +32,14 @@ use oss_meta::{DocSet, MetaError};
 use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
 
-use crate::route_util::{read_body, refuse};
+use crate::route_util::refuse;
+pub use accounts::{Accounts, AwsAccount, SmtpAccount};
 pub use deliver::{Deliverer, Delivery, Limits};
 pub(crate) use egress::GuardedResolver;
 pub use egress::{EgressPolicy, Lookup, permitted, system_lookup};
+pub use notifier::{Notifier, NotifierCounts};
 pub use routes::routes;
+pub use send::{Outcome, Resolve, Senders};
 
 /// The catalogue's one document name.
 const CATALOGUE: &str = "catalogue";
@@ -43,7 +52,7 @@ pub struct NotificationsService {
     base: String,
     buffer_bytes: usize,
     allowed: Vec<&'static str>,
-    deliverer: Option<std::sync::Arc<Deliverer>>,
+    senders: Option<Arc<Senders>>,
 }
 
 pub(crate) fn bad(reason: impl Into<String>) -> RestError {
@@ -55,7 +64,7 @@ fn not_found(id: &str) -> RestError {
     refuse(
         404,
         "status_exception",
-        format!("NotificationConfig [{id}] not found"),
+        format!("NotificationConfig {id} not found"),
     )
 }
 
@@ -70,12 +79,12 @@ fn failed(e: &MetaError) -> RestError {
         MetaError::InvalidDocName(_) | MetaError::InvalidArgument(_) => bad(e.to_string()),
         MetaError::AlreadyExists => refuse(
             409,
-            "version_conflict_engine_exception",
+            "status_exception",
             "a notification config of that id already exists",
         ),
         MetaError::Contended => refuse(
             409,
-            "version_conflict_engine_exception",
+            "status_exception",
             "the notification configs are being changed, try again",
         ),
         // ALLOC: error path; one message.
@@ -140,7 +149,7 @@ impl NotificationsService {
             base: base.to_owned(),
             buffer_bytes,
             allowed: config::TYPES.to_vec(),
-            deliverer: None,
+            senders: None,
         }
     }
 
@@ -151,11 +160,17 @@ impl NotificationsService {
         self
     }
 
-    /// Sends the test route's message through `deliverer`; without one the
-    /// route answers 501.
+    /// Sends the test route's message through `deliverer`, with no account
+    /// declared; without one the route answers 501.
     #[must_use]
-    pub fn with_deliverer(mut self, deliverer: std::sync::Arc<Deliverer>) -> Self {
-        self.deliverer = Some(deliverer);
+    pub fn with_deliverer(self, deliverer: Arc<Deliverer>) -> Self {
+        self.with_senders(Arc::new(Senders::new(deliverer, Accounts::none())))
+    }
+
+    /// Sends the test route's message through `senders`.
+    #[must_use]
+    pub fn with_senders(mut self, senders: Arc<Senders>) -> Self {
+        self.senders = Some(senders);
         self
     }
 
@@ -231,147 +246,6 @@ impl NotificationsService {
             .map_err(|e| failed(&e))
     }
 
-    /// `POST /configs`: a config with a generated id, or the one it names.
-    pub(crate) fn create(
-        &self,
-        req: &mut Request<'_>,
-        resp: &mut Response<'_>,
-    ) -> Result<(), RestError> {
-        let raw = read_body(
-            req,
-            MAX_CONFIG_BYTES,
-            "the body is over the limit for a config",
-        )?;
-        let body: Value =
-            serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?;
-        let named = match body.get("config_id") {
-            None => None,
-            Some(Value::String(s)) => Some(s.clone()),
-            Some(_) => return Err(bad("[config_id] must be a string")),
-        };
-        let id = match named {
-            Some(id) => id,
-            None => fresh_id()?,
-        };
-        let stored = self.build(&id, &body, None)?;
-        // ALLOC: the document's text, at most the config bound.
-        let bytes = stored.to_string().into_bytes();
-        let mut marker = self.marker(req)?;
-        self.set(DocKind::NotificationConfigs)?
-            .put(&id, &bytes, true, &mut marker)
-            .map_err(|e| failed(&e))?;
-        let entry = summary(&stored);
-        self.catalogue_update(req, &mut |entries| upsert(entries, &entry))?;
-        resp.send(200, JSON, json!({"config_id": id}).to_string().as_bytes())
-    }
-
-    /// `PUT /configs/{id}`: a replace; the config must exist.
-    pub(crate) fn replace(
-        &self,
-        req: &mut Request<'_>,
-        resp: &mut Response<'_>,
-    ) -> Result<(), RestError> {
-        let id = Self::id_of(req)?;
-        let raw = read_body(
-            req,
-            MAX_CONFIG_BYTES,
-            "the body is over the limit for a config",
-        )?;
-        let body: Value =
-            serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?;
-        if body
-            .get("config_id")
-            .is_some_and(|v| v.as_str() != Some(&id))
-        {
-            return Err(bad("[config_id] must match the id in the path"));
-        }
-        let mut marker = self.marker(req)?;
-        let mut doc = Self::doc_buffer(req, DocKind::NotificationConfigs, 1)?;
-        let old = self
-            .stored(&id, &mut marker, &mut doc)?
-            .ok_or_else(|| not_found(&id))?;
-        let stored = self.build(&id, &body, Some(&old))?;
-        // ALLOC: the document's text, at most the config bound.
-        let bytes = stored.to_string().into_bytes();
-        self.set(DocKind::NotificationConfigs)?
-            .put(&id, &bytes, false, &mut marker)
-            .map_err(|e| failed(&e))?;
-        let entry = summary(&stored);
-        self.catalogue_update(req, &mut |entries| upsert(entries, &entry))?;
-        resp.send(200, JSON, json!({"config_id": id}).to_string().as_bytes())
-    }
-
-    /// The stored document for `body`'s config: checked, stamped, and for a
-    /// replace carrying the creation time and the next count of `old`.
-    fn build(&self, id: &str, body: &Value, old: Option<&Value>) -> Result<Value, RestError> {
-        let config = body
-            .get("config")
-            .ok_or_else(|| bad("the body needs a [config] object"))?;
-        let checked = config::checked(config, &self.allowed).map_err(bad)?;
-        let now = now_millis();
-        let (created, seq) = old.map_or((now, 0), |o| {
-            (
-                o["created_time_ms"].as_u64().unwrap_or(now),
-                o["seq"].as_i64().unwrap_or(0).saturating_add(1),
-            )
-        });
-        Ok(json!({
-            "config_id": id,
-            "seq": seq,
-            "created_time_ms": created,
-            "last_updated_time_ms": now,
-            "config": Value::Object(checked),
-        }))
-    }
-
-    /// Deletes `id`: its summary first, then the config. Whether there was one.
-    fn remove(&self, req: &mut Request<'_>, id: &str) -> Result<bool, RestError> {
-        self.catalogue_update(req, &mut |entries| {
-            let before = entries.len();
-            entries.retain(|e| e["config_id"].as_str() != Some(id));
-            entries.len() != before
-        })?;
-        let mut marker = self.marker(req)?;
-        self.set(DocKind::NotificationConfigs)?
-            .delete(id, &mut marker)
-            .map_err(|e| failed(&e))
-    }
-
-    /// `DELETE /configs/{id}`.
-    pub(crate) fn delete_one(
-        &self,
-        req: &mut Request<'_>,
-        resp: &mut Response<'_>,
-    ) -> Result<(), RestError> {
-        let id = Self::id_of(req)?;
-        if !self.remove(req, &id)? {
-            return Err(not_found(&id));
-        }
-        resp.send(200, JSON, deleted(&[(id, "OK")]).to_string().as_bytes())
-    }
-
-    /// `DELETE /configs?config_id=..&config_id_list=a,b`.
-    pub(crate) fn delete_many(
-        &self,
-        req: &mut Request<'_>,
-        resp: &mut Response<'_>,
-    ) -> Result<(), RestError> {
-        let ids = list::ids_of(req)?;
-        if ids.is_empty() {
-            return Err(bad("[config_id] or [config_id_list] is required"));
-        }
-        let mut done = Vec::with_capacity(ids.len());
-        for id in ids {
-            let status = if self.remove(req, &id)? {
-                "OK"
-            } else {
-                "NOT_FOUND"
-            };
-            done.push((id, status));
-        }
-        resp.send(200, JSON, deleted(&done).to_string().as_bytes())
-    }
-
     /// `GET /features`.
     pub(crate) fn features(
         &self,
@@ -412,10 +286,25 @@ fn entries_of(doc: Option<&[u8]>) -> Result<Vec<Value>, MetaError> {
 /// Puts `entry` in place of the entry of its id, or adds it.
 fn upsert(entries: &mut Vec<Value>, entry: &Value) -> bool {
     let id = entry["config_id"].as_str();
+    let next = entries
+        .iter()
+        .filter_map(|e| e["ord"].as_u64())
+        .max()
+        .map_or(0, |m| m.saturating_add(1));
     match entries.iter_mut().find(|e| e["config_id"].as_str() == id) {
-        Some(existing) if existing == entry => return false,
-        Some(existing) => *existing = entry.clone(),
-        None => entries.push(entry.clone()),
+        Some(existing) => {
+            let mut entry = entry.clone();
+            entry["ord"] = existing["ord"].clone();
+            if *existing == entry {
+                return false;
+            }
+            *existing = entry;
+        }
+        None => {
+            let mut entry = entry.clone();
+            entry["ord"] = Value::from(next);
+            entries.push(entry);
+        }
     }
     true
 }
