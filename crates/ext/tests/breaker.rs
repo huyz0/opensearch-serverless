@@ -207,3 +207,23 @@ fn the_open_time_is_jittered_within_twenty_percent_and_by_seed() {
     let b = Breaker::new(BreakerConfig::default(), 7);
     assert_eq!(a.state(), b.state());
 }
+
+// docs/specs/plugin-system AC-6: the jitter is the xorshift64 sequence of the seed, exactly.
+#[test]
+fn the_open_time_for_a_seed_is_the_xorshift_value() {
+    for (seed, reopen) in [
+        (1_u64, 25_020_u64),
+        (2, 27_060),
+        (3, 27_060),
+        (7, 31_140),
+        (12_345, 24_690),
+        (987_654_321, 28_140),
+    ] {
+        let mut b = Breaker::new(BreakerConfig::default(), seed);
+        for _ in 0..5 {
+            fail(&mut b, 0);
+        }
+        assert_eq!(b.allow(reopen - 1), Decision::Reject, "seed {seed} early");
+        assert_ne!(b.allow(reopen), Decision::Reject, "seed {seed} at {reopen}");
+    }
+}
