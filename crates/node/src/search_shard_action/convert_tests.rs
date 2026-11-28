@@ -85,6 +85,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             ranges: None,
             rare: None,
             multi: None,
+            wrap_longitude: true,
             subs: Vec::new(),
         },
         AggRequest {
@@ -98,6 +99,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             ranges: None,
             rare: None,
             multi: None,
+            wrap_longitude: true,
             subs: Vec::new(),
         },
     ];
@@ -125,6 +127,7 @@ fn a_precision_threshold_reaches_the_source() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     }];
     let s = search_source(&with).expect("a search source");
@@ -150,6 +153,7 @@ fn percentile_keys_and_options_reach_the_source() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     };
     with.aggregations = vec![
@@ -198,6 +202,7 @@ fn a_terms_aggregations_options_reach_the_source() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     };
     let mut with = read("request.match_all");
@@ -246,6 +251,7 @@ fn the_sub_aggregations_of_a_terms_reach_the_source() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     };
     let mut parent = leaf("t", AggKind::Terms);
@@ -285,6 +291,7 @@ fn a_date_histograms_options_and_sub_aggregations_reach_the_source() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     };
     let ask = |interval: &str, interval_type| {
@@ -334,6 +341,7 @@ fn a_ranges_bounds_keys_and_text_reach_the_source() {
         ranges: Some(RangesRequest { ranges, keyed }),
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     };
     let ask = |key: Option<&str>, from: f64, to: f64| RangeAsk {
@@ -398,6 +406,7 @@ fn a_rare_terms_and_a_multi_terms_reach_the_source() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     };
     let mut rare = base("r", AggKind::RareTerms);

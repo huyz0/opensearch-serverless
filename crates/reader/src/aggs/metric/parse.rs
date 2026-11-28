@@ -22,7 +22,7 @@ use crate::dsl::error::{DslError, parsing_failure};
 use crate::dsl::queries::function_score_script::ScriptScore;
 use crate::dsl::tokens::{Kind, Parser};
 
-use super::script_values;
+use super::{geo_parse, script_values};
 use crate::aggs::metric::scripted_metric;
 use crate::dsl::values::suggest;
 use crate::failure::Failure;
@@ -345,6 +345,7 @@ fn parse_definition(
                     rare: None,
                     scripted: None,
                     script: None,
+                    wrap_longitude: true,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),
                 };
@@ -357,6 +358,9 @@ fn parse_definition(
                         Metric::TopHits => {
                             // ALLOC: one box a `top_hits`, bounded by the body's recording.
                             agg.top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
+                        }
+                        Metric::GeoCentroid | Metric::GeoBounds => {
+                            (agg.field, agg.wrap_longitude) = geo_parse::parse_body(p, metric)?;
                         }
                         Metric::ScriptedMetric => {
                             // ALLOC: one box a `scripted_metric`, bounded by the body's recording.

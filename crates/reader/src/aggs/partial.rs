@@ -90,6 +90,33 @@ pub enum Value {
         /// `None` when no document matched.
         digest: Option<Digest>,
     },
+    /// `InternalGeoCentroid`: the centroid and how many points made it;
+    /// `lat` and `lon` mean nothing at a count of 0.
+    GeoCentroid {
+        /// How many points.
+        count: u64,
+        /// The centroid's latitude.
+        lat: f64,
+        /// The centroid's longitude.
+        lon: f64,
+    },
+    /// `InternalGeoBounds`: the six extremes `GeoBounds` is resolved from.
+    GeoBounds {
+        /// The largest latitude; negative infinity for none.
+        top: f64,
+        /// The smallest latitude; positive infinity for none.
+        bottom: f64,
+        /// The smallest longitude at or above 0.
+        pos_left: f64,
+        /// The largest longitude at or above 0.
+        pos_right: f64,
+        /// The smallest longitude below 0.
+        neg_left: f64,
+        /// The largest longitude below 0.
+        neg_right: f64,
+        /// `wrap_longitude`.
+        wrap: bool,
+    },
     /// `InternalTopHits`: the shard's top hits, which a coordinator merges
     /// by their sort once it has fetched them.
     TopHits(Box<TopHitsResult>),
@@ -157,6 +184,8 @@ fn reduce_one(parts: &[Value]) -> Option<Value> {
     match parts.first()? {
         Value::Cardinality(_) => reduce_cardinality(parts),
         Value::Percentiles { .. } => reduce_percentiles(parts),
+        Value::GeoCentroid { .. } => crate::aggs::metric::geo::reduce_centroid(parts),
+        Value::GeoBounds { .. } => crate::aggs::metric::geo::reduce_bounds(parts),
         Value::Terms(_) => terms::reduce(parts),
         Value::Histogram(_) => histogram::reduce(parts),
         Value::DateHistogram(_) => date_histogram::reduce(parts),

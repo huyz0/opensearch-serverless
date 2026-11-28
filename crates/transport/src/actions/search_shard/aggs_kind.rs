@@ -33,6 +33,10 @@ pub enum AggKind {
     RareTerms,
     /// `multi_terms`.
     MultiTerms,
+    /// `geo_centroid`.
+    GeoCentroid,
+    /// `geo_bounds`.
+    GeoBounds,
 }
 
 impl AggKind {
@@ -54,6 +58,8 @@ impl AggKind {
             Self::DateRange => "date_range",
             Self::RareTerms => "rare_terms",
             Self::MultiTerms => "multi_terms",
+            Self::GeoCentroid => "geo_centroid",
+            Self::GeoBounds => "geo_bounds",
         }
     }
 
@@ -74,6 +80,8 @@ impl AggKind {
             Self::DateRange,
             Self::RareTerms,
             Self::MultiTerms,
+            Self::GeoCentroid,
+            Self::GeoBounds,
         ]
         .into_iter()
         .find(|k| k.name() == name)

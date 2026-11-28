@@ -23,6 +23,7 @@ fn a_written_request_reads_back() {
             ranges: None,
             rare: None,
             multi: None,
+            wrap_longitude: true,
             subs: Vec::new(),
         },
         AggRequest {
@@ -36,6 +37,7 @@ fn a_written_request_reads_back() {
             ranges: None,
             rare: None,
             multi: None,
+            wrap_longitude: true,
             subs: Vec::new(),
         },
     ];
@@ -67,6 +69,7 @@ fn another_type_and_a_sub_aggregation_are_refused() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: Vec::new(),
     };
     let outer = AggRequest {
@@ -80,6 +83,7 @@ fn another_type_and_a_sub_aggregation_are_refused() {
         ranges: None,
         rare: None,
         multi: None,
+        wrap_longitude: true,
         subs: vec![inner],
     };
     let wire = bytes(&[outer]);
@@ -135,4 +139,89 @@ fn a_date_field_is_answered_with_the_date_time_format() {
     expected.extend_from_slice(&[1, b'Z', 0]);
     expected.extend_from_slice(&1.0f64.to_bits().to_be_bytes());
     assert_eq!(buf, expected);
+}
+
+fn geo(kind: AggKind, wrap_longitude: bool) -> AggRequest {
+    AggRequest {
+        name: "g".into(),
+        kind,
+        field: "loc".into(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        histogram: None,
+        ranges: None,
+        rare: None,
+        multi: None,
+        wrap_longitude,
+        subs: Vec::new(),
+    }
+}
+
+#[test]
+fn a_geo_request_reads_back_with_its_wrap_flag() {
+    let aggs = vec![
+        geo(AggKind::GeoCentroid, true),
+        geo(AggKind::GeoBounds, false),
+    ];
+    let wire = bytes(&aggs);
+    let mut input = Input::new(&wire);
+    assert_eq!(read(&mut input).expect("reads"), aggs);
+    input.finish("aggregations").expect("all read");
+}
+
+fn answer(value: AggValue) -> Vec<u8> {
+    let mut buf = Vec::new();
+    let mut out = Output::new(&mut buf, 1 << 20);
+    write_one("g", &value, false, &mut out).expect("writes");
+    buf
+}
+
+#[test]
+fn a_centroid_answer_is_its_count_then_the_point_as_the_java_streams_it() {
+    let wire = answer(AggValue::GeoCentroid {
+        count: 3,
+        lat: 20.0,
+        lon: 30.0,
+    });
+    let mut want = Vec::new();
+    let mut out = Output::new(&mut want, 1 << 20);
+    out.string("geo_centroid").unwrap();
+    out.string("g").unwrap();
+    out.byte(0xFF).unwrap();
+    out.vlong(3).unwrap();
+    out.bool(true).unwrap();
+    out.bytes(&20.0f64.to_bits().to_be_bytes()).unwrap();
+    out.bytes(&30.0f64.to_bits().to_be_bytes()).unwrap();
+    assert_eq!(wire, want);
+    // No point: the count and a false flag only.
+    let empty = answer(AggValue::GeoCentroid {
+        count: 0,
+        lat: 0.0,
+        lon: 0.0,
+    });
+    assert_eq!(&empty[empty.len() - 2..], &[0, 0]);
+}
+
+#[test]
+fn a_bounds_answer_is_six_doubles_then_the_wrap_flag() {
+    let wire = answer(AggValue::GeoBounds {
+        top: 1.0,
+        bottom: 2.0,
+        pos_left: 3.0,
+        pos_right: 4.0,
+        neg_left: 5.0,
+        neg_right: 6.0,
+        wrap: false,
+    });
+    let mut want = Vec::new();
+    let mut out = Output::new(&mut want, 1 << 20);
+    out.string("geo_bounds").unwrap();
+    out.string("g").unwrap();
+    out.byte(0xFF).unwrap();
+    for v in [1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0] {
+        out.bytes(&v.to_bits().to_be_bytes()).unwrap();
+    }
+    out.bool(false).unwrap();
+    assert_eq!(wire, want);
 }
