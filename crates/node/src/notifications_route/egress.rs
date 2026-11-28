@@ -149,9 +149,9 @@ impl EgressPolicy {
 }
 
 /// The resolver a delivery's agent uses: the lookup, then the address rules.
-pub(super) struct GuardedResolver {
-    pub(super) lookup: Lookup,
-    pub(super) policy: EgressPolicy,
+pub(crate) struct GuardedResolver {
+    pub(crate) lookup: Lookup,
+    pub(crate) policy: EgressPolicy,
 }
 
 impl fmt::Debug for GuardedResolver {

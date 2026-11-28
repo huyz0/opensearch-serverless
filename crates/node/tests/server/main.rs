@@ -93,6 +93,7 @@ mod metadata_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ml_connectors;
 mod ml_models;
+mod ml_predict;
 mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;

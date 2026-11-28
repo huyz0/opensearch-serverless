@@ -28,6 +28,7 @@ use serde_json::{Map, Value, json};
 
 use crate::route_util::{read_body, refuse};
 pub use deliver::{Deliverer, Delivery, Limits};
+pub(crate) use egress::GuardedResolver;
 pub use egress::{EgressPolicy, Lookup, permitted, system_lookup};
 pub use routes::routes;
 

@@ -34,7 +34,9 @@ impl Trusted {
             .map_err(|e| format!("trusted connector endpoints: {e}"))
     }
 
-    fn allows(&self, url: &str) -> bool {
+    /// Whether `url` is one a connector may call.
+    #[must_use]
+    pub fn allows(&self, url: &str) -> bool {
         self.0.as_ref().is_some_and(|r| r.is_match(url))
     }
 }

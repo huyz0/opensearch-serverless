@@ -29,7 +29,7 @@ const KNOWN: [&str; 14] = [
 /// The fields of a model an update may set.
 const UPDATABLE: [&str; 3] = ["name", "description", "connector_id"];
 
-fn missing(id: &str) -> RestError {
+pub(super) fn missing(id: &str) -> RestError {
     refuse(
         404,
         "status_exception",
@@ -38,7 +38,7 @@ fn missing(id: &str) -> RestError {
     )
 }
 
-fn connector_missing(id: &str) -> RestError {
+pub(super) fn connector_missing(id: &str) -> RestError {
     refuse(
         404,
         "status_exception",
@@ -64,7 +64,7 @@ fn state_of(model: &Map<String, Value>) -> &str {
 }
 
 impl MlService {
-    fn model_id(req: &Request<'_>) -> Result<String, RestError> {
+    pub(super) fn model_id(req: &Request<'_>) -> Result<String, RestError> {
         req.path_param("model_id")
             .map(std::borrow::Cow::into_owned)
             .ok_or_else(|| bad("a model id is required"))
@@ -250,6 +250,7 @@ impl MlService {
         }
         model.insert("last_updated_time".into(), json!(now_millis()));
         self.write_model(&id, &model, false, &mut marker)?;
+        self.cache.forget(&id);
         resp.send(
             200,
             JSON,
@@ -287,6 +288,7 @@ impl MlService {
         {
             return Err(refuse(404, "status_exception", "Failed to find model"));
         }
+        self.cache.forget(&id);
         resp.send(
             200,
             JSON,

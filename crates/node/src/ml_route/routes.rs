@@ -18,7 +18,7 @@ type Handler = fn(&MlService, &mut Request<'_>, &mut Response<'_>) -> Result<(),
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<MlService>) -> Result<Router, RouteError> {
-    let table: [(Method, &'static str, Handler); 24] = [
+    let table: [(Method, &'static str, Handler); 26] = [
         (
             Method::Post,
             "/_plugins/_ml/model_groups/_register",
@@ -138,6 +138,16 @@ pub fn routes(router: Router, service: &Arc<MlService>) -> Result<Router, RouteE
             Method::Delete,
             "/_plugins/_ml/tasks/{task_id}",
             MlService::delete_task,
+        ),
+        (
+            Method::Post,
+            "/_plugins/_ml/models/{model_id}/_predict",
+            MlService::predict_model,
+        ),
+        (
+            Method::Post,
+            "/_plugins/_ml/_predict/{algorithm}/{model_id}",
+            MlService::predict_algorithm,
         ),
     ];
     let mut router = router;

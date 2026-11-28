@@ -11,6 +11,8 @@
 mod claims;
 mod connectors;
 mod models;
+mod outbound;
+mod predict;
 mod routes;
 mod search;
 mod tasks;
@@ -25,6 +27,7 @@ use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
 
 use crate::route_util::{read_body, refuse};
+pub use outbound::{Limits, Outbound, Policy};
 pub(crate) use routes::mount;
 pub use routes::routes;
 
@@ -48,6 +51,9 @@ pub struct MlService {
     master_key: std::sync::OnceLock<String>,
     node_id: String,
     tasks: tasks::Tasks,
+    cache: predict::Cache,
+    cache_ttl: std::time::Duration,
+    outbound: outbound::Outbound,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -166,7 +172,28 @@ impl MlService {
             master_key: std::sync::OnceLock::new(),
             node_id: String::from("node"),
             tasks: tasks::Tasks::default(),
+            cache: predict::Cache::default(),
+            cache_ttl: predict::CACHE_TTL,
+            outbound: outbound::Outbound::new(
+                crate::notifications_route::system_lookup(),
+                outbound::Policy::from_env(),
+                outbound::Limits::default(),
+            ),
         }
+    }
+
+    /// Replaces the client connectors call through.
+    #[must_use]
+    pub fn with_outbound(mut self, outbound: outbound::Outbound) -> Self {
+        self.outbound = outbound;
+        self
+    }
+
+    /// How long an opened connector is kept between predicts.
+    #[must_use]
+    pub fn with_cache_ttl(mut self, ttl: std::time::Duration) -> Self {
+        self.cache_ttl = ttl;
+        self
     }
 
     /// The id this node shows as a model's worker node.
