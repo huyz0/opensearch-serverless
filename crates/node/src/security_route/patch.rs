@@ -2,8 +2,8 @@
 //! (docs/specs/security-complete/SPEC.md, slice 1).
 
 use oss_coordinator::security::{
-    Answer, Kind, MAX_LIST_BYTES, apply_ops, bulk_updated, missing, patch_document, plan_bulk,
-    render_list, validate,
+    Answer, Kind, MAX_LIST_BYTES, apply_ops, bulk_updated, missing, no_updates, patch_document,
+    plan_bulk, render_list, validate,
 };
 use oss_doc::mapping::json::{Json, parse};
 use oss_format::MAX_DOC_BYTES;
@@ -91,20 +91,26 @@ impl SecurityService {
             }
             writes.push((name, existing, Some(stored)));
         }
+        let mut changed = false;
         for (name, existing, stored) in writes {
             match stored {
                 Some(stored) => {
                     self.set(kind)
                         .put(&name, stored.to_json().as_bytes(), false, &mut marker)
                         .map_err(|e| failure(&e))?;
+                    changed = true;
                 }
                 None if existing.is_some() => {
                     self.set(kind)
                         .delete(&name, &mut marker)
                         .map_err(|e| failure(&e))?;
+                    changed = true;
                 }
                 None => {}
             }
+        }
+        if !changed {
+            return Ok(no_updates());
         }
         self.changed();
         Ok(bulk_updated())

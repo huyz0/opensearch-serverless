@@ -24,7 +24,6 @@ fn patch_applies_each_operation() {
             stored,
             r#"[{"op":"add","path":"/cluster_permissions/-","value":"b"},
                 {"op":"replace","path":"/description","value":"e"},
-                {"op":"test","path":"/cluster_permissions/0","value":"a"},
                 {"op":"add","path":"/cluster_permissions/0","value":"z"}]"#
         ),
         Ok(json!({"cluster_permissions":["z","a","b"],"description":"e"}))
@@ -65,6 +64,7 @@ fn a_patch_of_the_wrong_shape_is_400() {
     };
     bad("");
     bad("{}");
+    bad(r#"[{"op":"test","path":"/description","value":"d"}]"#);
     bad(r#"{"op":"add"}"#);
     bad(r#"[{"op":"frob","path":"/description","value":"x"}]"#);
     bad(r#"[{"op":"move","from":"/a","path":"/b"}]"#);
@@ -72,7 +72,6 @@ fn a_patch_of_the_wrong_shape_is_400() {
     bad(r#"[{"op":"add","path":"/description"}]"#);
     bad(r#"[{"op":"remove","path":"/missing"}]"#);
     bad(r#"[{"op":"replace","path":"/missing","value":"x"}]"#);
-    bad(r#"[{"op":"test","path":"/description","value":"other"}]"#);
     bad(r#"[{"op":"add","path":"description","value":"x"}]"#);
     bad(r#"[{"op":"add","path":"/a/b/c","value":"x"}]"#);
 }
@@ -126,10 +125,15 @@ fn a_bulk_patch_is_split_by_document_name() {
         "{}",
         r#"[{"op":"add","path":"","value":{}}]"#,
         r#"[{"op":"add","path":"name","value":{}}]"#,
-        r#"[{"op":"test","path":"/a","value":1}]"#,
     ] {
         assert_eq!(plan_bulk(bad.as_bytes()).unwrap_err().status, 400, "{bad}");
     }
+    // Removing a document that is not there changes nothing.
+    let nothing = apply_ops(
+        None,
+        &plan_bulk(br#"[{"op":"remove","path":"/ghost"}]"#).unwrap()[0].1,
+    );
+    assert_eq!(nothing.expect("applies"), None);
     // An operation on a document that is not there is 404-shaped, not a create.
     let missing = apply_ops(
         None,
@@ -156,4 +160,40 @@ fn a_list_holds_every_document_as_a_read_renders_it() {
 #[test]
 fn an_empty_kind_lists_as_an_empty_object() {
     assert_eq!(render_list(Kind::Roles, &[]), "{}");
+}
+
+#[test]
+fn the_recorded_messages_are_the_plugins() {
+    let message = |kind: Kind, stored: &str, ops: &str| {
+        patched(kind, stored, ops).unwrap_err().1["message"].clone()
+    };
+    let t = r#"{"description":"d"}"#;
+    assert_eq!(
+        message(Kind::Tenants, t, r#"[{"op":"nope","path":"/x","value":1}]"#),
+        json!("Unsupported patch operation: nope. Supported are: add,remove,replace")
+    );
+    assert_eq!(
+        message(
+            Kind::Tenants,
+            t,
+            r#"[{"op":"replace","path":"/nope","value":1}]"#
+        ),
+        json!("Missing field \"nope\"")
+    );
+    assert_eq!(
+        message(
+            Kind::Tenants,
+            t,
+            r#"{"op":"replace","path":"/description","value":""}"#
+        ),
+        json!("Wrong request body")
+    );
+    assert_eq!(
+        message(
+            Kind::Roles,
+            r#"{"index_permissions":[]}"#,
+            r#"[{"op":"replace","path":"/index_permissions/7/allowed_actions","value":["read"]}]"#
+        ),
+        json!("Array index 7 is out of bounds")
+    );
 }

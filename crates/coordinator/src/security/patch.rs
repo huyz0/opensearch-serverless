@@ -1,5 +1,5 @@
-//! RFC 6902 patches of security documents: `add`, `remove`, `replace` and
-//! `test` over one document, and the bulk form whose paths start with a
+//! RFC 6902 patches of security documents: `add`, `remove` and `replace`
+//! (the plugin supports no more) over one document, and the bulk form whose paths start with a
 //! document name.
 //!
 //! The patch is applied to the stored document and the result is checked as
@@ -15,7 +15,6 @@ enum Verb {
     Add,
     Remove,
     Replace,
-    Test,
 }
 
 /// One parsed operation: a verb, the path as unescaped tokens, and a value.
@@ -34,6 +33,20 @@ fn bad(message: &str) -> Answer {
         status: 400,
         // ALLOC: error path; one message.
         body: format!(r#"{{"status":"BAD_REQUEST","message":{text}}}"#),
+    }
+}
+
+fn missing_field(name: &str) -> Answer {
+    // ALLOC: error path; one message.
+    let mut text = String::new();
+    write_str(&mut text, name);
+    let inner = text
+        .get(1..text.len().saturating_sub(1))
+        .unwrap_or_default();
+    Answer {
+        status: 400,
+        // ALLOC: error path; one message.
+        body: format!(r#"{{"status":"BAD_REQUEST","message":"Missing field \"{inner}\""}}"#),
     }
 }
 
@@ -71,15 +84,19 @@ fn compile(item: &Json) -> Result<Op, Answer> {
         Some(Json::Str(s)) if s == "add" => Verb::Add,
         Some(Json::Str(s)) if s == "remove" => Verb::Remove,
         Some(Json::Str(s)) if s == "replace" => Verb::Replace,
-        Some(Json::Str(s)) if s == "test" => Verb::Test,
-        Some(Json::Str(_)) => return Err(bad("Unsupported patch operation.")),
+        Some(Json::Str(s)) => {
+            // ALLOC: error path; one message.
+            return Err(bad(&format!(
+                "Unsupported patch operation: {s}. Supported are: add,remove,replace"
+            )));
+        }
         _ => return Err(bad("A patch operation needs an 'op'.")),
     };
     let Some(Json::Str(path)) = item.get("path") else {
         return Err(bad("A patch operation needs a 'path'."));
     };
     let value = item.get("value").cloned();
-    if matches!(verb, Verb::Add | Verb::Replace | Verb::Test) && value.is_none() {
+    if matches!(verb, Verb::Add | Verb::Replace) && value.is_none() {
         return Err(bad("A patch operation needs a 'value'."));
     }
     Ok(Op {
@@ -90,11 +107,8 @@ fn compile(item: &Json) -> Result<Op, Answer> {
 }
 
 fn parse_ops(body: &[u8]) -> Result<Vec<Op>, Answer> {
-    if body.iter().all(u8::is_ascii_whitespace) {
-        return Err(bad("Request body required for this action."));
-    }
     let Ok(Json::Arr(items)) = parse(body) else {
-        return Err(bad("A patch must be a JSON array of operations."));
+        return Err(bad("Wrong request body"));
     };
     // ALLOC: one operation each, bounded by the 1 MiB body.
     items.iter().map(compile).collect()
@@ -110,7 +124,8 @@ fn index(token: &str, len: usize, allow_end: bool) -> Result<usize, Answer> {
             && !token.is_empty());
     match token.parse::<usize>() {
         Ok(i) if plain && (i < len || (allow_end && i == len)) => Ok(i),
-        _ => Err(bad("A patch path names an array index that is not there.")),
+        // ALLOC: error path; one message.
+        _ => Err(bad(&format!("Array index {token} is out of bounds"))),
     }
 }
 
@@ -120,12 +135,10 @@ fn child<'a>(node: &'a mut Json, token: &str) -> Result<&'a mut Json, Answer> {
             .iter_mut()
             .find(|(k, _)| k == token)
             .map(|(_, v)| v)
-            .ok_or_else(|| bad("A patch path is not in the document.")),
+            .ok_or_else(|| missing_field(token)),
         Json::Arr(items) => {
             let at = index(token, items.len(), false)?;
-            items
-                .get_mut(at)
-                .ok_or_else(|| bad("A patch path is not in the document."))
+            items.get_mut(at).ok_or_else(|| missing_field(token))
         }
         _ => Err(bad(
             "A patch path goes through a value that has no members.",
@@ -161,7 +174,7 @@ fn step(root: &mut Json, op: &Op) -> Result<(), Answer> {
             let slot = members
                 .iter_mut()
                 .find(|(k, _)| k == last)
-                .ok_or_else(|| bad("A patch path is not in the document."))?;
+                .ok_or_else(|| missing_field(last))?;
             slot.1 = value.unwrap_or(Json::Null);
             Ok(())
         }
@@ -185,14 +198,6 @@ fn step(root: &mut Json, op: &Op) -> Result<(), Answer> {
             items.remove(at);
             Ok(())
         }
-        (Verb::Test, found) => {
-            let found = child(found, last)?;
-            if Some(&*found) == value.as_ref() {
-                Ok(())
-            } else {
-                Err(bad("A patch 'test' did not match."))
-            }
-        }
         _ => Err(bad(
             "A patch path goes through a value that has no members.",
         )),
@@ -215,12 +220,8 @@ pub fn apply_ops(doc: Option<Json>, ops: &[Op]) -> Result<Option<Json>, Answer> 
                 (Verb::Add, _) => op.value.clone(),
                 (Verb::Replace, Some(_)) => op.value.clone(),
                 (Verb::Remove, Some(_)) => None,
-                (Verb::Test, Some(found)) => {
-                    if Some(&found) != op.value.as_ref() {
-                        return Err(bad("A patch 'test' did not match."));
-                    }
-                    Some(found)
-                }
+                // Removing what is not there changes nothing.
+                (Verb::Remove, None) => None,
                 (_, None) => return Err(not_found()),
             };
         } else {
@@ -261,9 +262,6 @@ pub fn plan_bulk(body: &[u8]) -> Result<Vec<(String, Vec<Op>)>, Answer> {
     // ALLOC: one entry a distinct name, bounded by the 1 MiB body.
     let mut plan: Vec<(String, Vec<Op>)> = Vec::new();
     for mut op in parse_ops(body)? {
-        if op.verb == Verb::Test {
-            return Err(bad("A bulk patch does not support 'test'."));
-        }
         if op.tokens.first().is_none_or(String::is_empty) {
             return Err(bad("A bulk patch path must start with a name."));
         }
@@ -277,11 +275,20 @@ pub fn plan_bulk(body: &[u8]) -> Result<Vec<(String, Vec<Op>)>, Answer> {
     Ok(plan)
 }
 
-/// The answer to a bulk patch that was applied.
+/// The answer to a bulk patch that changed nothing.
+pub fn no_updates() -> Answer {
+    Answer {
+        status: 200,
+        // ALLOC: one answer a request.
+        body: r#"{"status":"OK","message":"No updates required"}"#.to_owned(),
+    }
+}
+
+/// The answer to a bulk patch that changed something.
 pub fn bulk_updated() -> Answer {
     Answer {
         status: 200,
         // ALLOC: one answer a request.
-        body: r#"{"status":"OK","message":"Resources updated."}"#.to_owned(),
+        body: r#"{"status":"OK","message":"Resource updated."}"#.to_owned(),
     }
 }

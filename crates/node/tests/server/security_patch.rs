@@ -110,8 +110,7 @@ fn patch_applies_each_operation() {
         &format!("{API}/roles/p"),
         Some(
             r#"[{"op":"add","path":"/cluster_permissions/-","value":"b"},
-                {"op":"replace","path":"/description","value":"e"},
-                {"op":"test","path":"/cluster_permissions/0","value":"a"}]"#,
+                {"op":"replace","path":"/description","value":"e"}]"#,
         ),
     );
     assert_eq!(
@@ -145,7 +144,6 @@ fn a_patch_that_makes_an_invalid_document_changes_nothing() {
     for ops in [
         r#"[{"op":"add","path":"/bogus","value":1}]"#,
         r#"[{"op":"replace","path":"/description","value":5}]"#,
-        r#"[{"op":"test","path":"/description","value":"no"}]"#,
         r#"[{"op":"remove","path":"/nope"}]"#,
         r#"[{"op":"remove","path":""}]"#,
     ] {
@@ -264,7 +262,7 @@ fn a_bulk_patch_changes_several_documents() {
         done,
         (
             200,
-            r#"{"status":"OK","message":"Resources updated."}"#.to_owned()
+            r#"{"status":"OK","message":"Resource updated."}"#.to_owned()
         )
     );
     let listed: serde_json::Value =
@@ -283,7 +281,6 @@ fn an_invalid_operation_in_a_bulk_patch_writes_nothing() {
     for ops in [
         r#"[{"op":"replace","path":"/a/description","value":"x"},{"op":"add","path":"/b","value":{"bogus":1}}]"#,
         r#"[{"op":"replace","path":"/a/description","value":"x"},{"op":"replace","path":"/ghost/description","value":"x"}]"#,
-        r#"[{"op":"replace","path":"/a/description","value":"x"},{"op":"remove","path":"/ghost"}]"#,
     ] {
         let refused = call(&r, "PATCH", &format!("{API}/tenants"), Some(ops));
         assert!(refused.0 == 400 || refused.0 == 404, "{ops}: {}", refused.1);
@@ -318,4 +315,25 @@ fn a_bulk_patch_over_100_documents_is_refused() {
     );
     assert_eq!(refused.0, 400, "{}", refused.1);
     assert_eq!(call(&r, "GET", &format!("{API}/tenants"), None).1, "{}");
+}
+
+#[test]
+fn removing_what_is_not_there_changes_nothing() {
+    let r = rig();
+    put_tenants(&r, &["a"]);
+    let before = total(&r, &[S3Op::Put]);
+    let done = call(
+        &r,
+        "PATCH",
+        &format!("{API}/tenants"),
+        Some(r#"[{"op":"remove","path":"/ghost"}]"#),
+    );
+    assert_eq!(
+        done,
+        (
+            200,
+            r#"{"status":"OK","message":"No updates required"}"#.to_owned()
+        )
+    );
+    assert_eq!(total(&r, &[S3Op::Put]), before);
 }
