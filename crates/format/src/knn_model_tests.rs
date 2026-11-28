@@ -89,3 +89,38 @@ fn impossible_shapes_are_refused_before_anything_is_allocated() {
     let (header, _) = flat();
     assert!(encode(&header, &[1.0], &[]).is_err());
 }
+
+#[test]
+fn the_crc_is_the_trailer_the_blob_carries() {
+    let (header, centroids) = flat();
+    let blob = encode(&header, &centroids, &[]).unwrap();
+    let body = blob.len() - CRC;
+    let want = crc32fast::hash(&blob[..body]);
+    assert_eq!(parse(&blob).unwrap().crc(), want);
+    assert_eq!(blob[body..], want.to_le_bytes());
+}
+
+#[test]
+fn the_size_bound_is_inclusive() {
+    let at = vec![0u8; MAX_BLOB_BYTES];
+    assert!(!matches!(parse(&at), Err(FormatError::TooLarge { .. })));
+    let past = vec![0u8; MAX_BLOB_BYTES + 1];
+    assert!(matches!(parse(&past), Err(FormatError::TooLarge { .. })));
+}
+
+#[test]
+fn a_flat_model_that_names_sub_quantizers_is_refused_even_with_a_good_checksum() {
+    let (header, centroids) = flat();
+    let mut blob = encode(&header, &centroids, &[]).unwrap();
+    blob[20] = 1;
+    let body = blob.len() - CRC;
+    let crc = crc32fast::hash(&blob[..body]);
+    blob[body..].copy_from_slice(&crc.to_le_bytes());
+    match parse(&blob) {
+        Err(FormatError::Corrupt { .. }) => {}
+        other => panic!(
+            "expected the encoder to be refused, got {:?}",
+            other.map(|v| *v.header())
+        ),
+    }
+}
