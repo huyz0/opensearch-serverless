@@ -9,7 +9,11 @@ use std::collections::HashMap;
 /// The steps replayed: the monitor's own routes, the legacy prefix and the
 /// deletes. The rest need a search, the runner or alerts.
 fn replayed(i: usize) -> bool {
-    i <= 28 || (38..=40).contains(&i) || (51..=52).contains(&i) || (55..=68).contains(&i)
+    i <= 30
+        || (33..=37).contains(&i)
+        || (38..=40).contains(&i)
+        || (51..=52).contains(&i)
+        || (55..=68).contains(&i)
 }
 
 /// `<volatile>` and `<label>` match anything.
@@ -81,6 +85,10 @@ fn captured(step: &Value, got: &Value) -> Option<(String, String)> {
 
 /// Every difference between the recording and this node, by step.
 pub(crate) fn differences() -> Vec<String> {
+    let _switch = crate::support::PAINLESS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    oss_reader::painless_switch::set_native_compile(true);
     let r = rig();
     let recording = fixture();
     let mut labels: HashMap<String, String> = HashMap::new();
@@ -134,11 +142,14 @@ pub(crate) fn differences() -> Vec<String> {
             labels.insert(label, value);
         }
     }
+    oss_reader::painless_switch::set_native_compile(false);
     out
 }
 
-/// The steps that still differ, each for a reason the spec lists as a gap.
-const GAPS: &[usize] = &[];
+/// The steps that still differ, each for a reason the spec lists as a gap:
+/// 37 is the plugin's script error text, which carries the position of the
+/// failing token in the source.
+const GAPS: &[usize] = &[37];
 
 // AC-14
 #[test]

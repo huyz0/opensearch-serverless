@@ -10,6 +10,7 @@ mod support;
 mod ad_preview;
 mod ad_routes;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod alerting_execute;
 mod alerting_routes;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod alerting_stock;

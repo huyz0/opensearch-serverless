@@ -280,6 +280,7 @@ pub fn assemble(
     let (router, _sec) =
         crate::admin_assemble::register(router, &store, config, budget, &script_source)?;
     let router = crate::admin_assemble::ad_routes(router, config, &store, &search)?;
+    let router = crate::alerting_route::install(router, &store, config, Arc::clone(&search) as _)?;
     let router = crate::sql_route::mount(router, config, &search, _sec.as_ref())?;
     #[cfg(feature = "coordinator")]
     let (router, drain, tasks) = {

@@ -79,6 +79,7 @@ oss-janitor = { workspace = true, optional = true }
 oss-format = { workspace = true, optional = true }
 oss-blob = { workspace = true, optional = true }
 lucene-store = { workspace = true, optional = true }
+lucene-painless = { workspace = true }
 lucene-analysis = { workspace = true, optional = true }
 lucene-index = { workspace = true, optional = true }
 lucene-search = { workspace = true, optional = true }

@@ -9,11 +9,32 @@ use std::sync::Arc;
 use oss_blob::{BlobStore, Emulator, S3Op};
 use oss_mem::MemoryBudget;
 use oss_meta::{AlertRegistry, DeleteMode, DescriptorStore, PitClock};
+use oss_node::ad_route::WindowSearch;
 use oss_node::alerting_route::{AlertingService, routes};
 use oss_node::index_route::{IndexService, routes as index_routes};
-use oss_rest::{Router, Server};
+use oss_rest::{Exception, RestError, Router, Server};
 use oss_testkit::budget;
 use serde_json::{Value, json};
+
+/// The search a monitor's input runs: four documents in the source index and
+/// the engine's refusal of a clause it does not know.
+struct Source;
+
+impl WindowSearch for Source {
+    fn search(&self, _indices: &[String], body: &Value) -> Result<Value, RestError> {
+        if body.to_string().contains("\"nope\":{}") {
+            return Err(RestError::exception(
+                400,
+                Exception::new("parsing_exception", "unknown query [nope]"),
+            ));
+        }
+        Ok(json!({
+            "took": 1, "timed_out": false,
+            "_shards": {"total": 1, "successful": 1, "skipped": 0, "failed": 0},
+            "hits": {"total": {"value": 4, "relation": "eq"}, "max_score": null, "hits": []},
+        }))
+    }
+}
 
 pub(crate) struct Rig {
     pub(crate) server: Server,
@@ -25,8 +46,11 @@ pub(crate) fn rig() -> Rig {
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let descriptors =
         || DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).expect("names");
-    let service =
-        Arc::new(AlertingService::new(&blobs, "").with_descriptors(descriptors(), 1 << 16));
+    let service = Arc::new(
+        AlertingService::new(&blobs, "")
+            .with_descriptors(descriptors(), 1 << 16)
+            .with_search(Arc::new(Source)),
+    );
     let clock: PitClock = Arc::new(|| 1_234_567);
     let indices = Arc::new(IndexService::new(descriptors(), clock, 1 << 16));
     let router = index_routes(Router::new(), indices).expect("routes");
@@ -85,7 +109,7 @@ pub(crate) fn send(
     (status, serde_json::from_str(body).unwrap_or(Value::Null))
 }
 
-fn call(r: &Rig, method: &str, target: &str, body: Option<&Value>) -> (u16, Value) {
+pub(crate) fn call(r: &Rig, method: &str, target: &str, body: Option<&Value>) -> (u16, Value) {
     send(
         r.server.local_addr(),
         method,
@@ -95,7 +119,7 @@ fn call(r: &Rig, method: &str, target: &str, body: Option<&Value>) -> (u16, Valu
     )
 }
 
-fn monitor(name: &str, enabled: bool) -> Value {
+pub(crate) fn monitor(name: &str, enabled: bool) -> Value {
     json!({
         "type": "monitor", "name": name, "monitor_type": "query_level_monitor",
         "enabled": enabled,
@@ -107,7 +131,7 @@ fn monitor(name: &str, enabled: bool) -> Value {
     })
 }
 
-const BASE: &str = "/_plugins/_alerting/monitors";
+pub(crate) const BASE: &str = "/_plugins/_alerting/monitors";
 
 #[test]
 fn a_monitor_is_created_read_replaced_and_deleted_on_both_prefixes() {
@@ -238,7 +262,7 @@ fn tenants_are_separate_and_an_enabled_monitor_registers_its_tenant() {
     );
 }
 
-fn named(r: &Rig, name: &str, enabled: bool) -> String {
+pub(crate) fn named(r: &Rig, name: &str, enabled: bool) -> String {
     let (status, made) = call(r, "POST", BASE, Some(&monitor(name, enabled)));
     assert_eq!(status, 201, "{made}");
     made["_id"].as_str().expect("an id").to_owned()

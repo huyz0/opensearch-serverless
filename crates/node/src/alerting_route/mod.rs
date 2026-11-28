@@ -7,6 +7,7 @@
 //! body; nothing lists. `_seq_no` and `_version` are the index's change
 //! count.
 
+mod execute;
 mod misc;
 mod monitor;
 mod routes;
@@ -40,6 +41,7 @@ pub struct AlertingService {
     min_interval_secs: u64,
     descriptors: Option<DescriptorStore>,
     buffer_bytes: usize,
+    search: Option<Arc<dyn crate::ad_route::WindowSearch>>,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -106,7 +108,15 @@ impl AlertingService {
             min_interval_secs: MIN_INTERVAL_SECS,
             descriptors: None,
             buffer_bytes: 0,
+            search: None,
         }
+    }
+
+    /// Runs a monitor's input through `search` when it is executed.
+    #[must_use]
+    pub fn with_search(mut self, search: Arc<dyn crate::ad_route::WindowSearch>) -> Self {
+        self.search = Some(search);
+        self
     }
 
     /// Checks that the indices a monitor names exist, in `descriptors`, with
@@ -288,21 +298,32 @@ impl AlertingService {
         Self::answer(resp, 200, &id, put, &checked.stored)
     }
 
-    /// The stored monitor, or the plugin's 404.
-    fn read(
+    /// The stored monitor, or `None` for an id the tenant lacks.
+    fn load(
         &self,
         req: &mut Request<'_>,
-    ) -> Result<(String, oss_format::MonitorEntry, Value), RestError> {
+    ) -> Result<(String, Option<(oss_format::MonitorEntry, Value)>), RestError> {
         let (m, id) = (self.monitors(req)?, Self::id_of(req)?);
         req.body().reserve(MAX_MONITOR_BYTES)?;
         // ALLOC: one body buffer a request, MAX_MONITOR_BYTES, reserved above.
         let mut buf = vec![0u8; MAX_MONITOR_BYTES];
         let Some((entry, n)) = m.get(&id, &mut buf).map_err(|e| failed(&e))? else {
-            return Err(not_found());
+            return Ok((id, None));
         };
         let monitor: Value = serde_json::from_slice(buf.get(..n).unwrap_or_default())
             .map_err(|_| refuse(500, "alerting_exception", "a stored monitor is unreadable"))?;
-        Ok((id, entry, monitor))
+        Ok((id, Some((entry, monitor))))
+    }
+
+    /// The stored monitor, or the plugin's 404.
+    fn read(
+        &self,
+        req: &mut Request<'_>,
+    ) -> Result<(String, oss_format::MonitorEntry, Value), RestError> {
+        match self.load(req)? {
+            (id, Some((entry, monitor))) => Ok((id, entry, monitor)),
+            (_, None) => Err(not_found()),
+        }
     }
 
     /// `GET /monitors/{id}`.

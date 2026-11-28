@@ -14,6 +14,7 @@ use oss_meta::DescriptorStore;
 const PARAMS: &[&str] = &[
     "if_seq_no",
     "if_primary_term",
+    "dryrun",
     "q",
     "refresh",
     "master_timeout",
@@ -35,12 +36,19 @@ type Handler = fn(&AlertingService, &mut Request<'_>, &mut Response<'_>) -> Resu
 
 type Entry = (Method, &'static str, &'static [&'static str], Handler);
 
-fn table() -> [Entry; 17] {
+fn table() -> [Entry; 19] {
     use AlertingService as S;
     [
         (Method::Post, "/monitors", PARAMS, S::create),
         (Method::Post, "/monitors/_search", PARAMS, S::search),
         (Method::Get, "/monitors/_search", PARAMS, S::search),
+        (Method::Post, "/monitors/_execute", PARAMS, S::execute_body),
+        (
+            Method::Post,
+            "/monitors/{id}/_execute",
+            PARAMS,
+            S::execute_stored,
+        ),
         (Method::Put, "/monitors/{id}", PARAMS, S::update),
         (Method::Get, "/monitors/{id}", PARAMS, S::get),
         (Method::Head, "/monitors/{id}", PARAMS, S::head),
@@ -112,10 +120,12 @@ pub fn install(
     router: Router,
     store: &Arc<dyn oss_blob::BlobStore>,
     config: &Config,
+    search: Arc<dyn crate::ad_route::WindowSearch>,
 ) -> Result<Router, AssembleError> {
     let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;
     let service = AlertingService::new(store, &config.base)
-        .with_descriptors(descriptors, config.pit_buffer_bytes);
+        .with_descriptors(descriptors, config.pit_buffer_bytes)
+        .with_search(search);
     routes(router, &Arc::new(service)).map_err(AssembleError::Route)
 }

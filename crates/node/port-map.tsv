@@ -373,3 +373,4 @@ src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins fro
 src/alerting_route/search.rs	new		the monitor search route over a tenant's monitors (ADR 0075)
 src/alerting_route/search_query.rs	new		the query clauses a monitor search evaluates over one monitor
 src/alerting_route/misc.rs	new		the destinations, email searches, findings and stats routes that answer none yet
+src/alerting_route/execute.rs	new		one run of a query-level monitor, its trigger conditions in the Rust Painless runtime
