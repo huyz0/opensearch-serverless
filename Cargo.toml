@@ -7,6 +7,7 @@ members = [
     "crates/types",
     "crates/anomaly",
     "crates/mem",
+    "crates/ml",
     "crates/query",
     "crates/testkit",
     "crates/blob",
@@ -44,6 +45,7 @@ oss-ext = { path = "crates/ext" }
 oss-ext-wasm = { path = "crates/ext-wasm" }
 oss-anomaly = { path = "crates/anomaly" }
 oss-mem = { path = "crates/mem" }
+oss-ml = { path = "crates/ml" }
 oss-query = { path = "crates/query" }
 oss-edge = { path = "crates/edge" }
 oss-testkit = { path = "crates/testkit" }
@@ -71,19 +73,22 @@ proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
 # (docs/adr/0002-runtime-dependencies.md): git crates pinned at one exact
 # `rev`. Bump all of them together. For local cross-repo work, uncomment the
 # [patch] block at the end of this file.
-lucene-store = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-index = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-expressions = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-util = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-aggs = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-highlighter = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-queryparser = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
-lucene-painless = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
+lucene-store = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-index = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-expressions = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-util = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-aggs = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-ml = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-highlighter = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-queryparser = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-faiss = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-vector-quant = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
+lucene-painless = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff" }
 # The function-score node only: the analysis modules (heavy dictionaries) stay off.
-lucene-engine = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6", default-features = false }
+lucene-engine = { git = "https://github.com/huyz0/lucene-rust", rev = "1d1ace079a52b2677ab48df94594f9ed0a4d05ff", default-features = false }
 
 # Any crate may use `unsafe`, item by item, in the five patterns of
 # docs/unsafe.md: each use takes a local `#[allow(unsafe_code)]`, a

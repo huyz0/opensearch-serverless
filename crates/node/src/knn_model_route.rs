@@ -110,6 +110,13 @@ impl KnnModelService {
         }
     }
 
+    /// Whether a model named `id` is stored: the marker's read.
+    pub(crate) fn exists(&self, id: &str) -> Result<bool, RestError> {
+        let mut marker = vec![0u8; self.buffer_bytes];
+        let names = self.set()?.names(&mut marker).map_err(|e| failed(&e))?;
+        Ok(names.iter().any(|n| n == id))
+    }
+
     /// `GET /_plugins/_knn/models/{id}`.
     fn get(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let id = Self::id_of(req)?;

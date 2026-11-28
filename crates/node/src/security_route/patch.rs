@@ -2,8 +2,8 @@
 //! (docs/specs/security-complete/SPEC.md, slice 1).
 
 use oss_coordinator::security::{
-    Answer, Kind, MAX_LIST_BYTES, apply_ops, bulk_updated, missing, no_updates, patch_document,
-    plan_bulk, render_list, validate,
+    Answer, Kind, MAX_LIST_BYTES, apply_ops, builtin, builtins, bulk_updated, missing, no_updates,
+    patch_document, plan_bulk, protection, render_list, validate,
 };
 use oss_doc::mapping::json::{Json, parse};
 use oss_format::MAX_DOC_BYTES;
@@ -50,6 +50,9 @@ impl SecurityService {
             Ok(plan) => plan,
             Err(answer) => return Ok(answer),
         };
+        if let Some(refused) = plan.iter().find_map(|(name, _)| protection(kind, name)) {
+            return Ok(refused);
+        }
         if plan.len() > MAX_BULK_DOCS {
             return Ok(Answer {
                 status: 400,
@@ -126,27 +129,29 @@ impl SecurityService {
         // ALLOC: two scratch buffers a request, buffer_bytes each, reserved above.
         let mut marker = vec![0u8; self.buffer_bytes];
         let mut doc = vec![0u8; self.buffer_bytes];
-        // ALLOC: the answer, at most MAX_LIST_BYTES (reserved above) before it is refused.
-        let mut out = String::from("{");
+        // ALLOC: one fragment a document, at most MAX_LIST_BYTES in all (reserved above).
+        let mut entries: Vec<(String, String)> = Vec::new();
+        let mut bytes_held = 0usize;
         let mut too_large = false;
         self.set(kind)
             .for_each(&mut marker, &mut doc, &mut |name, bytes| {
-                if too_large {
+                if too_large || builtin(kind, name).is_some() {
                     return;
                 }
                 let Ok(json) = parse(bytes) else { return };
                 let one = render_list(kind, &[(name.to_owned(), json)]);
                 let inner = one.get(1..one.len().saturating_sub(1)).unwrap_or_default();
-                if out.len().saturating_add(inner.len()) >= MAX_LIST_BYTES {
+                bytes_held = bytes_held.saturating_add(inner.len());
+                if bytes_held >= MAX_LIST_BYTES {
                     too_large = true;
                     return;
                 }
-                if out.len() > 1 {
-                    out.push(',');
-                }
-                out.push_str(inner);
+                entries.push((name.to_owned(), inner.to_owned()));
             })
             .map_err(|e| failure(&e))?;
+        for shipped in builtins(kind) {
+            entries.push((shipped.name.clone(), shipped.fragment.clone()));
+        }
         if too_large {
             return Err(refuse(
                 413,
@@ -154,7 +159,9 @@ impl SecurityService {
                 "the list is larger than 4 MiB; read the documents by name",
             ));
         }
-        out.push('}');
+        entries.sort_by(|a, b| a.0.encode_utf16().cmp(b.0.encode_utf16()));
+        let fragments: Vec<&str> = entries.iter().map(|(_, f)| f.as_str()).collect();
+        let out = format!("{{{}}}", fragments.join(","));
         Ok(Answer {
             status: 200,
             body: out,

@@ -18,6 +18,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "ahash"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3019c0b8d883a8a17df3129e417ef463c087807d245e8881a31d583dee1c0519"
+dependencies = [
+ "cfg-if",
+ "getrandom 0.3.4",
+ "getrandom 0.4.3",
+ "once_cell",
+ "serde",
+ "version_check",
+ "zerocopy",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -66,6 +81,35 @@ name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+
+[[package]]
+name = "aws-lc-rs"
+version = "1.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "048006790404103c488e6c5616b3e7e702a71292aadda08e8f7698a9e0d2eb53"
+dependencies = [
+ "aws-lc-sys",
+ "zeroize",
+]
+
+[[package]]
+name = "aws-lc-sys"
+version = "0.47.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bfbe32ac36b3c428696ce315464181bc4029d689fd58e3f2a4e58c252242f52"
+dependencies = [
+ "cc",
+ "cmake",
+ "dunce",
+ "fs_extra",
+ "pkg-config",
+]
+
+[[package]]
+name = "base64"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
@@ -153,6 +197,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f125eb85b84a24c36b02ed1d22c9dd8632f53b3cde6e4d23512f94021030003"
 
 [[package]]
+name = "castaway"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dec551ab6e7578819132c713a93c022a05d60159dc86e7a7050223577484c55a"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "cc"
 version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -208,6 +261,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cmake"
+version = "0.1.58"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "cmov"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -220,6 +282,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fa961b519f0b462e3a3b4a34b64d119eeaca1d59af726fe450bbba07a9fc0a1"
 dependencies = [
  "thiserror",
+]
+
+[[package]]
+name = "compact_str"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dfdd1c2274d9aa354115b09dc9a901d6c5576818cdf70d14cae2bdb47df00ab"
+dependencies = [
+ "castaway",
+ "cfg-if",
+ "itoa",
+ "rustversion",
+ "ryu",
+ "serde",
+ "static_assertions",
 ]
 
 [[package]]
@@ -465,10 +542,85 @@ dependencies = [
 ]
 
 [[package]]
+name = "darling"
+version = "0.20.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc7f46116c46ff9ab3eb1597a45688b6715c6e628b5c133e288e709a29bcb4ee"
+dependencies = [
+ "darling_core",
+ "darling_macro",
+]
+
+[[package]]
+name = "darling_core"
+version = "0.20.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d00b9596d185e565c2207a0b01f8bd1a135483d02d9b7b0a54b11da8d53412e"
+dependencies = [
+ "fnv",
+ "ident_case",
+ "proc-macro2",
+ "quote",
+ "strsim",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "darling_macro"
+version = "0.20.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
+dependencies = [
+ "darling_core",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "dary_heap"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b1e3a325bc115f096c8b77bbf027a7c2592230e70be2d985be950d3d5e60ebe"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "deranged"
 version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e9de72ce2ad1f90dc62fa25f0f430ef85eb4b0d8fa0be4f30373bc40a21d28e"
+
+[[package]]
+name = "derive_builder"
+version = "0.20.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "507dfb09ea8b7fa618fcf76e953f4f5e192547945816d5358edffe39f6f94947"
+dependencies = [
+ "derive_builder_macro",
+]
+
+[[package]]
+name = "derive_builder_core"
+version = "0.20.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d5bcf7b024d6835cfb3d473887cd966994907effbe9227e8c8219824d06c4e8"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "derive_builder_macro"
+version = "0.20.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab63b0e2bf4d5928aff72e83a7dace85d7bba5fe12dcc3c5a572d78caffd3f3c"
+dependencies = [
+ "derive_builder_core",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "digest"
@@ -491,6 +643,12 @@ dependencies = [
  "crypto-common 0.2.2",
  "ctutils",
 ]
+
+[[package]]
+name = "dunce"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "either"
@@ -527,6 +685,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "esaxx-rs"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d817e038c30374a4bcb22f94d0a8a0e216958d4c3dcde369b1439fec4bdda6e6"
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -549,6 +713,12 @@ name = "foldhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
+name = "fs_extra"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
 name = "futures"
@@ -804,6 +974,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ident_case"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
+
+[[package]]
 name = "indexmap"
 version = "2.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -921,6 +1097,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
+name = "libloading"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1832accd5a4ca2795ace4d05d15c4039be15b62d3b950eff99746a990e3cc10"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -979,7 +1165,7 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 [[package]]
 name = "lucene-aggs"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "jiff",
  "lucene-analysis",
@@ -994,7 +1180,7 @@ dependencies = [
 [[package]]
 name = "lucene-analysis"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-util",
  "miniz_oxide",
@@ -1006,7 +1192,7 @@ dependencies = [
 [[package]]
 name = "lucene-analysis-icu"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-index",
@@ -1016,7 +1202,7 @@ dependencies = [
 [[package]]
 name = "lucene-codecs"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "crc32fast",
  "lucene-store",
@@ -1029,7 +1215,7 @@ dependencies = [
 [[package]]
 name = "lucene-disk-hnsw"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-ivf",
@@ -1043,7 +1229,7 @@ dependencies = [
 [[package]]
 name = "lucene-engine"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-aggs",
  "lucene-analysis",
@@ -1066,7 +1252,7 @@ dependencies = [
 [[package]]
 name = "lucene-expressions"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-index",
  "lucene-search",
@@ -1078,7 +1264,7 @@ dependencies = [
 [[package]]
 name = "lucene-facet"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1092,7 +1278,7 @@ dependencies = [
 [[package]]
 name = "lucene-highlighter"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1106,7 +1292,7 @@ dependencies = [
 [[package]]
 name = "lucene-index"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1123,7 +1309,7 @@ dependencies = [
 [[package]]
 name = "lucene-ivf"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-store",
  "lucene-util",
@@ -1135,7 +1321,7 @@ dependencies = [
 [[package]]
 name = "lucene-misc"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1146,9 +1332,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "lucene-ml"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
+dependencies = [
+ "aws-lc-rs",
+ "lucene-util",
+ "ort",
+ "serde_json",
+ "thiserror",
+ "tokenizers",
+]
+
+[[package]]
 name = "lucene-painless"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-util",
@@ -1159,7 +1358,7 @@ dependencies = [
 [[package]]
 name = "lucene-pattern-text"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1170,7 +1369,7 @@ dependencies = [
 [[package]]
 name = "lucene-queryparser"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1184,7 +1383,7 @@ dependencies = [
 [[package]]
 name = "lucene-sandbox"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1198,7 +1397,7 @@ dependencies = [
 [[package]]
 name = "lucene-search"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-analysis",
  "lucene-codecs",
@@ -1217,7 +1416,7 @@ dependencies = [
 [[package]]
 name = "lucene-sparse"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1230,7 +1429,7 @@ dependencies = [
 [[package]]
 name = "lucene-spatial3d"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-util",
  "thiserror",
@@ -1239,7 +1438,7 @@ dependencies = [
 [[package]]
 name = "lucene-spatial4j"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-spatial3d",
  "lucene-util",
@@ -1249,7 +1448,7 @@ dependencies = [
 [[package]]
 name = "lucene-store"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "crc32fast",
  "libc",
@@ -1261,7 +1460,7 @@ dependencies = [
 [[package]]
 name = "lucene-tensor"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-codecs",
  "lucene-index",
@@ -1273,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "lucene-util"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "matrixmultiply",
  "thiserror",
@@ -1282,16 +1481,17 @@ dependencies = [
 [[package]]
 name = "lucene-vector-quant"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "lucene-util",
+ "rayon",
  "thiserror",
 ]
 
 [[package]]
 name = "lucene-zstd"
 version = "0.1.0"
-source = "git+https://github.com/huyz0/lucene-rust?rev=dbb34e9871ca93292ef46b29433252c87c8b57a6#dbb34e9871ca93292ef46b29433252c87c8b57a6"
+source = "git+https://github.com/huyz0/lucene-rust?rev=1d1ace079a52b2677ab48df94594f9ed0a4d05ff#1d1ace079a52b2677ab48df94594f9ed0a4d05ff"
 dependencies = [
  "thiserror",
  "zstd-safe 8.4.0",
@@ -1302,6 +1502,22 @@ name = "mach2"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dae608c151f68243f2b000364e1f7b186d9c29845f7d2d85bd31b9ad77ad552b"
+
+[[package]]
+name = "macro_rules_attribute"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3ae8f6d608c795738406608304d30a2dfbdc8e58e44f7ba43236da5208ded3c"
+dependencies = [
+ "macro_rules_attribute-proc_macro",
+ "pastey",
+]
+
+[[package]]
+name = "macro_rules_attribute-proc_macro"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc04a4c58212d57930a24bf47d3fa87485264a3a054e9c10e042eb373573ad3c"
 
 [[package]]
 name = "matrixmultiply"
@@ -1370,6 +1586,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "minimal-lexical"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
 name = "miniz_oxide"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1390,10 +1612,75 @@ dependencies = [
 ]
 
 [[package]]
+name = "monostate"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3341a273f6c9d5bef1908f17b7267bbab0e95c9bf69a0d4dcf8e9e1b2c76ef67"
+dependencies = [
+ "monostate-impl",
+ "serde",
+ "serde_core",
+]
+
+[[package]]
+name = "monostate-impl"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4db6d5580af57bf992f59068d4ea26fd518574ff48d7639b255a36f9de6e7e9"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "ndarray"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "520080814a7a6b4a6e9070823bb24b4531daac8c4627e08ba5de8c5ef2f2752d"
+dependencies = [
+ "matrixmultiply",
+ "num-complex",
+ "num-integer",
+ "num-traits",
+ "portable-atomic",
+ "portable-atomic-util",
+ "rawpointer",
+]
+
+[[package]]
+name = "nom"
+version = "7.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
+dependencies = [
+ "memchr",
+ "minimal-lexical",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "num-conv"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
+
+[[package]]
+name = "num-integer"
+version = "0.1.47"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "num-traits"
@@ -1423,6 +1710,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "onig"
+version = "6.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cc3cbf698f9438986c11a880c90a6d04b9de27575afd28bbf45b154b6c709e2"
+dependencies = [
+ "bitflags",
+ "libc",
+ "once_cell",
+ "onig_sys",
+]
+
+[[package]]
+name = "onig_sys"
+version = "69.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e68317604e77e53b85896388e1a803c1d21b74c899ec9e5e1112db90735edd7"
+dependencies = [
+ "cc",
+ "pkg-config",
+]
+
+[[package]]
 name = "ordered-float"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1430,6 +1739,25 @@ checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
 dependencies = [
  "num-traits",
 ]
+
+[[package]]
+name = "ort"
+version = "2.0.0-rc.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37c87aa7a90b7ff3e0fe36cccd475df8d67f15f07f4d6c370c4b38464232813c"
+dependencies = [
+ "libloading",
+ "ndarray",
+ "ort-sys",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
+name = "ort-sys"
+version = "2.0.0-rc.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d22b0417f1838db5a3ac0b3f98dfe39f6fb73624aa0a27c6bbb5040b9c7db2b"
 
 [[package]]
 name = "oss-anomaly"
@@ -1596,6 +1924,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-ml"
+version = "0.1.0"
+dependencies = [
+ "lucene-ml",
+ "regex",
+ "serde_json",
+]
+
+[[package]]
 name = "oss-node"
 version = "0.1.0"
 dependencies = [
@@ -1622,6 +1959,7 @@ dependencies = [
  "oss-janitor",
  "oss-mem",
  "oss-meta",
+ "oss-ml",
  "oss-query",
  "oss-reader",
  "oss-rest",
@@ -1739,6 +2077,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pastey"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
+
+[[package]]
 name = "pem"
 version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1827,7 +2177,7 @@ dependencies = [
  "lazy_static",
  "num-traits",
  "rand 0.8.8",
- "rand_chacha",
+ "rand_chacha 0.3.1",
  "rand_xorshift",
  "regex-syntax",
  "unarray",
@@ -2024,8 +2374,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e058c7de0b26af77780c769414d6257830bb240f3c38477dbc2c16e5f54d6d4c"
 dependencies = [
  "libc",
- "rand_chacha",
+ "rand_chacha 0.3.1",
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41"
+dependencies = [
+ "rand_chacha 0.9.0",
+ "rand_core 0.9.5",
 ]
 
 [[package]]
@@ -2050,12 +2410,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_chacha"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.9.5",
+]
+
+[[package]]
 name = "rand_core"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom 0.2.17",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
+dependencies = [
+ "getrandom 0.3.4",
 ]
 
 [[package]]
@@ -2096,6 +2475,17 @@ checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
 dependencies = [
  "either",
  "rayon-core",
+]
+
+[[package]]
+name = "rayon-cond"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2964d0cf57a3e7a06e8183d14a8b527195c706b7983549cd5462d5aa3747438f"
+dependencies = [
+ "either",
+ "itertools",
+ "rayon",
 ]
 
 [[package]]
@@ -2401,10 +2791,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "spm_precompiled"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5851699c4033c63636f7ea4cf7b7c1f1bf06d0cc03cfb42e711de5a5c46cf326"
+dependencies = [
+ "base64 0.13.1",
+ "nom",
+ "serde",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "strsim"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subtle"
@@ -2495,6 +2909,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
+name = "tokenizers"
+version = "0.22.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b238e22d44a15349529690fb07bd645cf58149a1b1e44d6cb5bd1641ff1a6223"
+dependencies = [
+ "ahash",
+ "aho-corasick",
+ "compact_str",
+ "dary_heap",
+ "derive_builder",
+ "esaxx-rs",
+ "getrandom 0.3.4",
+ "itertools",
+ "log",
+ "macro_rules_attribute",
+ "monostate",
+ "onig",
+ "paste",
+ "rand 0.9.5",
+ "rayon",
+ "rayon-cond",
+ "regex",
+ "regex-syntax",
+ "serde",
+ "serde_json",
+ "spm_precompiled",
+ "thiserror",
+ "unicode-normalization-alignments",
+ "unicode-segmentation",
+ "unicode_categories",
+]
+
+[[package]]
 name = "tokio"
 version = "1.54.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2582,6 +3029,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
+name = "unicode-normalization-alignments"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43f613e4fa046e69818dd287fdc4bc78175ff20331479dab6e1b0f98d57062de"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "unicode-segmentation"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2598,6 +3054,12 @@ name = "unicode-width"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca718471876992059f251e33aafc334346ada08042b7661dd1fe313a9bced557"
+
+[[package]]
+name = "unicode_categories"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39ec24b3121d976906ece63c9daad25b85969647682eee313cb5779fdd69e14e"
 
 [[package]]
 name = "untrusted"

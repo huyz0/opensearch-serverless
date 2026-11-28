@@ -12,13 +12,13 @@ const PARAMS: &[&str] = &["master_timeout", "cluster_manager_timeout", "timeout"
 
 type Handler = fn(&MlService, &mut Request<'_>, &mut Response<'_>) -> Result<(), RestError>;
 
-/// The model group routes.
+/// The model group and connector routes.
 ///
 /// # Errors
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<MlService>) -> Result<Router, RouteError> {
-    let table: [(Method, &'static str, Handler); 6] = [
+    let table: [(Method, &'static str, Handler); 12] = [
         (
             Method::Post,
             "/_plugins/_ml/model_groups/_register",
@@ -49,6 +49,36 @@ pub fn routes(router: Router, service: &Arc<MlService>) -> Result<Router, RouteE
             "/_plugins/_ml/model_groups/{model_group_id}",
             MlService::delete_group,
         ),
+        (
+            Method::Post,
+            "/_plugins/_ml/connectors/_create",
+            MlService::create_connector,
+        ),
+        (
+            Method::Get,
+            "/_plugins/_ml/connectors/_search",
+            MlService::search_connectors,
+        ),
+        (
+            Method::Post,
+            "/_plugins/_ml/connectors/_search",
+            MlService::search_connectors,
+        ),
+        (
+            Method::Put,
+            "/_plugins/_ml/connectors/{connector_id}",
+            MlService::update_connector,
+        ),
+        (
+            Method::Get,
+            "/_plugins/_ml/connectors/{connector_id}",
+            MlService::get_connector,
+        ),
+        (
+            Method::Delete,
+            "/_plugins/_ml/connectors/{connector_id}",
+            MlService::delete_connector,
+        ),
     ];
     let mut router = router;
     for (method, path, handler) in table {
@@ -72,6 +102,10 @@ pub(crate) fn mount(
     if !config.ml {
         return Ok(router);
     }
-    let ml = MlService::new(store, &config.base, config.pit_buffer_bytes);
+    // Operator setting, never a cluster setting: the endpoints connectors may call.
+    let pattern = std::env::var("OSS_ML_TRUSTED_ENDPOINTS").unwrap_or_default();
+    let trusted = oss_ml::connector::Trusted::parse(&pattern)
+        .map_err(crate::assemble::AssembleError::Security)?;
+    let ml = MlService::new(store, &config.base, config.pit_buffer_bytes).with_trusted(trusted);
     routes(router, &Arc::new(ml)).map_err(crate::assemble::AssembleError::Route)
 }

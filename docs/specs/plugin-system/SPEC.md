@@ -6,7 +6,7 @@
 
 ## Change
 
-Eight slices, one PR each, each behind `serverless.plugins.enabled` (default off), and the native library loader behind `serverless.plugins.native.enabled` and the Cargo feature `plugins-native`. Slices 1 and 2 add no tier a deployer can reach; the first plugin that runs is slice 2's linked-in one.
+Eight slices, one PR each. The plugin system has no master switch: the deployer's policy (`OSS_PLUGINS`) is the opt-in, an empty or absent policy loads nothing, and the native library loader sits behind `serverless.plugins.native.enabled` and the Cargo feature `plugins-native`. Slices 1 and 2 add no tier a deployer can reach; the first plugin that runs is slice 2's linked-in one.
 
 1. **Contract** (`oss-ext`, no runtime): the manifest and its strict parser (the descriptor parser grown by the `plugin`, `routes`, `events`, `capabilities`, `budget` sections), the point catalogue as data (name, version, determinism class, ceilings, allowed tiers), the capability and budget types, the plugin API version (`1.0`) and its accept rule, the circuit breaker with an injected clock, and (added with the dynamic native tier) the C ABI as `#[repr(C)]` types and symbol names, with a golden layout test and the version rule both ways. The `rest` and `lifecycle` codecs and their golden vectors move to slice 2, where the first caller is.
 2. **Registry, the linked-in native form, REST routes, lifecycle** (`oss-node` `plugins/`, `plugins/` for third-party native crates): the `NativeInstance` trait, the policy reader (`OSS_PLUGINS`), registration with collision and claim rules, route mounting with the action-table row, dispatch with `catch_unwind`, the breaker and bulkhead on every call, lifecycle delivery from a bounded queue, the status route, counters, the setting. A reference plugin `plugins/echo` used by the tests, linked in here and built as a library in slice 5.
@@ -41,7 +41,7 @@ File ownership: new files under `crates/ext`, `crates/ext-wasm`, `crates/ext-grp
 - AC-16: memory: a plugin route's request body is reserved from the `Extensions` pool before it is read and its response ceiling before the call, so a body larger than `max_request_bytes` is a 413 before anything is read and an exhausted pool is a 429; the peak reservation of each tier equals the literal sum the ADR states in section 7 (native `body + response ceiling + the plugin's declared memory_bytes`, wasm ADR 0052's formula plus body and response, grpc `body + response ceiling + 64 KiB window and frame pair per connection`) and is held to it by a test; a native plugin's host allocation refusal is the memory-limit status; with the pool at 0 no WASM or gRPC plugin loads and the start log says so.
 - AC-17: lifecycle events are delivered to a plugin in the order they happened, from a bounded queue of 256 with drop-newest and a counter; a plugin that blocks forever delays no index create, delete or node start (the operation completes within its normal time with the plugin stuck); an event is delivered with no request to the store.
 - AC-18: the status route answers from memory with id, tier, version, state, counters and last failure, makes no store request, and requires `all_access`; the counters are in `/_prometheus/metrics`.
-- AC-19: the switch (the numbers are provisional, measured on RustFS): with `serverless.plugins.enabled` off nothing loads, a policy naming plugins is logged and ignored, plugin routes answer as unknown routes, the status route is absent, and every existing test (proxy prefixes, ported routes, the analyzer pin and its switch) passes unchanged; with it on and an empty policy, search and write latency and the request counts of the budget tests are unchanged (within the bar of the build rule: write p99 within 5%, no extra requests, no search regression).
+- AC-19: no policy, no cost (the numbers are provisional, measured on RustFS): with no `OSS_PLUGINS` policy, or an empty one, nothing loads and the only route added is the status route, answered from memory; every existing test (proxy prefixes, ported routes, the analyzer pin and its switch) passes unchanged, search and write latency and the request counts of the budget tests are unchanged (within the bar of the build rule: write p99 within 5%, no extra requests, no search regression), and a policy that does not parse is refused whole with the node not starting.
 - AC-20: the layering and `unsafe` predicates: `unsafe` for loading appears only in `oss-ext-native`, each block with a local allow and a `// SAFETY:` comment (`scripts/check-unsafe.py`, with a planted violation in `scripts/selftest-checks.py`); a crate under `plugins/` depends on `oss-plugin-sdk` and nothing else in the workspace; only `oss-node` depends on `oss-ext-grpc` and `oss-ext-native`; and a build without `plugins-native` has neither `oss-ext-native` nor `libloading` in its dependency tree (`cargo tree`).
 - AC-21: conformance: one suite whose plugin is written linked in, as a library, as a WASM module and as a gRPC service gives the same answers for the same requests for `rest` and `lifecycle`, including every status in the failure table, on every form.
 - AC-22: the first adopter: learning to rank's routes and rescore, registered through the system, pass their existing tests unchanged and make the same store requests as before (`docs/specs/ltr`).
@@ -99,7 +99,7 @@ No request scales with documents, indexes, plugins loaded or elapsed time. A cal
 
 ## Switch
 
-`serverless.plugins.enabled`, node scope, default **false**; `serverless.plugins.native.enabled` and `serverless.plugins.grpc.enabled`, each default false and each only with the first (the native one runs foreign code in the node's process, the gRPC one opens outbound connections). Both flip only when slice 7 records: hostile plugins of every tier leave the node serving within its memory budget; AC-12's idle-zero holds with all tiers loaded; an enabled empty registry changes no request count and keeps write p99 within 5% and search latency unchanged (measured on RustFS, provisional). Until then the setting stays off, the flip is its own change, and the owner is told.
+There is no `serverless.plugins.enabled`: with no downside to hide behind a switch, the policy is the opt-in. `serverless.plugins.native.enabled` and `serverless.plugins.grpc.enabled` stay, each default false (the native one runs foreign code in the node's process, the gRPC one opens outbound connections). Both flip only when slice 7 records: hostile plugins of every tier leave the node serving within its memory budget; AC-12's idle-zero holds with all tiers loaded (measured on RustFS, provisional). Until then the setting stays off, the flip is its own change, and the owner is told.
 
 ## Risks
 
@@ -109,3 +109,20 @@ No request scales with documents, indexes, plugins loaded or elapsed time. A cal
 - **gRPC adds an outbound connection surface.** Off by default, endpoints named by the deployer in the policy, no redirects, no discovery; TLS verification is not optional for TCP.
 - **The policy file must match across nodes.** A node with a different policy answers differently; the status route makes it visible, and a mixed policy is a deployment error this does not detect (the same as ADR 0052's node switch).
 - **ADR number.** 0080 leaves room for the numbers other threads have taken; renumber before merge if one is taken.
+
+## Host API 1.0
+
+A plugin that holds a capability asks the host through one call, `Host::call(op, bytes) -> bytes` (`oss_ext::host`), whose operation names are versioned data, so a new operation is an additive change. The node supplies a `Backend`; `CallHost` stands between them and judges every operation the same way for every tier (AC-4, AC-14): the operation's capability must be granted (else 403), the call's budget for that kind must not be spent (else 429; a `state.*` op spends `state_ops`, `search` and `job.submit` spend `searches`, `egress` spends `egress`, the rest spend nothing), and the answer must fit the ceiling the plugin gave (else 413). A refused operation never reaches the backend. With no backend an operation is 503.
+
+| Operation | Needs | Spends |
+|---|---|---|
+| `state.get` | `state.read` | state op |
+| `state.put`, `state.delete` | `state.write` | state op |
+| `search` | `search` | search |
+| `job.submit` | `job` | search |
+| `job.get`, `job.delete`, `job.stats` | `job` | none |
+| `egress` | `egress:<host>` (the backend checks the host) | egress |
+| `identity` | `identity` | none |
+| `log`, `metrics` | `log`, `metrics` | none |
+
+A native plugin reaches it by overriding `NativeInstance::call_host`; a plugin that asks for nothing implements `call` only. The backend's operations are bytes in and bytes out, and a port that wants one (asynchronous search's submit, get, delete and stats) implements the `job.*` operations behind `Backend` and keeps its own module a function of bytes.

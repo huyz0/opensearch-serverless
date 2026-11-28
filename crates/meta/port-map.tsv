@@ -35,6 +35,6 @@ src/stock_fan.rs	new		one blob read for each item, at most a fan-out at a time; 
 src/snapshot_restore/tests.rs	new		tests of the unmarking after a restore; the shell tests restore end to end
 src/alias_restore.rs	new		one alias mutation adding a restore's members (ADR 0065); the Java shell makes the matching change on its own branch
 src/snapshot_aliases.rs	new		the take's confirm of each index's aliases (ADR 0065); the Java shell makes the matching change on its own branch
-src/alert_registry.rs	new		registration, removal and slot claims over the registry registers (alerting spec, slice 1); no Java counterpart
+src/schedule_registry.rs	new		registration, removal and slot claims over the registry registers (alerting spec, slice 1); no Java counterpart
 src/monitors.rs	new		a tenant's monitors over the index register and the registry (alerting spec, slice 2); no Java counterpart
 src/doc_set/update.rs	new		update: a change rebuilt from the current document on every swap attempt; the Java has no read-modify-write set change
