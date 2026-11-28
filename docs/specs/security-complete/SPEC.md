@@ -14,7 +14,7 @@ Each slice is one PR with its own acceptance criteria below (added when the slic
 | 2 | Built-in documents: the stock static roles, action groups and `global_tenant` and the reserved roles of the default configuration, shipped as data (`builtin.json`, the recorded lists), listed and read with their flags, changes refused with the recorded 403 | this change |
 | 3 | `securityconfig` (the effective configuration, read only), the routes stock keeps closed (`allowlist`, `ssl/certs`, changing `securityconfig`), `permissionsinfo`, the cache flush | this change |
 | 4 | The `account` API (`GET`/`PUT /_plugins/_security/api/account`); `whoami`, `health` and `nodesdn` have no handler on stock 3.10.0 and none here | this change |
-| 5 | JWT authentication (HS and RS/ES keys, `jwks`, subject and roles keys, header and URL parameter) | |
+| 5 | JWT authentication with a static key (HS, RS and ES), subject and roles keys, the `Authorization` header; `jwks_uri` is slice 6's fetcher ([ADR 0090](../../adr/0090-jwt-authentication-carries-an-identity-with-backend-roles.md)) | this change |
 | 6 | OIDC (discovery document and JWKS fetched by the node, cached, bounded) | |
 | 7 | LDAP and client-certificate authentication (the LDAP client is the native-tier question) | |
 | 8 | Document-level and field-level security, field masking | |
@@ -38,6 +38,14 @@ Not shipped on purpose: the default configuration's demo users (`admin`, `kibana
 ## Slice 4: the account API
 
 `GET /_plugins/_security/api/account` answers the caller as recorded: `user_name`, `is_reserved` (true for the static administrator only), `is_hidden`, `is_internal_user`, `user_requested_tenant`, `backend_roles`, `custom_attribute_names` (`attr.internal.<name>`), `tenants` and `roles`. `PUT` with `{"current_password","password"}` changes the caller's own password: a current password that does not verify is `400 Could not validate your current password.`, a weak new one is the recorded weak-password `400`, success is `'<name>' updated.` and the next request reads the new hash. The static administrator's password is not stored, so its change is `403 Resource '<name>' is reserved.`. A body that is not an object with both strings is `400` (not recorded; the plugin's wording is not captured). Open to every authenticated user and only about the caller, so it needs no administrator role. A change costs what a replacing `PUT` of a user costs, and a read costs nothing beyond the snapshot. `authinfo` is unchanged: its `remote_address` and verbose size fields are not reproduced (the sizes are Java object sizes).
+
+## Slice 5: JWT authentication
+
+A request with a valid signed token is authenticated as the token's subject, with the token's roles claim as its backend roles, which the role mappings turn into roles ([ADR 0090](../../adr/0090-jwt-authentication-carries-an-identity-with-backend-roles.md)). The domain is configured by node settings: `OSS_SECURITY_JWT_KEY` (an HMAC secret, base64, or a PEM public key), `OSS_SECURITY_JWT_PUBLIC_KEY` (a PEM), the `Authorization: Bearer` header only, `OSS_SECURITY_JWT_SUBJECT_KEY` (`sub`), `OSS_SECURITY_JWT_ROLES_KEY` (none), `OSS_SECURITY_JWT_ISSUER`, `OSS_SECURITY_JWT_AUDIENCE`, `OSS_SECURITY_JWT_SKEW_SECONDS` (30) and `OSS_SECURITY_JWT_MAX_LIFETIME_SECONDS`. With no key set there is no JWT domain and nothing changes. The key fixes the algorithm; a token whose header names another, or `none`, is refused.
+
+`securityconfig` lists a `jwt_auth_domain` (`http_authenticator` type `jwt`, with its signing key redacted as the plugin redacts it) beside the basic domain when one is configured. A refused token is `401 Unauthorized`, one answer for every cause, throttled with wrong passwords. `authinfo` and `account` answer a token identity (its name, backend roles and mapped roles; `account` `PUT` is `403`, there is no password to change). A token whose subject names a stored user or the static administrator is refused.
+
+Cost: no store request and no outbound call on the request path; a token over 8 KiB is refused unread. The recorded answers for a token request are not in `security-api.json` (the recording used basic only); the shapes are the ones already recorded for a basic user, and the 401 text is the recorded one.
 
 ## Slice 1 change
 
@@ -70,6 +78,11 @@ The answers follow the recording of stock 3.10.0 in `fixtures/compat/security-ap
 - AC-18: `GET account` answers the recorded shape for the caller (a stored user with attributes and a mapped role, and the administrator as reserved). Tests: `account_answers_the_recorded_shape`, `the_account_of_the_administrator_is_reserved`.
 - AC-19: `PUT account` with the right current password stores a new hash, the old password stops working and the new one works; a wrong current password, a weak new one and a malformed body change nothing; the administrator's change is `403`. Tests: `a_user_changes_its_own_password`, `a_wrong_current_password_changes_nothing`, `a_malformed_password_change_is_400`, `the_administrator_cannot_change_a_stored_password`.
 - AC-20: Both methods are open to a user without the administrator role, and the action table has a row for them. Tests: `a_user_without_admin_access_reads_its_own_account`, `every_registered_route_has_an_action_row`.
+- AC-21: A valid HS256, RS256 and ES256 token authenticates as its subject; a bad signature, an expired or not-yet-valid token (beyond the skew), a wrong issuer or audience, an `alg` other than the key's, `alg: none` and a token over 8 KiB are each `401 Unauthorized` and change nothing. Tests: `each_key_type_authenticates_its_tokens`, `a_token_that_is_not_valid_is_401`, `the_key_decides_the_algorithm`.
+- AC-22: The roles claim becomes backend roles that the mappings turn into roles; two tokens for one subject with different claims act with their own roles at the same time. Tests: `a_token_acts_with_the_roles_its_claim_maps_to`, `concurrent_tokens_for_one_subject_do_not_share_roles`.
+- AC-23: A token subject that names a stored user or the administrator is refused; a token never reaches the password check. Tests: `a_token_cannot_claim_a_stored_users_name`, `a_token_does_not_run_bcrypt`.
+- AC-24: `authinfo` and `account` answer a token identity, `account` `PUT` is `403`, and `securityconfig` lists the JWT domain with its key redacted. Tests: `authinfo_and_account_answer_a_token_identity`, `securityconfig_lists_the_jwt_domain_without_its_key`.
+- AC-25: With no key set, a `Bearer` token is `401` as before and the router's guard is unchanged for basic. Tests: `without_a_key_a_token_is_401`, the existing authn suite.
 
 ## Test plan
 
