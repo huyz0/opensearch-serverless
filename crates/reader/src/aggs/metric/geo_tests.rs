@@ -17,7 +17,7 @@ fn bounds(extremes: [f64; 6], wrap: bool) -> Value {
     }
 }
 
-    // ALLOC: one small body in a test.
+// ALLOC: one small body in a test.
 fn body(value: &Value) -> String {
     let mut out = Vec::new();
     match *value {
