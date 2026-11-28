@@ -401,3 +401,4 @@ src/geospatial_setting.rs	new		the node setting that accepts the geo_point field
 src/index_route/options.rs	new		the create-time switches (nested, geo_point) read when a mapping is parsed
 src/notifications_assemble.rs	new		mounts the notifications routes and builds the shared in-process sender
 src/plugins/wasm.rs	new		a WASM module as a plugin: its descriptor is its manifest and each call is one call into the extension host
+src/plugins/wasm_load.rs	new		reads the WASM modules a policy names by hash from the store at start, one GET each

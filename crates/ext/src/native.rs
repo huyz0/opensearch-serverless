@@ -11,8 +11,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Mutex;
 
 use crate::breaker::{Breaker, BreakerConfig, BreakerState, Decision, Outcome};
-use crate::error::{CallError, FailureKind};
 use crate::catalogue::Tier;
+use crate::error::{CallError, FailureKind};
 use crate::host::{Host, NoHost};
 use crate::manifest::{Manifest, ManifestError};
 
