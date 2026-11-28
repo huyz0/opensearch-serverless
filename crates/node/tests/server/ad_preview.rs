@@ -219,11 +219,6 @@ fn a_range_wider_than_the_bound_or_badly_made_is_refused_before_any_search() {
     let mut invalid = range(10);
     invalid["detector"]["shingle_size"] = json!(61);
     assert_eq!(preview(&r, &invalid).status, 400);
-    let mut hc = range(10);
-    hc["detector"]["category_field"] = json!(["host"]);
-    let hc = preview(&r, &hc);
-    assert_eq!(hc.status, 400);
-    assert!(hc.text().contains("category_field"), "{}", hc.text());
     assert_eq!(
         search.asked.load(Ordering::SeqCst),
         0,
@@ -328,4 +323,87 @@ fn a_validate_answers_what_a_create_would_and_writes_nothing() {
         (0, 0),
         "nothing read or written"
     );
+}
+
+/// Hosts a search answers for: `h0` has the fewest documents a window, `h6`
+/// the most, and only `h6` spikes.
+struct Hosts {
+    asked: AtomicUsize,
+}
+
+impl WindowSearch for Hosts {
+    fn search(&self, _: &[String], body: &Value) -> Result<Value, RestError> {
+        self.asked.fetch_add(1, Ordering::SeqCst);
+        let h = &body["aggs"]["windows"];
+        let (min, max) = (
+            h["date_histogram"]["extended_bounds"]["min"]
+                .as_i64()
+                .unwrap(),
+            h["date_histogram"]["extended_bounds"]["max"]
+                .as_i64()
+                .unwrap(),
+        );
+        assert_eq!(h["aggs"]["entity0"]["terms"]["field"], "host");
+        let feature = h["aggs"]["entity0"]["aggs"]
+            .as_object()
+            .and_then(|m| m.keys().next())
+            .unwrap()
+            .clone();
+        let mut buckets = Vec::new();
+        let mut key = min;
+        while key <= max {
+            let hosts: Vec<Value> = (0..7u64)
+                .map(|i| {
+                    let v = if i == 6 { value_at(key) } else { ((key / STEP) % 10) as f64 };
+                    json!({"key": format!("h{i}"), "doc_count": i.saturating_add(1), feature.clone(): {"value": v}})
+                })
+                .collect();
+            buckets.push(json!({"key": key, "doc_count": 28, "entity0": {"buckets": hosts}}));
+            key = key.saturating_add(STEP);
+        }
+        Ok(json!({"aggregations": {"windows": {"buckets": buckets}}}))
+    }
+}
+
+// AC-11 (preview half): a detector with a category field previews its five
+// busiest entities from one search.
+#[test]
+fn a_preview_of_a_detector_with_a_category_field_shows_its_five_busiest_entities() {
+    let search = Arc::new(Hosts {
+        asked: AtomicUsize::new(0),
+    });
+    let r = rig_with(Some(Arc::clone(&search) as Arc<dyn WindowSearch>));
+    let mut body = range(WINDOWS);
+    body["detector"]["category_field"] = json!(["host"]);
+    let (gets, puts) = (total(&r, S3Op::Get), total(&r, S3Op::Put));
+    let got = preview(&r, &body);
+    assert_eq!(got.status, 200, "{}", got.text());
+    assert_eq!(
+        search.asked.load(Ordering::SeqCst),
+        1,
+        "one search for every entity"
+    );
+    assert_eq!(
+        (total(&r, S3Op::Get) - gets, total(&r, S3Op::Put) - puts),
+        (0, 0)
+    );
+    let out = json_of(&got);
+    let results = out["anomaly_result"].as_array().unwrap();
+    assert_eq!(
+        results.len(),
+        5 * WINDOWS,
+        "five entities, a result a window each"
+    );
+    let hosts: Vec<&str> = (0..5)
+        .map(|e| results[e * WINDOWS]["entity"][0]["value"].as_str().unwrap())
+        .collect();
+    assert_eq!(hosts, ["h6", "h5", "h4", "h3", "h2"], "the busiest first");
+    assert_eq!(results[0]["entity"][0]["name"], "host");
+    let grade = |e: usize, w: usize| results[e * WINDOWS + w]["anomaly_grade"].as_f64().unwrap();
+    assert!(grade(0, SPIKE) > 0.0, "h6 spikes and is flagged");
+    assert!(
+        (0..5).skip(1).all(|e| grade(e, SPIKE) == 0.0),
+        "the others do not"
+    );
+    assert_eq!(out["anomaly_detector"]["detector_type"], "MULTI_ENTITY");
 }
