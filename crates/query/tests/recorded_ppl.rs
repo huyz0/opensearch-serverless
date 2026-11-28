@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
 
 /// Statements this slice refuses, each served by a later slice or by the node.
-const LATER: &[&str] = &["ppl-dedup", "ppl-eval", "ppl-parse"];
+const LATER: &[&str] = &["ppl-dedup", "ppl-parse"];
 
 /// Statements about index names: the node resolves the names, so they are checked there.
 const NODE: &[&str] = &["ppl-multi-source", "ppl-unknown-index"];

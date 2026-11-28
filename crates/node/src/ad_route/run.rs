@@ -19,6 +19,8 @@ use oss_meta::{MetaError, ScheduleRegistry};
 use oss_rest::RestError;
 use serde_json::{Value, json};
 
+mod entity_run;
+
 use super::slots::{Timing, latest_due, window};
 use super::{WindowSearch, preview, windows};
 use oss_ext::doc_sink::{Doc, DocSink};
@@ -43,8 +45,16 @@ pub enum Outcome {
         /// The slot.
         slot: u64,
     },
-    /// The detector has category fields, which a run does not serve yet.
-    Unsupported,
+    /// The windows of a detector with category fields were read: how many
+    /// entities were scored and how many were left out for want of room.
+    Entities {
+        /// The slot.
+        slot: u64,
+        /// Entities whose window was scored and written.
+        scored: usize,
+        /// Entities that had no model and no room for one.
+        skipped: usize,
+    },
     /// The model is at its cap on this node.
     Skipped {
         /// The slot.
@@ -84,6 +94,15 @@ pub enum RunError {
     Bad(String),
 }
 
+pub(super) struct EntityHeld {
+    /// A model and its workspace for each entity, keyed by its values.
+    pub(super) models: HashMap<String, (Model, Workspace)>,
+    /// The claim register's generation after this node's last claim.
+    pub(super) generation: u64,
+    /// The slot of that claim.
+    pub(super) slot: u64,
+}
+
 struct Held {
     model: Model,
     workspace: Workspace,
@@ -100,6 +119,8 @@ pub struct Runner {
     sink: Arc<dyn DocSink>,
     timing: Timing,
     held: Mutex<HashMap<String, Held>>,
+    /// The models of the detectors with category fields.
+    pub(super) entities: Mutex<HashMap<String, EntityHeld>>,
 }
 
 impl Runner {
@@ -121,6 +142,7 @@ impl Runner {
             sink,
             timing,
             held: Mutex::new(HashMap::new()),
+            entities: Mutex::new(HashMap::new()),
         })
     }
 
@@ -166,7 +188,39 @@ impl Runner {
         Ok(())
     }
 
-    /// How many models this node holds.
+    /// The generation and slot of this node's last claim of `id`, if its
+    /// line is unbroken as far as this node knows.
+    fn lineage(&self, id: &str) -> (Option<u64>, Option<u64>) {
+        if let Some(h) = self.lock().get(id) {
+            return (Some(h.generation), Some(h.slot));
+        }
+        let held = self.entities.lock().unwrap_or_else(PoisonError::into_inner);
+        let state = held.get(id);
+        (state.map(|h| h.generation), state.map(|h| h.slot))
+    }
+
+    /// Drops every model of `id`.
+    fn forget(&self, id: &str) {
+        self.lock().remove(id);
+        self.entities
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(id);
+    }
+
+    /// How many models this node holds, an entity's counting as one.
+    pub fn models(&self) -> usize {
+        let entities: usize = self
+            .entities
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .map(|e| e.models.len())
+            .sum();
+        self.held().saturating_add(entities)
+    }
+
+    /// How many detectors with one model this node holds.
     pub fn held(&self) -> usize {
         self.held
             .lock()
@@ -186,14 +240,7 @@ impl Runner {
         let Some(slot) = latest_due(now_ms, period, self.timing) else {
             return Ok(Outcome::NotDue);
         };
-        if !windows::categories(detector).is_empty() {
-            return Ok(Outcome::Unsupported);
-        }
-        let (hint, last) = {
-            let held = self.lock();
-            let state = held.get(id);
-            (state.map(|h| h.generation), state.map(|h| h.slot))
-        };
+        let (hint, last) = self.lineage(id);
         // A hinted claim swaps without reading, so a slot this node already
         // claimed would be claimed again: it is not asked for, and the
         // newest slot being the one already run, nothing is due.
@@ -205,12 +252,15 @@ impl Runner {
             .claim(TENANT, id, slot, hint)
             .map_err(RunError::Meta)?;
         if !claim.won {
-            self.lock().remove(id);
+            self.forget(id);
             return Ok(Outcome::Lost { slot });
         }
         // The swap from the hinted generation moves it by one; any other
         // landing means a claim by another node came between.
         let unbroken = hint.is_some_and(|h| h.checked_add(1) == Some(claim.generation));
+        if !windows::categories(detector).is_empty() {
+            return self.run_entities(id, detector, (slot, claim.generation), unbroken, now_ms);
+        }
         let mut held = self.take(id, unbroken);
         let delay = windows::delay_ms(detector);
         let (from, to) = window(slot, period, delay)
@@ -240,7 +290,7 @@ impl Runner {
             .flatten();
         let features = windows::features(detector).map_err(RunError::Bad)?;
         if held.is_none() {
-            if self.held() >= MAX_HELD_MODELS {
+            if self.models() >= MAX_HELD_MODELS {
                 return Ok(Outcome::Skipped { slot });
             }
             let params = preview::params(detector, features.len()).map_err(RunError::Bad)?;

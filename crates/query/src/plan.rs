@@ -302,7 +302,7 @@ fn plan_sql(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, 
                 columns.push(Column {
                     name: text.clone(),
                     alias: alias.clone(),
-                    ty: expr.sql_type(mapping),
+                    ty: expr_type(sel, expr, mapping),
                     source: Source::Expr(expr.clone()),
                 });
             }
@@ -408,4 +408,14 @@ fn has_script(v: &Value) -> bool {
         Value::Array(a) => a.iter().any(has_script),
         _ => false,
     }
+}
+
+/// The type an expression column reports: PPL's arithmetic is `long` wide.
+fn expr_type(sel: &Select, expr: &crate::expr::Expr, mapping: &Mapping) -> String {
+    let ty = expr.sql_type(mapping);
+    if sel.dialect == Dialect::Ppl && matches!(expr, crate::expr::Expr::Bin(..)) && ty == "integer"
+    {
+        return "long".to_owned();
+    }
+    ty
 }

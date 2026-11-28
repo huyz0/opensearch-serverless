@@ -56,13 +56,15 @@ def pointer(doc, p):
     return doc
 
 
-def scrub(v, ids, volatile):
+def scrub(v, ids, volatile, patterns=()):
     inv = {val: f"<{k}>" for k, val in ids.items() if isinstance(val, str) and val}
     def walk(x):
         if isinstance(x, str):
             for val in sorted(inv, key=len, reverse=True):
                 x = x.replace(val, inv[val])
             x = re.sub(r"(version|seqNo|term|SeqNo) \[\d+\]", r"\1 [<n>]", x)
+            for pat, rep in patterns:
+                x = re.sub(pat, rep, x)
             return re.sub(r"\d{9,}", "<n>", x)
         if isinstance(x, list):
             return [walk(i) for i in x]
@@ -72,7 +74,7 @@ def scrub(v, ids, volatile):
     return walk(v)
 
 
-def run(argv, name, description, steps, volatile=(), setup=(), cleanup=(), setup_note=""):
+def run(argv, name, description, steps, volatile=(), setup=(), cleanup=(), setup_note="", patterns=()):
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://localhost:9200")
@@ -107,7 +109,7 @@ def run(argv, name, description, steps, volatile=(), setup=(), cleanup=(), setup
             req["body"] = s["body"]
         if s["raw"] is not None:
             req["raw"] = s["raw"]
-        rec.append({"name": s["name"], "request": req, "response": {"status": status, "body": scrub(out, ids, set(volatile))}})
+        rec.append({"name": s["name"], "request": req, "response": {"status": status, "body": scrub(out, ids, set(volatile), patterns)}})
     for r in cleanup:
         send(a.url, r[0], r[1], r[2] if len(r) > 2 else None, query=(r[3] if len(r) > 3 else None))
     doc = {"name": name, "description": description, "setup": setup_note,

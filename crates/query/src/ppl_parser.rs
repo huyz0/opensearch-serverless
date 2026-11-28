@@ -2,13 +2,13 @@
 //! [`Select`] the SQL parser gives, so one planner serves both languages.
 
 use crate::ast::{Agg, Dialect, Item, Order, Pred, Select};
+use crate::expr::Expr;
 use crate::lexer::{Kind, lex};
 use crate::parser::Parser;
 use crate::{Error, Limits};
 
 /// Commands the plugin has and this slice does not serve.
-const LATER: [&str; 16] = [
-    "eval",
+const LATER: [&str; 15] = [
     "parse",
     "dedup",
     "join",
@@ -110,8 +110,9 @@ impl Parser {
             offset: 0,
         };
         let mut renames: Vec<(String, String)> = Vec::new();
+        let mut evals: Vec<(String, Expr, String)> = Vec::new();
         while self.eat_sym("|") {
-            self.ppl_command(&mut sel, &mut renames)?;
+            self.ppl_command(&mut sel, &mut renames, &mut evals)?;
         }
         if self.at < self.tokens.len() {
             return Err(self.ppl_error("Expecting a valid command, field or value"));
@@ -123,6 +124,7 @@ impl Parser {
         &mut self,
         sel: &mut Select,
         renames: &mut Vec<(String, String)>,
+        evals: &mut Vec<(String, Expr, String)>,
     ) -> Result<(), Error> {
         let Some(Kind::Word(w)) = self.peek().cloned() else {
             return Err(self.ppl_error("Expecting a command"));
@@ -152,8 +154,37 @@ impl Parser {
                 sel.items = if minus {
                     vec![Item::StarExcept(names)]
                 } else {
-                    names.into_iter().map(|n| renamed(&n, renames)).collect()
+                    names
+                        .into_iter()
+                        .map(|n| match evals.iter().find(|(e, ..)| *e == n) {
+                            Some((_, expr, text)) => {
+                                Item::Expr(expr.clone(), Some(n), text.clone())
+                            }
+                            None => renamed(&n, renames),
+                        })
+                        .collect()
                 };
+            }
+            "eval" => {
+                self.bump();
+                loop {
+                    let Some(Kind::Word(name) | Kind::Quoted(name)) = self.peek().cloned() else {
+                        return Err(self.ppl_error("Expecting a name"));
+                    };
+                    self.bump();
+                    self.expect_sym("=")?;
+                    let start = self.tokens.get(self.at).map_or(self.end, |t| t.pos);
+                    let expr = self.expr()?;
+                    let stop = self.tokens.get(self.at).map_or(self.end, |t| t.pos);
+                    let text = self.src.get(start..stop).unwrap_or("").trim().to_owned();
+                    sel.items
+                        .push(Item::Expr(expr.clone(), Some(name.clone()), text.clone()));
+                    evals.retain(|(e, ..)| *e != name);
+                    evals.push((name, expr, text));
+                    if !self.eat_sym(",") {
+                        break;
+                    }
+                }
             }
             "sort" => {
                 self.bump();
