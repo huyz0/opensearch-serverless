@@ -151,6 +151,7 @@ pub(crate) fn register(
     };
     let router = crate::ml_route::mount(router, store, config)?;
     let router = crate::observability_route::mount(router, store, config)?;
+    let router = crate::reports_route::mount(router, store, config)?;
     let router = if config.notifications {
         let service = crate::notifications_route::NotificationsService::new(
             store,
@@ -332,6 +333,8 @@ fn security(
     let router = security_route::authinfo_route(router, &state).map_err(AssembleError::Route)?;
     let router =
         security_route::config_routes(router, &service, &state).map_err(AssembleError::Route)?;
+    let router =
+        security_route::account_routes(router, &service, &state).map_err(AssembleError::Route)?;
     let authorizer = RouteAuthorizer::new(Arc::clone(&state));
     let guard = AuthGuard(Arc::new(Authenticator::new(Arc::clone(&state), clock)));
     let router = router

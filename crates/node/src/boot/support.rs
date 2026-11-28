@@ -206,6 +206,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.ml = config.plugins.ml;
     node.async_search = config.plugins.async_search;
     node.observability = config.plugins.observability;
+    node.reports = config.plugins.reports;
     node.ltr_max_window = config.ltr_bounds.max_window;
     node.ltr_cache_ttl_secs = config.ltr_bounds.cache_ttl_secs;
     node.ltr_cache_bytes = config.ltr_bounds.cache_bytes;

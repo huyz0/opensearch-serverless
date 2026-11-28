@@ -57,5 +57,7 @@ mod search_template;
 mod search_template_stored;
 mod search_url_params;
 mod shards;
+#[cfg(feature = "writer")]
+mod sql_budgets;
 mod uri_query;
 mod validate_query;

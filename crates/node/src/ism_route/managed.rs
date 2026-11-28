@@ -3,9 +3,10 @@
 //! `ism/managed/` set, named for the index.
 
 use std::borrow::Cow;
+use std::sync::Arc;
 
 use oss_format::DocKind;
-use oss_meta::{DescriptorStore, MetaError};
+use oss_meta::{DescriptorStore, MetaError, ScheduleRegistry};
 use oss_rest::{Exception, JSON, Meta, Request, Response, RestError};
 use serde_json::{Value, json};
 
@@ -217,7 +218,18 @@ impl IsmService {
             .set_of(DocKind::IsmManaged)?
             .put_counted(index, &bytes, true, marker)
         {
-            Ok(_) => Ok(None),
+            Ok(_) => {
+                // The runner finds tenants in the registry, so an add that
+                // wrote the record names the tenant (one shard swap).
+                ScheduleRegistry::in_namespace(
+                    Arc::clone(&self.store),
+                    &self.base,
+                    crate::ism_run::schedule::NAMESPACE,
+                )
+                .and_then(|r| r.register(crate::ism_run::schedule::TENANT))
+                .map_err(|e| failed(&e))?;
+                Ok(None)
+            }
             Err(MetaError::AlreadyExists) => Ok(Some(
                 "This index already has a policy, use the update policy API to update index policies"
                     .to_owned(),

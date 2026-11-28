@@ -6,6 +6,8 @@
 
 use serde_json::{Value, json};
 
+pub mod schedule;
+
 /// What one evaluation decided.
 #[derive(Debug, PartialEq)]
 pub struct Step {
@@ -205,3 +207,6 @@ mod tests {
         assert_eq!(s.next_eval, None);
     }
 }
+
+#[cfg(test)]
+mod schedule_tests;
