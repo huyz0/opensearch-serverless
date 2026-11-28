@@ -20,6 +20,19 @@ impl Parser {
         }
     }
 
+    /// Whether the select list is only expressions that read no field, so no `FROM` is needed.
+    pub(crate) fn constant_items(&self, items: &[crate::ast::Item]) -> bool {
+        !items.is_empty()
+            && items.iter().all(|i| match i {
+                crate::ast::Item::Expr(e, ..) => {
+                    let mut read = Vec::new();
+                    e.fields(&mut read);
+                    read.is_empty()
+                }
+                _ => false,
+            })
+    }
+
     pub(crate) fn expr(&mut self) -> Result<Expr, Error> {
         self.enter()?;
         let mut left = self.term()?;

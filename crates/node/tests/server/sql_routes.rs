@@ -334,3 +334,22 @@ fn an_ungrouped_aggregate_is_one_search() {
     assert_eq!(reply.status, 200, "{}", reply.text());
     assert_eq!(r.backend.searches.load(Ordering::SeqCst), 1);
 }
+
+#[test]
+fn a_select_with_no_from_answers_one_row_and_makes_no_call() {
+    let r = rig(true);
+    let reply = post(&r, "/_plugins/_sql", "SELECT abs(-3), 1 + 1");
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    let out = json_of(&reply);
+    assert_eq!(out["datarows"], json!([[3, 2]]));
+    assert_eq!(
+        out["schema"][0],
+        json!({"name": "abs(-3)", "type": "integer"})
+    );
+    let explained = post(&r, "/_plugins/_sql/_explain", "SELECT 1 + 1");
+    assert_eq!(explained.status, 200, "{}", explained.text());
+    let refused = post(&r, "/_plugins/_sql", "SELECT abs(-3) WHERE 1 = 1");
+    assert_eq!(refused.status, 400, "{}", refused.text());
+    assert_eq!(r.backend.mappings.load(Ordering::SeqCst), 0);
+    assert_eq!(r.backend.searches.load(Ordering::SeqCst), 0);
+}

@@ -52,6 +52,17 @@ pub fn rows(plan: &Plan, response: &Value) -> Result<Vec<Vec<Value>>, Error> {
     if matches!(plan.shape, crate::plan::Shape::Aggs { .. }) {
         return crate::aggregate::rows(plan, response);
     }
+    if matches!(plan.shape, crate::plan::Shape::Const) {
+        let row = plan
+            .columns()
+            .iter()
+            .map(|c| match &c.source {
+                Source::Expr(e) => e.eval(&Value::Null),
+                _ => Value::Null,
+            })
+            .collect();
+        return Ok(vec![row]);
+    }
     let hits = response
         .get("hits")
         .and_then(|h| h.get("hits"))

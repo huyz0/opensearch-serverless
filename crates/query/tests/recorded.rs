@@ -33,8 +33,6 @@ const LATER: &[&str] = &[
     "multi-index",
     "show-tables",
     "describe",
-    "select-no-from",
-    "select-function-no-from",
 ];
 
 /// Statements over more than one index: the node resolves the names and runs one search

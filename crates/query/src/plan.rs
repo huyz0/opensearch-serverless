@@ -26,6 +26,8 @@ pub(crate) enum Source {
 pub(crate) enum Shape {
     /// One row a hit.
     Hits,
+    /// One row of constants: a `SELECT` with no `FROM`, answered without a search.
+    Const,
     /// Rows from aggregations: whether a composite pages them, and the `HAVING` to apply.
     Aggs {
         grouped: bool,
@@ -194,7 +196,34 @@ fn ppl_names(mut p: Plan) -> Plan {
     p
 }
 
+/// `SELECT <constants>` with no `FROM`: one row, no search.
+fn plan_const(sel: &Select) -> Result<Plan, Error> {
+    let mut columns = Vec::new();
+    for item in &sel.items {
+        let Item::Expr(expr, alias, text) = item else {
+            return Err(Error::unsupported(
+                "a SELECT with no FROM takes expressions only",
+            ));
+        };
+        columns.push(Column {
+            name: text.clone(),
+            alias: alias.clone(),
+            ty: expr.sql_type(&Mapping::default()),
+            source: Source::Expr(expr.clone()),
+        });
+    }
+    Ok(Plan {
+        body: json!({}),
+        columns,
+        shape: Shape::Const,
+        ppl: false,
+    })
+}
+
 fn plan_sql(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result<Plan, Error> {
+    if sel.from.is_empty() {
+        return plan_const(sel);
+    }
     if sel.distinct || !sel.group.is_empty() || sel.items.iter().any(|i| matches!(i, Item::Agg(..)))
     {
         return crate::aggregate::plan(sel, mapping, size_limit);
