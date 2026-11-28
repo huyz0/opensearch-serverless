@@ -153,34 +153,47 @@ fn open_shards(
 /// How many times a page batch is asked for before the peer is given up on:
 /// a peer serving its limit of warm requests refuses the next, and the
 /// refusal is only worth waiting out.
-const PAGES_ATTEMPTS: usize = 6;
+const PAGES_ATTEMPTS: usize = 40;
 
-/// The wait before the first retry; each retry waits twice as long.
+/// The longest wait between two asks.
+const RETRY_BACKOFF_MAX: Duration = Duration::from_millis(400);
+
+/// The wait before the first retry; each retry waits twice as long, up to
+/// `RETRY_BACKOFF_MAX`.
 const RETRY_BACKOFF: Duration = Duration::from_millis(25);
 
 /// A call that failed after this long was a timeout, not a refusal, and is
 /// not asked again.
 const REFUSAL_WITHIN: Duration = Duration::from_secs(1);
 
-/// The answer to `ask`, retried after a backoff when the peer refuses fast.
+/// The answer `ask` gives, retried after a backoff while the peer refuses fast.
+fn with_retries<T>(
+    pause: &dyn Pause,
+    expired: &(dyn Fn() -> bool + Sync),
+    mut ask: impl FnMut() -> Option<T>,
+) -> Option<T> {
+    let mut wait = RETRY_BACKOFF;
+    for attempt in 1..=PAGES_ATTEMPTS {
+        let started = Instant::now();
+        if let Some(answer) = ask() {
+            return Some(answer);
+        }
+        if attempt == PAGES_ATTEMPTS || started.elapsed() >= REFUSAL_WITHIN || expired() {
+            return None;
+        }
+        pause.pause(wait);
+        wait = wait.saturating_mul(2).min(RETRY_BACKOFF_MAX);
+    }
+    None
+}
+
 fn pages_with_retries(
     peer: &dyn Peer,
     ask: &PagesRequest,
     pause: &dyn Pause,
+    expired: &(dyn Fn() -> bool + Sync),
 ) -> Option<PagesResponse> {
-    let mut wait = RETRY_BACKOFF;
-    for attempt in 1..=PAGES_ATTEMPTS {
-        let started = Instant::now();
-        if let Some(answer) = peer.pages(ask) {
-            return Some(answer);
-        }
-        if attempt == PAGES_ATTEMPTS || started.elapsed() >= REFUSAL_WITHIN {
-            return None;
-        }
-        pause.pause(wait);
-        wait = wait.saturating_mul(2);
-    }
-    None
+    with_retries(pause, expired, || peer.pages(ask))
 }
 
 fn pause_for(bytes: u64, rate: u64) -> Duration {
@@ -208,7 +221,7 @@ pub fn copy_from_peer(
         max_shards: settings.max_shards,
         max_bytes: settings.max_bytes,
     };
-    let Some(listed) = peer.hot_set(&request) else {
+    let Some(listed) = with_retries(pause, expired, || peer.hot_set(&request)) else {
         return Outcome::Unreachable;
     };
     let ours = i32::try_from(cache.config().page_size).unwrap_or(-1);
@@ -266,7 +279,7 @@ pub fn copy_from_peer(
             // ALLOC: one ask per page of the batch, at most MAX_PAGES_PER_REQUEST.
             asks: batch.iter().map(|(ask, _)| ask.clone()).collect(),
         };
-        let Some(answer) = pages_with_retries(peer, &ask, pause) else {
+        let Some(answer) = pages_with_retries(peer, &ask, pause, expired) else {
             break Outcome::Unreachable;
         };
         let asked: HashSet<(&str, u64)> = batch
