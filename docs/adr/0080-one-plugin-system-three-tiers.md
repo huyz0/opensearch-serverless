@@ -67,6 +67,8 @@ The manifest is the descriptor of ADR 0052 grown by one section, parsed by the s
   "limits": { "fuel": 20000000, "memory_bytes": 16777216, "deadline_ms": 2000 } }
 ```
 
+**How a WASM module delivers it.** Its `oss_describe` output stays the descriptor of ADR 0052 (`name`, `version`, `abi`, `io_bytes`, `max_concurrent_calls`, `limits`, `points`), so the analyzer modules already recorded still load, and gains one optional key, `plugin`: an object holding the manifest's other sections (`routes`, `events`, `capabilities`, `budget`). The host builds the one `Manifest` from the two: the id is the descriptor's `name`, the points are its `points` (a point's `id` is the manifest's `name`), and `limits` is the descriptor's. The same strict parser judges both, unknown keys inside `plugin` are refused naming the key, and a module with a `plugin` key is judged by the plugin rules (a `pure` point still refuses any import and any capability). A module without it is an extension module only and mounts no route.
+
 A manifest is a **request**. What a plugin gets is the intersection with the node's **grant** (section 4); a manifest that asks for more than its grant is refused at load, not trimmed (a plugin that silently runs without a capability it needs fails later and elsewhere). `limits` may only lower the host's, as in ADR 0052. A plugin is loaded before it serves, never at call time.
 
 ### 3. One point contract, three transports
