@@ -6,6 +6,8 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ad_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -64,7 +66,13 @@ mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_managed;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_rig;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod ism_routes;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod ism_template;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod knn_api;
 #[cfg(all(feature = "reader", feature = "writer"))]

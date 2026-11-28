@@ -14,6 +14,20 @@ pub(super) fn ttl_millis(get: &impl Fn(&str) -> Option<String>) -> Result<i64, S
     Ok(ttl)
 }
 
+/// `OSS_LEASE_REFRESH_MS`: how often the fleet's leases are read, when set; at least 1.
+pub(super) fn refresh_millis(get: &impl Fn(&str) -> Option<String>) -> Result<Option<u64>, String> {
+    let Some(v) = get("OSS_LEASE_REFRESH_MS").filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+    let millis: u64 = v
+        .parse()
+        .map_err(|e| format!("OSS_LEASE_REFRESH_MS: {e}"))?;
+    if millis == 0 {
+        return Err("OSS_LEASE_REFRESH_MS is below 1".to_owned());
+    }
+    Ok(Some(millis))
+}
+
 impl super::NodeConfig {
     /// How often the lease is renewed: a third of its lifetime.
     pub fn renew_every(&self) -> Duration {

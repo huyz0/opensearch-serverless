@@ -52,6 +52,7 @@ mod doc_set;
 mod error;
 mod lifecycle;
 mod listing;
+mod monitors;
 mod names;
 mod pit;
 mod probe;
@@ -88,6 +89,7 @@ pub use lifecycle::{
     DEFAULT_RECLAIM_DELAY_MILLIS, Deleted, HeadAt, IndexLifecycle, Purged, ReclaimQueue,
     ShardHeads, ShardPins,
 };
+pub use monitors::{MonitorPut, Monitors};
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
 pub use oss_format::{
     AliasMutation, AliasRecord, ChangeKind, ClusterSettings, DocKind, MAX_CLUSTER_SETTINGS_BYTES,

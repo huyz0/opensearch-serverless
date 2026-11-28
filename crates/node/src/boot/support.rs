@@ -197,6 +197,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.nested = config.nested;
     node.ltr = config.ltr;
     node.ism = config.ism;
+    node.ad = config.ad;
     node.ltr_max_window = config.ltr_bounds.max_window;
     node.ltr_cache_ttl_secs = config.ltr_bounds.cache_ttl_secs;
     node.ltr_cache_bytes = config.ltr_bounds.cache_bytes;

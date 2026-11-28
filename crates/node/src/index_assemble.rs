@@ -41,6 +41,14 @@ pub(crate) fn index_service(
     if let Some(policy) = pins {
         indices = indices.with_pins(policy);
     }
+    #[cfg(all(feature = "reader", feature = "writer"))]
+    if config.ism {
+        let managed = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
+            .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
+        let ism = crate::ism_route::IsmService::new(store, &config.base, config.pit_buffer_bytes)
+            .with_descriptors(managed);
+        indices = indices.with_created(Arc::new(ism).on_create());
+    }
     Ok(Arc::new(
         indices
             .with_knn(config.knn)

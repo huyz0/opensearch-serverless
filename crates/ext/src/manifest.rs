@@ -19,16 +19,13 @@ use crate::version::{VersionError, abi_accepted_against, pack_abi};
 pub const PLUGIN_API: (u16, u16) = (1, 0);
 
 const MAX_POINTS: usize = 16;
-const MAX_ROUTES: usize = 64;
 const MAX_CAPABILITIES: usize = 16;
-const MAX_PATH_BYTES: usize = 256;
 const EVENTS: &[&str] = &[
     "node.started",
     "node.stopping",
     "index.created",
     "index.deleted",
 ];
-const METHODS: &[&str] = &["GET", "POST", "PUT", "DELETE", "HEAD", "PATCH"];
 
 /// Why a manifest was refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,7 +46,7 @@ impl From<DescriptorError> for ManifestError {
 /// A point a plugin serves.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManifestPoint {
-    name: String,
+    pub(crate) name: String,
     version: u32,
 }
 
@@ -68,9 +65,10 @@ impl ManifestPoint {
 /// A REST route a plugin declares.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Route {
-    method: String,
-    path: String,
-    action: String,
+    pub(crate) method: String,
+    pub(crate) path: String,
+    pub(crate) action: String,
+    pub(crate) query: Vec<String>,
 }
 
 impl Route {
@@ -87,6 +85,11 @@ impl Route {
     /// The action name the route asks to be authorised as.
     pub fn action(&self) -> &str {
         &self.action
+    }
+
+    /// The query parameters the route takes, besides its path's.
+    pub fn query(&self) -> &[String] {
+        &self.query
     }
 }
 
@@ -151,7 +154,7 @@ impl Manifest {
         let version = triple(&head.string("version")?, "plugin.version")?;
         let api = pair(&head.string("api")?, "plugin.api")?;
         let points = points(&top)?;
-        let routes = routes(&top, &points)?;
+        let routes = crate::manifest_routes::routes(&top, &points)?;
         let events = events(&top, &points)?;
         Ok(Self {
             id,
@@ -286,7 +289,10 @@ fn id(text: &str) -> Result<String, DescriptorError> {
     }
 }
 
-fn array<'a>(top: &'a Members, key: &str) -> Result<Option<&'a [Value]>, DescriptorError> {
+pub(crate) fn array<'a>(
+    top: &'a Members,
+    key: &str,
+) -> Result<Option<&'a [Value]>, DescriptorError> {
     match top.get(key) {
         None => Ok(None),
         Some(Value::Arr(items)) => Ok(Some(items)),
@@ -332,87 +338,8 @@ fn points(top: &Members) -> Result<Vec<ManifestPoint>, DescriptorError> {
     Ok(out)
 }
 
-fn serves(points: &[ManifestPoint], name: &str) -> bool {
+pub(crate) fn serves(points: &[ManifestPoint], name: &str) -> bool {
     points.iter().any(|p| p.name == name)
-}
-
-fn routes(top: &Members, points: &[ManifestPoint]) -> Result<Vec<Route>, DescriptorError> {
-    let Some(items) = array(top, "routes")? else {
-        return Ok(Vec::new());
-    };
-    if !serves(points, "rest") {
-        return Err(DescriptorError::at("routes", "needs the rest point"));
-    }
-    if items.len() > MAX_ROUTES {
-        return Err(DescriptorError::at("routes", "more than 64 routes"));
-    }
-    // ALLOC: one manifest, at most MAX_ROUTES entries.
-    let mut out = Vec::new();
-    for (i, item) in items.iter().enumerate() {
-        // ALLOC: one manifest, a short key per route.
-        let at = format!("routes[{i}]");
-        let Value::Obj(fields) = item else {
-            return Err(DescriptorError::at(&at, "not an object"));
-        };
-        // ALLOC: one manifest, three members.
-        let one = Members::new(&at, fields.clone(), &["method", "path", "action"])?;
-        let method = one.string("method")?;
-        if !METHODS.contains(&method.as_str()) {
-            return Err(DescriptorError::at(&path(&at, "method"), "not a method"));
-        }
-        let route = one.string("path")?;
-        if !route_path(&route) {
-            return Err(DescriptorError::at(
-                &path(&at, "path"),
-                "not a valid route path",
-            ));
-        }
-        let action = one.string("action")?;
-        let named = (1..=64).contains(&action.len())
-            && action
-                .chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "_:/.-".contains(c));
-        if !named {
-            return Err(DescriptorError::at(
-                &path(&at, "action"),
-                "not a valid action name",
-            ));
-        }
-        out.push(Route {
-            method,
-            path: route,
-            action,
-        });
-    }
-    Ok(out)
-}
-
-/// `/`, or `/` then segments joined by `/`: each a literal of `[A-Za-z0-9_.~-]`
-/// (not `.` or `..`) or one `{name}` parameter.
-fn route_path(text: &str) -> bool {
-    if text.len() > MAX_PATH_BYTES || !text.starts_with('/') {
-        return false;
-    }
-    if text == "/" {
-        return true;
-    }
-    text.get(1..).unwrap_or_default().split('/').all(segment)
-}
-
-fn segment(seg: &str) -> bool {
-    if let Some(name) = seg.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
-        let mut chars = name.chars();
-        return chars
-            .next()
-            .is_some_and(|c| c.is_ascii_lowercase() || c == '_')
-            && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
-    }
-    !seg.is_empty()
-        && seg != "."
-        && seg != ".."
-        && seg
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "_.~-".contains(c))
 }
 
 fn events(top: &Members, points: &[ManifestPoint]) -> Result<Vec<String>, DescriptorError> {
