@@ -26,14 +26,14 @@ An expression in `ORDER BY` or `GROUP BY` stays refused: ordering by one needs a
 - AC-1: over the recorded documents each `scalar-*` and `select-function-no-from` statement in the list above gives stock's `datarows` and `schema`, compared by `crates/query/tests/recorded.rs`; a statement still outside the slice is on the `LATER` list and a listed statement that starts working fails the test.
 - AC-2: a select-list expression adds only its field names to `_source.includes`, the body has no `script` key (the script-free rule of `oss-query` holds for projections; predicates are the one place this slice puts a `script` key, AC-3), and the planner makes the same single search as the plain column select (compared body for body, `size` and `from` included).
 - AC-3: a `WHERE` expression lowers to a `script` query whose `source` is generated from the function table and whose literals are all in `params`: a literal holding quotes, backslashes and `*/` leaves `source` unchanged (a fixed-seed test over generated literals).
-- AC-4: `scalar-where` and `where-in-expression` give stock's rows through the real reader and Painless runtime on the emulator, in `crates/node/tests/it`; a function the front end refuses is a 400 with the plugin's `SemanticCheckException` shape and no search runs.
+- AC-4: the WHERE table (`abs`, `upper`, `lower`, `length`, `concat`, `+ - * / %`) gives the rows its arithmetic says through the real reader and Painless runtime on the emulator, over a built index (`crates/node/tests/it/sql_where.rs`; the recorded `scalar-where` and `where-in-expression` are on the node list of `recorded.rs` because the recorded documents are not an index the emulator holds); with `serverless.scripting.painless.native_compile` off the statement is a 400 naming the setting and no search runs. A function with no form in the table (`ifnull`, `year`, `month`, `date_format`, `CASE`, `IF`), a date field, a string ordered with `<`, and a division by a field or by zero are 400s.
 - AC-5: no expression shape makes the planner issue a second search or read documents to filter them in memory: a `WHERE` expression is always the `script` query, never a post-filter; a test over every function in the table checks the body and the request count (the cold count equals the plain select's).
 - AC-6: arithmetic follows stock's types (`age + 1` is `integer`, `/` of two integers is integer division as recorded), division by zero is null as stock gives, and an overflow is null rather than a panic; the evaluator is checked by a fixed-seed property test against the Painless runtime for the same expression.
 - AC-7: the parser bounds hold with expressions: nesting depth, token count and identifier length refuse before any allocation in proportion to them, and the fixed-seed mutation fuzz over a corpus with expressions never panics.
 
 ## S3 request budget
 
-Unchanged: a statement costs the search it pushes. A projection adds none; a predicate script is part of that same search (the Painless compile is in memory and cached per source). Budget rows `sql.select.cold.requests` and `sql.select.warm.requests` gain a function-bearing statement in the same test (AC-5).
+Unchanged: a statement costs the search it pushes. A projection adds none; a predicate script is part of that same search (the Painless compile is in memory and cached per source). The cold and warm request counts of a function-bearing statement equal those of the plain select over the same index, asserted in `sql_where.rs` (AC-5); the budget rows themselves stay on the compat index.
 
 ## Crate
 
@@ -41,7 +41,7 @@ Unchanged: a statement costs the search it pushes. A projection adds none; a pre
 
 ## Switch
 
-None. Statements with functions were 400s; no statement that worked changes.
+None of its own. Statements with functions were 400s; no statement that worked changes. A function in WHERE needs the Painless compiler, which stays under `serverless.scripting.painless.native_compile`; until that is on by default such a statement is a 400 that names it.
 
 ## Risks
 

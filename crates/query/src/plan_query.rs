@@ -171,6 +171,7 @@ fn node(p: &Pred, m: &Mapping) -> Result<Value, Error> {
             if *neg { present_and_not(field, q) } else { q }
         }
         Pred::Rel(r) => relevance(r, m)?,
+        Pred::Script(l, op, r) => crate::expr_script::query(l, *op, r, m)?,
     })
 }
 

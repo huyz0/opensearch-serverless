@@ -85,6 +85,13 @@ impl Plan {
         &self.body
     }
 
+    /// Whether the search body holds a `script` query, which a node serves only with its
+    /// Painless compiler on.
+    #[must_use]
+    pub fn uses_script(&self) -> bool {
+        self.body.get("query").is_some_and(has_script)
+    }
+
     /// Whether the answer is one page of a composite aggregation, so the caller asks for the
     /// next page while [`Plan::next_page`] gives one.
     #[must_use]
@@ -391,4 +398,14 @@ pub(crate) fn exact_name(name: &str, f: &Field, what: &str) -> Result<String, Er
         )));
     }
     Ok(name.to_owned())
+}
+
+fn has_script(v: &Value) -> bool {
+    match v {
+        Value::Object(m) => {
+            m.get("script").is_some_and(|s| s.get("script").is_some()) || m.values().any(has_script)
+        }
+        Value::Array(a) => a.iter().any(has_script),
+        _ => false,
+    }
 }

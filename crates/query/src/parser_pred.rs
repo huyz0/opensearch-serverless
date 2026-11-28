@@ -1,7 +1,7 @@
 //! Conditions: `WHERE` expressions, literals and the text-search functions.
 
 use crate::Error;
-use crate::ast::{CmpOp, Lit, Pred, Relevance};
+use crate::ast::{Lit, Pred, Relevance};
 use crate::lexer::Kind;
 use crate::parser::{Parser, RELEVANCE};
 
@@ -76,10 +76,10 @@ impl Parser {
                     self.bump();
                     return self.relevance(lower, alias);
                 }
-                return Err(Error::unsupported(format!(
-                    "the function [{w}] is not supported yet"
-                )));
             }
+        }
+        if self.looks_like_expr() {
+            return self.script_pred();
         }
         let field = self.field(alias)?;
         let negated = self.is_word("not") && self.tokens.get(self.at.saturating_add(1)).is_some();
@@ -118,18 +118,17 @@ impl Parser {
             self.expect_word("null")?;
             return Ok(Pred::IsNull(field, not));
         }
-        let op = match self.peek() {
-            Some(Kind::Sym("=")) => CmpOp::Eq,
-            Some(Kind::Sym("<>" | "!=")) => CmpOp::Ne,
-            Some(Kind::Sym("<")) => CmpOp::Lt,
-            Some(Kind::Sym("<=")) => CmpOp::Le,
-            Some(Kind::Sym(">")) => CmpOp::Gt,
-            Some(Kind::Sym(">=")) => CmpOp::Ge,
-            _ => return self.fail(),
-        };
-        self.bump();
+        let op = self.cmp_op()?;
         let lit = self.literal()?;
         Ok(Pred::Cmp(field, op, lit))
+    }
+
+    /// `expr <op> expr`, where either side is a function call or arithmetic.
+    fn script_pred(&mut self) -> Result<Pred, Error> {
+        let left = self.expr()?;
+        let op = self.cmp_op()?;
+        let right = self.expr()?;
+        Ok(Pred::Script(left, op, right))
     }
 
     /// PPL's `like(f, 'p')`, `isnull(f)` and `isnotnull(f)`.

@@ -23,8 +23,6 @@ fn read(p: PathBuf) -> Value {
 
 /// Statements this slice refuses, with the slice that serves them.
 const LATER: &[&str] = &[
-    "scalar-where",
-    "where-in-expression",
     "join",
     "left-join",
     "subquery",
@@ -35,9 +33,9 @@ const LATER: &[&str] = &[
     "describe",
 ];
 
-/// Statements over more than one index: the node resolves the names and runs one search
-/// over them, so they are checked there, not over one document set.
-const NODE: &[&str] = &["wildcard-index"];
+/// Statements the node checks: `wildcard-index` runs one search over several indices, and a
+/// function in a `WHERE` is a Painless `script` query that only the reader's compiler runs.
+const NODE: &[&str] = &["wildcard-index", "scalar-where", "where-in-expression"];
 
 fn later(name: &str) -> bool {
     LATER.iter().any(|p| name.starts_with(p))
