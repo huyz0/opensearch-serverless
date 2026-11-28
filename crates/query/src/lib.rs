@@ -5,6 +5,7 @@
 //! sends the search body it gets back through the coordinator's search path
 //! ([ADR 0082](../../../docs/adr/0082-sql-and-ppl-are-ported-natively-with-our-own-parser-and-a-pushdown-planner.md)).
 
+mod aggregate;
 mod ast;
 mod dates;
 mod error;
@@ -13,11 +14,12 @@ mod lexer;
 mod mapping;
 mod meta;
 mod parser;
+mod parser_agg;
 mod parser_pred;
 mod plan;
 mod result;
 
-pub use ast::{CmpOp, Item, Lit, Order, Pred, Relevance, Select, Statement};
+pub use ast::{Agg, CmpOp, Having, Item, Lit, Order, Pred, Relevance, Select, Statement};
 pub use error::Error;
 pub use mapping::{Field, Mapping};
 pub use meta::{describe, like, show_tables};

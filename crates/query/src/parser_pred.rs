@@ -129,7 +129,7 @@ impl Parser {
         Ok(Pred::Cmp(field, op, lit))
     }
 
-    fn literal(&mut self) -> Result<Lit, Error> {
+    pub(crate) fn literal(&mut self) -> Result<Lit, Error> {
         let neg = self.eat_sym("-");
         let lit = match self.peek().cloned() {
             Some(Kind::Str(s)) if !neg => Lit::Str(s),

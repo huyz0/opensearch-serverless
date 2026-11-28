@@ -33,6 +33,26 @@ impl SqlBackend for Counting {
     fn search(&self, _: &[String], body: &Value) -> Result<Vec<u8>, SqlFailure> {
         self.searches.fetch_add(1, Ordering::SeqCst);
         *self.last_body.lock().unwrap() = Some(body.clone());
+        if body["aggregations"].get("count(*)").is_some() {
+            return Ok(json!({"aggregations": {"count(*)": {"value": 6.0}}})
+                .to_string()
+                .into_bytes());
+        }
+        if let Some(comp) = body["aggregations"].get("composite_buckets") {
+            // Two pages of groups: a, b and then c.
+            let bucket = |k: &str, n: u64| json!({"key": {"city": k}, "doc_count": n, "count(*)": {"value": n}});
+            let page = if comp["composite"].get("after").is_none() {
+                json!({"buckets": [bucket("a", 3), bucket("b", 1)], "after_key": {"city": "b"}})
+            } else {
+                json!({"buckets": [bucket("c", 2)]})
+            };
+            return Ok(
+                json!({"hits": {"total": {"value": 0, "relation": "eq"}, "hits": []},
+                "aggregations": {"composite_buckets": page}})
+                .to_string()
+                .into_bytes(),
+            );
+        }
         Ok(
             json!({"hits": {"total": {"value": 1, "relation": "eq"}, "hits": [
                 {"_index": "accounts", "_id": "1", "_score": 1.0,
@@ -66,6 +86,10 @@ struct Rig {
 }
 
 fn rig(enabled: bool) -> Rig {
+    rig_with(enabled, 10_000)
+}
+
+fn rig_with(enabled: bool, max_buckets: usize) -> Rig {
     let backend = Arc::new(Counting::default());
     let service = Arc::new(SqlService::new(
         Arc::clone(&backend) as _,
@@ -74,6 +98,7 @@ fn rig(enabled: bool) -> Rig {
             enabled,
             size_limit: 200,
             max_request_bytes: 4096,
+            max_buckets,
         },
     ));
     let router = routes(Router::new(), &service).expect("routes");
@@ -180,7 +205,7 @@ fn csv_and_raw_formats_and_an_unsupported_one() {
 fn what_cannot_be_pushed_is_a_400_and_no_search_runs() {
     let r = rig(true);
     for sql in [
-        "SELECT city, count(*) FROM accounts GROUP BY city",
+        "SELECT city, count(distinct age) FROM accounts GROUP BY city",
         "SELECT upper(city) FROM accounts",
         "SELECT * FROM accounts WHERE age + 1 > 3",
         "DELETE FROM accounts",
@@ -268,4 +293,43 @@ fn a_body_past_the_limit_is_a_413_and_runs_nothing() {
         Some(b"{not json"),
     );
     assert_eq!(bad.status, 400, "{}", bad.text());
+}
+
+// AC-5 (aggregations): a grouped statement is one search a page of the composite.
+#[test]
+fn a_grouped_statement_pages_the_composite_until_it_is_exhausted() {
+    let r = rig(true);
+    let reply = post(
+        &r,
+        "/_plugins/_sql",
+        "SELECT city, count(*) FROM accounts GROUP BY city",
+    );
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    let out = json_of(&reply);
+    assert_eq!(out["datarows"], json!([["a", 3], ["b", 1], ["c", 2]]));
+    assert_eq!(out["total"], 3);
+    assert_eq!(r.backend.searches.load(Ordering::SeqCst), 2);
+}
+
+// AC-5 (aggregations): past the bucket bound the statement stops asking.
+#[test]
+fn past_the_bucket_bound_the_statement_is_refused_and_no_more_pages_are_asked() {
+    let r = rig_with(true, 2);
+    let reply = post(
+        &r,
+        "/_plugins/_sql",
+        "SELECT city, count(*) FROM accounts GROUP BY city",
+    );
+    assert_eq!(reply.status, 400, "{}", reply.text());
+    assert!(reply.text().contains("more than 2 groups"));
+    assert_eq!(r.backend.searches.load(Ordering::SeqCst), 2);
+}
+
+// AC-2 (aggregations): an ungrouped aggregate is one search.
+#[test]
+fn an_ungrouped_aggregate_is_one_search() {
+    let r = rig(true);
+    let reply = post(&r, "/_plugins/_sql", "SELECT count(*) FROM accounts");
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert_eq!(r.backend.searches.load(Ordering::SeqCst), 1);
 }

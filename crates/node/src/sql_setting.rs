@@ -32,9 +32,20 @@ pub const SQL_MAX_REQUEST_BYTES: IntSetting = IntSetting::new(
     "The largest SQL request body read; a larger one is refused with 413.",
 );
 
+/// `serverless.sql.max_buckets`: the most groups a grouped statement reads.
+pub const SQL_MAX_BUCKETS: IntSetting = IntSetting::new(
+    "serverless.sql.max_buckets",
+    10_000,
+    1,
+    1_000_000,
+    Scope::Node,
+    "The most groups one grouped SQL statement reads across its pages; past it the statement is refused.",
+);
+
 /// Every setting this module defines, for the node's registry.
 pub static SETTINGS: &[&Setting] = &[
     SQL_ENABLED.setting(),
     SQL_SIZE_LIMIT.setting(),
     SQL_MAX_REQUEST_BYTES.setting(),
+    SQL_MAX_BUCKETS.setting(),
 ];
