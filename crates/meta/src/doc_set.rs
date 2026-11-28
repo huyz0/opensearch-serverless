@@ -444,6 +444,7 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::IsmTemplates => "template",
         DocKind::ObservabilityObjects => "observability object",
         DocKind::ReportDefinitions => "report definition",
+        DocKind::PluginState => "plugin state key",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers

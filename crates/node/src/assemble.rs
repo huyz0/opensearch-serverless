@@ -333,8 +333,20 @@ pub fn assemble(
     let drain: Option<()> = None;
     let modules =
         crate::plugins::configured_modules(&config.plugin_policy, &*store, &config.base, budget);
-    let router =
-        crate::plugins::install_configured(router, &config.plugin_policy, &bulk, &bus, &modules)?;
+    let state = Arc::new(crate::plugins::StateBackend::new(
+        Arc::clone(&store),
+        &config.base,
+        budget,
+        Arc::new(oss_ext::host::NoBackend),
+    ));
+    let router = crate::plugins::install_configured(
+        router,
+        &config.plugin_policy,
+        &bulk,
+        &bus,
+        &modules,
+        state,
+    )?;
 
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(

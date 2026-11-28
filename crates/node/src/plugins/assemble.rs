@@ -124,17 +124,17 @@ pub(crate) fn install_configured(
     bulk: &Arc<crate::bulk_route::BulkService>,
     bus: &crate::lifecycle_bus::Bus,
     modules: &HashMap<String, Arc<dyn NativeInstance>>,
+    behind: Arc<dyn Backend>,
 ) -> Result<Router, crate::assemble_error::AssembleError> {
     use crate::assemble_error::AssembleError;
     use oss_ext::doc_sink::{DocSink, DocSinkBackend};
-    use oss_ext::host::NoBackend;
     install(
         router,
         policy_text,
         modules,
         &(Arc::new(DocSinkBackend::new(
             Arc::clone(bulk) as Arc<dyn DocSink>,
-            Arc::new(NoBackend),
+            behind,
         )) as Arc<dyn Backend>),
         crate::clock::now_millis,
         bus,

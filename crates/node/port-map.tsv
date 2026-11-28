@@ -402,3 +402,5 @@ src/index_route/options.rs	new		the create-time switches (nested, geo_point) rea
 src/notifications_assemble.rs	new		mounts the notifications routes and builds the shared in-process sender
 src/plugins/wasm.rs	new		a WASM module as a plugin: its descriptor is its manifest and each call is one call into the extension host
 src/plugins/wasm_load.rs	new		reads the WASM modules a policy names by hash from the store at start, one GET each
+src/plugins/state.rs	new		a plugin's tenant-scoped state over a document set under plugins/<id>/<tenant>/
+src/plugins/state_tests.rs	new		the state operations over a metered emulator

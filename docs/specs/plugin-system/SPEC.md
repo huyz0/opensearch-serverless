@@ -88,9 +88,9 @@ Per operation, worst case; the numbers are the ADR's table and each is a row in 
 | Load a native plugin, load a gRPC plugin | 0 | 0 | 0 | 0 (one `Describe` call to the process) |
 | Load a WASM plugin | 0 | 1 per node per module, none per call | 0 | 1 |
 | A `rest` call with a zero budget | 0 | 0 | 0 | 0 |
-| `state.get` cold / warm | 0 | 2 / 0 | 0 | 2 / 0 |
-| `state.put` | 2 | at most 1 | 0 | 2 |
-| `state.delete` | 1 | 1 | 0 | 2 |
+| `state.get` of a missing / a present key | 0 | 1 / 2 | 0 | 1 / 2 |
+| `state.put` | 0 | 3 | 0 | 3 |
+| `state.delete` | 0 | 3 | 0 | 3 |
 | A lifecycle event, the status route, an open breaker | 0 | 0 | 0 | 0 |
 | `search` capability | as the search | as the search | 0 | as the search |
 | `egress` capability | 0 | 0 | 0 | 0 (an HTTP call, not a store request) |
@@ -123,6 +123,8 @@ A plugin that holds a capability asks the host through one call, `Host::call(op,
 | `job.get`, `job.delete`, `job.stats` | `job` | none |
 | `index.docs` | `index.write` | index op |
 | `egress` | `egress:<host>` (the backend checks the host) | egress |
+
+State is a document set under `plugins/<id>/<sha256 of the tenant>/state/` (`_node` for a call with no tenant), served by `StateBackend`. As built: a key is a document name of at most 128 bytes, a value at most 256 KiB, a set at most 1000 keys (413 past it); `state.put` takes `if_absent` (the answer is `[1]` written, `[0]` the key was there) and has no per-key version; there is no 4 MiB total per plugin and tenant, no `state_ops_per_second` limit and no warm cache yet. Working buffers are charged to the request-bodies pool, so a node with no extensions memory still serves state.
 | `identity` | `identity` | none |
 | `log`, `metrics` | `log`, `metrics` | none |
 

@@ -99,7 +99,8 @@ pub use cluster_settings::{ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, Setting,
 pub use descriptor::{DescriptorRecord, IndexDescriptor, TOMBSTONE_PREFIX};
 pub use doc_set::{
     DocKind, DocSetMarker, MAX_DOC_BYTES, MAX_DOC_NAME_BYTES, MAX_DOC_SET_MARKER_BYTES, MAX_DOCS,
-    MAX_MODEL_BYTES, MAX_REPORT_DEFINITIONS, doc_content_key, doc_set_marker_key,
+    MAX_MODEL_BYTES, MAX_PLUGIN_STATE_BYTES, MAX_REPORT_DEFINITIONS, doc_content_key,
+    doc_set_marker_key,
 };
 pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
