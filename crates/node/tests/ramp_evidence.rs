@@ -67,7 +67,14 @@ struct Window {
     ramp: Option<i32>,
 }
 
-fn run(on: bool, docs: usize, shards: usize, peers: usize, secs: usize, window: usize) -> Vec<Window> {
+fn run(
+    on: bool,
+    docs: usize,
+    shards: usize,
+    peers: usize,
+    secs: usize,
+    window: usize,
+) -> Vec<Window> {
     let mut cluster = Cluster::new(3_000, 1, false).expect("emulator");
     cluster.set("OSS_STORE_USAGE", "true");
     for p in 0..peers {
@@ -107,14 +114,22 @@ fn run(on: bool, docs: usize, shards: usize, peers: usize, secs: usize, window: 
     let slot = cluster.add("entry");
     cluster.set("OSS_ROLES", "ingest,search");
     let entry = cluster.node(slot).addr();
-    wait_for("the entry sees the peers", 30, || cluster.nodes_seen(slot) as usize > peers);
+    wait_for("the entry sees the peers", 30, || {
+        cluster.nodes_seen(slot) as usize > peers
+    });
     // The peers are warm: a few hundred searches over every shard.
     for i in 0..400 {
         query(entry, i);
     }
     if on {
-        cluster.set("OSS_READER_RAMP_MAX_SECS", &knob("RAMP_EVIDENCE_MAX", 60).to_string());
-        cluster.set("OSS_READER_RAMP_MIN_SECS", &knob("RAMP_EVIDENCE_MIN", 20).to_string());
+        cluster.set(
+            "OSS_READER_RAMP_MAX_SECS",
+            &knob("RAMP_EVIDENCE_MAX", 60).to_string(),
+        );
+        cluster.set(
+            "OSS_READER_RAMP_MIN_SECS",
+            &knob("RAMP_EVIDENCE_MIN", 20).to_string(),
+        );
     }
     let stop = AtomicBool::new(false);
     let gets0 = cluster.sent(S3Op::Get) + cluster.sent(S3Op::GetRange);
