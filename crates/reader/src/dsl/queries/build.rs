@@ -136,6 +136,7 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             .ok_or_else(|| unsupported("the [knn] query here")),
         More::Knn(q) => crate::knn::radial(q, cx),
         More::Nested(q, _) => super::nested_build::nested(q, cx),
+        More::GeoBoundingBox(q) => super::geo_bounding_box::build(cx, q),
         More::GeoDistance(q) => super::geo_distance::build(cx, q),
         // A logging query matches every document and adds nothing to a score.
         More::Sltr(q) if q.featureset.is_some() => {
