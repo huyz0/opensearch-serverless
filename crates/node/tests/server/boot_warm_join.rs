@@ -261,7 +261,7 @@ fn a_warming_node_has_no_search_role_in_its_lease_until_it_is_ready() {
         );
         assert_eq!(call(&a, "POST", "/logs/_search", Some(&q)).status, 200);
     }
-    let b = boot_at(&root, "n2", tier_b.path(), true, Some("262144"));
+    let b = boot_at(&root, "n2", tier_b.path(), true, Some("65536"));
     let mut warming_polls = 0;
     let started = Instant::now();
     loop {
