@@ -70,3 +70,15 @@ fn a_route_names_its_query_parameters() {
         assert!(parse(&with(bad)).is_err(), "{bad}");
     }
 }
+
+// docs/specs/plugin-system AC-5: a route path is at most 256 bytes, inclusive.
+#[test]
+fn a_route_path_may_be_exactly_256_bytes() {
+    let at = |n: usize| {
+        let mut p = String::from("/");
+        p.push_str(&"a".repeat(n - 1));
+        GOOD.replace("/_plugins/geo/{place}", &p)
+    };
+    assert!(parse(&at(256)).is_ok(), "256 bytes");
+    assert!(parse(&at(257)).is_err(), "257 bytes");
+}
