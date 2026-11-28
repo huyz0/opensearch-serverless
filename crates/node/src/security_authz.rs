@@ -178,6 +178,36 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         "/{index}/_search/point_in_time",
         Rule::Index("indices:data/read/point_in_time/create"),
     ),
+    (
+        &[Method::Get],
+        "/_plugins/_knn/stats",
+        Rule::Cluster("cluster:admin/knn_stats_action"),
+    ),
+    (
+        &[Method::Get],
+        "/_plugins/_knn/stats/{stat}",
+        Rule::Cluster("cluster:admin/knn_stats_action"),
+    ),
+    (
+        &[Method::Get],
+        "/_plugins/_knn/{node}/stats",
+        Rule::Cluster("cluster:admin/knn_stats_action"),
+    ),
+    (
+        &[Method::Get],
+        "/_plugins/_knn/{node}/stats/{stat}",
+        Rule::Cluster("cluster:admin/knn_stats_action"),
+    ),
+    (
+        &[Method::Get],
+        "/_plugins/_knn/warmup/{index}",
+        Rule::Cluster("cluster:admin/knn_warmup_action"),
+    ),
+    (
+        &[Method::Get],
+        "/_plugins/_knn/clear_cache/{index}",
+        Rule::Index("indices:admin/knn_clear_cache_action"),
+    ),
 ];
 
 /// The management API's patterns, for every method: the handler decides.

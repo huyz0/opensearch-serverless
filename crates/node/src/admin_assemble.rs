@@ -148,12 +148,6 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = if config.ad {
-        let ad = crate::ad_route::AdService::new(store, &config.base, config.pit_buffer_bytes);
-        crate::ad_route::routes(router, &Arc::new(ad)).map_err(AssembleError::Route)?
-    } else {
-        router
-    };
     let router = if config.observability {
         let objects = crate::observability_route::ObservabilityService::new(
             store,
@@ -343,6 +337,23 @@ pub(crate) fn system_indices(
     Arc::new(oss_coordinator::system_indices::SystemIndices::parse(
         &config.system_index_patterns,
     ))
+}
+
+/// Registers the anomaly detection routes when the setting is on, their
+/// previews reading through `search`.
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub(crate) fn ad_routes<S: BlobStore + 'static>(
+    router: Router,
+    config: &Config,
+    store: &Arc<dyn BlobStore>,
+    search: &Arc<crate::search::SearchService<S>>,
+) -> Result<Router, AssembleError> {
+    if !config.ad {
+        return Ok(router);
+    }
+    let ad = crate::ad_route::AdService::new(store, &config.base, config.pit_buffer_bytes)
+        .with_search(Arc::clone(search) as _);
+    crate::ad_route::routes(router, &Arc::new(ad)).map_err(AssembleError::Route)
 }
 
 #[cfg(test)]

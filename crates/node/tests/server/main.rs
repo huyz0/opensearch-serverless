@@ -7,6 +7,7 @@
 mod support;
 
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ad_preview;
 mod ad_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
@@ -71,6 +72,10 @@ mod ism_managed;
 mod ism_rig;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ism_routes;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod ism_template;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod knn_api;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_cache;
 #[cfg(all(feature = "reader", feature = "writer"))]

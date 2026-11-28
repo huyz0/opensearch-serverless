@@ -39,7 +39,7 @@ fn run(shard: &OpenShard<Emulator>, query: &str, rest: &str) -> Result<Hits, Sha
     search(shard, "kn", &source, &Analyzer::standard(None))
 }
 
-fn knn(params: &str) -> String {
+pub(super) fn knn(params: &str) -> String {
     format!(r#"{{"knn":{{"v":{{{params}}}}}}}"#)
 }
 
@@ -69,7 +69,7 @@ fn docs(hits: &Hits) -> Vec<i32> {
     docs
 }
 
-fn l2() -> OpenShard<Emulator> {
+pub(super) fn l2() -> OpenShard<Emulator> {
     shard(VectorSimilarityFunction::Euclidean)
 }
 

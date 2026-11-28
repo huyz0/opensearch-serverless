@@ -22,6 +22,8 @@ use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build};
 use crate::mapping::{KnnField, Space};
 
+pub mod stats;
+
 /// The answer of each `knn` node of a query.
 #[derive(Default)]
 pub struct KnnResults {
@@ -106,6 +108,21 @@ fn illegal(reason: String) -> Failure {
     Failure::plain("illegal_argument_exception", reason)
 }
 
+/// Whether `knn` names a field the mapping lacks and asked to ignore that:
+/// it then matches nothing and is not checked further.
+fn ignored(knn: &Knn, cx: &QueryContext<'_>) -> bool {
+    knn.ignore_unmapped && cx.mapping.get(&knn.field).is_none()
+}
+
+/// A query that matches no document.
+fn nothing(bases: &[i32]) -> Clause {
+    // ALLOC: one box a knn query.
+    Clause::Extended(Box::new(ExtendedQuery::DocAndScore(DocAndScoreQuery::new(
+        Vec::new(),
+        bases,
+    ))))
+}
+
 /// Checks `knn` against the mapping, as the plugin's `KNNQueryBuilder.doToQuery`.
 fn check(knn: &Knn, cx: &QueryContext<'_>) -> Result<KnnField, Failure> {
     let field = match cx.mapping.get(&knn.field).and_then(|f| f.knn) {
@@ -146,7 +163,7 @@ pub fn prepare<'s, S: oss_blob::BlobStore + 'static>(
 > {
     let nodes = query.map(self::nodes).unwrap_or_default();
     // A query the mapping refuses reads nothing: validate before warming.
-    for knn in &nodes {
+    for knn in nodes.iter().filter(|k| !ignored(k, cx)) {
         check(knn, cx)?;
     }
     if query.is_some_and(any) {
@@ -173,8 +190,18 @@ pub fn run(
     // ALLOC: one entry a segment.
     let bases: Vec<i32> = segments.iter().map(|s| s.doc_base).collect();
     for knn in nodes {
+        let Mode::TopK(k) = knn.mode else {
+            check(knn, cx)?;
+            continue;
+        };
+        if ignored(knn, cx) {
+            results
+                .by_node
+                .insert(std::ptr::from_ref(*knn).addr(), nothing(&bases));
+            continue;
+        }
         check(knn, cx)?;
-        let Mode::TopK(k) = knn.mode else { continue };
+        stats::record(knn.filter.is_some());
         let filter = match &knn.filter {
             Some(f) => Some(build(f, cx)?),
             None => None,
@@ -201,7 +228,11 @@ pub fn run(
 }
 
 #[cfg(test)]
+mod stats_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod unmapped_tests;
 
 /// The score a document must reach for `mode` in `space`, as the plugin
 /// translates a distance to the space's Lucene score.
@@ -229,8 +260,12 @@ fn threshold(mode: Mode, space: Space) -> Result<f32, Failure> {
 /// least the threshold, found segment by segment, `filter` applied while the
 /// graph is walked.
 pub(crate) fn radial(knn: &Knn, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
+    if ignored(knn, cx) {
+        return Ok(nothing(&[]));
+    }
     let field = check(knn, cx)?;
     let min_score = threshold(knn.mode, field.space)?;
+    stats::record(knn.filter.is_some());
     let leaf = KnnLeafQuery::new(
         knn.field.clone(),
         KnnTarget::Float(knn.vector.clone()),

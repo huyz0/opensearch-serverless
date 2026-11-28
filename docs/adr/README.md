@@ -92,4 +92,5 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0082](0082-sql-and-ppl-are-ported-natively-with-our-own-parser-and-a-pushdown-planner.md) | SQL and PPL are ported natively, with our own parsers, one logical plan and a planner that pushes down into the search path | Accepted |
 | [0084](0084-asynchronous-search-is-a-native-plugin-over-node-local-jobs.md) | Asynchronous search is a native plugin over node-local jobs; its results are memory only | Accepted |
 | [0085](0085-cross-cluster-replication-copies-published-segments-between-object-stores.md) | Cross-cluster replication copies published segments from the leader's object store | Accepted |
-| [0086](0086-observability-is-ported-natively.md) | Observability objects are ported natively over a document set | Accepted |
+| [0086](0086-knn-engines-and-models-are-native.md) | The k-NN engines, models and training are native; Faiss and NMSLIB names are served in stages | Accepted |
+| [0087](0087-observability-is-ported-natively.md) | Observability objects are ported natively over a document set | Accepted |

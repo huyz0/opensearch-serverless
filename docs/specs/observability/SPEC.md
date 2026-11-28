@@ -2,7 +2,7 @@
 
 ## Serves
 
-The "Observability" row of [java-dependencies](../../java-dependencies.md) and the owner's rule (2026-11-28) that every plugin is native with no Java in the runtime path. Pattern: [LTR](../ltr/SPEC.md) and [ADR 0071](../../adr/0071-learning-to-rank-is-ported-natively.md). [ADR 0086](../../adr/0086-observability-is-ported-natively.md): the store shape of [ADR 0073](../../adr/0073-stored-painless-scripts-resolve-through-a-ttl-cache.md) applied to a new family, with one document-set directory and no process or timer.
+The "Observability" row of [java-dependencies](../../java-dependencies.md) and the owner's rule (2026-11-28) that every plugin is native with no Java in the runtime path. Pattern: [LTR](../ltr/SPEC.md) and [ADR 0071](../../adr/0071-learning-to-rank-is-ported-natively.md). [ADR 0087](../../adr/0087-observability-is-ported-natively.md): the store shape of [ADR 0073](../../adr/0073-stored-painless-scripts-resolve-through-a-ttl-cache.md) applied to a new family, with one document-set directory and no process or timer.
 
 ## Change
 

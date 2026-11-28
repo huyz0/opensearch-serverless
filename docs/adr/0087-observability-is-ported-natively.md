@@ -1,4 +1,4 @@
-# 0086: Observability objects are ported natively over a document set; they are no longer left to a Java node
+# 0087: Observability objects are ported natively over a document set; they are no longer left to a Java node
 
 **Status:** Accepted, 2026-11-28, under the ADR rule: the decision is the store shape of [ADR 0073](0073-stored-painless-scripts-resolve-through-a-ttl-cache.md) and [ADR 0071](0071-learning-to-rank-is-ported-natively.md) applied to a new family, which the independent review of the [observability spec](../specs/observability/SPEC.md) found keeps the S3 request cost, bounded memory and scalability rules.
 

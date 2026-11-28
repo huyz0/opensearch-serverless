@@ -97,6 +97,9 @@ impl Drop for Place<'_> {
     fn drop(&mut self) {
         let mut g = self.guard.lock();
         g.running = g.running.saturating_sub(1);
+        if self.tenant.is_empty() {
+            return;
+        }
         if let Some(n) = g.tenants.get_mut(self.tenant) {
             *n = n.saturating_sub(1);
             if *n == 0 {
@@ -173,7 +176,8 @@ impl Guard {
             if g.running >= MAX_CONCURRENT {
                 return Err(GuardError::PluginBusy);
             }
-            if g.tenants.get(tenant).copied().unwrap_or(0) >= MAX_PER_TENANT {
+            // A call with no tenant is held to the plugin's limit only.
+            if !tenant.is_empty() && g.tenants.get(tenant).copied().unwrap_or(0) >= MAX_PER_TENANT {
                 return Err(GuardError::TenantBusy);
             }
             let decision = g.breaker.allow(now_ms());
@@ -181,9 +185,11 @@ impl Guard {
                 return Err(GuardError::BreakerOpen);
             }
             g.running = g.running.saturating_add(1);
-            // ALLOC: one entry for a tenant with a call running.
-            let n = g.tenants.entry(tenant.to_owned()).or_insert(0);
-            *n = n.saturating_add(1);
+            if !tenant.is_empty() {
+                // ALLOC: one entry for a tenant with a call running.
+                let n = g.tenants.entry(tenant.to_owned()).or_insert(0);
+                *n = n.saturating_add(1);
+            }
             decision
         };
         let _place = Place {

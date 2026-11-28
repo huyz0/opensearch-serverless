@@ -13,3 +13,4 @@ src/capability.rs	new		the capabilities a plugin may ask the host for and the pe
 src/breaker.rs	new		the circuit breaker every plugin call goes through, over an injected clock (ADR 0080)
 src/rest.rs	new		the rest point's bytes: one request in, one response out, strictly bounded, with golden vectors (ADR 0080)
 src/native.rs	new		the native form of a plugin and the guard every call to it goes through: bulkhead, breaker, panic fence (ADR 0080)
+src/manifest_routes.rs	new		the manifest's routes section: paths, methods, actions and query parameters, bounded (ADR 0080)

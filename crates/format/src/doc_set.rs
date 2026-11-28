@@ -79,6 +79,8 @@ pub enum DocKind {
     AdDetectors,
     /// The indices an ISM policy manages, one document each, `ism/managed/`.
     IsmManaged,
+    /// The `ism_template` of every policy, one aggregate document, `ism/templates/`.
+    IsmTemplates,
     /// Observability objects (saved queries, visualisations, panels,
     /// notebooks), one document each, `observability/objects/`.
     ObservabilityObjects,
@@ -104,6 +106,7 @@ impl DocKind {
             Self::IsmPolicies => "ism/policies/",
             Self::AdDetectors => "ad/detectors/",
             Self::IsmManaged => "ism/managed/",
+            Self::IsmTemplates => "ism/templates/",
             Self::ObservabilityObjects => "observability/objects/",
         }
     }

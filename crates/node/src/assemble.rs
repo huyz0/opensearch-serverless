@@ -257,6 +257,11 @@ pub fn assemble(
     let docs = Arc::new(DocService::new(Arc::clone(&role), config.address).with_ingest(ingest));
     let router =
         search::routes(Router::new(), Arc::clone(&search)).map_err(AssembleError::Route)?;
+    let router = if config.knn {
+        search::knn_api::routes(router, &search).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = get_route::routes(router, Arc::new(GetService::new(Arc::clone(&role))))
@@ -274,6 +279,7 @@ pub fn assemble(
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
     let (router, _sec) =
         crate::admin_assemble::register(router, &store, config, budget, &script_source)?;
+    let router = crate::admin_assemble::ad_routes(router, config, &store, &search)?;
     #[cfg(feature = "coordinator")]
     let (router, drain, tasks) = {
         use crate::index_assemble::{index_service, pin_policy, restore_routes, stream_routes};

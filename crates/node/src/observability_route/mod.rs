@@ -55,6 +55,28 @@ fn failed(e: &MetaError) -> RestError {
     }
 }
 
+/// A new object id: random, and never one that starts with a character a
+/// document name may not (`_`, `-` or `.`), which one id in 32 would.
+fn fresh_id() -> Result<String, RestError> {
+    for _ in 0..16 {
+        let id = new_id().map_err(|_| {
+            refuse(
+                500,
+                "observability_store_failure",
+                "no randomness for an id",
+            )
+        })?;
+        if !id.starts_with(['_', '-', '.']) {
+            return Ok(id);
+        }
+    }
+    Err(refuse(
+        500,
+        "observability_store_failure",
+        "no usable id after 16 tries",
+    ))
+}
+
 fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -100,13 +122,7 @@ impl ObservabilityService {
         let body: Value =
             serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?;
         let ty = object::checked(&body).map_err(bad)?;
-        let id = new_id().map_err(|_| {
-            refuse(
-                500,
-                "observability_store_failure",
-                "no randomness for an id",
-            )
-        })?;
+        let id = fresh_id()?;
         let now = now_millis();
         let stored = json!({
             "createdTimeMs": now,
@@ -162,5 +178,19 @@ impl ObservabilityService {
             "observabilityObjectList": [object],
         });
         resp.send(200, JSON, body.to_string().as_bytes())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_id_never_starts_with_a_character_a_name_may_not() {
+        for _ in 0..5_000 {
+            let id = fresh_id().expect("an id");
+            assert!(!id.starts_with(['_', '-', '.']), "{id}");
+            assert_eq!(id.len(), 22);
+        }
     }
 }
