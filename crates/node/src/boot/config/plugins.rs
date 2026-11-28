@@ -9,6 +9,8 @@ pub struct Switches {
     pub ad: bool,
     /// `serverless.ml.enabled` (`OSS_ML`): the ML Commons registry routes.
     pub ml: bool,
+    /// `serverless.async_search.enabled` (`OSS_ASYNC_SEARCH`): the asynchronous search routes.
+    pub async_search: bool,
 }
 
 /// Reads each switch.
@@ -17,5 +19,6 @@ pub(super) fn read(flag: &impl Fn(&str, &str) -> Result<bool, String>) -> Result
         ism: flag("OSS_ISM", "true")?,
         ad: flag("OSS_AD", "true")?,
         ml: flag("OSS_ML", "true")?,
+        async_search: flag("OSS_ASYNC_SEARCH", "true")?,
     })
 }
