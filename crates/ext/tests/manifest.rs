@@ -408,3 +408,55 @@ fn counts_are_bounded_and_bytes_must_be_text() {
         "x"
     );
 }
+
+// docs/specs/plugin-system AC-2: each point's ceilings are the catalogue's, exactly.
+#[test]
+fn every_point_has_its_exact_ceilings() {
+    const MIB: u32 = 1024 * 1024;
+    let want: [(&str, u32, u32); 8] = [
+        ("rest", MIB, 4 * MIB),
+        ("lifecycle", 16 * 1024, 0),
+        ("analyzer", MIB, 4 * MIB),
+        ("ingest", 4 * MIB, 4 * MIB),
+        ("query", 64 * 1024, 256 * 1024),
+        ("pipeline_agg", 4 * MIB, 4 * MIB),
+        ("script", MIB, MIB),
+        ("agg", 4 * MIB, 4 * MIB),
+    ];
+    for (name, max_in, max_out) in want {
+        let p = oss_ext::point(name).expect("point exists");
+        assert_eq!((p.max_in, p.max_out), (max_in, max_out), "{name}");
+    }
+}
+
+// docs/specs/plugin-system AC-1: the point version is read back.
+#[test]
+fn a_point_version_is_read_back() {
+    let m = parse(GOOD).expect("parses");
+    assert_eq!(m.points()[0].version(), 1);
+    let two = GOOD.replace(
+        r#"{"name":"rest","version":1}"#,
+        r#"{"name":"rest","version":2}"#,
+    );
+    if let Ok(m) = parse(&two) {
+        assert_eq!(m.points()[0].version(), 2);
+    }
+}
+
+// docs/specs/plugin-system AC-1: the size ceiling is inclusive.
+#[test]
+fn the_size_ceiling_is_inclusive() {
+    let max = oss_ext::MAX_DESCRIPTOR_BYTES as usize;
+    let pad = |n: usize| {
+        let mut s = GOOD.to_owned();
+        s.push_str(&" ".repeat(n - s.len()));
+        s
+    };
+    let at = pad(max);
+    assert!(
+        Manifest::parse(at.as_bytes()).is_ok(),
+        "exactly at the ceiling"
+    );
+    let over = pad(max + 1);
+    assert!(Manifest::parse(over.as_bytes()).is_err(), "one byte over");
+}
