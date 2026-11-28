@@ -58,6 +58,19 @@ pub struct DeleteService {
     events: Option<crate::lifecycle_bus::Bus>,
 }
 
+/// `index` as the one name a delete takes.
+fn single_name(index: &str) -> Result<&str, RestError> {
+    check_name(index, false).map_err(refusal)?;
+    if index.contains(['*', ',']) || index == "_all" {
+        return Err(refuse(
+            400,
+            "illegal_argument_exception",
+            "deleting more than one index in a request is not supported: name one index",
+        ));
+    }
+    Ok(index)
+}
+
 impl DeleteService {
     /// A service over `store` under `base`. Each request holds
     /// six buffers of `buffer_bytes`, charged to the request-body pool.
@@ -150,31 +163,46 @@ impl DeleteService {
         let index = req
             .path_param("index")
             .ok_or_else(|| RestError::illegal_argument("an index is required"))?;
-        check_name(&index, false).map_err(refusal)?;
-        if index.contains(['*', ',']) || index == "_all" {
-            return Err(refuse(
-                400,
-                "illegal_argument_exception",
-                "deleting more than one index in a request is not supported: name one index",
-            ));
-        }
+        let single = single_name(&index)?;
         req.body()
             .reserve(self.buffer_bytes.saturating_mul(BUFFERS))?;
+        self.delete_named(single, req.principal().unwrap_or_default())?;
+        resp.send(200, JSON, delete_ack(&index).as_bytes())
+    }
+
+    /// Deletes `index` as the route does, for the index state management
+    /// runner: the same checks, the same delete, the same event. The runner
+    /// takes one step at a time, so the route's buffers are not reserved.
+    ///
+    /// # Errors
+    ///
+    /// The reason the index could not be deleted.
+    pub fn delete_index(&self, index: &str) -> Result<(), String> {
+        let reason = |e: RestError| {
+            e.as_exception()
+                .map_or_else(|| "the delete failed".to_owned(), |x| x.reason().to_owned())
+        };
+        let name = single_name(index).map_err(reason)?;
+        self.delete_named(name, "").map_err(reason)
+    }
+
+    /// The delete of one checked name, for `principal`.
+    fn delete_named(&self, index: &str, principal: &str) -> Result<(), RestError> {
         {
             // ALLOC: one register buffer, held for the one descriptor read.
             let mut buf = vec![0u8; self.buffer_bytes];
-            crate::metadata_block::check(&self.descriptors, &index, &mut buf)?;
+            crate::metadata_block::check(&self.descriptors, index, &mut buf)?;
         }
         if index.starts_with(BACKING_INDEX_PREFIX)
-            && let Some(stream) = self.stream_writing_to(&index)?
+            && let Some(stream) = self.stream_writing_to(index)?
         {
-            return Err(refusal(write_index_refusal(&index, &stream)));
+            return Err(refusal(write_index_refusal(index, &stream)));
         }
         let now = || self.now();
         let pause = |d: Duration| std::thread::sleep(d);
         let deleted = self
             .lifecycle(&now, &pause)
-            .delete_index(&index, None, self.now())
+            .delete_index(index, None, self.now())
             .map_err(|e| refuse(500, "index_delete_failure", e.to_string()))?;
         match deleted {
             Some(done) => {
@@ -182,18 +210,18 @@ impl DeleteService {
                 if let Some(bus) = &self.events {
                     bus.publish(
                         "index.deleted",
-                        req.principal().unwrap_or_default(),
-                        &index,
+                        principal,
+                        index,
                         u64::try_from(self.now()).unwrap_or(0),
                     );
                 }
-                resp.send(200, JSON, delete_ack(&index).as_bytes())
+                Ok(())
             }
             // The pass found no index, or a change to it won the race.
-            None => Err(refusal(if self.exists(&index) {
-                delete_failed(&index, true)
+            None => Err(refusal(if self.exists(index) {
+                delete_failed(index, true)
             } else {
-                no_such_index(&index)
+                no_such_index(index)
             })),
         }
     }

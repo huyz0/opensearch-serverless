@@ -9,6 +9,7 @@ mod support;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ad_job;
 mod ad_preview;
+mod ad_results;
 mod ad_routes;
 mod ad_run;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -73,6 +74,7 @@ mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_delete_action;
 mod ism_managed;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ism_rig;

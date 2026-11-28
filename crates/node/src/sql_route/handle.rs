@@ -203,6 +203,40 @@ impl SqlService {
         }
     }
 
+    /// A `SELECT` with no `FROM`: one row of constants, no permission to check and no search.
+    fn constant(
+        resp: &mut Response<'_>,
+        sel: &Select,
+        format: Format,
+        explain: bool,
+        size_limit: usize,
+    ) -> Result<(), RestError> {
+        let plan = match oss_query::plan(sel, &Mapping::default(), size_limit) {
+            Ok(p) => p,
+            Err(e) => return send_error(resp, &e),
+        };
+        if explain {
+            let out = json!({"root": {"name": "ProjectOperator", "description": {}}});
+            return resp.send(200, JSON, out.to_string().as_bytes());
+        }
+        let rows = match oss_query::rows(&plan, &Value::Null) {
+            Ok(r) => r,
+            Err(e) => return send_error(resp, &e),
+        };
+        match oss_query::write(format, &plan, &rows, 1 << 20) {
+            Ok(t) => resp.send(
+                200,
+                if matches!(format, Format::Jdbc) {
+                    JSON
+                } else {
+                    TEXT
+                },
+                t.as_bytes(),
+            ),
+            Err(e) => send_error(resp, &e),
+        }
+    }
+
     fn select(
         &self,
         req: &mut Request<'_>,
@@ -212,6 +246,9 @@ impl SqlService {
         explain: bool,
     ) -> Result<(), RestError> {
         let names: Vec<String> = sel.index_names().to_vec();
+        if names.is_empty() {
+            return Self::constant(resp, sel, format, explain, self.limits.size_limit);
+        }
         let refs: Vec<&str> = names.iter().map(String::as_str).collect();
         if let Err(body) = self.permit(req, &refs) {
             return resp.send(403, JSON, body.as_bytes());
@@ -229,6 +266,14 @@ impl SqlService {
             let out = json!({"root": {"name": "OpenSearchIndexScan",
                 "description": {"request": {"index": names, "sourceBuilder": plan.body()}}}});
             return resp.send(200, JSON, out.to_string().as_bytes());
+        }
+        if plan.uses_script() && !oss_reader::painless_switch::native_compile() {
+            return send_error(
+                resp,
+                &Error::unsupported(
+                    "a function in WHERE runs as a Painless script; enable serverless.scripting.painless.native_compile",
+                ),
+            );
         }
         // A grouped statement is one search a page of the composite, up to the bucket bound.
         let mut body = plan.body().clone();

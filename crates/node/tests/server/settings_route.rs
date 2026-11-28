@@ -372,3 +372,18 @@ fn the_runner_sets_and_lifts_the_write_block_as_the_route_does() {
         .expect_err("no index");
     assert!(missing.contains("no such index"), "{missing}");
 }
+
+// docs/specs/ism AC-15: the runner's replica count is the route's update
+#[test]
+fn the_runner_sets_zero_replicas_and_is_refused_any_other_count_as_the_route_does() {
+    let r = rig();
+    r.settings
+        .set_replicas("a", 0)
+        .expect("zero is the only count");
+    let refused = r.settings.set_replicas("a", 2).expect_err("not supported");
+    assert!(
+        refused.contains("number_of_replicas is not supported"),
+        "{refused}"
+    );
+    assert!(r.settings.set_replicas("nope", 0).is_err());
+}
