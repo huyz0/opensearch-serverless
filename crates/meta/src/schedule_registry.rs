@@ -1,14 +1,15 @@
-//! The alerting registry: which tenants have an enabled monitor, and each
-//! monitor's last claimed slot.
+//! The schedule registry: which tenants have enabled scheduled work, and each
+//! item's last claimed slot. Alerting and anomaly detection each hold one,
+//! apart by namespace.
 //!
 //! Nothing lists, so a scheduler finds the tenants to visit in 256 shard
 //! registers. The two protocols that keep a monitor from dropping out of its
 //! shard are here and nowhere else:
 //!
-//! - an enabled put writes the monitor and then calls [`AlertRegistry::register`],
+//! - an enabled put writes the monitor and then calls [`ScheduleRegistry::register`],
 //!   which **always** swaps its tenant's shard (adding the entry, or
 //!   rewriting it unchanged so the shard's generation moves);
-//! - a removal calls [`AlertRegistry::unregister_unless`], which reads the
+//! - a removal calls [`ScheduleRegistry::unregister_unless`], which reads the
 //!   shard, **then** asks whether the tenant still has an enabled monitor,
 //!   and swaps against the generation it read.
 //!
@@ -22,8 +23,8 @@ use std::sync::Arc;
 use oss_blob::register::ABSENT_GENERATION;
 use oss_blob::{BlobStore, SwapOutcome};
 use oss_format::{
-    MAX_REGISTRY_SHARD_BYTES, RegistryShard, check_tenant_id, decode_run_claim, encode_run_claim,
-    registry_shard_key, registry_shard_of, run_claim_key,
+    ALERTING_NAMESPACE, MAX_REGISTRY_SHARD_BYTES, RegistryShard, check_tenant_id, decode_run_claim,
+    encode_run_claim, registry_shard_key_in, registry_shard_of, run_claim_key_in,
 };
 
 use crate::error::MetaError;
@@ -42,25 +43,45 @@ pub struct Claim {
     pub generation: u64,
 }
 
-/// The registry of one deployment.
-pub struct AlertRegistry {
+/// The registry of one plugin in one deployment.
+pub struct ScheduleRegistry {
     store: Arc<dyn BlobStore>,
     base: String,
+    namespace: String,
 }
 
-impl AlertRegistry {
-    /// The registry under `base` (empty, or ending in `/`) of `store`.
+/// The alerting plugin's registry, the first of its kind.
+pub type AlertRegistry = ScheduleRegistry;
+
+impl ScheduleRegistry {
+    /// The alerting registry under `base` (empty, or ending in `/`) of
+    /// `store`.
     ///
     /// # Errors
     ///
     /// [`MetaError::Format`] for a base that is not empty and does not end
     /// in `/`.
     pub fn new(store: Arc<dyn BlobStore>, base: &str) -> Result<Self, MetaError> {
-        registry_shard_key(base, 0)?;
+        Self::in_namespace(store, base, ALERTING_NAMESPACE)
+    }
+
+    /// The registry of `namespace` (a plain path segment, `ad`) under `base`.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError::Format`] for a base that is not empty and does not end
+    /// in `/`, or a namespace that is not a plain path segment.
+    pub fn in_namespace(
+        store: Arc<dyn BlobStore>,
+        base: &str,
+        namespace: &str,
+    ) -> Result<Self, MetaError> {
+        registry_shard_key_in(base, namespace, 0)?;
         Ok(Self {
             store,
-            // ALLOC: one copy of the base, once a registry.
+            // ALLOC: one copy of the base and of the namespace, once a registry.
             base: base.to_owned(),
+            namespace: namespace.to_owned(),
         })
     }
 
@@ -70,7 +91,7 @@ impl AlertRegistry {
     ///
     /// [`MetaError::Format`]; [`MetaError::Blob`].
     pub fn tenants(&self, shard: usize) -> Result<Vec<String>, MetaError> {
-        let (read, _) = self.read(&registry_shard_key(&self.base, shard)?)?;
+        let (read, _) = self.read(&registry_shard_key_in(&self.base, &self.namespace, shard)?)?;
         // ALLOC: one id each, at most MAX_REGISTRY_ENTRIES.
         Ok(read.tenants().map(str::to_owned).collect())
     }
@@ -79,10 +100,10 @@ impl AlertRegistry {
     ///
     /// # Errors
     ///
-    /// As [`AlertRegistry::tenants`], and for an invalid tenant id.
+    /// As [`ScheduleRegistry::tenants`], and for an invalid tenant id.
     pub fn is_registered(&self, tenant: &str) -> Result<bool, MetaError> {
         check_tenant_id(tenant)?;
-        let key = registry_shard_key(&self.base, registry_shard_of(tenant))?;
+        let key = registry_shard_key_in(&self.base, &self.namespace, registry_shard_of(tenant))?;
         Ok(self.read(&key)?.0.contains(tenant))
     }
 
@@ -97,7 +118,7 @@ impl AlertRegistry {
     /// [`MetaError::Contended`] after eight attempts; [`MetaError::Blob`].
     pub fn register(&self, tenant: &str) -> Result<(), MetaError> {
         check_tenant_id(tenant)?;
-        let key = registry_shard_key(&self.base, registry_shard_of(tenant))?;
+        let key = registry_shard_key_in(&self.base, &self.namespace, registry_shard_of(tenant))?;
         for _ in 0..ATTEMPTS {
             let (mut shard, generation) = self.read(&key)?;
             shard.insert(tenant)?;
@@ -124,7 +145,7 @@ impl AlertRegistry {
         has_enabled: &mut dyn FnMut() -> Result<bool, MetaError>,
     ) -> Result<bool, MetaError> {
         check_tenant_id(tenant)?;
-        let key = registry_shard_key(&self.base, registry_shard_of(tenant))?;
+        let key = registry_shard_key_in(&self.base, &self.namespace, registry_shard_of(tenant))?;
         for _ in 0..ATTEMPTS {
             let (mut shard, generation) = self.read(&key)?;
             if !shard.contains(tenant) || has_enabled()? {
@@ -159,12 +180,12 @@ impl AlertRegistry {
         self.claim_between(tenant, monitor, slot, hint, &mut || {})
     }
 
-    /// As [`AlertRegistry::claim`], calling `between` after each read and
+    /// As [`ScheduleRegistry::claim`], calling `between` after each read and
     /// before the swap that follows it: the point a test moves the register.
     ///
     /// # Errors
     ///
-    /// As [`AlertRegistry::claim`].
+    /// As [`ScheduleRegistry::claim`].
     pub fn claim_between(
         &self,
         tenant: &str,
@@ -173,7 +194,7 @@ impl AlertRegistry {
         hint: Option<u64>,
         between: &mut dyn FnMut(),
     ) -> Result<Claim, MetaError> {
-        let key = run_claim_key(&self.base, tenant, monitor)?;
+        let key = run_claim_key_in(&self.base, &self.namespace, tenant, monitor)?;
         let value = encode_run_claim(slot);
         let mut buf = [0u8; 8];
         let mut generation = hint;

@@ -19,9 +19,9 @@ use oss_format::{
     monitor_content_key, monitor_index_key,
 };
 
-use crate::alert_registry::AlertRegistry;
 use crate::error::MetaError;
 use crate::pit::new_id;
+use crate::schedule_registry::AlertRegistry;
 
 /// How many times a change reads the index and swaps before giving up.
 const ATTEMPTS: u32 = 10;
