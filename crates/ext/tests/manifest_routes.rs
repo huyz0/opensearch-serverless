@@ -88,7 +88,17 @@ fn a_route_path_may_be_exactly_256_bytes() {
 fn an_action_name_is_exact() {
     let with = |a: &str| GOOD.replace(r#""action":"read""#, &format!(r#""action":"{a}""#));
     let long = "a".repeat(64);
-    for ok in ["a", "9", "_", ":", "/", ".", "-", "idx:read.v2/x_y-z", long.as_str()] {
+    for ok in [
+        "a",
+        "9",
+        "_",
+        ":",
+        "/",
+        ".",
+        "-",
+        "idx:read.v2/x_y-z",
+        long.as_str(),
+    ] {
         assert!(parse(&with(ok)).is_ok(), "{ok} accepted");
     }
     let too_long = "a".repeat(65);
