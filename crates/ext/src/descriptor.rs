@@ -92,6 +92,7 @@ pub struct Descriptor {
     max_concurrent_calls: u32,
     limits: Limits,
     points: Vec<Point>,
+    plugin: Option<Vec<(String, Value)>>,
 }
 
 impl Descriptor {
@@ -130,8 +131,14 @@ impl Descriptor {
                 "max_concurrent_calls",
                 "limits",
                 "points",
+                "plugin",
             ],
         )?;
+        let plugin = match members.get("plugin") {
+            None => None,
+            Some(Value::Obj(section)) => Some(section.clone()),
+            Some(_) => return Err(DescriptorError::at("plugin", "not an object")),
+        };
         let (abi_major, abi_minor) = pair(&members.string("abi")?, "abi")?;
         let io_bytes = members.int("io_bytes", 1, u64::from(MAX_IO_BYTES))?;
         let concurrent = members.int("max_concurrent_calls", 1, MAX_CONCURRENT)?;
@@ -143,7 +150,13 @@ impl Descriptor {
             max_concurrent_calls: u32::try_from(concurrent).unwrap_or(u32::MAX),
             limits: limits(&members)?,
             points: points(&members)?,
+            plugin,
         })
+    }
+
+    /// The `plugin` section, when the module declares one.
+    pub(crate) fn plugin_section(&self) -> Option<&[(String, Value)]> {
+        self.plugin.as_deref()
     }
 
     /// The module's name.

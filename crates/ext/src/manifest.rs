@@ -128,6 +128,11 @@ impl Manifest {
         let Value::Obj(items) = root else {
             return Err(DescriptorError::at("", "not an object").into());
         };
+        Self::from_items(items)
+    }
+
+    /// Judges the plugin API first, then every key.
+    pub(crate) fn from_items(items: Vec<(String, Value)>) -> Result<Self, ManifestError> {
         if let Some((major, minor)) = declared_api(&items) {
             abi_accepted_against(PLUGIN_API.0, PLUGIN_API.1, pack_abi(major, minor))
                 .map_err(ManifestError::Api)?;

@@ -9,6 +9,8 @@ mod registry;
 mod routes;
 #[cfg(test)]
 mod tests;
+#[cfg(feature = "extensions")]
+mod wasm;
 
 #[cfg(feature = "writer")]
 pub(crate) use assemble::install_configured;
@@ -17,3 +19,5 @@ pub use events::{Counts, Dispatcher, QUEUE};
 pub use policy::{Entry, Policy, PolicyError, PolicyTier};
 pub use registry::{Plugin, Registry, State, Taken};
 pub use routes::mount;
+#[cfg(feature = "extensions")]
+pub use wasm::WasmPlugin;
