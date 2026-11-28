@@ -312,6 +312,13 @@ src/ad_route/mod.rs	new		the anomaly detection detector service over a document 
 src/ad_route/detector.rs	new		detector validation: the features, filters and bounds a serverless node can run
 src/ad_route/search.rs	new		the _search query a detectors id can answer without reading every detector
 src/ad_route/routes.rs	new		the route table under /_plugins/_anomaly_detection and /_opendistro/_anomaly_detection
+src/ad_route/windows.rs	new		the reader search for a detector's windows and the windows read back from its answer
+src/ad_route/windows_tests.rs	new		tests of windows.rs
+src/ad_route/preview.rs	new		preview: train a model on the windows and render the plugin's anomaly_result
+src/ad_route/preview_tests.rs	new		tests of preview.rs
+src/ad_route/preview_route.rs	new		the _preview routes of a stored or inline detector
+src/ad_route/source.rs	new		the seam a detector's windows are searched through
+src/search_window.rs	new		the node's search as that seam
 src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a request through its guard (ADR 0080)
 src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded, memory only, no blob request (ADR 0084)
 src/jobs/types.rs	new		the registry's limits, caller, context and errors
