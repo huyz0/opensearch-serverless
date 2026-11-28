@@ -105,6 +105,8 @@ mod pinned_shard;
 mod pipeline_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod pipeline_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ppl_routes;
 #[cfg(feature = "reader")]
 mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -152,7 +154,6 @@ mod snapshot_restore_search;
 mod snapshot_route;
 mod snapshot_take;
 mod snapshot_take_size;
-#[cfg(all(feature = "reader", feature = "writer"))]
 mod sql_routes;
 mod stock_export;
 mod stock_export_budget;

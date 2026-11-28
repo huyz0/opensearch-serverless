@@ -24,6 +24,7 @@ pub(crate) fn mount<S: BlobStore + 'static>(
     };
     let limits = SqlLimits {
         enabled: config.sql,
+        ppl_enabled: config.ppl,
         size_limit: config.sql_size_limit,
         max_request_bytes: config.sql_max_request_bytes,
         max_buckets: config.sql_max_buckets,

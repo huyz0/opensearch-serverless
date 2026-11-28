@@ -46,9 +46,14 @@ fn format_of(req: &Request<'_>) -> Result<Format, Error> {
 }
 
 impl SqlService {
-    fn disabled(resp: &mut Response<'_>) -> Result<(), RestError> {
-        let body = json!({"error": {"reason": "Invalid SQL query",
-            "details": "plugins.sql.enabled setting is false", "type": "SQLFeatureDisabledException"},
+    fn disabled(resp: &mut Response<'_>, ppl: bool) -> Result<(), RestError> {
+        let (what, setting) = if ppl {
+            ("PPL", "plugins.ppl.enabled")
+        } else {
+            ("SQL", "plugins.sql.enabled")
+        };
+        let body = json!({"error": {"reason": format!("Invalid {what} query"),
+            "details": format!("{setting} setting is false"), "type": "SQLFeatureDisabledException"},
             "status": 400});
         resp.send(400, JSON, body.to_string().as_bytes())
     }
@@ -88,7 +93,25 @@ impl SqlService {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
-        self.handle(req, resp, false)
+        self.handle(req, resp, false, false)
+    }
+
+    /// `POST /_plugins/_ppl`.
+    pub(super) fn run_ppl(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        self.handle(req, resp, false, true)
+    }
+
+    /// `POST /_plugins/_ppl/_explain`.
+    pub(super) fn explain_ppl(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        self.handle(req, resp, true, true)
     }
 
     /// `POST /_plugins/_sql/_explain`.
@@ -97,7 +120,7 @@ impl SqlService {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
-        self.handle(req, resp, true)
+        self.handle(req, resp, true, false)
     }
 
     fn handle(
@@ -105,17 +128,28 @@ impl SqlService {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
         explain: bool,
+        ppl: bool,
     ) -> Result<(), RestError> {
-        if !self.limits.enabled {
-            return Self::disabled(resp);
+        if !(if ppl {
+            self.limits.ppl_enabled
+        } else {
+            self.limits.enabled
+        }) {
+            return Self::disabled(resp, ppl);
         }
         let bytes = self.read(req)?;
         let format = match format_of(req) {
             Ok(f) => f,
             Err(e) => return send_error(resp, &e),
         };
-        let parsed =
-            statement_of(&bytes).and_then(|sql| oss_query::parse(&sql, &Limits::default()));
+        let parsed = statement_of(&bytes).and_then(|text| {
+            if ppl {
+                oss_query::parse_ppl(&text, &Limits::default())
+                    .map(|s| Statement::Select(Box::new(s)))
+            } else {
+                oss_query::parse(&text, &Limits::default())
+            }
+        });
         drop(bytes);
         match parsed {
             Err(e) => send_error(resp, &e),
@@ -237,6 +271,7 @@ impl SqlService {
         if let Some(e) = failed {
             return send_error(resp, &e);
         }
+        let all = plan.finish(all);
         let max = req.body().reserved().max(1 << 20);
         let text = oss_query::write(format, &plan, &all, max);
         match text {
