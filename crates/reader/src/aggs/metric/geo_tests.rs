@@ -134,6 +134,7 @@ fn a_geo_body_carries_its_field_and_wrap_longitude() {
     let s = parsed(
         r#"{"aggs":{"c":{"geo_centroid":{"field":"p"}},"b":{"geo_bounds":{"field":"q"}},"u":{"geo_bounds":{"field":"r","wrap_longitude":false}},"s":{"geo_bounds":{"field":"t","wrap_longitude":"false"}}}}"#,
     );
+    // ALLOC: four entries in a test.
     let got: Vec<(&str, &str, bool)> = s
         .aggs
         .iter()
