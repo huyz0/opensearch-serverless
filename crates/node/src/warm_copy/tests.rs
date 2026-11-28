@@ -94,6 +94,8 @@ struct Fake<'a> {
     refuse_first: Cell<usize>,
     /// Every page call fails.
     refuse_all: Cell<bool>,
+    /// The first this many hot-set calls fail.
+    hot_refuse_first: Cell<usize>,
 }
 
 impl<'a> Fake<'a> {
@@ -106,6 +108,7 @@ impl<'a> Fake<'a> {
             calls: Cell::new(0),
             refuse_first: Cell::new(0),
             refuse_all: Cell::new(false),
+            hot_refuse_first: Cell::new(0),
         }
     }
 }
@@ -113,6 +116,11 @@ impl<'a> Fake<'a> {
 impl Peer for Fake<'_> {
     fn hot_set(&self, _: &HotSetRequest) -> Option<HotSetResponse> {
         if !self.answers.get() {
+            return None;
+        }
+        if self.hot_refuse_first.get() > 0 {
+            self.hot_refuse_first
+                .set(self.hot_refuse_first.get().saturating_sub(1));
             return None;
         }
         let prefix = format!("{}\u{0}", self.rig.namespace);
@@ -191,6 +199,7 @@ fn settings(rate: u64) -> Settings<'static> {
         max_bytes: 1 << 30,
         bytes_per_second: rate,
         open_parallel: 16,
+        ask_attempts: PAGES_ATTEMPTS,
     }
 }
 
@@ -410,6 +419,39 @@ fn a_busy_peers_refusals_are_retried_after_a_backoff_and_the_copy_still_complete
         &waits[..2],
         [Duration::from_millis(25), Duration::from_millis(50)],
         "each retry waits twice as long as the one before"
+    );
+}
+
+// docs/specs/reader-warm-copy AC-12
+#[test]
+fn a_hot_set_the_busy_peer_refused_is_asked_again() {
+    let a = oss_testkit::TempDir::new("warm-copy-hot-busy");
+    let b = oss_testkit::TempDir::new("warm-copy-hot-busy-joiner");
+    let peer = rig(a.path());
+    let joiner = cache(b.path());
+    let fake = Fake::new(&peer);
+    fake.hot_refuse_first.set(3);
+    let progress = Progress::default();
+    let sleeps = Sleeps::default();
+    let outcome = copy_from_peer(
+        &fake,
+        &Ours(Arc::clone(&peer.expected)),
+        &joiner,
+        &settings(1 << 40),
+        &sleeps,
+        &progress,
+        &never,
+    );
+    assert_eq!(outcome, Outcome::Done);
+    assert!(progress.copied() > 0);
+    assert_eq!(
+        &sleeps.0.borrow()[..3],
+        [
+            Duration::from_millis(25),
+            Duration::from_millis(50),
+            Duration::from_millis(100)
+        ],
+        "a backoff after each refusal"
     );
 }
 
