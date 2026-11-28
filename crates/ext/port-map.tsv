@@ -21,3 +21,5 @@ tests/host.rs	new		the host rules: unknown, denied, budget, ceiling
 src/doc_sink.rs	new		the index.docs seam: the DocSink trait, its bytes and the backend that serves it
 tests/doc_sink.rs	new		index.docs: codec bounds and the backend routing
 src/manifest_wasm.rs	new		the manifest of a WASM module: its descriptor and a plugin section read into the one manifest
+src/job.rs	new		the job.* seam: the JobSink trait, its bytes and the backend that serves it
+tests/job.rs	new		job.*: codec bounds and the backend routing
