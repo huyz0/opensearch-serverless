@@ -127,12 +127,8 @@ impl DocKind {
     /// [`MAX_MODEL_BYTES`].
     pub const fn max_doc_bytes(self) -> usize {
         match self {
-<<<<<<< HEAD
             Self::LtrModels | Self::KnnModels => MAX_MODEL_BYTES,
-=======
-            Self::LtrModels => MAX_MODEL_BYTES,
             Self::NotificationCatalogue => MAX_CATALOGUE_BYTES,
->>>>>>> origin/main
             _ => MAX_DOC_BYTES,
         }
     }

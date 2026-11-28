@@ -140,12 +140,9 @@ pub(crate) fn register(
         router
     };
     let router = if config.knn {
-        let models = crate::knn_model_route::KnnModelService::new(
-            store,
-            &config.base,
-            config.pit_buffer_bytes,
-        );
-        crate::knn_model_route::routes(router, &Arc::new(models)).map_err(AssembleError::Route)?
+        use crate::knn_model_route::{KnnModelService as Models, routes};
+        let models = Models::new(store, &config.base, config.pit_buffer_bytes);
+        routes(router, &Arc::new(models)).map_err(AssembleError::Route)?
     } else {
         router
     };
