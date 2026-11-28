@@ -68,3 +68,4 @@ src/pack_sidecar.rs	new		the collector's per-node sidecar register: a bitmap of 
 src/pack_index.rs	new		the collector's 16 index registers naming the nodes that may hold live packs, spread by an FNV-1a slot (ADR 0025); Rust only
 src/pack_seed.rs	new		the register recording how far the one-time seeding walk of packs/ has got, with its resume cursor (ADR 0025); Rust only
 src/alert_registry.rs	new		the alerting registry shards and the run claim value (alerting spec, slice 1); no Java counterpart
+src/monitor_index.rs	new		the alerting monitor index register and its keys (alerting spec, slice 2); no Java counterpart

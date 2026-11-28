@@ -20,6 +20,7 @@ mod doc_sets;
 mod index_lifecycle;
 mod lifecycle;
 mod listing;
+mod monitors;
 mod point_in_time;
 mod point_in_time_bucket;
 mod point_in_time_capture;
