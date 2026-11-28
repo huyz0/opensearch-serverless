@@ -14,6 +14,7 @@ mod config;
 mod deliver;
 mod egress;
 mod list;
+mod notifier;
 mod routes;
 mod test_send;
 mod write;
@@ -30,6 +31,7 @@ use serde_json::{Map, Value, json};
 use crate::route_util::refuse;
 pub use deliver::{Deliverer, Delivery, Limits};
 pub use egress::{EgressPolicy, Lookup, permitted, system_lookup};
+pub use notifier::{Notifier, NotifierCounts};
 pub use routes::routes;
 
 /// The catalogue's one document name.
