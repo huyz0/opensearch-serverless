@@ -48,6 +48,11 @@ const WRITES: &[Method] = &[Method::Put, Method::Post];
 const RULES: &[(&[Method], &str, Rule)] = &[
     (GET, "/_plugins/_security/authinfo", Rule::Open),
     (
+        &[Method::Get, Method::Put],
+        "/_plugins/_security/api/account",
+        Rule::Open,
+    ),
+    (
         &[Method::Get],
         "/_cluster/health",
         Rule::Cluster("cluster:monitor/health"),

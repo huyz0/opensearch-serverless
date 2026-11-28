@@ -130,6 +130,7 @@ mod script_route;
 mod search_default_pipeline_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod search_pipeline_route;
+mod security_account;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authn;
 #[cfg(all(feature = "reader", feature = "writer"))]
