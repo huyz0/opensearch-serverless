@@ -79,6 +79,8 @@ pub enum Item {
     Field(String, Option<String>),
     /// An aggregate (`count`, `sum`, `avg`, `min`, `max`) over a field or `*`, with its alias.
     Agg(Agg, Option<String>),
+    /// A scalar expression, its alias and its text as written (the column's name).
+    Expr(crate::expr::Expr, Option<String>, String),
 }
 
 /// An aggregate call.

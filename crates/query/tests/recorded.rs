@@ -23,7 +23,7 @@ fn read(p: PathBuf) -> Value {
 
 /// Statements this slice refuses, with the slice that serves them.
 const LATER: &[&str] = &[
-    "scalar-",
+    "scalar-where",
     "where-in-expression",
     "join",
     "left-join",
@@ -179,8 +179,9 @@ fn every_statement_gives_stock_rows_or_is_a_listed_refusal() {
         match got {
             Err(_) if later(&name) => {}
             Err(e) => bad.push(format!(
-                "{name}: refused ({}), stock answers: {sql}",
-                e.status()
+                "{name}: refused ({}: {}), stock answers: {sql}",
+                e.status(),
+                e.to_json()["error"]["details"]
             )),
             Ok(_) if later(&name) => bad.push(format!("{name}: now served, remove it from LATER")),
             Ok(mut rows) => {

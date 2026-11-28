@@ -54,6 +54,11 @@ pub(crate) fn plan(sel: &Select, mapping: &Mapping, size_limit: usize) -> Result
     let mut aggs = Map::new();
     for item in &sel.items {
         match item {
+            Item::Expr(..) => {
+                return Err(Error::unsupported(
+                    "a function cannot be combined with aggregates or GROUP BY yet",
+                ));
+            }
             Item::Star | Item::StarExcept(_) => {
                 return Err(Error::unsupported(
                     "* cannot be combined with aggregates or GROUP BY",

@@ -266,7 +266,7 @@ fn what_cannot_be_pushed_is_refused_with_a_400_and_no_body() {
         "SELECT * FROM a, b",
         "SELECT * FROM accounts WHERE age IN (SELECT age FROM b)",
         "SELECT * FROM a UNION SELECT * FROM b",
-        "SELECT upper(city) FROM accounts",
+        "SELECT reverse(city) FROM accounts",
         "SELECT * FROM accounts WHERE upper(city) = 'X'",
         "SELECT * FROM accounts WHERE age + 1 > 3",
         "SELECT * FROM accounts ORDER BY address",
