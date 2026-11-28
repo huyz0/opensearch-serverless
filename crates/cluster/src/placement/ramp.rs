@@ -123,11 +123,14 @@ pub struct RampController {
 }
 
 impl RampController {
-    /// A controller at ramp 0 that counts from `start`.
+    /// A controller that counts from `start`, at the first step: a node
+    /// ranked behind every shard gets no search, so it could never gather
+    /// the evidence to move; the step admits it a tenth of its shards, and
+    /// the floor curve still holds that back until the time has passed.
     pub fn new(config: ControllerConfig, start: Totals) -> Self {
         Self {
             config,
-            ramp: 0,
+            ramp: config.step.clamp(0, 1000),
             seen: start,
         }
     }
@@ -245,12 +248,13 @@ mod tests {
     #[test]
     fn controller_steps_up_on_warm_windows_and_holds_otherwise() {
         let mut c = RampController::new(ControllerConfig::default(), totals(0, 0));
-        assert_eq!(c.observe(totals(19, 0)), 0, "too few searches say nothing");
-        assert_eq!(c.observe(totals(20, 0)), 100);
+        assert_eq!(c.ramp(), 100, "the first step is the start");
+        assert_eq!(c.observe(totals(19, 0)), 100, "too few searches say nothing");
+        assert_eq!(c.observe(totals(20, 0)), 200);
         // 30 searches, 90 GETs: 3 per search, cold: hold.
-        assert_eq!(c.observe(totals(50, 90)), 100);
+        assert_eq!(c.observe(totals(50, 90)), 200);
         // The cold window was consumed; the next window is judged on its own.
-        assert_eq!(c.observe(totals(70, 90 + 20)), 200);
+        assert_eq!(c.observe(totals(70, 90 + 20)), 300);
         for i in 0..20u64 {
             c.observe(totals(90 + i * 20, 110));
         }
@@ -260,8 +264,8 @@ mod tests {
     #[test]
     fn a_window_short_of_searches_keeps_collecting() {
         let mut c = RampController::new(ControllerConfig::default(), totals(0, 0));
-        assert_eq!(c.observe(totals(10, 0)), 0);
-        assert_eq!(c.observe(totals(20, 0)), 100, "the first ten still count");
+        assert_eq!(c.observe(totals(10, 0)), 100);
+        assert_eq!(c.observe(totals(20, 0)), 200, "the first ten still count");
     }
 
     #[test]
