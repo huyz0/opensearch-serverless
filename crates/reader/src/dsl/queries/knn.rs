@@ -10,7 +10,7 @@ use crate::dsl::error::DslError;
 use crate::dsl::queries::More;
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{float_value, int_value};
+use crate::dsl::values::{bool_value, float_value, int_value};
 use crate::failure::Failure;
 
 /// The largest `k` (`KNNQueryBuilder.K_MAX`).
@@ -41,6 +41,8 @@ pub struct Knn {
     pub filter: Option<Query>,
     /// The boost.
     pub boost: f32,
+    /// Whether a field the mapping lacks matches nothing instead of failing.
+    pub ignore_unmapped: bool,
 }
 
 /// `[knn] <name> doesn't support values of type: <token>`.
@@ -125,6 +127,7 @@ struct Params {
     boost: Option<f32>,
     min_score: Option<f32>,
     max_distance: Option<f32>,
+    ignore_unmapped: Option<bool>,
 }
 
 /// The field's parameter object: the parser is on its start.
@@ -147,6 +150,7 @@ fn params(p: &mut Parser<'_>) -> Result<Params, DslError> {
                     "boost" => out.boost.is_some(),
                     "min_score" => out.min_score.is_some(),
                     "max_distance" => out.max_distance.is_some(),
+                    "ignore_unmapped" => out.ignore_unmapped.is_some(),
                     _ => false,
                 };
                 if seen {
@@ -171,10 +175,14 @@ fn params(p: &mut Parser<'_>) -> Result<Params, DslError> {
                     ("max_distance", _) => {
                         out.max_distance = Some(scalar(p, "max_distance", float_value)?);
                     }
-                    (
-                        "method_parameters" | "rescore" | "expand_nested_docs" | "ignore_unmapped",
-                        _,
-                    ) => {
+                    ("ignore_unmapped", Kind::Bool | Kind::String) => {
+                        out.ignore_unmapped =
+                            Some(bool_value(p).map_err(|e| failed(p, "ignore_unmapped", e))?);
+                    }
+                    ("ignore_unmapped", other) => {
+                        return Err(wrong_type(p, "ignore_unmapped", other));
+                    }
+                    ("method_parameters" | "rescore" | "expand_nested_docs", _) => {
                         // ALLOC: error path; one message.
                         return Err(DslError::unsupported(&format!("[knn] [{current}]")));
                     }
@@ -265,5 +273,6 @@ pub fn parse_knn(p: &mut Parser<'_>) -> Result<More, DslError> {
         mode,
         filter: found.filter,
         boost,
+        ignore_unmapped: found.ignore_unmapped.unwrap_or(false),
     })))
 }

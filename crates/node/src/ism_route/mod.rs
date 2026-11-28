@@ -7,15 +7,19 @@
 //! is a count kept in the stored document, one per policy, so a change to
 //! another policy never moves it.
 
+#[cfg(feature = "coordinator")]
+mod hook;
+mod managed;
 mod policy;
 mod routes;
+mod templates;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use oss_blob::BlobStore;
 use oss_format::DocKind;
-use oss_meta::{DocSet, MetaError};
+use oss_meta::{DescriptorStore, DocSet, MetaError};
 use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Value, json};
 
@@ -30,6 +34,7 @@ pub struct IsmService {
     store: Arc<dyn BlobStore>,
     base: String,
     buffer_bytes: usize,
+    descriptors: Option<DescriptorStore>,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -94,12 +99,24 @@ impl IsmService {
             // ALLOC: one copy of the base, once.
             base: base.to_owned(),
             buffer_bytes,
+            descriptors: None,
         }
     }
 
+    /// Looks indices up in `descriptors`, which `add` needs; without them it
+    /// is refused 501.
+    #[must_use]
+    pub fn with_descriptors(mut self, descriptors: DescriptorStore) -> Self {
+        self.descriptors = Some(descriptors);
+        self
+    }
+
     fn set(&self) -> Result<DocSet, RestError> {
-        DocSet::new(Arc::clone(&self.store), &self.base, DocKind::IsmPolicies)
-            .map_err(|e| failed(&e))
+        self.set_of(DocKind::IsmPolicies)
+    }
+
+    fn set_of(&self, kind: DocKind) -> Result<DocSet, RestError> {
+        DocSet::new(Arc::clone(&self.store), &self.base, kind).map_err(|e| failed(&e))
     }
 
     fn marker(&self, req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
@@ -127,7 +144,17 @@ impl IsmService {
         marker: &mut [u8],
         doc: &mut [u8],
     ) -> Result<Option<Value>, RestError> {
-        match self.set()?.get(id, marker, doc) {
+        self.stored_in(DocKind::IsmPolicies, id, marker, doc)
+    }
+
+    fn stored_in(
+        &self,
+        kind: DocKind,
+        id: &str,
+        marker: &mut [u8],
+        doc: &mut [u8],
+    ) -> Result<Option<Value>, RestError> {
+        match self.set_of(kind)?.get(id, marker, doc) {
             Ok(Some(n)) => serde_json::from_slice(doc.get(..n).unwrap_or_default())
                 .map(Some)
                 .map_err(|_| refuse(500, "ism_store_failure", "a stored policy is unreadable")),
@@ -158,11 +185,18 @@ impl IsmService {
         let body: Value =
             serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?;
         let policy = policy::checked(&id, &body, now_millis()).map_err(bad)?;
+        let wanted = templates::entries_of(&id, &policy).map_err(bad)?;
         let mut marker = self.marker(req)?;
+        let mut doc = Self::doc_buffer(req)?;
+        // A new policy with no template has nothing to remove: no read.
+        let held = if wanted.is_empty() && if_seq.is_none() {
+            None
+        } else {
+            Some(self.check_templates(&wanted, &mut marker, &mut doc)?)
+        };
         let seq = match (if_seq, if_term) {
             (None, None) => 0,
             (Some(seq), Some(term)) => {
-                let mut doc = Self::doc_buffer(req)?;
                 let current = self
                     .stored(&id, &mut marker, &mut doc)?
                     .ok_or_else(|| conflict(&id))?;
@@ -180,6 +214,9 @@ impl IsmService {
         self.set()?
             .put_counted(&id, &bytes, !replaced, &mut marker)
             .map_err(|e| failed(&e))?;
+        if let Some(held) = held {
+            self.sync_templates(&id, &wanted, held, &mut marker, &mut doc)?;
+        }
         resp.send(
             if replaced { 200 } else { 201 },
             JSON,
@@ -217,6 +254,9 @@ impl IsmService {
         {
             return Err(not_found());
         }
+        let mut doc = Self::doc_buffer(req)?;
+        let held = self.check_templates(&[], &mut marker, &mut doc)?;
+        self.sync_templates(&id, &[], held, &mut marker, &mut doc)?;
         let body = json!({
             "_index": INDEX, "_id": id, "result": "deleted", "forced_refresh": true,
             "_shards": {"total": 1, "successful": 1, "failed": 0},

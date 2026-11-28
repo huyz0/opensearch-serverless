@@ -1,0 +1,11 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root
+src/lexer.rs	port	sql/legacy and sql/language (ANTLR OpenSearchSQLLexer.g4)	tokens of the plugin dialect, bounded
+src/parser.rs	port	sql/sql OpenSearchSQLParser.g4, AstBuilder	statements of slice 1
+src/plan.rs	port	opensearch/storage request builders (OpenSearchRequestBuilder, FilterQueryBuilder)	lowering to a search body
+src/result.rs	port	protocol/response formatters (JdbcResponseFormatter, CsvResponseFormatter, RawResponseFormatter)	output formats
+src/ast.rs	port	sql/core ast (Statement, QueryStatement, expression nodes)	statement and condition tree
+src/error.rs	port	common/antlr SyntaxCheckException, SemanticCheckException	the plugin error body
+src/mapping.rs	new		flattened leaf fields; Java reads the type env from the index mapping
+src/meta.rs	port	protocol/response and legacy show and describe handlers	SHOW TABLES and DESCRIBE TABLES column sets
+src/parser_pred.rs	port	sql/sql OpenSearchSQLParser.g4 predicates, relevance functions	conditions

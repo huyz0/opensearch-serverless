@@ -19,7 +19,7 @@ Any crate may use `unsafe`, but only through the patterns below, each one small,
 - `unsafe impl Send` or `unsafe impl Sync`.
 - `std::mem::transmute`, or any reinterpretation of a type that is not plain-old-data.
 - Extending a lifetime (casting a borrow to `'static`, or keeping a pointer past its borrow).
-- FFI (`extern` blocks, raw C calls) outside a crate built for it.
+- FFI (`extern` blocks, raw C calls) outside a crate built for it. The one owner-approved crate is `oss-ext-native` ([ADR 0080](adr/0080-one-plugin-system-three-tiers.md), 2026-11-28): it loads plugin libraries the operator allow-listed or signed, and its safety is that trust, not a proof.
 - `unsafe` written to get past the borrow checker rather than for speed.
 
 `scripts/check-unsafe.py` refuses the first, second and fourth outright. An approved exception is added to its allow list in the same PR that carries the owner's OK.

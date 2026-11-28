@@ -1,6 +1,6 @@
 # Verified
 
-Slice 1a (model groups and their name claims, `crates/node/src/ml_route/`) is built, off by default behind `serverless.ml.enabled`. The other criteria belong to later slices.
+Slice 1a (model groups and their name claims, `crates/node/src/ml_route/`) is built and on by default (`serverless.ml.enabled`, `ml_commons_is_on_by_default_and_turned_off_by_its_variable`). The other criteria belong to later slices.
 
 - AC-1: `a_model_group_is_registered_read_updated_searched_and_deleted`, `a_name_in_use_is_refused_naming_its_holder_and_is_free_after_a_delete_or_rename` (`crates/node/tests/server/ml_routes.rs`, over the emulator). Shapes follow the reference plugin's Java and stay provisional: no stock run. Slice 1a covers model groups; `shapes.md` is not written yet. The tests were written after the code; seen red with planted faults (a claim never released, a duplicate name not refused): `a_name_in_use_...` and `a_set_holds_at_most_...` failed, then the faults were removed.
 - AC-2: NOT-RUN: a later slice (connectors 1b, remote models 2, local models 3, stats and tools 4, agents and memory 5)

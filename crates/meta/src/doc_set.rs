@@ -24,6 +24,8 @@ use crate::pit::new_id;
 /// contention, as the Java's.
 const ATTEMPTS: u32 = 10;
 
+mod update;
+
 /// One set of documents under a deployment's base.
 pub struct DocSet {
     store: Arc<dyn BlobStore>,
@@ -436,6 +438,10 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::LtrModels => "model",
         DocKind::IsmPolicies => "policy",
         DocKind::MlModelGroups => "model group",
+        DocKind::AdDetectors => "detector",
+        DocKind::IsmManaged => "managed index",
+        DocKind::NotificationConfigs | DocKind::NotificationCatalogue => "notification config",
+        DocKind::IsmTemplates => "template",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers

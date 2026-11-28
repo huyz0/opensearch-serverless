@@ -1,57 +1,8 @@
 //! docs/specs/ism slice 1: the policy store and its routes.
 
-use crate::support;
+use crate::ism_rig::{POLICY, call, rig, total, with};
 
-use std::net::TcpListener;
-use std::sync::Arc;
-
-use oss_blob::{BlobStore, Emulator, S3Op};
-use oss_mem::MemoryBudget;
-use oss_node::ism_route::{IsmService, routes};
-use oss_rest::{Router, Server};
-
-const BUF: usize = 1 << 16;
-const POLICY: &str = r#"{"policy":{"description":"logs","default_state":"hot","states":[
-  {"name":"hot","actions":[{"rollover":{"min_index_age":"1d"}}],
-   "transitions":[{"state_name":"warm","conditions":{"min_index_age":"2d"}}]},
-  {"name":"warm","actions":[{"read_only":{}}],
-   "transitions":[{"state_name":"gone","conditions":{"min_index_age":"30d"}}]},
-  {"name":"gone","actions":[{"delete":{}}],"transitions":[]}]}}"#;
-
-struct Rig {
-    server: Server,
-    store: Arc<Emulator>,
-}
-
-fn rig() -> Rig {
-    let store = Arc::new(Emulator::new(1 << 28, 5));
-    let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
-    let service = Arc::new(IsmService::new(&blobs, "", BUF));
-    let router = routes(Router::new(), &service).expect("routes");
-    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
-    let budget = MemoryBudget::new(&support::budget_config());
-    let server =
-        Server::start(listener, support::server_config(), router, &budget).expect("starts");
-    Rig { server, store }
-}
-
-fn call(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
-    support::request(
-        r.server.local_addr(),
-        method,
-        target,
-        body.map(str::as_bytes),
-    )
-}
-
-fn total(r: &Rig, op: S3Op) -> u64 {
-    r.store.meter().count(op)
-}
-
-fn with(policy: &str, from: &str, to: &str) -> String {
-    assert!(policy.contains(from), "{from}");
-    policy.replacen(from, to, 1)
-}
+use oss_blob::S3Op;
 
 // AC-1
 #[test]
@@ -208,8 +159,8 @@ fn a_policy_costs_the_stored_scripts_shape_and_nothing_lists() {
     call(&r, "DELETE", "/_plugins/_ism/policies/logs", None);
     assert_eq!(
         (total(&r, S3Op::Get) - gets, total(&r, S3Op::Put) - puts),
-        (1, 1),
-        "a delete"
+        (2, 1),
+        "a delete: the marker's swap, and the templates' read"
     );
     assert_eq!(total(&r, S3Op::List), 0);
 }

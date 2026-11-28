@@ -110,7 +110,7 @@ pub struct NodeConfig {
     pub commit_logged: commits::Logged,
     /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
     pub ltr: bool,
-    /// The ported plugins' switches (`OSS_ISM`, `OSS_ML`). Off by default.
+    /// The ported plugins' switches (`OSS_ISM`, `OSS_AD`, `OSS_ML`).
     pub plugins: plugins::Switches,
     /// The `sltr` window and model cache bounds.
     pub ltr_bounds: ltr::Bounds,
@@ -257,18 +257,7 @@ impl NodeConfig {
             ));
         }
         let lease_ttl_millis = lease_timing::ttl_millis(&get)?;
-        let lease_refresh_millis = match get("OSS_LEASE_REFRESH_MS").filter(|v| !v.is_empty()) {
-            None => None,
-            Some(v) => {
-                let millis: u64 = v
-                    .parse()
-                    .map_err(|e| format!("OSS_LEASE_REFRESH_MS: {e}"))?;
-                if millis == 0 {
-                    return Err("OSS_LEASE_REFRESH_MS is below 1".to_owned());
-                }
-                Some(millis)
-            }
-        };
+        let lease_refresh_millis = lease_timing::refresh_millis(&get)?;
         let index_confirm_millis: u64 = or("OSS_INDEX_CONFIRM_MS", "5000")
             .parse()
             .map_err(|e| format!("OSS_INDEX_CONFIRM_MS: {e}"))?;
