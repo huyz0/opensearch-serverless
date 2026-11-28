@@ -267,6 +267,8 @@ pub mod warm_handlers;
 pub mod warm_join;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_peer;
+#[cfg(feature = "reader")]
+pub mod warm_pressure;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_rate;
 #[cfg(all(feature = "reader", feature = "writer"))]
