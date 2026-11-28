@@ -328,7 +328,10 @@ pub fn assemble(
     };
     #[cfg(not(feature = "coordinator"))]
     let drain: Option<()> = None;
-    let router = crate::plugins::install_configured(router, &config.plugin_policy, &bulk, &bus)?;
+    let modules =
+        crate::plugins::configured_modules(&config.plugin_policy, &*store, &config.base, budget);
+    let router =
+        crate::plugins::install_configured(router, &config.plugin_policy, &bulk, &bus, &modules)?;
 
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(

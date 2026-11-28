@@ -123,6 +123,7 @@ pub(crate) fn install_configured(
     policy_text: &str,
     bulk: &Arc<crate::bulk_route::BulkService>,
     bus: &crate::lifecycle_bus::Bus,
+    modules: &HashMap<String, Arc<dyn NativeInstance>>,
 ) -> Result<Router, crate::assemble_error::AssembleError> {
     use crate::assemble_error::AssembleError;
     use oss_ext::doc_sink::{DocSink, DocSinkBackend};
@@ -130,7 +131,7 @@ pub(crate) fn install_configured(
     install(
         router,
         policy_text,
-        &HashMap::new(),
+        modules,
         &(Arc::new(DocSinkBackend::new(
             Arc::clone(bulk) as Arc<dyn DocSink>,
             Arc::new(NoBackend),
@@ -142,4 +143,30 @@ pub(crate) fn install_configured(
         InstallError::Route(r) => AssembleError::Route(r),
         InstallError::Policy(why) => AssembleError::Plugins(why),
     })
+}
+
+/// The WASM modules the node's policy names, read from the store: one GET each
+/// at start, none when the policy is empty or names none.
+#[cfg(all(feature = "writer", feature = "extensions"))]
+pub(crate) fn configured_modules(
+    policy_text: &str,
+    store: &dyn oss_blob::BlobStore,
+    base: &str,
+    budget: &oss_mem::MemoryBudget,
+) -> HashMap<String, Arc<dyn NativeInstance>> {
+    Policy::parse(policy_text).map_or_else(
+        |_| HashMap::new(),
+        |p| super::wasm_load::load_modules(&p, store, base, budget),
+    )
+}
+
+/// Without the extension host there are no modules to read.
+#[cfg(all(feature = "writer", not(feature = "extensions")))]
+pub(crate) fn configured_modules(
+    _: &str,
+    _: &dyn oss_blob::BlobStore,
+    _: &str,
+    _: &oss_mem::MemoryBudget,
+) -> HashMap<String, Arc<dyn NativeInstance>> {
+    HashMap::new()
 }

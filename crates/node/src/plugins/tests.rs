@@ -101,10 +101,26 @@ fn a_policy_that_is_not_exactly_that_is_refused() {
         r#"{"plugins":[{"id":"a","tier":"native","actions":{"GET /x":1}}]}"#,
         r#"{"plugins":[{"id":"a","tier":"native"},{"id":"a","tier":"native"}]}"#,
         r#"{"plugins":[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","tier":"native"}]}"#,
+        r#"{"plugins":[{"id":"a","tier":"wasm","sha256":"abc"}]}"#,
+        r#"{"plugins":[{"id":"a","tier":"native","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]}"#,
     ];
     for text in bad {
         assert!(Policy::parse(text).is_err(), "{text}");
     }
+    let hash = "ab".repeat(32);
+    let wasm = Policy::parse(&format!(
+        r#"{{"plugins":[{{"id":"a","tier":"wasm","sha256":"{hash}"}}]}}"#
+    ))
+    .expect("a wasm entry names its module");
+    assert_eq!(wasm.entries()[0].sha256.as_deref(), Some(hash.as_str()));
+    assert!(
+        Policy::parse(&format!(
+            r#"{{"plugins":[{{"id":"a","tier":"wasm","sha256":"{}"}}]}}"#,
+            hash.to_uppercase()
+        ))
+        .is_err(),
+        "the hash is lowercase hex"
+    );
     let many: Vec<String> = (0..65)
         .map(|i| format!(r#"{{"id":"p{i}","tier":"native"}}"#))
         .collect();

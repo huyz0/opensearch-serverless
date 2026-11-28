@@ -40,6 +40,9 @@ pub struct Entry {
     pub claims: Vec<String>,
     /// `"METHOD /pattern"` to the action that route is authorized as.
     pub actions: Vec<(String, String)>,
+    /// For a WASM plugin, the SHA-256 (lowercase hex) of the module the node
+    /// reads from the store; none for a linked-in one.
+    pub sha256: Option<String>,
 }
 
 /// The parsed policy.
@@ -102,7 +105,7 @@ fn entry(v: &Value, at: &str) -> Result<Entry, PolicyError> {
     only_keys(
         obj,
         at,
-        &["id", "tier", "name", "grants", "claim", "actions"],
+        &["id", "tier", "name", "grants", "claim", "actions", "sha256"],
     )?;
     let id = obj
         .get("id")
@@ -160,6 +163,26 @@ fn entry(v: &Value, at: &str) -> Result<Entry, PolicyError> {
             actions.push((k.clone(), action.to_owned()));
         }
     }
+    let sha256 = match obj.get("sha256") {
+        None => None,
+        Some(h) => {
+            let hash = h
+                .as_str()
+                .filter(|h| {
+                    h.len() == 64 && h.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+                })
+                .ok_or_else(|| {
+                    PolicyError::at(&format!("{at}.sha256"), "not 64 lowercase hex digits")
+                })?;
+            if tier != PolicyTier::Wasm {
+                return Err(PolicyError::at(
+                    &format!("{at}.sha256"),
+                    "only a wasm plugin has a module",
+                ));
+            }
+            Some(hash.to_owned())
+        }
+    };
     Ok(Entry {
         id,
         tier,
@@ -167,6 +190,7 @@ fn entry(v: &Value, at: &str) -> Result<Entry, PolicyError> {
         grants,
         claims,
         actions,
+        sha256,
     })
 }
 

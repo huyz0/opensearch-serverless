@@ -28,6 +28,11 @@ impl DescriptorError {
         }
     }
 
+    /// A refusal of `key` for `reason`, for a loader that finds a fault of its own.
+    pub fn new(key: &str, reason: &'static str) -> Self {
+        Self::at(key, reason)
+    }
+
     /// The key at fault, `points[1].id` for a nested one, empty when the
     /// whole document is.
     pub fn key(&self) -> &str {
