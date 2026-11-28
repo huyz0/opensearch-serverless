@@ -11,3 +11,5 @@ src/manifest.rs	new		the plugin manifest: one strict parse of what a plugin says
 src/catalogue.rs	new		the point catalogue and the tiers: which points exist and which tier may serve each (ADR 0080)
 src/capability.rs	new		the capabilities a plugin may ask the host for and the per-call budget (ADR 0080)
 src/breaker.rs	new		the circuit breaker every plugin call goes through, over an injected clock (ADR 0080)
+src/rest.rs	new		the rest point's bytes: one request in, one response out, strictly bounded, with golden vectors (ADR 0080)
+src/native.rs	new		the native form of a plugin and the guard every call to it goes through: bulkhead, breaker, panic fence (ADR 0080)
