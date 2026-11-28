@@ -124,6 +124,48 @@ impl Runner {
         })
     }
 
+    /// Feeds a new model the windows before `slot`, so it scores from its
+    /// first window instead of after `history` runs: one search for the
+    /// whole history, once per model. A node that takes a detector over
+    /// pays it too, which is what a checkpoint will save.
+    fn warm(
+        &self,
+        model: &mut Model,
+        workspace: &mut Workspace,
+        (detector, indices): (&Value, &[String]),
+        (slot, from): (u64, i64),
+        history: usize,
+    ) -> Result<(), RunError> {
+        let back = history.min(usize::try_from(slot).unwrap_or(usize::MAX));
+        if back == 0 {
+            return Ok(());
+        }
+        let period = windows::interval_ms(detector).map_err(RunError::Bad)?;
+        let span = windows::Span {
+            from_ms: from.saturating_sub(
+                i64::try_from(back)
+                    .unwrap_or(i64::MAX)
+                    .saturating_mul(period),
+            ),
+            interval_ms: period,
+            count: back,
+        };
+        let request = windows::request(detector, &span).map_err(RunError::Bad)?;
+        let answer = self
+            .search
+            .search(indices, &request)
+            .map_err(RunError::Search)?;
+        let past = windows::parse(&answer, detector, &span).map_err(RunError::Bad)?;
+        let first = slot.saturating_sub(u64::try_from(back).unwrap_or(0));
+        for (n, values) in past.iter().enumerate() {
+            let at = first.saturating_add(u64::try_from(n).unwrap_or(0));
+            model
+                .feed(workspace, at, values.as_deref())
+                .map_err(|e| RunError::Bad(e.to_string()))?;
+        }
+        Ok(())
+    }
+
     /// How many models this node holds.
     pub fn held(&self) -> usize {
         self.held
@@ -202,8 +244,19 @@ impl Runner {
                 return Ok(Outcome::Skipped { slot });
             }
             let params = preview::params(detector, features.len()).map_err(RunError::Bad)?;
-            let workspace = Workspace::new(&params);
-            let model = Model::new(params).map_err(|e| RunError::Bad(e.to_string()))?;
+            let mut workspace = Workspace::new(&params);
+            let history = params
+                .min_train_samples
+                .saturating_add(params.shingle_size)
+                .min(preview::MAX_PREVIEW_POINTS);
+            let mut model = Model::new(params).map_err(|e| RunError::Bad(e.to_string()))?;
+            self.warm(
+                &mut model,
+                &mut workspace,
+                (detector, &indices),
+                (slot, from),
+                history,
+            )?;
             held = Some(Held {
                 model,
                 workspace,
