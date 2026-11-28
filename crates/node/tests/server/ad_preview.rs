@@ -286,3 +286,46 @@ fn a_pool_too_small_for_the_model_refuses_the_preview() {
     assert_eq!(got.status, 429, "{}", got.text());
     assert_eq!(store.meter().count(S3Op::Get), gets, "nothing was read");
 }
+
+// slice 3 follow-up: `_validate` answers what a create would, and writes nothing.
+#[test]
+fn a_validate_answers_what_a_create_would_and_writes_nothing() {
+    let r = rig_with(None);
+    let (gets, puts) = (total(&r, S3Op::Get), total(&r, S3Op::Put));
+    let ok = call(
+        &r,
+        "POST",
+        &format!("{ROOT}/detectors/_validate"),
+        Some(&small()),
+    );
+    assert_eq!(ok.status, 200, "{}", ok.text());
+    assert_eq!(json_of(&ok), json!({}));
+    let mut bad = small();
+    bad["shingle_size"] = json!(61);
+    let refused = call(
+        &r,
+        "POST",
+        &format!("{ROOT}/detectors/_validate/detector"),
+        Some(&bad),
+    );
+    assert_eq!(refused.status, 200, "{}", refused.text());
+    let out = json_of(&refused);
+    assert!(
+        out["detector"]["shingle_size"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("1 to 60")),
+        "{out}"
+    );
+    let model = call(
+        &r,
+        "POST",
+        &format!("{ROOT}/detectors/_validate/model"),
+        Some(&small()),
+    );
+    assert_eq!(model.status, 400, "{}", model.text());
+    assert_eq!(
+        (total(&r, S3Op::Get) - gets, total(&r, S3Op::Put) - puts),
+        (0, 0),
+        "nothing read or written"
+    );
+}
