@@ -424,3 +424,4 @@ src/ad_route/results_route.rs	new		POST|GET /detectors/results/_search[/{result_
 src/sql_route/lister.rs	new		the descriptor store as the SQL endpoint name listing, the one capped LIST
 src/sql_route/names.rs	new		SHOW TABLES and DESCRIBE over a pattern: one listing, then like
 src/ism_run/actions.rs	new		what each action asks of the backend and leaves in the record
+src/ad_route/profile_route.rs	new		GET /detectors/{id}/_profile[/{type}]: the state from the stored job and the clock; no stock recording exists (AC-15 gap)
