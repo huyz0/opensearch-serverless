@@ -81,7 +81,11 @@ pub(super) fn parse_body(p: &mut Parser<'_>, metric: Metric) -> Result<(String, 
         }
     }
     let field = field.ok_or_else(|| {
-        DslError::illegal("Required one of fields [field, script], but none were specified. ")
+        DslError::illegal(if metric == Metric::GeoBounds {
+            "Required one of fields [field], but none were specified. "
+        } else {
+            "Required one of fields [field, script], but none were specified. "
+        })
     })?;
     Ok((field, wrap))
 }
