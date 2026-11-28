@@ -15,7 +15,7 @@ use oss_rest::{Router, Server};
 
 const KEY: &str = "index.plugins.index_state_management.policy_id";
 
-fn rig(hooked: bool) -> Rig {
+pub(crate) fn rig(hooked: bool) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let descriptors = || {

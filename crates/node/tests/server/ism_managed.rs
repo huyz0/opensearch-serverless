@@ -38,9 +38,8 @@ fn a_policy_is_added_to_an_index_explained_and_removed() {
     assert_eq!(entry["index"], "logs-1");
     assert_eq!(entry["index_uuid"], "uuid-logs-1");
     assert_eq!(entry["policy_id"], "logs");
-    assert_eq!(entry["policy_seq_no"], 0);
-    assert_eq!(entry["index_creation_date"], 1_700_000_000_000_i64);
-    assert_eq!(entry["state"]["name"], "hot");
+    // before the runner's first step the plugin shows no state or sequence numbers
+    assert!(entry["state"].is_null() && entry["policy_seq_no"].is_null());
     assert_eq!(entry["enabled"], true);
     assert_eq!(explained["total_managed_indices"], 1);
 
@@ -79,28 +78,41 @@ fn an_add_that_cannot_attach_is_a_failure_entry_naming_why() {
     let r = rig();
     seed(&r, "logs-1", 1);
     call(&r, "PUT", "/_plugins/_ism/policies/logs", Some(POLICY));
-    let cases = [
-        ("logs-1", r#"{"policy_id":"nope"}"#, "Policy not found"),
-        ("ghost", ADD, "no such index"),
-    ];
-    for (index, body, word) in cases {
-        let reply = call(
-            &r,
-            "POST",
-            &format!("/_plugins/_ism/add/{index}"),
-            Some(body),
-        );
-        assert_eq!(reply.status, 200, "{}", reply.text());
-        let reply = json(&reply);
-        assert_eq!(reply["updated_indices"], 0, "{reply}");
-        assert!(
-            reply["failed_indices"][0]["reason"]
-                .as_str()
-                .unwrap()
-                .contains(word),
-            "{reply}"
-        );
-    }
+    // a missing policy is the plugin's 404, a missing index is skipped and counted nowhere
+    let nope = call(
+        &r,
+        "POST",
+        "/_plugins/_ism/add/logs-1",
+        Some(r#"{"policy_id":"nope"}"#),
+    );
+    assert_eq!(nope.status, 404, "{}", nope.text());
+    assert!(nope.text().contains("Could not find policy=nope"));
+    let ghost = json(&call(&r, "POST", "/_plugins/_ism/add/ghost", Some(ADD)));
+    assert_eq!(
+        ghost,
+        serde_json::json!({"updated_indices":0,"failures":false,"failed_indices":[]})
+    );
+    let state = call(
+        &r,
+        "POST",
+        "/_plugins/_ism/add/logs-1",
+        Some(r#"{"policy_id":"logs","state":"cold"}"#),
+    );
+    assert!(
+        json(&state)["failed_indices"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("not a state")
+    );
+    // a comma list adds each index it finds
+    seed(&r, "logs-2", 2);
+    let both = json(&call(
+        &r,
+        "POST",
+        "/_plugins/_ism/add/logs-2,ghost,logs-1",
+        Some(ADD),
+    ));
+    assert_eq!(both["updated_indices"], 2, "{both}");
     for (target, body) in [("logs-*", ADD), ("logs-1", "{}"), ("logs-1", "not json")] {
         let reply = call(
             &r,
@@ -136,15 +148,15 @@ fn adding_reading_and_removing_a_policy_cost_their_requests_and_nothing_lists() 
     call(&r, "POST", "/_plugins/_ism/remove/logs-1", None);
     assert_eq!(
         (total(&r, S3Op::Get) - gets, total(&r, S3Op::Put) - puts),
-        (1, 1),
-        "a remove"
+        (2, 1),
+        "a remove: the index's record, the marker's read, the swap"
     );
     let gets = total(&r, S3Op::Get);
     call(&r, "GET", "/_plugins/_ism/explain/logs-1", None);
     assert_eq!(
         total(&r, S3Op::Get) - gets,
-        1,
-        "an explain of an unmanaged index"
+        2,
+        "an explain of an unmanaged index: the absent marker, then the index's record"
     );
     assert_eq!(total(&r, S3Op::List), 0);
 }
@@ -198,7 +210,6 @@ fn a_managed_index_is_asked_to_change_policy_and_an_unmanaged_one_is_not() {
 
     let cases = [
         ("other", change, "does not have a policy"),
-        ("logs-1", r#"{"policy_id":"nope"}"#, "Policy not found"),
         (
             "logs-1",
             r#"{"policy_id":"logs2","state":"cold"}"#,
@@ -221,6 +232,21 @@ fn a_managed_index_is_asked_to_change_policy_and_an_unmanaged_one_is_not() {
             "{reply}"
         );
     }
+    // a missing policy and a missing index are the plugin's 404s
+    let nope = call(
+        &r,
+        "POST",
+        "/_plugins/_ism/change_policy/logs-1",
+        Some(r#"{"policy_id":"nope"}"#),
+    );
+    assert_eq!(nope.status, 404, "{}", nope.text());
+    let ghost = call(
+        &r,
+        "POST",
+        "/_plugins/_ism/change_policy/ghost",
+        Some(change),
+    );
+    assert_eq!(ghost.status, 404, "{}", ghost.text());
     assert_eq!(
         call(
             &r,
@@ -238,18 +264,22 @@ fn a_managed_index_is_asked_to_change_policy_and_an_unmanaged_one_is_not() {
 fn a_retry_is_taken_only_for_an_index_whose_step_failed() {
     let r = rig();
     seed(&r, "logs-1", 1);
+    seed(&r, "other", 1);
     call(&r, "PUT", "/_plugins/_ism/policies/logs", Some(POLICY));
     call(&r, "POST", "/_plugins/_ism/add/logs-1", Some(ADD));
-    let not_failed = json(&call(&r, "POST", "/_plugins/_ism/retry/logs-1", None));
-    assert_eq!(not_failed["updated_indices"], 0, "{not_failed}");
+    // before the runner's first step the index has no metadata, as the plugin says
+    let fresh = json(&call(&r, "POST", "/_plugins/_ism/retry/logs-1", None));
+    assert_eq!(fresh["updated_indices"], 0, "{fresh}");
     assert!(
-        not_failed["failed_indices"][0]["reason"]
+        fresh["failed_indices"][0]["reason"]
             .as_str()
             .unwrap()
-            .contains("not in a failed state")
+            .contains("no metadata information")
     );
-    let unmanaged = json(&call(&r, "POST", "/_plugins/_ism/retry/ghost", None));
+    let unmanaged = json(&call(&r, "POST", "/_plugins/_ism/retry/other", None));
     assert_eq!(unmanaged["updated_indices"], 0, "{unmanaged}");
+    let ghost = call(&r, "POST", "/_plugins/_ism/retry/ghost", None);
+    assert_eq!(ghost.status, 404, "{}", ghost.text());
 
     // the runner marks a failed step; here the record is written as it would
     let blobs = Arc::clone(&r.store) as Arc<dyn BlobStore>;
@@ -258,6 +288,16 @@ fn a_retry_is_taken_only_for_an_index_whose_step_failed() {
     let mut doc = vec![0u8; 1 << 20];
     let n = set.get("logs-1", &mut marker, &mut doc).unwrap().unwrap();
     let mut record: serde_json::Value = serde_json::from_slice(&doc[..n]).unwrap();
+    record["failed"] = serde_json::json!(false);
+    set.put("logs-1", record.to_string().as_bytes(), false, &mut marker)
+        .unwrap();
+    let healthy = json(&call(&r, "POST", "/_plugins/_ism/retry/logs-1", None));
+    assert!(
+        healthy["failed_indices"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("not in a failed state")
+    );
     record["failed"] = serde_json::json!(true);
     set.put("logs-1", record.to_string().as_bytes(), false, &mut marker)
         .unwrap();
@@ -295,8 +335,8 @@ fn a_change_policy_and_a_retry_cost_their_reads_and_one_put() {
     );
     assert_eq!(
         (total(&r, S3Op::Get) - gets, total(&r, S3Op::Put) - puts),
-        (5, 2),
-        "the policy's 2 GETs, the record's 2, the replace's 1 GET and 2 PUTs"
+        (6, 2),
+        "the policy's 2 GETs, the index's 1, the record's 2, the replace's 1 GET and 2 PUTs"
     );
     assert_eq!(total(&r, S3Op::List), 0);
 }
