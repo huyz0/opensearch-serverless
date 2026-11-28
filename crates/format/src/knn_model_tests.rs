@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use super::*;
 
 fn flat() -> (ModelHeader, Vec<f32>) {
