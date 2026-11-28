@@ -18,6 +18,8 @@ Five slices, one PR each, each behind the setting below. Nothing in lucene-rust 
 
 Planned later slice (gap, not built here): a document count derived from the write path, so `min_doc_count` and a rollover on a document count work without a poll (the owner's S3-cost principle rules a polled count out); until it lands those conditions are 400 at put and common rollover policies must use `min_index_age`.
 
+**End state (owner's principle, 2026-11-28: no plugin relies on Java).** Every ISM route is native: `change_policy`, `retry`, `explain`, the policy and managed-index routes and the cluster settings all answer from the Rust store, no ISM route ends at a Java node, and a test never takes a Java node as its only oracle (shapes are recorded once from the stock plugin and then compared offline, AC-13). The ISM prefixes leave the plugin proxy's list in the change that completes the port, and the store and routes default on then (they cost nothing idle and, with the runner built, their policies run); the runner keeps its own switch, off until its standing registry reads are measured. Until then the routes stay off, so a deployment with a Java upstream never gets a half-native route set.
+
 Not here: the Index Management plugin's rollup and transform jobs, snapshot management policies, the `_plugins/_ism/refresh_search_analyzers` route, the plugin's `.opendistro-ism-config` system index (a GET of it is 404), Java-shell interop (a Java node reading the Rust store).
 
 ## Acceptance criteria

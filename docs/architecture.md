@@ -10,6 +10,7 @@ Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `os
 ```mermaid
 graph TD
     chunkjson
+    oss-anomaly
     oss-blob --> oss-mem
     oss-blob --> oss-types
     oss-cluster --> oss-blob
@@ -85,6 +86,7 @@ lucene-rust, the engine and the only sibling project used as code, comes in belo
 |---|---|---|
 | `oss-types` | identifiers, value types | [crates/types](../crates/types/README.md) |
 | `oss-mem` | memory budget, pools, buffer pool | [crates/mem](../crates/mem/README.md) |
+| `oss-anomaly` | the anomaly detection model: Random Cut Forest, thresholder, shingling, checkpoint | [crates/anomaly](../crates/anomaly/README.md) |
 | `oss-testkit` | test-only: counting allocator, peak-memory assertions | [crates/testkit](../crates/testkit/README.md) |
 | `oss-blob` | S3 request kinds, the meter, the store | [crates/blob](../crates/blob/README.md) |
 | `oss-format` | the Java shell's blob formats (segment blobs, node packs, commit descriptors) | [crates/format](../crates/format/README.md) |

@@ -9,4 +9,4 @@ Index and alias name rules, the descriptor store (create, read, update and delet
 `oss-blob` (registers), `oss-format` (the records' bytes). Never a role crate.
 
 ## Entry points
-`src/lib.rs`: `DescriptorStore`, `AliasMutations`, `RoutingCache`, `ChangeStripes`, `ClusterConfig`, `DocSet`, `DocSetCache`, `IndexLifecycle`, `ReclaimQueue` and `PointInTimeStore` over any `BlobStore`, and `validate_index_or_alias`. Tested on the emulator, S3 over loopback and the filesystem store with exact request counts (`tests/descriptors/`). Spec: [docs/specs/descriptor-store](../../docs/specs/descriptor-store/SPEC.md).
+`src/lib.rs`: `DescriptorStore`, `AliasMutations`, `RoutingCache`, `ChangeStripes`, `ClusterConfig`, `DocSet`, `DocSetCache`, `AlertRegistry`, `IndexLifecycle`, `ReclaimQueue` and `PointInTimeStore` over any `BlobStore`, and `validate_index_or_alias`. Tested on the emulator, S3 over loopback and the filesystem store with exact request counts (`tests/descriptors/`). Spec: [docs/specs/descriptor-store](../../docs/specs/descriptor-store/SPEC.md).

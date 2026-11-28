@@ -85,7 +85,8 @@ fn measure(at_open: bool, body: &str) -> Cost {
     let (store, index_bytes) = store();
     let rounds = store.store();
     let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("page cache"));
-    rounds.reset(Duration::from_millis(5));
+    // Held long enough that calls sent together overlap even on a loaded runner.
+    rounds.reset(Duration::from_millis(100));
     let (b0, r0) = (rounds.meter().bytes_read(), rounds.meter().total());
     let shard: OpenShard<_> = open_shard(store.clone(), cache, "", "kn", 0).expect("opens");
     let (b1, r1) = (rounds.meter().bytes_read(), rounds.meter().total());

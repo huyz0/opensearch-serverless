@@ -1,0 +1,17 @@
+[package]
+name = "oss-anomaly"
+description = "opensearch-serverless: the Random Cut Forest anomaly model, its thresholder, shingling and checkpoint"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+oss-testkit = { workspace = true }
+
+[lints]
+workspace = true

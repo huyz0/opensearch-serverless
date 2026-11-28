@@ -133,6 +133,8 @@ pub mod pit_route;
 #[cfg(feature = "writer")]
 pub mod plugin_proxy;
 #[cfg(feature = "reader")]
+pub mod plugins;
+#[cfg(feature = "reader")]
 pub mod push;
 #[cfg(feature = "writer")]
 pub mod push_link;

@@ -1,0 +1,14 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/checkpoint.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/forest.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/model.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/params.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/rng.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/shingle.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/threshold.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/tree.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/workspace.rs	new		from the Random Cut Forest paper and the library's documented behaviour; the plugin source is not in this sandbox
+src/tests/mod.rs	new		unit tests
+src/tests/checkpoint.rs	new		unit tests
+src/tests/quality.rs	new		unit tests

@@ -1432,6 +1432,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-anomaly"
+version = "0.1.0"
+dependencies = [
+ "oss-testkit",
+]
+
+[[package]]
 name = "oss-blob"
 version = "0.1.0"
 dependencies = [
