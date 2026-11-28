@@ -438,6 +438,7 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
         DocKind::LtrModels | DocKind::KnnModels => "model",
         DocKind::IsmPolicies => "policy",
         DocKind::MlModelGroups => "model group",
+        DocKind::MlConnectors => "connector",
         DocKind::AdDetectors => "detector",
         DocKind::IsmManaged => "managed index",
         DocKind::NotificationConfigs | DocKind::NotificationCatalogue => "notification config",

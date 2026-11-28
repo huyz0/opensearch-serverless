@@ -87,6 +87,7 @@ mod ltr_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod metadata_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ml_connectors;
 mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;
@@ -129,6 +130,7 @@ mod search_pipeline_route;
 mod security_authn;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authz;
+mod security_builtin;
 mod security_hardening;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_limits;

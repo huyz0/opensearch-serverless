@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use oss_blob::BlobStore;
 use oss_coordinator::security::{
-    ALL_ACCESS, Answer, Config, Kind, authinfo, deleted, missing, needs_credentials, password_ok,
-    render, saved, validate, weak_password, with_hash,
+    ALL_ACCESS, Answer, Config, Kind, authinfo, builtin, deleted, missing, needs_credentials,
+    password_ok, protection, read_builtin, render, saved, validate, weak_password, with_hash,
 };
 use oss_doc::mapping::json::{Json, parse};
 use oss_format::{DocKind, MAX_DOC_BYTES};
@@ -155,7 +155,7 @@ impl SecurityService {
         marker: &mut [u8],
         doc: &mut [u8],
     ) -> Result<Option<Answer>, RestError> {
-        if kind != Kind::RolesMapping {
+        if kind != Kind::RolesMapping || builtin(Kind::Roles, name).is_some() {
             return Ok(None);
         }
         let there = self
@@ -227,6 +227,11 @@ impl SecurityService {
         if let Some(refused) = self.admin_only(req)? {
             return resp.send(refused.status, JSON, refused.body.as_bytes());
         }
+        if req.method() != Method::Get
+            && let Some(refused) = protection(kind, &name)
+        {
+            return resp.send(refused.status, JSON, refused.body.as_bytes());
+        }
         let answer = match req.method() {
             Method::Put => self.put(kind, &name, req)?,
             Method::Patch => self.patch(kind, &name, req)?,
@@ -246,6 +251,9 @@ impl SecurityService {
                 }
             }
             _ => {
+                if let Some(shipped) = read_builtin(kind, &name) {
+                    return resp.send(200, JSON, shipped.as_bytes());
+                }
                 req.body().reserve(self.buffer_bytes.saturating_mul(2))?;
                 // ALLOC: two scratch buffers a request, buffer_bytes each, reserved above.
                 let mut marker = vec![0u8; self.buffer_bytes];

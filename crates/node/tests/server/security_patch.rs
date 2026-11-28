@@ -22,7 +22,7 @@ fn put_tenants(r: &Rig, names: &[&str]) {
 fn an_empty_kind_lists_as_an_empty_object() {
     let r = rig();
     assert_eq!(
-        call(&r, "GET", &format!("{API}/roles"), None),
+        call(&r, "GET", &format!("{API}/internalusers"), None),
         (200, "{}".to_owned())
     );
 }
@@ -46,7 +46,7 @@ fn a_list_holds_every_document_as_a_read_renders_it() {
             .expect("object")
             .keys()
             .collect::<Vec<_>>(),
-        ["a", "b"]
+        ["a", "b", "global_tenant"]
     );
     for n in ["a", "b"] {
         let one = call(&r, "GET", &format!("{API}/tenants/{n}"), None);
@@ -268,7 +268,7 @@ fn a_bulk_patch_changes_several_documents() {
     let listed: serde_json::Value =
         serde_json::from_str(&call(&r, "GET", &format!("{API}/tenants"), None).1).expect("json");
     let names: Vec<&String> = listed.as_object().expect("object").keys().collect();
-    assert_eq!(names, ["edit", "fresh", "keep"]);
+    assert_eq!(names, ["edit", "fresh", "global_tenant", "keep"]);
     assert_eq!(listed["edit"]["description"], "changed");
     assert_eq!(listed["fresh"]["description"], "new");
 }
@@ -314,7 +314,12 @@ fn a_bulk_patch_over_100_documents_is_refused() {
         Some(&format!("[{}]", ops.join(","))),
     );
     assert_eq!(refused.0, 400, "{}", refused.1);
-    assert_eq!(call(&r, "GET", &format!("{API}/tenants"), None).1, "{}");
+    let after = call(&r, "GET", &format!("{API}/tenants"), None).1;
+    assert_eq!(
+        after.matches("\"description\"").count(),
+        1,
+        "only the shipped tenant: {after}"
+    );
 }
 
 #[test]

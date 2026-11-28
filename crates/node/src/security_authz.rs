@@ -208,6 +208,7 @@ pub const HANDLER: &[&str] = &[
 /// route added without a row is seen. See the ADR for why each is here.
 const ALL_ACCESS: &[&str] = &[
     "/_serverless/extensions/modules",
+    "/_plugins/_serverless/plugins",
     "/_analyze",
     "/_field_caps",
     "/_msearch",

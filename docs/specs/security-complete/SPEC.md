@@ -11,7 +11,7 @@ Each slice is one PR with its own acceptance criteria below (added when the slic
 | Slice | Content | State |
 |---|---|---|
 | 1 | Management API completeness: list form (`GET` with no name) and `PATCH` (one document, and the bulk form) for the five kinds | this change |
-| 2 | Built-in documents: `reserved`, `hidden` and `static` entries shipped as data (the stock `static_roles`, `static_action_groups`), refusal to change a reserved one, `hidden` never listed | next |
+| 2 | Built-in documents: the stock static roles, action groups and `global_tenant` and the reserved roles of the default configuration, shipped as data (`builtin.json`, the recorded lists), listed and read with their flags, changes refused with the recorded 403 | this change |
 | 3 | `securityconfig` API (`GET /_plugins/_security/api/securityconfig`, `PUT .../config`), `authc`/`authz` domain configuration as a document | |
 | 4 | `authinfo` parity, `whoami`, `account` API (`GET`/`PUT /_plugins/_security/api/account`), `health`, `ssl/certs` | |
 | 5 | JWT authentication (HS and RS/ES keys, `jwks`, subject and roles keys, header and URL parameter) | |
@@ -24,6 +24,12 @@ Each slice is one PR with its own acceptance criteria below (added when the slic
 SAML is not planned: it needs a browser redirect flow only Dashboards drives. Raise it if wanted.
 
 ## Slice 1: list form and PATCH (sections below)
+
+## Slice 2: built-in documents
+
+The recording (`fixtures/compat/security-api/security-api.json`) lists, beside stored documents, 57 roles, 26 action groups and `global_tenant` that the stock node ships: the plugin builds in ten roles, the action groups and `global_tenant` (`static: true`), and its default configuration adds 47 more roles (`reserved: true`). All are shipped here as `builtin.json` in `oss-coordinator`, taken from that list, listed and read with their flags, refused on `PUT`, `PATCH` and `DELETE` (`403`, `Resource 'x' is static.` or `is reserved.`), and the reserved roles also feed authorization (so a mapping to `alerting_full_access` grants what the plugin grants). A bulk patch naming one is refused whole.
+
+Not shipped on purpose: the default configuration's demo users (`admin`, `kibanaserver`, ...), their role mappings and `admin_tenant`: they carry well-known credentials and are installer demo data, not part of the plugin. `hidden` stays `false` (no shipped document is hidden). The list answer is in name order, not the plugin's hash order. A stored document that shares a shipped name is not shown (the shipped one wins, as in authorization).
 
 ## Slice 1 change
 
@@ -45,6 +51,10 @@ The answers follow the recording of stock 3.10.0 in `fixtures/compat/security-ap
 - AC-7: A single patch is what a replacing `PUT` is: 3 GETs (marker and document, then the marker again to swap), 2 PUTs (bytes and marker), no LIST. Test: `a_patch_costs_what_a_replacing_put_costs`.
 - AC-8: Both forms are administrator-only like the rest of the API, and every registered method of the new routes has a row in the action table. Tests: `a_user_without_admin_access_is_refused_list_and_patch`, `every_registered_route_has_an_action_row`.
 - AC-9: With the switch off the new routes are not registered. Test: the existing `security_is_off_by_default_and_set_by_its_variable` plus `with_security_off_no_guard_is_installed`.
+- AC-10: A list and a read by name hold the shipped documents with `reserved` and `static` as recorded, beside stored ones in name order, and a read of a shipped name makes no store request. Tests: `the_built_in_set_is_the_recorded_one`, `a_list_holds_the_built_in_documents_with_their_flags`, `a_built_in_is_read_by_name_without_a_store_request`.
+- AC-11: `PUT`, `PATCH` and `DELETE` of a shipped name are `403` with the recorded message and write nothing; a bulk patch naming one writes nothing. Tests: `a_change_to_a_shipped_document_is_refused_as_the_plugin_refuses_it`, `a_built_in_cannot_be_written_patched_or_deleted`, `a_bulk_patch_naming_a_built_in_writes_nothing`.
+- AC-12: A mapping for a shipped role is accepted, and a reserved role grants what the plugin grants. Tests: `a_mapping_for_a_built_in_role_is_accepted`, `a_reserved_role_grants_what_the_plugin_grants`.
+- AC-13: No user, mapping or demo tenant is shipped. Tests: `no_user_or_mapping_is_shipped`, `no_demo_user_is_shipped`.
 
 ## Test plan
 

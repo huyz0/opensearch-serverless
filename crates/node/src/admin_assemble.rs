@@ -167,6 +167,7 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = crate::plugins::install_configured(router, &config.plugin_policy)?;
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,

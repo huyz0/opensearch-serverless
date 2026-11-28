@@ -17,6 +17,7 @@ pub(super) mod edge;
 pub(super) mod ltr;
 mod packs;
 pub(super) mod page_cache;
+pub(super) mod plugin_policy;
 pub(super) mod plugins;
 mod reader_ramp;
 pub(super) mod roles;
@@ -71,6 +72,8 @@ pub struct NodeConfig {
     pub buckets_enabled: bool,
     /// Whether a node serves index templates and ingest pipelines.
     pub authoring: authoring::AuthoringConfig,
+    /// The plugin system's policy.
+    pub plugin_policy: plugin_policy::PluginPolicy,
     /// What a node serves of snapshots, and the names it refuses.
     pub snapshots: snapshots::SnapshotConfig,
     /// `serverless.plugins.upstreams`: `http(s)` bases of Java nodes that serve the plugins not ported; none by default.
@@ -287,6 +290,7 @@ impl NodeConfig {
         let buckets_enabled = flag("OSS_BUCKETS_ENABLED", "false")?;
         let snapshots = snapshots::read(&flag, &or)?;
         let authoring = authoring::read(&flag)?;
+        let plugin_policy = plugin_policy::read(&or);
         let plugin_upstreams = or("OSS_PLUGIN_UPSTREAMS", "")
             .split(',')
             .map(str::trim)
@@ -427,6 +431,7 @@ impl NodeConfig {
             buckets_enabled,
             snapshots,
             authoring,
+            plugin_policy,
             plugin_upstreams,
             plugin_max_request_bytes,
             plugin_timeout_millis,

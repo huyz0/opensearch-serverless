@@ -70,6 +70,61 @@ fn vm_mib(who: &str, field: &str) -> f64 {
         / 1024.0
 }
 
+/// What the kernel says this process and the machine spent, to be differenced
+/// over an arm: seconds runnable but not running (summed over the process's
+/// threads), major faults, bytes read from storage by the process, and the
+/// machine's seconds waiting on I/O.
+#[derive(Clone, Copy, Default)]
+struct Kernel {
+    run_delay: f64,
+    run_time: f64,
+    switches: f64,
+    major_faults: f64,
+    read_mib: f64,
+    iowait: f64,
+}
+
+fn kernel() -> Kernel {
+    let mut k = Kernel::default();
+    if let Ok(tasks) = std::fs::read_dir("/proc/self/task") {
+        for t in tasks.flatten() {
+            let path = t.path();
+            let sched = std::fs::read_to_string(path.join("schedstat")).unwrap_or_default();
+            let f: Vec<f64> = sched
+                .split_whitespace()
+                .filter_map(|v| v.parse().ok())
+                .collect();
+            if f.len() >= 3 {
+                k.run_time += f[0] / 1e9;
+                k.run_delay += f[1] / 1e9;
+                k.switches += f[2];
+            }
+        }
+    }
+    let stat = std::fs::read_to_string("/proc/self/stat").unwrap_or_default();
+    let rest = stat.rsplit_once(')').map_or("", |(_, r)| r);
+    // majflt is the 10th field after the command.
+    k.major_faults = rest
+        .split_whitespace()
+        .nth(9)
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0.0);
+    let io = std::fs::read_to_string("/proc/self/io").unwrap_or_default();
+    k.read_mib = io
+        .lines()
+        .find_map(|l| l.strip_prefix("read_bytes:")?.trim().parse::<f64>().ok())
+        .unwrap_or(0.0)
+        / 1_048_576.0;
+    let cpu = std::fs::read_to_string("/proc/stat").unwrap_or_default();
+    k.iowait = cpu
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(5)?.parse::<f64>().ok())
+        .unwrap_or(0.0)
+        / 100.0;
+    k
+}
+
 fn query(addr: SocketAddr, i: usize, size: usize) -> f64 {
     let q = format!(
         "{{\"query\":{{\"match\":{{\"msg\":\"w{}\"}}}},\"size\":{size}}}",
@@ -185,6 +240,7 @@ fn the_warm_copy_limits_against_one_peer() {
                 ));
             let started = Instant::now();
             let cpu_before = cpu_seconds();
+            let kernel_before = kernel();
             let rss_before = vm_mib("self", "VmRSS");
             let hwm_before = vm_mib("self", "VmHWM");
             // `JOINERS=n` in a config starts n joiners together (each with its
@@ -234,6 +290,15 @@ fn the_warm_copy_limits_against_one_peer() {
             }
             ms.sort_by(f64::total_cmp);
             let cores = (cpu_seconds() - cpu_before) / started.elapsed().as_secs_f64();
+            let kd = kernel();
+            let (runq, ran, sw, maj, rd, iow) = (
+                kd.run_delay - kernel_before.run_delay,
+                kd.run_time - kernel_before.run_time,
+                kd.switches - kernel_before.switches,
+                kd.major_faults - kernel_before.major_faults,
+                kd.read_mib - kernel_before.read_mib,
+                kd.iowait - kernel_before.iowait,
+            );
             let peer_rss = vm_mib("self", "VmRSS") - rss_before;
             let peer_peak = vm_mib("self", "VmHWM") - hwm_before;
             let joiner_cpu: f64 = joiners
@@ -246,7 +311,7 @@ fn the_warm_copy_limits_against_one_peer() {
                 .fold(0.0, f64::max);
             let first = query(joiner.http, 0, 10);
             println!(
-                "AC-11 sweep round={round} config={label}: peer during copy+window med={:.1} p99={:.1} max={:.1} (n={}) | ready={ready:.1}s first_search={first:.1}ms joiner_tier_at_ready={held_at_ready} peer_cores_busy={cores:.2} peer_rss_delta_mib={peer_rss:.0} peer_peak_delta_mib={peer_peak:.0} joiner_cpu_s={joiner_cpu:.1} joiner_peak_mib={joiner_peak:.0}",
+                "AC-11 sweep round={round} config={label}: peer during copy+window med={:.1} p99={:.1} max={:.1} (n={}) | ready={ready:.1}s first_search={first:.1}ms joiner_tier_at_ready={held_at_ready} peer_cores_busy={cores:.2} peer_rss_delta_mib={peer_rss:.0} peer_peak_delta_mib={peer_peak:.0} joiner_cpu_s={joiner_cpu:.1} joiner_peak_mib={joiner_peak:.0} peer_runq_s={runq:.2} peer_ran_s={ran:.2} peer_switches={sw:.0} peer_majfaults={maj:.0} peer_read_mib={rd:.0} machine_iowait_s={iow:.1}",
                 percentile(&ms, 0.5),
                 percentile(&ms, 0.99),
                 ms.last().copied().unwrap_or(0.0),

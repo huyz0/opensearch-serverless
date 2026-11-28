@@ -7,6 +7,7 @@
 //! search request, never code a plugin supplies. Every limit is checked when
 //! an entry is added or read; nothing wakes on its own.
 
+mod manage;
 mod types;
 
 #[cfg(test)]
@@ -39,6 +40,13 @@ struct Entry {
     done: Option<Done>,
     /// Finished at (milliseconds), for oldest-first eviction.
     end: u64,
+    /// Whether the finished result stays for a later read. One that does
+    /// not is dropped when the last caller waiting on it has read it.
+    keep: bool,
+    /// What a read of the running job shows, set by whoever started it.
+    note: String,
+    /// Callers waiting on it now.
+    waiters: usize,
     /// The reservation of a finished entry: its result and overhead.
     held: Option<Reservation>,
 }
@@ -163,11 +171,14 @@ impl Jobs {
         who: &Who,
         work: Work,
         keep_alive_ms: Option<u64>,
-    ) -> Result<u64, JobError> {
-        let keep = keep_alive_ms.unwrap_or(self.limits.default_keep_alive_ms());
-        if keep > self.limits.max_keep_alive_ms {
+        keep: bool,
+        note: String,
+        wait_ms: u64,
+    ) -> Result<(u64, View), JobError> {
+        let ttl = keep_alive_ms.unwrap_or(self.limits.default_keep_alive_ms());
+        if ttl > self.limits.max_keep_alive_ms {
             return Err(JobError::BadRequest(format!(
-                "Keep alive for asynchronous search ({keep}ms) is too large. It must be less than ({}ms)",
+                "Keep alive for asynchronous search ({ttl}ms) is too large. It must be less than ({}ms)",
                 self.limits.max_keep_alive_ms
             )));
         }
@@ -219,10 +230,13 @@ impl Jobs {
             num,
             who: who.clone(), // ALLOC: two short strings, once a job.
             start: now,
-            expires: now.saturating_add(keep),
+            expires: now.saturating_add(ttl),
             cancel,
             done: None,
             end: now,
+            keep,
+            note,
+            waiters: 1,
             held: None,
         });
         inner.threads = inner.threads.saturating_add(1);
@@ -245,7 +259,9 @@ impl Jobs {
             inner.stats.rejected = inner.stats.rejected.saturating_add(1);
             return Err(JobError::Rejected("this node cannot start another thread"));
         }
-        Ok(num)
+        let inner = self.lock();
+        let view = self.wait_view(inner, who, num, wait_ms)?;
+        Ok((num, view))
     }
 
     /// The id text of job `num`.
@@ -321,6 +337,12 @@ impl Jobs {
             e.end = now;
             e.held = held;
         }
+        if let Some(e) = inner.entries.get(at)
+            && !e.keep
+            && e.waiters == 0
+        {
+            inner.entries.remove(at);
+        }
         self.evict(&mut inner);
         drop(inner);
         self.changed.notify_all();
@@ -369,20 +391,44 @@ impl Jobs {
     ///
     /// 404 when there is no such job for this caller, or it has expired.
     pub fn get(&self, who: &Who, num: u64, wait_ms: u64) -> Result<View, JobError> {
+        let mut inner = self.lock();
+        self.sweep(&mut inner, self.now());
+        let e = inner
+            .entries
+            .iter_mut()
+            .find(|e| e.num == num && e.who == *who)
+            .ok_or(JobError::NotFound)?;
+        e.waiters = e.waiters.saturating_add(1);
+        self.wait_view(inner, who, num, wait_ms)
+    }
+
+    /// Waits up to `wait_ms` for the job, which already counts the caller as a
+    /// waiter, and gives the view back; a finished job that is not kept is
+    /// dropped once its last waiter has read it.
+    fn wait_view(
+        &self,
+        mut inner: MutexGuard<'_, Inner>,
+        who: &Who,
+        num: u64,
+        wait_ms: u64,
+    ) -> Result<View, JobError> {
         let until = Instant::now()
             .checked_add(Duration::from_millis(wait_ms))
             .unwrap_or_else(Instant::now);
-        let mut inner = self.lock();
         loop {
-            self.sweep(&mut inner, self.now());
             let e = inner
                 .entries
-                .iter()
+                .iter_mut()
                 .find(|e| e.num == num && e.who == *who)
                 .ok_or(JobError::NotFound)?;
             let left = until.saturating_duration_since(Instant::now());
             if e.done.is_some() || left.is_zero() {
-                return Ok(self.view(e));
+                let view = self.view(e);
+                e.waiters = e.waiters.saturating_sub(1);
+                if e.done.is_some() && !e.keep && e.waiters == 0 {
+                    inner.entries.retain(|x| x.num != num);
+                }
+                return Ok(view);
             }
             inner = self
                 .changed
@@ -405,67 +451,8 @@ impl Jobs {
             expiration: e.expires,
             body,
             error,
+            note: e.note.clone(), // ALLOC: one short partial response a read.
         }
-    }
-
-    /// Sets the expiry of job `num` to `keep_alive_ms` from now.
-    ///
-    /// # Errors
-    ///
-    /// 400 over the maximum; 404 when there is no such job for this caller.
-    pub fn extend(&self, who: &Who, num: u64, keep_alive_ms: u64) -> Result<(), JobError> {
-        if keep_alive_ms > self.limits.max_keep_alive_ms {
-            return Err(JobError::BadRequest(format!(
-                "Keep alive for asynchronous search ({keep_alive_ms}ms) is too large. It must be less than ({}ms)",
-                self.limits.max_keep_alive_ms
-            )));
-        }
-        let now = self.now();
-        let mut inner = self.lock();
-        self.sweep(&mut inner, now);
-        let e = inner
-            .entries
-            .iter_mut()
-            .find(|e| e.num == num && e.who == *who)
-            .ok_or(JobError::NotFound)?;
-        e.expires = now.saturating_add(keep_alive_ms);
-        Ok(())
-    }
-
-    /// Cancels a running job and drops the entry, or drops a finished one.
-    /// A cancelled search's thread keeps its slot and its reservation until it
-    /// exits.
-    ///
-    /// # Errors
-    ///
-    /// 404 when there is no such job for this caller.
-    pub fn delete(&self, who: &Who, num: u64) -> Result<(), JobError> {
-        let now = self.now();
-        let mut inner = self.lock();
-        self.sweep(&mut inner, now);
-        let at = inner
-            .entries
-            .iter()
-            .position(|e| e.num == num && e.who == *who)
-            .ok_or(JobError::NotFound)?;
-        let e = inner.entries.remove(at);
-        if e.done.is_none() {
-            e.cancel.store(true, Ordering::Relaxed);
-            inner.stats.cancelled = inner.stats.cancelled.saturating_add(1);
-        }
-        drop(inner);
-        self.changed.notify_all();
-        Ok(())
-    }
-
-    /// This node's counts.
-    pub fn stats(&self) -> Stats {
-        let mut inner = self.lock();
-        self.sweep(&mut inner, self.now());
-        let mut s = inner.stats;
-        s.running_current = inner.threads as u64;
-        s.held_bytes = self.budget.in_use(Pool::Extensions) as u64;
-        s
     }
 }
 
