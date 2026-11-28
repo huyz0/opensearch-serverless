@@ -155,12 +155,7 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = if config.ml {
-        let ml = crate::ml_route::MlService::new(store, &config.base, config.pit_buffer_bytes);
-        crate::ml_route::routes(router, &Arc::new(ml)).map_err(AssembleError::Route)?
-    } else {
-        router
-    };
+    let router = crate::ml_route::mount(router, store, config)?;
     let router = if config.notifications {
         let service = crate::notifications_route::NotificationsService::new(
             store,

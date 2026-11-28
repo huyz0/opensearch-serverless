@@ -62,3 +62,16 @@ pub fn routes(router: Router, service: &Arc<MlService>) -> Result<Router, RouteE
     }
     Ok(router)
 }
+
+/// Mounts the registry routes when the node's ML switch is on.
+pub(crate) fn mount(
+    router: Router,
+    store: &Arc<dyn oss_blob::BlobStore>,
+    config: &crate::assemble::Config,
+) -> Result<Router, crate::assemble::AssembleError> {
+    if !config.ml {
+        return Ok(router);
+    }
+    let ml = MlService::new(store, &config.base, config.pit_buffer_bytes);
+    routes(router, &Arc::new(ml)).map_err(crate::assemble::AssembleError::Route)
+}

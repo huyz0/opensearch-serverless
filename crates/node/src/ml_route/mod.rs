@@ -21,6 +21,7 @@ use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Map, Value, json};
 
 use crate::route_util::{read_body, refuse};
+pub(crate) use routes::mount;
 pub use routes::routes;
 
 /// The plugin's index, shown as every model group's `_index`.
