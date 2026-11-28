@@ -138,6 +138,7 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
         More::Nested(q, _) => super::nested_build::nested(q, cx),
         More::GeoBoundingBox(q) => super::geo_bounding_box::build(cx, q),
         More::GeoDistance(q) => super::geo_distance::build(cx, q),
+        More::GeoPolygon(q) => super::geo_polygon::build(cx, q),
         // A logging query matches every document and adds nothing to a score.
         More::Sltr(q) if q.featureset.is_some() => {
             // ALLOC: one box a logging query.

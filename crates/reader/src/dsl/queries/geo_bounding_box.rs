@@ -47,7 +47,7 @@ pub struct GeoBoundingBox {
 /// `GeoUtils.EffectivePoint`: which corner of a geohash cell a corner
 /// field takes.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Corner {
+pub(super) enum Corner {
     TopLeft,
     TopRight,
     BottomLeft,
@@ -93,7 +93,7 @@ fn string_corner(text: &str, corner: Corner) -> Result<(f64, f64), DslError> {
 
 /// `GeoUtils.parseGeoPoint(parser, point, false, corner)`: the parser is on
 /// the value's first token.
-fn corner_point(p: &mut Parser<'_>, corner: Corner) -> Result<(f64, f64), DslError> {
+pub(super) fn corner_point(p: &mut Parser<'_>, corner: Corner) -> Result<(f64, f64), DslError> {
     match p.current_token() {
         Some(Kind::StartArray) => parse_array(p),
         Some(Kind::String) => string_corner(p.text(), corner),
