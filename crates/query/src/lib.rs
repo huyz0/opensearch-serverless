@@ -10,6 +10,7 @@ mod ast;
 mod dates;
 mod error;
 mod expr;
+mod expr_script;
 mod hashorder;
 mod lexer;
 mod mapping;

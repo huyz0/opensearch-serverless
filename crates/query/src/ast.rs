@@ -66,6 +66,8 @@ pub enum Pred {
     Like(String, String, bool),
     /// A text-search function.
     Rel(Relevance),
+    /// A comparison with a function or arithmetic on either side, pushed as a script query.
+    Script(crate::expr::Expr, CmpOp, crate::expr::Expr),
 }
 
 /// One item of a select list.

@@ -17,3 +17,4 @@ src/ppl_parser.rs	port	ppl/ppl OpenSearchPPLParser.g4 source, search, where, fie
 src/plan_query.rs	port	sql/sql query lowering of the where clause	conditions to the query part of a search body
 src/expr.rs	port	sql/sql expression evaluation (arithmetic, string, date, conditional functions)	scalar expressions over a row
 src/parser_expr.rs	port	sql/sql OpenSearchSQLParser.g4 expression, functionCall, caseFunction	arithmetic, calls and CASE in a select list
+src/expr_script.rs	port	sql/opensearch script pushdown (filter/script/ExpressionScript, function DSL)	comparison with a function lowered to a Painless script query
