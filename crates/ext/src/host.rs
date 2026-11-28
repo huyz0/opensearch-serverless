@@ -103,6 +103,7 @@ enum Spends {
     State,
     Search,
     Egress,
+    Index,
 }
 
 /// One operation: name, the capability it needs, what it spends.
@@ -147,6 +148,11 @@ const OPS: &[Op] = &[
         Spends::Nothing,
     ),
     (
+        "index.docs",
+        |c| matches!(c, Capability::IndexWrite),
+        Spends::Index,
+    ),
+    (
         "egress",
         |c| matches!(c, Capability::Egress(_)),
         Spends::Egress,
@@ -173,7 +179,7 @@ pub fn operations() -> impl Iterator<Item = &'static str> {
 pub struct CallHost<'a> {
     who: Who<'a>,
     budget: Budget,
-    used: Mutex<[u32; 3]>,
+    used: Mutex<[u32; 4]>,
     backend: &'a dyn Backend,
 }
 
@@ -183,7 +189,7 @@ impl<'a> CallHost<'a> {
         Self {
             who,
             budget,
-            used: Mutex::new([0; 3]),
+            used: Mutex::new([0; 4]),
             backend,
         }
     }
@@ -194,6 +200,7 @@ impl<'a> CallHost<'a> {
             Spends::State => (0, self.budget.state_ops),
             Spends::Search => (1, self.budget.searches),
             Spends::Egress => (2, self.budget.egress),
+            Spends::Index => (3, self.budget.index_ops),
         };
         let mut used = self
             .used

@@ -34,6 +34,7 @@ fn budget(state_ops: u32, searches: u32, egress: u32) -> Budget {
         state_ops,
         searches,
         egress,
+        index_ops: 1,
     }
 }
 
@@ -63,7 +64,7 @@ fn an_operation_needs_its_capability() {
 
 #[test]
 fn each_capability_opens_exactly_its_operations() {
-    let cases: [(Capability, &[&str]); 8] = [
+    let cases: [(Capability, &[&str]); 9] = [
         (Capability::StateRead, &["state.get"]),
         (Capability::StateWrite, &["state.put", "state.delete"]),
         (Capability::Search, &["search"]),
@@ -71,13 +72,14 @@ fn each_capability_opens_exactly_its_operations() {
             Capability::Job,
             &["job.submit", "job.get", "job.delete", "job.stats"],
         ),
+        (Capability::IndexWrite, &["index.docs"]),
         (Capability::Egress("a.example".into()), &["egress"]),
         (Capability::Identity, &["identity"]),
         (Capability::Log, &["log"]),
         (Capability::Metrics, &["metrics"]),
     ];
     let all: Vec<&str> = operations().collect();
-    assert_eq!(all.len(), 12);
+    assert_eq!(all.len(), 13);
     for (cap, opens) in cases {
         let grants = [cap.clone()];
         let backend = Echo(Mutex::new(Vec::new()));

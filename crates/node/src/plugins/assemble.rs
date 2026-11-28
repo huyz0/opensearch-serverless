@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use oss_ext::doc_sink::{DocSink, DocSinkBackend};
 use oss_ext::host::{Backend, NoBackend};
 use oss_ext::native::NativeInstance;
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
@@ -102,7 +103,8 @@ pub fn install(
 
 #[cfg(feature = "writer")]
 /// [`install`] for the node's own assembly: no plugin is linked into this
-/// build, and the wall clock drives the breakers.
+/// build, the wall clock drives the breakers, and `index.docs` writes through
+/// the same service as `_bulk`.
 ///
 /// # Errors
 ///
@@ -110,13 +112,17 @@ pub fn install(
 pub(crate) fn install_configured(
     router: Router,
     policy_text: &str,
+    bulk: &Arc<crate::bulk_route::BulkService>,
 ) -> Result<Router, crate::assemble_error::AssembleError> {
     use crate::assemble_error::AssembleError;
     install(
         router,
         policy_text,
         &HashMap::new(),
-        &(Arc::new(NoBackend) as Arc<dyn Backend>),
+        &(Arc::new(DocSinkBackend::new(
+            Arc::clone(bulk) as Arc<dyn DocSink>,
+            Arc::new(NoBackend),
+        )) as Arc<dyn Backend>),
         crate::clock::now_millis,
     )
     .map_err(|e| match e {
