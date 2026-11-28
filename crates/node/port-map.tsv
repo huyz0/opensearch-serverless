@@ -304,3 +304,8 @@ src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusal
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
 src/plugins/tests.rs	new		the policy reader and the registry's refusals, tested (ADR 0080)
+src/notifications_setting.rs	new		serverless.notifications.enabled
+src/notifications_route/mod.rs	new		the notifications plugin config service over two document sets; the Java plugin is ported natively by ADR 0081
+src/notifications_route/config.rs	new		config validation per type, from the plugin documentation
+src/notifications_route/list.rs	new		the catalogue view, filters, sorts and pages of the config and channel lists
+src/notifications_route/routes.rs	new		the route table on /_plugins/_notifications
