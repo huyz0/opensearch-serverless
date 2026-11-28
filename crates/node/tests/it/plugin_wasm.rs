@@ -192,3 +192,99 @@ fn a_module_that_reports_more_than_its_region_holds_is_a_502() {
     assert_eq!(r.status, 502, "{}", r.text());
     server.shutdown();
 }
+
+fn budget_with(extensions: usize) -> MemoryBudget {
+    use oss_mem::{BudgetConfig, Pool};
+    MemoryBudget::new(
+        &BudgetConfig::new(512 << 20)
+            .with_pool(Pool::RequestBodies, 16 << 20)
+            .and_then(|c| c.with_pool(Pool::Extensions, extensions))
+            .expect("fits"),
+    )
+}
+
+/// The status entry of the one plugin a policy over `store` loads.
+fn status_after_loading(
+    store: &oss_blob::Emulator,
+    policy: &str,
+    extensions: usize,
+) -> (serde_json::Value, Server) {
+    let parsed = oss_node::plugins::Policy::parse(policy).expect("policy");
+    let linked = oss_node::plugins::load_modules(&parsed, store, "", &budget_with(extensions));
+    let backend: Arc<dyn oss_ext::host::Backend> = Arc::new(oss_ext::host::NoBackend);
+    let router = install(
+        Router::new(),
+        policy,
+        &linked,
+        &backend,
+        || 0,
+        &Bus::default(),
+    )
+    .expect("installs");
+    let budget = MemoryBudget::new(&support::budget_config());
+    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+    let server =
+        Server::start(listener, support::server_config(), router, &budget).expect("starts");
+    let r = support::request(
+        server.local_addr(),
+        "GET",
+        "/_plugins/_serverless/plugins",
+        None,
+    );
+    (serde_json::from_str(&r.text()).expect("json"), server)
+}
+
+// docs/specs/plugin-system AC-4, AC-12: a policy entry names a module by hash and the node reads it once.
+#[test]
+fn a_module_the_policy_names_by_hash_is_read_from_the_store_and_served() {
+    use oss_node::extension_store::{hash_of, write_once};
+    let answer = RestResponse {
+        status: 202,
+        headers: vec![],
+        body: b"stored".to_vec(),
+    }
+    .encode();
+    let bytes = module("wasmstore", &answer, None);
+    let store = oss_blob::Emulator::new(1 << 26, 1);
+    let hash = hash_of(&bytes);
+    write_once(&store, "", &hash, &bytes).expect("stored");
+    let policy = format!(r#"{{"plugins":[{{"id":"wasmstore","tier":"wasm","sha256":"{hash}"}}]}}"#);
+    let (v, server) = status_after_loading(&store, &policy, 128 << 20);
+    assert_eq!(v["plugins"][0]["state"], "ready", "{v}");
+    let r = post(&server, "wasmstore");
+    assert_eq!((r.status, r.text().as_str()), (202, "stored"));
+    server.shutdown();
+}
+
+// docs/specs/plugin-system AC-4: a module that cannot be loaded refuses its plugin alone, saying why.
+#[test]
+fn a_module_that_cannot_be_loaded_refuses_its_plugin_and_says_why() {
+    use oss_node::extension_store::{hash_of, write_once};
+    let bytes = module("wasmgone", b"", None);
+    let store = oss_blob::Emulator::new(1 << 26, 1);
+    let hash = hash_of(&bytes);
+    let entry =
+        |h: &str| format!(r#"{{"plugins":[{{"id":"wasmgone","tier":"wasm","sha256":"{h}"}}]}}"#);
+    // Not in the store.
+    let (v, server) = status_after_loading(&store, &entry(&hash), 128 << 20);
+    assert_eq!(v["plugins"][0]["state"], "refused");
+    assert!(
+        v["plugins"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("could not be read"),
+        "{v}"
+    );
+    server.shutdown();
+    // In the store, with no extensions memory.
+    write_once(&store, "", &hash, &bytes).expect("stored");
+    let (v, server) = status_after_loading(&store, &entry(&hash), 0);
+    assert!(
+        v["plugins"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("no extensions memory"),
+        "{v}"
+    );
+    server.shutdown();
+}
