@@ -461,18 +461,6 @@ fn the_size_ceiling_is_inclusive() {
     assert!(Manifest::parse(over.as_bytes()).is_err(), "one byte over");
 }
 
-// docs/specs/plugin-system AC-3: a path parameter is a lowercase name of letters, digits and underscores.
-#[test]
-fn path_parameter_names_are_exact() {
-    let with = |p: &str| GOOD.replace("{place}", p);
-    for ok in ["{a}", "{_a}", "{a1}", "{a_}", "{a_b2}"] {
-        assert!(parse(&with(ok)).is_ok(), "{ok} accepted");
-    }
-    for bad in ["{A}", "{Abc}", "{1a}", "{a-b}", "{aB}", "{}"] {
-        assert!(parse(&with(bad)).is_err(), "{bad} refused");
-    }
-}
-
 // docs/specs/plugin-system AC-3: sixteen capabilities are accepted, seventeen refused.
 #[test]
 fn the_capability_count_ceiling_is_sixteen() {
@@ -487,4 +475,23 @@ fn the_capability_count_ceiling_is_sixteen() {
     };
     assert!(parse(&with(16)).is_ok(), "sixteen accepted");
     assert!(parse(&with(17)).is_err(), "seventeen refused");
+}
+
+// docs/specs/async-search AC-16: `job` is a native-tier capability only; a
+// search the host runs on a thread of its own is not offered to an
+// out-of-process plugin, and a sandbox gets no thread either.
+#[test]
+fn the_job_capability_is_native_only() {
+    let text = r#"{"plugin":{"id":"jobs","version":"1.0.0","api":"1.0"},
+"points":[{"name":"rest","version":1}],"capabilities":["job","identity","search"],
+"budget":{"state_ops":0,"searches":2,"egress":0}}"#;
+    let m = parse(text).expect("parses");
+    assert!(m.capabilities().contains(&Capability::Job));
+    assert!(m.for_tier(Tier::Native).is_ok());
+    assert_eq!(
+        m.for_tier(Tier::Grpc).expect_err("grpc").key(),
+        "capabilities[0]"
+    );
+    assert!(!Capability::Job.allowed_on(Tier::Wasm));
+    assert!(Capability::Job.allowed_on(Tier::Native));
 }

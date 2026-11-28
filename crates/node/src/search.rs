@@ -94,6 +94,9 @@ pub struct SearchService<S: BlobStore + 'static> {
     /// The gate that orders searches under pressure, with what names a
     /// search's tenant and level; none, and every search runs at once.
     slots: OnceLock<crate::search_slots::Gated>,
+    /// Where each search's time is noted for the warm copy's serve rate;
+    /// none, and none is.
+    pressure: OnceLock<Arc<crate::warm_pressure::Pressure>>,
     /// Loads the modules an index pins; none, and such an index is refused.
     modules: OnceLock<Arc<dyn crate::search_modules::ModuleOpener>>,
     /// Where `?search_pipeline=` finds its pipelines; none, and naming one
@@ -133,6 +136,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             layers: OnceLock::new(),
             pits: OnceLock::new(),
             slots: OnceLock::new(),
+            pressure: OnceLock::new(),
             modules: OnceLock::new(),
             pipelines: OnceLock::new(),
             templates: OnceLock::new(),
@@ -143,6 +147,12 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// Installs the search gate. False when one is installed already.
     pub fn set_search_slots(&self, slots: crate::search_slots::Gated) -> bool {
         self.slots.set(slots).is_ok()
+    }
+
+    /// Installs where each search's time is noted. False when one is
+    /// installed already.
+    pub fn set_search_pressure(&self, pressure: Arc<crate::warm_pressure::Pressure>) -> bool {
+        self.pressure.set(pressure).is_ok()
     }
 
     /// Installs what a cold open asks for a staging writer's newest commit.
@@ -168,6 +178,20 @@ impl<S: BlobStore + 'static> SearchService<S> {
 
     /// Handles one `_search`.
     pub fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        let Some(pressure) = self.pressure.get() else {
+            return self.handle_gated(req, resp);
+        };
+        let started = Instant::now();
+        let result = self.handle_gated(req, resp);
+        pressure.record(Instant::now(), started.elapsed());
+        result
+    }
+
+    fn handle_gated(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
         let targets = self.resolve_targets(req)?;
         // Held to the end of the search, then the permit, if any, goes back.
         let _admitted = self.slots.get().and_then(|slots| {
@@ -324,11 +348,6 @@ fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
     Ok(source)
 }
 
-fn search_error(e: SearchError) -> Answer {
-    // ALLOC: error path; one box.
-    Answer::Search(Box::new(e))
-}
-
 fn send(resp: &mut Response<'_>, e: &SearchError) -> Result<(), RestError> {
     resp.send(e.status, JSON, &e.to_body())
 }
@@ -392,6 +411,8 @@ mod count;
 mod field_caps;
 #[path = "search_frozen.rs"]
 mod frozen;
+#[path = "search_knn.rs"]
+pub mod knn_api;
 #[path = "search_msearch.rs"]
 mod msearch;
 #[path = "search_multi.rs"]
@@ -402,16 +423,23 @@ pub(crate) mod open_shard;
 mod rank_eval;
 #[path = "search_shard.rs"]
 mod shard_query;
+#[cfg(feature = "writer")]
+#[path = "search_sql.rs"]
+mod sql;
 #[path = "search_template.rs"]
 mod template;
 #[path = "search_uri_query.rs"]
 mod uri_query;
+pub(crate) use open_shard::lock_pushed;
 use uri_query::SEARCH_PARAMS;
 #[path = "search_validate.rs"]
 mod validate;
 #[cfg(all(feature = "reader", feature = "writer"))]
 #[path = "search_warm.rs"]
 mod warm;
+#[cfg(all(feature = "reader", feature = "writer"))]
+#[path = "search_window.rs"]
+mod window;
 pub use shard_query::ShardQuery;
 #[cfg(feature = "coordinator")]
 #[path = "coordinate.rs"]
@@ -432,32 +460,8 @@ mod tests;
 #[path = "search_warm_tests.rs"]
 mod warm_tests;
 
-/// Why a reader node did not start.
-#[derive(Debug)]
-pub enum StartError {
-    /// The page cache could not be set up.
-    Cache(String),
-    /// The budget gives the `open_indexes` pool nothing, so no index could
-    /// ever open.
-    NoOpenIndexes,
-    /// A route could not be registered.
-    Route(RouteError),
-    /// The HTTP server did not start.
-    Server(oss_rest::StartError),
-}
-
-impl std::fmt::Display for StartError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            StartError::Cache(e) => write!(f, "page cache: {e}"),
-            StartError::NoOpenIndexes => f.write_str("the open_indexes pool is empty"),
-            StartError::Route(e) => write!(f, "route: {e:?}"),
-            StartError::Server(e) => write!(f, "server: {e:?}"),
-        }
-    }
-}
-
-impl std::error::Error for StartError {}
+mod start_error;
+pub use start_error::StartError;
 
 /// Starts a reader node: `_search` over the indexes under `base` in
 /// `store`, served on `listener`, every server buffer and open index charged
@@ -487,14 +491,4 @@ pub fn start_reader<S: BlobStore + 'static>(
     let server =
         oss_rest::Server::start(listener, config, router, budget).map_err(StartError::Server)?;
     Ok((server, service))
-}
-
-/// Locks the pushed commits, taking them over if a push panicked holding
-/// them: every change to them is one whole step.
-pub(crate) fn lock_pushed(
-    pushed: &Mutex<PushedCommits>,
-) -> std::sync::MutexGuard<'_, PushedCommits> {
-    pushed
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }

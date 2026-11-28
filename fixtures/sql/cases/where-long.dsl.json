@@ -1,0 +1,43 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "explain": {
+    "from": 0,
+    "size": 200,
+    "query": {
+      "bool": {
+        "filter": [
+          {
+            "bool": {
+              "must": [
+                {
+                  "range": {
+                    "score": {
+                      "from": 100,
+                      "to": null,
+                      "include_lower": false,
+                      "include_upper": true,
+                      "boost": 1.0
+                    }
+                  }
+                }
+              ],
+              "adjust_pure_negative": true,
+              "boost": 1.0
+            }
+          }
+        ],
+        "adjust_pure_negative": true,
+        "boost": 1.0
+      }
+    },
+    "_source": {
+      "includes": [
+        "name"
+      ]
+    }
+  }
+}

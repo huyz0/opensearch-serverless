@@ -1,0 +1,1257 @@
+{
+  "name": "knn over nested vector fields, expand_nested_docs",
+  "description": "the knn query inside a nested query and at top level over a nested lucene field, with expand_nested_docs on and off.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knnnest",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnnest",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "keyword"
+              },
+              "items": {
+                "type": "nested",
+                "properties": {
+                  "n": {
+                    "type": "integer"
+                  },
+                  "v": {
+                    "type": "knn_vector",
+                    "dimension": 3,
+                    "method": {
+                      "name": "hnsw",
+                      "engine": "lucene",
+                      "space_type": "l2"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnnest"
+        }
+      }
+    },
+    {
+      "name": "bulk",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_id": "1",
+              "_index": "compat-knnnest"
+            }
+          },
+          {
+            "title": "d1",
+            "items": [
+              {
+                "n": 0,
+                "v": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              {
+                "n": 1,
+                "v": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "index": {
+              "_id": "2",
+              "_index": "compat-knnnest"
+            }
+          },
+          {
+            "title": "d2",
+            "items": [
+              {
+                "n": 0,
+                "v": [
+                  1,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "index": {
+              "_id": "3",
+              "_index": "compat-knnnest"
+            }
+          },
+          {
+            "title": "d3",
+            "items": [
+              {
+                "n": 0,
+                "v": [
+                  2,
+                  2,
+                  2
+                ]
+              },
+              {
+                "n": 1,
+                "v": [
+                  0,
+                  0,
+                  1
+                ]
+              },
+              {
+                "n": 2,
+                "v": [
+                  1,
+                  0,
+                  1
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 23,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-knnnest",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnnest",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnnest",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "nested knn",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnnest/_search",
+        "body": {
+          "query": {
+            "nested": {
+              "path": "items",
+              "query": {
+                "knn": {
+                  "items.v": {
+                    "vector": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "k": 4
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnnest",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "d1",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "2",
+                "_score": 0.5,
+                "_source": {
+                  "title": "d2",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "title": "d3",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        2.0,
+                        2.0,
+                        2.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        0.0,
+                        1.0
+                      ]
+                    },
+                    {
+                      "n": 2,
+                      "v": [
+                        1.0,
+                        0.0,
+                        1.0
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "nested knn expand false",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnnest/_search",
+        "body": {
+          "query": {
+            "nested": {
+              "path": "items",
+              "query": {
+                "knn": {
+                  "items.v": {
+                    "vector": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "k": 4,
+                    "expand_nested_docs": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnnest",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "d1",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "2",
+                "_score": 0.5,
+                "_source": {
+                  "title": "d2",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "title": "d3",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        2.0,
+                        2.0,
+                        2.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        0.0,
+                        1.0
+                      ]
+                    },
+                    {
+                      "n": 2,
+                      "v": [
+                        1.0,
+                        0.0,
+                        1.0
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "nested knn expand true",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnnest/_search",
+        "body": {
+          "query": {
+            "nested": {
+              "path": "items",
+              "query": {
+                "knn": {
+                  "items.v": {
+                    "vector": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "k": 4,
+                    "expand_nested_docs": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.6666667,
+            "hits": [
+              {
+                "_index": "compat-knnnest",
+                "_id": "1",
+                "_score": 0.6666667,
+                "_source": {
+                  "title": "d1",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "2",
+                "_score": 0.5,
+                "_source": {
+                  "title": "d2",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "3",
+                "_score": 0.31111112,
+                "_source": {
+                  "title": "d3",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        2.0,
+                        2.0,
+                        2.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        0.0,
+                        1.0
+                      ]
+                    },
+                    {
+                      "n": 2,
+                      "v": [
+                        1.0,
+                        0.0,
+                        1.0
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "nested knn expand true with inner_hits",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnnest/_search",
+        "body": {
+          "query": {
+            "nested": {
+              "path": "items",
+              "inner_hits": {},
+              "query": {
+                "knn": {
+                  "items.v": {
+                    "vector": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "k": 4,
+                    "expand_nested_docs": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 8,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.6666667,
+            "hits": [
+              {
+                "_index": "compat-knnnest",
+                "_id": "1",
+                "_score": 0.6666667,
+                "_source": {
+                  "title": "d1",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                },
+                "inner_hits": {
+                  "items": {
+                    "hits": {
+                      "total": {
+                        "value": 2,
+                        "relation": "eq"
+                      },
+                      "max_score": 1.0,
+                      "hits": [
+                        {
+                          "_index": "compat-knnnest",
+                          "_id": "1",
+                          "_nested": {
+                            "field": "items",
+                            "offset": 0
+                          },
+                          "_score": 1.0,
+                          "_source": {
+                            "v": [
+                              1.0,
+                              0.0,
+                              0.0
+                            ],
+                            "n": 0
+                          }
+                        },
+                        {
+                          "_index": "compat-knnnest",
+                          "_id": "1",
+                          "_nested": {
+                            "field": "items",
+                            "offset": 1
+                          },
+                          "_score": 0.33333334,
+                          "_source": {
+                            "v": [
+                              0.0,
+                              1.0,
+                              0.0
+                            ],
+                            "n": 1
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "2",
+                "_score": 0.5,
+                "_source": {
+                  "title": "d2",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                },
+                "inner_hits": {
+                  "items": {
+                    "hits": {
+                      "total": {
+                        "value": 1,
+                        "relation": "eq"
+                      },
+                      "max_score": 0.5,
+                      "hits": [
+                        {
+                          "_index": "compat-knnnest",
+                          "_id": "2",
+                          "_nested": {
+                            "field": "items",
+                            "offset": 0
+                          },
+                          "_score": 0.5,
+                          "_source": {
+                            "v": [
+                              1.0,
+                              1.0,
+                              0.0
+                            ],
+                            "n": 0
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "3",
+                "_score": 0.31111112,
+                "_source": {
+                  "title": "d3",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        2.0,
+                        2.0,
+                        2.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        0.0,
+                        1.0
+                      ]
+                    },
+                    {
+                      "n": 2,
+                      "v": [
+                        1.0,
+                        0.0,
+                        1.0
+                      ]
+                    }
+                  ]
+                },
+                "inner_hits": {
+                  "items": {
+                    "hits": {
+                      "total": {
+                        "value": 3,
+                        "relation": "eq"
+                      },
+                      "max_score": 0.5,
+                      "hits": [
+                        {
+                          "_index": "compat-knnnest",
+                          "_id": "3",
+                          "_nested": {
+                            "field": "items",
+                            "offset": 2
+                          },
+                          "_score": 0.5,
+                          "_source": {
+                            "v": [
+                              1.0,
+                              0.0,
+                              1.0
+                            ],
+                            "n": 2
+                          }
+                        },
+                        {
+                          "_index": "compat-knnnest",
+                          "_id": "3",
+                          "_nested": {
+                            "field": "items",
+                            "offset": 1
+                          },
+                          "_score": 0.33333334,
+                          "_source": {
+                            "v": [
+                              0.0,
+                              0.0,
+                              1.0
+                            ],
+                            "n": 1
+                          }
+                        },
+                        {
+                          "_index": "compat-knnnest",
+                          "_id": "3",
+                          "_nested": {
+                            "field": "items",
+                            "offset": 0
+                          },
+                          "_score": 0.1,
+                          "_source": {
+                            "v": [
+                              2.0,
+                              2.0,
+                              2.0
+                            ],
+                            "n": 0
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "top level knn on nested field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnnest/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "items.v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 4
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "top level knn on nested field expand true",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnnest/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "items.v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 4,
+                "expand_nested_docs": true
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "generated node id"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field.",
+                "index": "compat-knnnest",
+                "index_uuid": "2q98br0lTgC9gHb5UqVSjQ"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-knnnest",
+                "node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field.",
+                  "index": "compat-knnnest",
+                  "index_uuid": "2q98br0lTgC9gHb5UqVSjQ",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field.",
+              "index": "compat-knnnest",
+              "index_uuid": "2q98br0lTgC9gHb5UqVSjQ",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "nested knn with filter expand true",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnnest/_search",
+        "body": {
+          "query": {
+            "nested": {
+              "path": "items",
+              "query": {
+                "knn": {
+                  "items.v": {
+                    "vector": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "k": 4,
+                    "expand_nested_docs": true,
+                    "filter": {
+                      "range": {
+                        "items.n": {
+                          "gte": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "nested knn min_score expand true",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnnest/_search",
+        "body": {
+          "query": {
+            "nested": {
+              "path": "items",
+              "query": {
+                "knn": {
+                  "items.v": {
+                    "vector": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "min_score": 0.3,
+                    "expand_nested_docs": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.6666667,
+            "hits": [
+              {
+                "_index": "compat-knnnest",
+                "_id": "1",
+                "_score": 0.6666667,
+                "_source": {
+                  "title": "d1",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "2",
+                "_score": 0.5,
+                "_source": {
+                  "title": "d2",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        1.0,
+                        1.0,
+                        0.0
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnnest",
+                "_id": "3",
+                "_score": 0.4166667,
+                "_source": {
+                  "title": "d3",
+                  "items": [
+                    {
+                      "n": 0,
+                      "v": [
+                        2.0,
+                        2.0,
+                        2.0
+                      ]
+                    },
+                    {
+                      "n": 1,
+                      "v": [
+                        0.0,
+                        0.0,
+                        1.0
+                      ]
+                    },
+                    {
+                      "n": 2,
+                      "v": [
+                        1.0,
+                        0.0,
+                        1.0
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

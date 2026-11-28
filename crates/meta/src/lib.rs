@@ -41,7 +41,6 @@
 //!   retried create, and finishing a delete from the [`ReclaimQueue`] once a
 //!   writer that missed it has stopped.
 
-mod alert_registry;
 mod alias_mutations;
 mod alias_restore;
 mod changes;
@@ -59,6 +58,7 @@ mod probe;
 mod ranged_source;
 mod repositories;
 mod routing;
+mod schedule_registry;
 mod snapshot_aliases;
 mod snapshot_capture;
 mod snapshot_remove;
@@ -74,7 +74,6 @@ mod stock_read;
 mod stock_restore;
 mod sweep;
 
-pub use alert_registry::{AlertRegistry, Claim};
 pub use alias_mutations::{AliasAt, AliasClock, AliasMutations};
 pub use changes::{ChangeStripes, Snapshot};
 pub use cluster_config::{ClusterConfig, ConfigValue};
@@ -103,6 +102,7 @@ pub use routing::{
     DEFAULT_ROUTING_CACHE_BYTES, DEFAULT_ROUTING_CACHE_MILLIS, DEFAULT_ROUTING_CACHE_PRUNE_ABOVE,
     RoutingCache,
 };
+pub use schedule_registry::{AlertRegistry, Claim, ScheduleRegistry};
 pub use snapshot_capture::DescribedIndex;
 pub use snapshot_restore::{CopyBuffers, RestoreError, SnapshotRestorer};
 pub use snapshot_take::{Reservation, SnapshotTaker, TakeError};

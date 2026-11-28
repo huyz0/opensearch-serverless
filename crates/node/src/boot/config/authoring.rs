@@ -3,7 +3,7 @@
 
 use super::NodeConfig;
 
-/// What a node serves of templates and pipelines.
+/// What a node serves of templates, pipelines and notification configs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct AuthoringConfig {
     /// `serverless.index_templates.enabled`: serve the template routes and apply a template at create. Off by default.
@@ -12,6 +12,8 @@ pub struct AuthoringConfig {
     pub ingest_pipelines: bool,
     /// `serverless.search.pipelines.enabled`: serve the search pipeline routes and run the pipeline a search names. Off by default.
     pub search_pipelines: bool,
+    /// `serverless.notifications.enabled`: serve the notifications config routes. Off by default.
+    pub notifications: bool,
 }
 
 /// Reads the switches with `flag`.
@@ -22,6 +24,7 @@ pub(in crate::boot) fn read(
         index_templates: flag("OSS_INDEX_TEMPLATES", "false")?,
         ingest_pipelines: flag("OSS_INGEST_PIPELINES", "false")?,
         search_pipelines: flag("OSS_SEARCH_PIPELINES", "false")?,
+        notifications: flag("OSS_NOTIFICATIONS", "false")?,
     })
 }
 
@@ -30,6 +33,7 @@ pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config
     to.index_templates = from.authoring.index_templates;
     to.ingest_pipelines = from.authoring.ingest_pipelines;
     to.search_pipelines = from.authoring.search_pipelines;
+    to.notifications = from.authoring.notifications;
 }
 
 #[cfg(test)]

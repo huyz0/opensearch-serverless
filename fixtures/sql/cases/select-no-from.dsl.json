@@ -1,0 +1,26 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "explain": {
+    "root": {
+      "name": "ProjectOperator",
+      "description": {
+        "fields": "[1 + 1]"
+      },
+      "children": [
+        {
+          "name": "ValuesOperator",
+          "description": {
+            "values": [
+              []
+            ]
+          },
+          "children": []
+        }
+      ]
+    }
+  }
+}

@@ -14,9 +14,14 @@ use oss_reader::search::{hits_bytes, search_with};
 use oss_reader::{ReaderError, ShardFiles};
 use oss_rest::{JSON, Length, Request, Response, RestError};
 
-use super::{Answer, SearchService, search_error};
+use super::{Answer, SearchService};
 use crate::open_indexes::{Found, Lead};
 use crate::time_value::{MAX_KEEP_ALIVE_MILLIS, time_millis};
+
+fn search_error(e: SearchError) -> Answer {
+    // ALLOC: error path; one box.
+    Answer::Search(Box::new(e))
+}
 
 /// Where a search finds its view.
 pub(super) struct PitAccess {

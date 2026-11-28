@@ -18,6 +18,9 @@ pub enum Capability {
     StateWrite,
     /// Run a search as the calling tenant.
     Search,
+    /// Start a search the host runs on a thread of its own and read its
+    /// result later ([ADR 0084](../../../docs/adr/0084-asynchronous-search-is-a-native-plugin-over-node-local-jobs.md)).
+    Job,
     /// Make HTTP calls to this one host.
     Egress(String),
     /// Be told the caller's user name and roles.
@@ -35,6 +38,7 @@ impl Capability {
             "state.read" => Some(Self::StateRead),
             "state.write" => Some(Self::StateWrite),
             "search" => Some(Self::Search),
+            "job" => Some(Self::Job),
             "identity" => Some(Self::Identity),
             "log" => Some(Self::Log),
             "metrics" => Some(Self::Metrics),
@@ -47,9 +51,14 @@ impl Capability {
     }
 
     /// Whether a plugin on `tier` may hold it. An out-of-process plugin gets
-    /// no host capability: it is told who is calling and nothing else.
+    /// no host capability: it is told who is calling and nothing else. `job`
+    /// is for a native plugin only: the host's thread is not offered to a
+    /// sandbox.
     pub fn allowed_on(&self, tier: Tier) -> bool {
-        tier != Tier::Grpc || matches!(self, Self::Identity)
+        match self {
+            Self::Job => tier == Tier::Native,
+            _ => tier != Tier::Grpc || matches!(self, Self::Identity),
+        }
     }
 }
 

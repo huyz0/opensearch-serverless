@@ -7,6 +7,9 @@
 mod support;
 
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ad_preview;
+mod ad_routes;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod alerting_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod alias_route;
@@ -66,14 +69,28 @@ mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_managed;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ism_rig;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod ism_routes;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod ism_template;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod knn_api;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod knn_models;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ltr_cache;
 mod ltr_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod metadata_block;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;
+mod notifications_routes;
+mod notifications_send;
 mod pinned_busy;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_cost;
@@ -112,6 +129,7 @@ mod security_authz;
 mod security_hardening;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_limits;
+mod security_patch;
 mod security_route;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod settings_route;
@@ -131,6 +149,8 @@ mod snapshot_restore_search;
 mod snapshot_route;
 mod snapshot_take;
 mod snapshot_take_size;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod sql_routes;
 mod stock_export;
 mod stock_export_budget;
 mod stock_export_refusals;

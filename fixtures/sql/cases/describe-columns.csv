@@ -1,0 +1,2 @@
+# status 500
+Cannot invoke "org.opensearch.sql.legacy.executor.csv.CSVResult.getHeaders()" because "result" is null

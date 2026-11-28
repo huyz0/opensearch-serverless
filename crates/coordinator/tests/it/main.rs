@@ -33,6 +33,7 @@ mod search_top_hits;
 mod security;
 mod security_authn;
 mod security_authz;
+mod security_patch;
 mod settings_update;
 mod template_admin;
 mod templates;

@@ -1,0 +1,7 @@
+if(age > 30, 'old', 'young')
+young
+young
+old
+young
+old
+old

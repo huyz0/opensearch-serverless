@@ -1,6 +1,6 @@
 //! The vector warm's and the nested objects' variables.
 
-use super::{lookup, with};
+use super::{FS, lookup, with};
 use crate::boot::config::*;
 
 // docs/specs/reader-vector-warm AC-5
@@ -94,4 +94,15 @@ fn the_ramp_variables_reach_placement() {
         .expect("valid");
     super::super::apply::apply(&off, &mut node);
     assert!(!oss_cluster::placement::ramp_config().is_on());
+}
+
+// docs/specs/ml-commons AC-17
+#[test]
+fn ml_commons_is_on_by_default_and_turned_off_by_its_variable() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(c.plugins.ml);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_ML", "false")]))).expect("valid");
+    assert!(!c.plugins.ml);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_ML", "maybe")])));
+    assert!(c.is_err());
 }

@@ -1606,9 +1606,11 @@ dependencies = [
  "h3-quinn",
  "http",
  "lucene-analysis",
+ "lucene-codecs",
  "lucene-index",
  "lucene-search",
  "lucene-store",
+ "oss-anomaly",
  "oss-blob",
  "oss-cluster",
  "oss-coordinator",
@@ -1620,6 +1622,7 @@ dependencies = [
  "oss-janitor",
  "oss-mem",
  "oss-meta",
+ "oss-query",
  "oss-reader",
  "oss-rest",
  "oss-testkit",
@@ -1638,6 +1641,13 @@ dependencies = [
  "tokio",
  "ureq",
  "wat",
+]
+
+[[package]]
+name = "oss-query"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

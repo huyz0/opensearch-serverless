@@ -1,0 +1,2056 @@
+{
+  "name": "asynchronous search routes",
+  "description": "Submit, get, delete and stats of the stock plugin: states, what is kept, validation, and the answers for ids that do not exist. Ids are placeholders.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "setup": "index compat-async: one shard, three documents with a = 1, 2, 3; index compat-async-slow: one shard, 4,000 documents, searched with a script that loops 900,000 times a document so a search runs for seconds",
+  "steps": [
+    {
+      "name": "submit finishing inside the wait",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "a": "asc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:plain>",
+          "state": "CLOSED",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": null,
+                  "_source": {
+                    "a": 1
+                  },
+                  "sort": [
+                    1
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": null,
+                  "_source": {
+                    "a": 2
+                  },
+                  "sort": [
+                    2
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": null,
+                  "_source": {
+                    "a": 3
+                  },
+                  "sort": [
+                    3
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get after a finished search that was not kept",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:plain}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [<id:plain>] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [<id:plain>] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete after a finished search that was not kept",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:plain}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [<id:plain>] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [<id:plain>] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "submit keep_on_completion",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "keep_on_completion": "true",
+          "wait_for_completion_timeout": "10s"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "a": "asc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:kept>",
+          "state": "PERSISTING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": null,
+                  "_source": {
+                    "a": 1
+                  },
+                  "sort": [
+                    1
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": null,
+                  "_source": {
+                    "a": 2
+                  },
+                  "sort": [
+                    2
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": null,
+                  "_source": {
+                    "a": 3
+                  },
+                  "sort": [
+                    3
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get kept",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:kept}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:kept>",
+          "state": "STORE_RESIDENT",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": null,
+                  "_source": {
+                    "a": 1
+                  },
+                  "sort": [
+                    1
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": null,
+                  "_source": {
+                    "a": 2
+                  },
+                  "sort": [
+                    2
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": null,
+                  "_source": {
+                    "a": 3
+                  },
+                  "sort": [
+                    3
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get kept with keep_alive",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:kept}",
+        "query": {
+          "keep_alive": "2d"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:kept>",
+          "state": "STORE_RESIDENT",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": null,
+                  "_source": {
+                    "a": 1
+                  },
+                  "sort": [
+                    1
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": null,
+                  "_source": {
+                    "a": 2
+                  },
+                  "sort": [
+                    2
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": null,
+                  "_source": {
+                    "a": 3
+                  },
+                  "sort": [
+                    3
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get kept with wait_for_completion_timeout",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:kept}",
+        "query": {
+          "wait_for_completion_timeout": "1s"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:kept>",
+          "state": "STORE_RESIDENT",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": null,
+                  "_source": {
+                    "a": 1
+                  },
+                  "sort": [
+                    1
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": null,
+                  "_source": {
+                    "a": 2
+                  },
+                  "sort": [
+                    2
+                  ]
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": null,
+                  "_source": {
+                    "a": 3
+                  },
+                  "sort": [
+                    3
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete kept",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:kept}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "get deleted",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:kept}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [<id:kept>] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [<id:kept>] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete deleted",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:kept}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [<id:kept>] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [<id:kept>] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "submit with aggregation and size 0",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "keep_on_completion": "true"
+        },
+        "body": {
+          "size": 0,
+          "aggs": {
+            "m": {
+              "max": {
+                "field": "a"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:agg>",
+          "state": "PERSISTING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "terminated_early": true,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "m": {
+                "value": 3.0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get aggregation",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:agg}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:agg>",
+          "state": "STORE_RESIDENT",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "terminated_early": true,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "m": {
+                "value": 3.0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete aggregation",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:agg}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "submit still running",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async-slow/_plugins/_asynchronous_search",
+        "query": {
+          "wait_for_completion_timeout": "1ms",
+          "keep_alive": "2m",
+          "keep_on_completion": "true"
+        },
+        "body": {
+          "query": {
+            "function_score": {
+              "query": {
+                "match_all": {}
+              },
+              "script_score": {
+                "script": {
+                  "source": "long s=0; for(int i=0;i<900000;i++){s+=i;} return s%7;"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:slow>",
+          "state": "RUNNING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "num_reduce_phases": 0,
+            "_shards": {
+              "total": 1,
+              "successful": 0,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get running",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:slow}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:slow>",
+          "state": "RUNNING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "num_reduce_phases": 0,
+            "_shards": {
+              "total": 1,
+              "successful": 0,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "stats with a running search",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/stats"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_nodes": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "cluster_name": "opensearch",
+          "nodes": {
+            "<node>": {
+              "asynchronous_search_stats": {
+                "submitted": "<counter>",
+                "initialized": "<counter>",
+                "running_current": 1,
+                "persisted": "<counter>",
+                "search_failed": "<counter>",
+                "search_completed": "<counter>",
+                "rejected": "<counter>",
+                "persist_failed": "<counter>",
+                "cancelled": "<counter>"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete running",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:slow}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "get cancelled",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:slow}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [<id:slow>] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [<id:slow>] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "submit still running without keep_on_completion",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async-slow/_plugins/_asynchronous_search",
+        "query": {
+          "wait_for_completion_timeout": "1ms",
+          "keep_alive": "2m"
+        },
+        "body": {
+          "query": {
+            "function_score": {
+              "query": {
+                "match_all": {}
+              },
+              "script_score": {
+                "script": {
+                  "source": "long s=0; for(int i=0;i<900000;i++){s+=i;} return s%7;"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:slow2>",
+          "state": "RUNNING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "num_reduce_phases": 0,
+            "_shards": {
+              "total": 1,
+              "successful": 0,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get running not kept",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:slow2}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:slow2>",
+          "state": "RUNNING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "num_reduce_phases": 0,
+            "_shards": {
+              "total": 1,
+              "successful": 0,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete running not kept",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:slow2}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "submit that finishes after the wait",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async-slow/_plugins/_asynchronous_search",
+        "query": {
+          "wait_for_completion_timeout": "1ms",
+          "keep_alive": "2m",
+          "keep_on_completion": "true"
+        },
+        "body": {
+          "query": {
+            "function_score": {
+              "query": {
+                "range": {
+                  "a": {
+                    "lt": 300
+                  }
+                }
+              },
+              "script_score": {
+                "script": {
+                  "source": "long s=0; for(int i=0;i<900000;i++){s+=i;} return s%7;"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:mid>",
+          "state": "RUNNING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "num_reduce_phases": 0,
+            "_shards": {
+              "total": 1,
+              "successful": 0,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get a search that finished after the wait",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:mid}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:mid>",
+          "state": "STORE_RESIDENT",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 300,
+                "relation": "eq"
+              },
+              "max_score": 3.0,
+              "hits": [
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "0",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 0
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "1",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 1
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "2",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 2
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "3",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 3
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "4",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 4
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "5",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 5
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "6",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 6
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "7",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 7
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "8",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 8
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "9",
+                  "_score": 3.0,
+                  "_source": {
+                    "a": 9
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete it",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:mid}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "submit that finishes after the wait and is not kept",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async-slow/_plugins/_asynchronous_search",
+        "query": {
+          "wait_for_completion_timeout": "1ms",
+          "keep_alive": "2m"
+        },
+        "body": {
+          "query": {
+            "function_score": {
+              "query": {
+                "range": {
+                  "a": {
+                    "lt": 300
+                  }
+                }
+              },
+              "script_score": {
+                "script": {
+                  "source": "long s=0; for(int i=0;i<900000;i++){s+=i;} return s%7;"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:mid2>",
+          "state": "RUNNING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "num_reduce_phases": 0,
+            "_shards": {
+              "total": 1,
+              "successful": 0,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get a not kept search that finished after the wait",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:mid2}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [<id:mid2>] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [<id:mid2>] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "get it again",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:mid2}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [<id:mid2>] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [<id:mid2>] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "submit failing query",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "keep_on_completion": "true",
+          "wait_for_completion_timeout": "10s"
+        },
+        "body": {
+          "query": {
+            "nope": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "unknown query [nope]",
+                "line": 1,
+                "col": 20
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "unknown query [nope]",
+            "line": 1,
+            "col": 20,
+            "caused_by": {
+              "type": "named_object_not_found_exception",
+              "reason": "[1:20] unknown field [nope]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "get failing",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/{id:bad}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [no-id-captured] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [no-id-captured] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete failing",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:bad}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [no-id-captured] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [no-id-captured] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "submit failing query not kept",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "body": {
+          "query": {
+            "nope": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "unknown query [nope]",
+                "line": 1,
+                "col": 20
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "unknown query [nope]",
+            "line": 1,
+            "col": 20,
+            "caused_by": {
+              "type": "named_object_not_found_exception",
+              "reason": "[1:20] unknown field [nope]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "submit with a malformed body",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:unnamed>",
+          "state": "CLOSED",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": 1.0,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 1
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 2
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 3
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "submit to a missing index",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async-missing/_plugins/_asynchronous_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:unnamed>",
+          "state": "CLOSED",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "error": {
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-async-missing]",
+            "index": "compat-async-missing",
+            "resource.id": "compat-async-missing",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          }
+        }
+      }
+    },
+    {
+      "name": "submit to a wildcard",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async*/_plugins/_asynchronous_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:unnamed>",
+          "state": "CLOSED",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 2,
+              "successful": 2,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 4003,
+                "relation": "eq"
+              },
+              "max_score": 1.0,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 1
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 2
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 3
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "0",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 0
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 1
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "2",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 2
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "3",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 3
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "4",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 4
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "5",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 5
+                  }
+                },
+                {
+                  "_index": "compat-async-slow",
+                  "_id": "6",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 6
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "submit to every index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_asynchronous_search",
+        "body": {
+          "size": 0
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:unnamed>",
+          "state": "CLOSED",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 6,
+              "successful": 6,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 4024,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "submit with keep_alive over the limit",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "keep_alive": "100d"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Keep alive for asynchronous search (8640000000) is too large. It must be less than (5d).This limit can be set by changing the [plugins.asynchronous_search.max_keep_alive] cluster level setting."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Keep alive for asynchronous search (8640000000) is too large. It must be less than (5d).This limit can be set by changing the [plugins.asynchronous_search.max_keep_alive] cluster level setting."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "submit with keep_alive below the minimum",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "keep_alive": "1ms"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: [keep_alive] must be greater than 1 minute, got: 1ms;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: [keep_alive] must be greater than 1 minute, got: 1ms;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "submit with a bad keep_alive",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "keep_alive": "soon"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "failed to parse setting [keep_alive] with value [soon] as a time value: unit is missing or unrecognized"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "failed to parse setting [keep_alive] with value [soon] as a time value: unit is missing or unrecognized"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "submit with a bad wait_for_completion_timeout",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "wait_for_completion_timeout": "soon"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "failed to parse setting [wait_for_completion_timeout] with value [soon] as a time value: unit is missing or unrecognized"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "failed to parse setting [wait_for_completion_timeout] with value [soon] as a time value: unit is missing or unrecognized"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "submit with a bad keep_on_completion",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "keep_on_completion": "maybe"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse value [maybe] as only [true] or [false] are allowed."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Failed to parse value [maybe] as only [true] or [false] are allowed."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "submit with an unknown parameter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "nope": "1"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "request [/compat-async/_plugins/_asynchronous_search] contains unrecognized parameter: [nope]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "request [/compat-async/_plugins/_asynchronous_search] contains unrecognized parameter: [nope]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "submit with batched_reduce_size",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "batched_reduce_size": "2",
+          "keep_on_completion": "true"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:b>",
+          "state": "PERSISTING",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": 1.0,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 1
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 2
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 3
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete batched",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/{id:b}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "submit with request_cache true",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "request_cache": "true"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:unnamed>",
+          "state": "CLOSED",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": 1.0,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 1
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 2
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 3
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "submit with routing and preference",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_plugins/_asynchronous_search",
+        "query": {
+          "routing": "r",
+          "preference": "_local"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:unnamed>",
+          "state": "CLOSED",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": 1.0,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 1
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 2
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 3
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get a garbage id",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/not-an-id"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [not-an-id] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [not-an-id] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete a garbage id",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_asynchronous_search/not-an-id"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Either the resource [not-an-id] does not exist or you do not have access"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Either the resource [not-an-id] does not exist or you do not have access"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "get with no id",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search"
+      },
+      "response": {
+        "status": 405,
+        "body": {
+          "error": "Incorrect HTTP method for uri [/_plugins/_asynchronous_search] and method [GET], allowed: [POST]",
+          "status": 405
+        }
+      }
+    },
+    {
+      "name": "stats",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/stats"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_nodes": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "cluster_name": "opensearch",
+          "nodes": {
+            "<node>": {
+              "asynchronous_search_stats": {
+                "submitted": "<counter>",
+                "initialized": "<counter>",
+                "running_current": 0,
+                "persisted": "<counter>",
+                "search_failed": "<counter>",
+                "search_completed": "<counter>",
+                "rejected": "<counter>",
+                "persist_failed": "<counter>",
+                "cancelled": "<counter>"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "stats of one node",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_asynchronous_search/_local/stats"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": "no handler found for uri [/_plugins/_asynchronous_search/_local/stats] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "legacy route",
+      "request": {
+        "method": "POST",
+        "path": "/compat-async/_opendistro/_asynchronous_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "<id:unnamed>",
+          "state": "CLOSED",
+          "start_time_in_millis": "<volatile>",
+          "expiration_time_in_millis": "<volatile>",
+          "response": {
+            "took": "<volatile>",
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": 1.0,
+              "hits": [
+                {
+                  "_index": "compat-async",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 1
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "2",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 2
+                  }
+                },
+                {
+                  "_index": "compat-async",
+                  "_id": "3",
+                  "_score": 1.0,
+                  "_source": {
+                    "a": 3
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

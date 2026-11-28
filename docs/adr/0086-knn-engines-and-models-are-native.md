@@ -1,0 +1,32 @@
+# 0086: The k-NN plugin's engines, models and training are native; the Faiss and NMSLIB names are served in stages
+
+**Status:** Accepted after independent review, 2026-11-28 (accept with changes; all four folded in)
+
+## Context
+
+The k-NN plugin serves three engines (`lucene`, `faiss`, `nmslib`), a model store (`/_plugins/_knn/models`) and training (`_train`, which builds a Faiss IVF or PQ index template from a training index and stores it as a model that later mappings name with `model_id`). The owner's rule (2026-11-28): no Java in the runtime path. The Lucene engine is native ([knn-query](../specs/knn-query/SPEC.md)); stats, warmup, clear cache and `ignore_unmapped` are native ([knn-plugin-api](../specs/knn-plugin-api/SPEC.md)). What remains:
+
+- The `faiss` and `nmslib` engine names in a mapping, with `hnsw` as their common method.
+- `ivf` (Faiss) and `pq`/`sq` encoders, which need training.
+- The model store and `_train`.
+
+Forces: requests scale with nodes and bytes, not with records ([principles](../principles.md)); memory is reserved before it is held and bounded; the stock plugin's native graphs live in JNI memory outside the heap, which has no counterpart here; lucene-rust holds the segment codecs and has no IVF format; a stock node to record against is not in this repository.
+
+## Decision
+
+Three stages, each its own PR and spec section, each behind a switch that is on only once measured.
+
+1. **`faiss` and `nmslib` with method `hnsw` are served by the Lucene HNSW codec.** The mapping keeps the engine name, `space_type` and parameters (`m`, `ef_construction`, `ef_search`), and `GET mapping` and the index settings echo the engine the client wrote. The segment is the Lucene one and `knn` queries run as today with the plugin's per-space scores. A combination Lucene HNSW cannot honour (a `space_type` the Lucene codec lacks, `m` or `ef_construction` past its limits, any method other than `hnsw`) is refused 400 with a message saying which, never approximated. The stats API keeps `faiss_initialized` and `nmslib_initialized` false, and a new stat `native_engine_hnsw_requests` counts queries served this way, so the substitution is visible. Deviation, stated: recall and latency are those of Lucene HNSW, not of Faiss or NMSLIB; the engine name is an API label. Switch `serverless.knn.native_engines`: off, a `faiss` or `nmslib` mapping is refused as unsupported, as today. It flips to on only when recall@10 and p50/p99 latency on the same data and queries against the `lucene` engine are measured (provisional while on an emulator, per the principles) and show no downside; the measurement is a spec criterion of that PR, not assumed here.
+2. **The model store and `_train`.** A model is an entry in a document set under `knn/models/` (the document-set design of [ADR 0031](0031-document-sets.md), used by templates, pipelines and the LTR store): `GET|DELETE /models/{id}`, `GET|POST /models/_search`, `POST /models/{id}/_train` and `/models/_train`. Model search reads the set's marker and the page of descriptions it names (capped at the plugin's 10,000-hit window and 1 MiB a description), with no LIST. Request counts (a put costs a marker GET, a content PUT and a marker swap; a read the marker GET and the content GET) are **provisional** until an `s3-cost` request-count test in the slice's PR asserts them. A model blob is at most 64 MiB. Training reads the training index's vectors through the reader as ranged reads streamed into a sample, never holding the index whole, and reserves before reading from the `open_indexes` pool's sibling pool `training` (a new pool sized by `serverless.knn.training_bytes`, default 256 MiB): the bound is `max_training_vector_count x dimension x 4` bytes for the sample plus the centroids (`nlist x dimension x 4`) and codebooks (`m x 2^bits x (dimension / m) x 4`), computed before the first read; a job whose bound does not fit is refused 429 and runs nothing. A retry reads the training index again. The job runs under the node-local task registry ([ADR 0072](0072-tasks-are-node-local-memory-with-no-blob-requests.md)); the model's marker entry is written once at start with state `training` (one PUT, charged to the train call) and once at the end with `created` or `failed`. A node that dies mid-run leaves `training` in the marker; a `training` entry older than `serverless.knn.training_timeout` reads as `failed` with that reason, so nothing waits forever. k-means (IVF) and product quantization are our own implementations in safe Rust.
+3. **IVF and PQ search are not served in this ADR.** A mapping that names `model_id` or `method: ivf` is refused as unsupported until a decision on the segment format: either an IVF codec added to lucene-rust, or a native plugin-tier module ([ADR 0080](0080-one-plugin-system-three-tiers.md)) that owns its files. That needs its own ADR, because it is a blob format and a memory model.
+
+No JNI, no Java process, no fallback to a Java node in any stage.
+
+## Consequences
+
+- Easier: a client that creates `faiss` or `nmslib` HNSW indexes, and one that lists, reads and deletes models, works against a Rust node with no Java.
+- Harder: stage 1 is an approximation of the engines' behaviour, not a port of them; a client that depends on Faiss's recall or on `nprobes` sees different numbers. Stage 3 stays open, so `_train` can produce models no mapping can use yet; the response says so rather than pretending otherwise.
+- Request cost: stats and routes add none; model calls are the document-set cost (provisional counts above, no LIST); training's reads are ranged reads of the training index's vector files, once per run and again on a retry, and scale with bytes.
+- Memory: training reserves before reading; a job that does not fit is refused 429, not run partly.
+- Rules out: sharing a model store or segments with a Java shell (the plugin's `.opensearch-knn-models` index and these blobs are separate).
+- Provisional until a stock recording exists: response shapes and the exact `_train` validation messages.

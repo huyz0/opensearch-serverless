@@ -1,0 +1,3976 @@
+{
+  "name": "notifications configs, channels, features and test send",
+  "description": "The plugin's config store routes and the test send, over every config type, with the refusals and the delivery statuses of a local target.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_notifications/configs",
+      "query": {
+        "config_id_list": "compat-w1,compat-w2,compat-w3,compat-w4,compat-w5,compat-w6,compat-s1,compat-c1,compat-t1,compat-smtp,compat-smtp2,compat-grp,compat-mail,compat-mail2,compat-ses,compat-sns,compat-sns2,compat-off,compat-priv,compat-x1,compat-x2,compat-x3,compat-x4,compat-x5,compat-x6,compat-x7,compat-x8,compat-x9,compat-x10,compat-x11,compat-x12,compat-x13"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "features",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/features"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "allowed_config_type_list": [
+            "slack",
+            "chime",
+            "microsoft_teams",
+            "webhook",
+            "email",
+            "sns",
+            "ses_account",
+            "smtp_account",
+            "email_group"
+          ],
+          "plugin_features": {
+            "tooltip_support": "true"
+          }
+        }
+      }
+    },
+    {
+      "name": "channels empty",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/channels"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 0,
+          "total_hit_relation": "eq",
+          "channel_list": []
+        }
+      }
+    },
+    {
+      "name": "configs empty",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 0,
+          "total_hit_relation": "eq",
+          "config_list": []
+        }
+      }
+    },
+    {
+      "name": "create webhook with id",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-w1",
+            "description": "d compat-w1",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          },
+          "config_id": "compat-w1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-w1"
+        }
+      }
+    },
+    {
+      "name": "create duplicate id",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-w1",
+            "description": "d compat-w1",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          },
+          "config_id": "compat-w1"
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Document version conflict putting compat-w1 in index .opensearch-notifications-config"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Document version conflict putting compat-w1 in index .opensearch-notifications-config"
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "create webhook headers and method",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "w2",
+            "description": "d compat-w2",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200",
+              "header_params": {
+                "X-A": "b"
+              },
+              "method": "PUT"
+            }
+          },
+          "config_id": "compat-w2"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-w2"
+        }
+      }
+    },
+    {
+      "name": "create slack bad url",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-s1",
+            "description": "d compat-s1",
+            "config_type": "slack",
+            "is_enabled": true,
+            "slack": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          },
+          "config_id": "compat-s1"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Wrong Slack url. Should contain \"hooks.slack.com/services/\" or \"hooks.gov-slack.com/services/\""
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Wrong Slack url. Should contain \"hooks.slack.com/services/\" or \"hooks.gov-slack.com/services/\""
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create slack",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-s1",
+            "description": "d compat-s1",
+            "config_type": "slack",
+            "is_enabled": true,
+            "slack": {
+              "url": "https://hooks.slack.com/services/T0/B0/xyz"
+            }
+          },
+          "config_id": "compat-s1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-s1"
+        }
+      }
+    },
+    {
+      "name": "create chime bad url",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-c1",
+            "description": "d compat-c1",
+            "config_type": "chime",
+            "is_enabled": true,
+            "chime": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          },
+          "config_id": "compat-c1"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Wrong Chime url. Should contain \"hooks.chime.aws/incomingwebhooks/\" and \"?token=\""
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Wrong Chime url. Should contain \"hooks.chime.aws/incomingwebhooks/\" and \"?token=\""
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create chime",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-c1",
+            "description": "d compat-c1",
+            "config_type": "chime",
+            "is_enabled": true,
+            "chime": {
+              "url": "https://hooks.chime.aws/incomingwebhooks/abc?token=t"
+            }
+          },
+          "config_id": "compat-c1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-c1"
+        }
+      }
+    },
+    {
+      "name": "create teams",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-t1",
+            "description": "d compat-t1",
+            "config_type": "microsoft_teams",
+            "is_enabled": true,
+            "microsoft_teams": {
+              "url": "https://example.webhook.office.com/webhookb2/abc"
+            }
+          },
+          "config_id": "compat-t1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-t1"
+        }
+      }
+    },
+    {
+      "name": "create smtp_account",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-smtp",
+            "description": "d compat-smtp",
+            "config_type": "smtp_account",
+            "is_enabled": true,
+            "smtp_account": {
+              "host": "smtp.example.com",
+              "port": 25,
+              "method": "none",
+              "from_address": "a@example.com"
+            }
+          },
+          "config_id": "compat-smtp"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-smtp"
+        }
+      }
+    },
+    {
+      "name": "create smtp_account bad method",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-smtp2",
+            "description": "d compat-smtp2",
+            "config_type": "smtp_account",
+            "is_enabled": true,
+            "smtp_account": {
+              "host": "smtp.example.com",
+              "port": 25,
+              "method": "carrier-pigeon",
+              "from_address": "a@example.com"
+            }
+          },
+          "config_id": "compat-smtp2"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-smtp2"
+        }
+      }
+    },
+    {
+      "name": "create email_group",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-grp",
+            "description": "d compat-grp",
+            "config_type": "email_group",
+            "is_enabled": true,
+            "email_group": {
+              "recipient_list": [
+                {
+                  "recipient": "x@example.com"
+                },
+                {
+                  "recipient": "y@example.com"
+                }
+              ]
+            }
+          },
+          "config_id": "compat-grp"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-grp"
+        }
+      }
+    },
+    {
+      "name": "create email",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-mail",
+            "description": "d compat-mail",
+            "config_type": "email",
+            "is_enabled": true,
+            "email": {
+              "email_account_id": "compat-smtp",
+              "recipient_list": [
+                {
+                  "recipient": "z@example.com"
+                }
+              ],
+              "email_group_id_list": [
+                "compat-grp"
+              ]
+            }
+          },
+          "config_id": "compat-mail"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-mail"
+        }
+      }
+    },
+    {
+      "name": "create email unknown account",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-mail2",
+            "description": "d compat-mail2",
+            "config_type": "email",
+            "is_enabled": true,
+            "email": {
+              "email_account_id": "nope",
+              "recipient_list": [
+                {
+                  "recipient": "z@example.com"
+                }
+              ],
+              "email_group_id_list": []
+            }
+          },
+          "config_id": "compat-mail2"
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Config IDs not found:[nope]"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Config IDs not found:[nope]"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create ses_account",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-ses",
+            "description": "d compat-ses",
+            "config_type": "ses_account",
+            "is_enabled": true,
+            "ses_account": {
+              "region": "us-east-1",
+              "role_arn": "arn:aws:iam::123456789012:role/r",
+              "from_address": "a@example.com"
+            }
+          },
+          "config_id": "compat-ses"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-ses"
+        }
+      }
+    },
+    {
+      "name": "create sns",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-sns",
+            "description": "d compat-sns",
+            "config_type": "sns",
+            "is_enabled": true,
+            "sns": {
+              "topic_arn": "arn:aws:sns:us-east-1:123456789012:t",
+              "role_arn": "arn:aws:iam::123456789012:role/r"
+            }
+          },
+          "config_id": "compat-sns"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-sns"
+        }
+      }
+    },
+    {
+      "name": "create sns bad arn",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-sns2",
+            "description": "d compat-sns2",
+            "config_type": "sns",
+            "is_enabled": true,
+            "sns": {
+              "topic_arn": "nope"
+            }
+          },
+          "config_id": "compat-sns2"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Invalid AWS SNS topic ARN: nope"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Invalid AWS SNS topic ARN: nope"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create unknown type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-x1",
+            "description": "d compat-x1",
+            "config_type": "pagerduty",
+            "is_enabled": true,
+            "pagerduty": {
+              "url": "http://127.0.0.1:18080"
+            }
+          },
+          "config_id": "compat-x1"
+        }
+      },
+      "response": {
+        "status": 406,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "NotificationConfig with type NONE is not acceptable"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "NotificationConfig with type NONE is not acceptable"
+          },
+          "status": 406
+        }
+      }
+    },
+    {
+      "name": "create type without block",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-x2",
+            "description": "d compat-x2",
+            "config_type": "webhook",
+            "is_enabled": true
+          },
+          "config_id": "compat-x2"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "ConfigType: webhook and data doesn't match"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "ConfigType: webhook and data doesn't match"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create block of other type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-x3",
+            "description": "d compat-x3",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "slack": {
+              "url": "https://hooks.slack.com/services/a"
+            }
+          },
+          "config_id": "compat-x3"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "ConfigType: webhook and data doesn't match"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "ConfigType: webhook and data doesn't match"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create non-http url",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-x4",
+            "description": "d compat-x4",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "ftp://example.com/x"
+            }
+          },
+          "config_id": "compat-x4"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Invalid URL or unsupported"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Invalid URL or unsupported"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create unknown key",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-x5",
+            "description": "d compat-x5",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            },
+            "bogus": 1
+          },
+          "config_id": "compat-x5"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-x5"
+        }
+      }
+    },
+    {
+      "name": "create unknown key in block",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-x6",
+            "description": "d compat-x6",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200",
+              "bogus": 1
+            }
+          },
+          "config_id": "compat-x6"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-x6"
+        }
+      }
+    },
+    {
+      "name": "create name too long",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+            "description": "d compat-x7",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          },
+          "config_id": "compat-x7"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-x7"
+        }
+      }
+    },
+    {
+      "name": "create empty name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-x8",
+            "description": "d compat-x8",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          },
+          "config_id": "compat-x8"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-x8"
+        }
+      }
+    },
+    {
+      "name": "create description too long",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-x9",
+            "description": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          },
+          "config_id": "compat-x9"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-x9"
+        }
+      }
+    },
+    {
+      "name": "create is_enabled false",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-off",
+            "description": "d compat-off",
+            "config_type": "webhook",
+            "is_enabled": false,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          },
+          "config_id": "compat-off"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-off"
+        }
+      }
+    },
+    {
+      "name": "create no body",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "request body is required"
+              }
+            ],
+            "type": "parse_exception",
+            "reason": "request body is required"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create with private-looking host",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "compat-priv",
+            "description": "d compat-priv",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://169.254.169.254/latest/meta-data"
+            }
+          },
+          "config_id": "compat-priv"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-priv"
+        }
+      }
+    },
+    {
+      "name": "get one",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs/compat-w1"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 1,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w1",
+              "last_updated_time_ms": 1795855385348,
+              "created_time_ms": 1795855385348,
+              "config": {
+                "name": "compat-w1",
+                "description": "d compat-w1",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get one by query",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "config_id": "compat-w2"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 1,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get two by list",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "config_id_list": "compat-w1,compat-w2"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 2,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w1",
+              "last_updated_time_ms": 1795855385348,
+              "created_time_ms": 1795855385348,
+              "config": {
+                "name": "compat-w1",
+                "description": "d compat-w1",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get missing",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs/compat-nope"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "NotificationConfig compat-nope not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "NotificationConfig compat-nope not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "get list",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 18,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w1",
+              "last_updated_time_ms": 1795855385348,
+              "created_time_ms": 1795855385348,
+              "config": {
+                "name": "compat-w1",
+                "description": "d compat-w1",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            },
+            {
+              "config_id": "compat-s1",
+              "last_updated_time_ms": 1795855385391,
+              "created_time_ms": 1795855385391,
+              "config": {
+                "name": "compat-s1",
+                "description": "d compat-s1",
+                "config_type": "slack",
+                "is_enabled": true,
+                "slack": {
+                  "url": "https://hooks.slack.com/services/T0/B0/xyz"
+                }
+              }
+            },
+            {
+              "config_id": "compat-c1",
+              "last_updated_time_ms": 1795855385406,
+              "created_time_ms": 1795855385406,
+              "config": {
+                "name": "compat-c1",
+                "description": "d compat-c1",
+                "config_type": "chime",
+                "is_enabled": true,
+                "chime": {
+                  "url": "https://hooks.chime.aws/incomingwebhooks/abc?token=t"
+                }
+              }
+            },
+            {
+              "config_id": "compat-t1",
+              "last_updated_time_ms": 1795855385417,
+              "created_time_ms": 1795855385417,
+              "config": {
+                "name": "compat-t1",
+                "description": "d compat-t1",
+                "config_type": "microsoft_teams",
+                "is_enabled": true,
+                "microsoft_teams": {
+                  "url": "https://example.webhook.office.com/webhookb2/abc"
+                }
+              }
+            },
+            {
+              "config_id": "compat-smtp",
+              "last_updated_time_ms": 1795855385436,
+              "created_time_ms": 1795855385436,
+              "config": {
+                "name": "compat-smtp",
+                "description": "d compat-smtp",
+                "config_type": "smtp_account",
+                "is_enabled": true,
+                "smtp_account": {
+                  "host": "smtp.example.com",
+                  "port": 25,
+                  "method": "none",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-smtp2",
+              "last_updated_time_ms": 1795855385450,
+              "created_time_ms": 1795855385450,
+              "config": {
+                "name": "compat-smtp2",
+                "description": "d compat-smtp2",
+                "config_type": "smtp_account",
+                "is_enabled": true,
+                "smtp_account": {
+                  "host": "smtp.example.com",
+                  "port": 25,
+                  "method": "none",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-grp",
+              "last_updated_time_ms": 1795855385464,
+              "created_time_ms": 1795855385464,
+              "config": {
+                "name": "compat-grp",
+                "description": "d compat-grp",
+                "config_type": "email_group",
+                "is_enabled": true,
+                "email_group": {
+                  "recipient_list": [
+                    {
+                      "recipient": "x@example.com"
+                    },
+                    {
+                      "recipient": "y@example.com"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-mail",
+              "last_updated_time_ms": 1795855385479,
+              "created_time_ms": 1795855385479,
+              "config": {
+                "name": "compat-mail",
+                "description": "d compat-mail",
+                "config_type": "email",
+                "is_enabled": true,
+                "email": {
+                  "email_account_id": "compat-smtp",
+                  "recipient_list": [
+                    {
+                      "recipient": "z@example.com"
+                    }
+                  ],
+                  "email_group_id_list": [
+                    "compat-grp"
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-ses",
+              "last_updated_time_ms": 1795855385492,
+              "created_time_ms": 1795855385492,
+              "config": {
+                "name": "compat-ses",
+                "description": "d compat-ses",
+                "config_type": "ses_account",
+                "is_enabled": true,
+                "ses_account": {
+                  "region": "us-east-1",
+                  "role_arn": "arn:aws:iam::123456789012:role/r",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-sns",
+              "last_updated_time_ms": 1795855385502,
+              "created_time_ms": 1795855385502,
+              "config": {
+                "name": "compat-sns",
+                "description": "d compat-sns",
+                "config_type": "sns",
+                "is_enabled": true,
+                "sns": {
+                  "topic_arn": "arn:aws:sns:us-east-1:123456789012:t",
+                  "role_arn": "arn:aws:iam::123456789012:role/r"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x5",
+              "last_updated_time_ms": 1795855385531,
+              "created_time_ms": 1795855385531,
+              "config": {
+                "name": "compat-x5",
+                "description": "d compat-x5",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x6",
+              "last_updated_time_ms": 1795855385542,
+              "created_time_ms": 1795855385542,
+              "config": {
+                "name": "compat-x6",
+                "description": "d compat-x6",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x7",
+              "last_updated_time_ms": 1795855385552,
+              "created_time_ms": 1795855385552,
+              "config": {
+                "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+                "description": "d compat-x7",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x8",
+              "last_updated_time_ms": 1795855385563,
+              "created_time_ms": 1795855385563,
+              "config": {
+                "name": "compat-x8",
+                "description": "d compat-x8",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x9",
+              "last_updated_time_ms": 1795855385573,
+              "created_time_ms": 1795855385573,
+              "config": {
+                "name": "compat-x9",
+                "description": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-off",
+              "last_updated_time_ms": 1795855385582,
+              "created_time_ms": 1795855385582,
+              "config": {
+                "name": "compat-off",
+                "description": "d compat-off",
+                "config_type": "webhook",
+                "is_enabled": false,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-priv",
+              "last_updated_time_ms": 1795855385593,
+              "created_time_ms": 1795855385593,
+              "config": {
+                "name": "compat-priv",
+                "description": "d compat-priv",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://169.254.169.254/latest/meta-data",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "filter config_type",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "config_type": "webhook"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 9,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w1",
+              "last_updated_time_ms": 1795855385348,
+              "created_time_ms": 1795855385348,
+              "config": {
+                "name": "compat-w1",
+                "description": "d compat-w1",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x5",
+              "last_updated_time_ms": 1795855385531,
+              "created_time_ms": 1795855385531,
+              "config": {
+                "name": "compat-x5",
+                "description": "d compat-x5",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x6",
+              "last_updated_time_ms": 1795855385542,
+              "created_time_ms": 1795855385542,
+              "config": {
+                "name": "compat-x6",
+                "description": "d compat-x6",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x7",
+              "last_updated_time_ms": 1795855385552,
+              "created_time_ms": 1795855385552,
+              "config": {
+                "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+                "description": "d compat-x7",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x8",
+              "last_updated_time_ms": 1795855385563,
+              "created_time_ms": 1795855385563,
+              "config": {
+                "name": "compat-x8",
+                "description": "d compat-x8",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x9",
+              "last_updated_time_ms": 1795855385573,
+              "created_time_ms": 1795855385573,
+              "config": {
+                "name": "compat-x9",
+                "description": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-off",
+              "last_updated_time_ms": 1795855385582,
+              "created_time_ms": 1795855385582,
+              "config": {
+                "name": "compat-off",
+                "description": "d compat-off",
+                "config_type": "webhook",
+                "is_enabled": false,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-priv",
+              "last_updated_time_ms": 1795855385593,
+              "created_time_ms": 1795855385593,
+              "config": {
+                "name": "compat-priv",
+                "description": "d compat-priv",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://169.254.169.254/latest/meta-data",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "filter two config_types",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "config_type": "slack,chime"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 2,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-s1",
+              "last_updated_time_ms": 1795855385391,
+              "created_time_ms": 1795855385391,
+              "config": {
+                "name": "compat-s1",
+                "description": "d compat-s1",
+                "config_type": "slack",
+                "is_enabled": true,
+                "slack": {
+                  "url": "https://hooks.slack.com/services/T0/B0/xyz"
+                }
+              }
+            },
+            {
+              "config_id": "compat-c1",
+              "last_updated_time_ms": 1795855385406,
+              "created_time_ms": 1795855385406,
+              "config": {
+                "name": "compat-c1",
+                "description": "d compat-c1",
+                "config_type": "chime",
+                "is_enabled": true,
+                "chime": {
+                  "url": "https://hooks.chime.aws/incomingwebhooks/abc?token=t"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "filter is_enabled false",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "is_enabled": "false"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 1,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-off",
+              "last_updated_time_ms": 1795855385582,
+              "created_time_ms": 1795855385582,
+              "config": {
+                "name": "compat-off",
+                "description": "d compat-off",
+                "config_type": "webhook",
+                "is_enabled": false,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "filter name exact",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "name": "w2"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 1,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "filter description exact",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "description": "d compat-w2"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 17,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w1",
+              "last_updated_time_ms": 1795855385348,
+              "created_time_ms": 1795855385348,
+              "config": {
+                "name": "compat-w1",
+                "description": "d compat-w1",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            },
+            {
+              "config_id": "compat-s1",
+              "last_updated_time_ms": 1795855385391,
+              "created_time_ms": 1795855385391,
+              "config": {
+                "name": "compat-s1",
+                "description": "d compat-s1",
+                "config_type": "slack",
+                "is_enabled": true,
+                "slack": {
+                  "url": "https://hooks.slack.com/services/T0/B0/xyz"
+                }
+              }
+            },
+            {
+              "config_id": "compat-c1",
+              "last_updated_time_ms": 1795855385406,
+              "created_time_ms": 1795855385406,
+              "config": {
+                "name": "compat-c1",
+                "description": "d compat-c1",
+                "config_type": "chime",
+                "is_enabled": true,
+                "chime": {
+                  "url": "https://hooks.chime.aws/incomingwebhooks/abc?token=t"
+                }
+              }
+            },
+            {
+              "config_id": "compat-t1",
+              "last_updated_time_ms": 1795855385417,
+              "created_time_ms": 1795855385417,
+              "config": {
+                "name": "compat-t1",
+                "description": "d compat-t1",
+                "config_type": "microsoft_teams",
+                "is_enabled": true,
+                "microsoft_teams": {
+                  "url": "https://example.webhook.office.com/webhookb2/abc"
+                }
+              }
+            },
+            {
+              "config_id": "compat-smtp",
+              "last_updated_time_ms": 1795855385436,
+              "created_time_ms": 1795855385436,
+              "config": {
+                "name": "compat-smtp",
+                "description": "d compat-smtp",
+                "config_type": "smtp_account",
+                "is_enabled": true,
+                "smtp_account": {
+                  "host": "smtp.example.com",
+                  "port": 25,
+                  "method": "none",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-smtp2",
+              "last_updated_time_ms": 1795855385450,
+              "created_time_ms": 1795855385450,
+              "config": {
+                "name": "compat-smtp2",
+                "description": "d compat-smtp2",
+                "config_type": "smtp_account",
+                "is_enabled": true,
+                "smtp_account": {
+                  "host": "smtp.example.com",
+                  "port": 25,
+                  "method": "none",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-grp",
+              "last_updated_time_ms": 1795855385464,
+              "created_time_ms": 1795855385464,
+              "config": {
+                "name": "compat-grp",
+                "description": "d compat-grp",
+                "config_type": "email_group",
+                "is_enabled": true,
+                "email_group": {
+                  "recipient_list": [
+                    {
+                      "recipient": "x@example.com"
+                    },
+                    {
+                      "recipient": "y@example.com"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-mail",
+              "last_updated_time_ms": 1795855385479,
+              "created_time_ms": 1795855385479,
+              "config": {
+                "name": "compat-mail",
+                "description": "d compat-mail",
+                "config_type": "email",
+                "is_enabled": true,
+                "email": {
+                  "email_account_id": "compat-smtp",
+                  "recipient_list": [
+                    {
+                      "recipient": "z@example.com"
+                    }
+                  ],
+                  "email_group_id_list": [
+                    "compat-grp"
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-ses",
+              "last_updated_time_ms": 1795855385492,
+              "created_time_ms": 1795855385492,
+              "config": {
+                "name": "compat-ses",
+                "description": "d compat-ses",
+                "config_type": "ses_account",
+                "is_enabled": true,
+                "ses_account": {
+                  "region": "us-east-1",
+                  "role_arn": "arn:aws:iam::123456789012:role/r",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-sns",
+              "last_updated_time_ms": 1795855385502,
+              "created_time_ms": 1795855385502,
+              "config": {
+                "name": "compat-sns",
+                "description": "d compat-sns",
+                "config_type": "sns",
+                "is_enabled": true,
+                "sns": {
+                  "topic_arn": "arn:aws:sns:us-east-1:123456789012:t",
+                  "role_arn": "arn:aws:iam::123456789012:role/r"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x5",
+              "last_updated_time_ms": 1795855385531,
+              "created_time_ms": 1795855385531,
+              "config": {
+                "name": "compat-x5",
+                "description": "d compat-x5",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x6",
+              "last_updated_time_ms": 1795855385542,
+              "created_time_ms": 1795855385542,
+              "config": {
+                "name": "compat-x6",
+                "description": "d compat-x6",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x7",
+              "last_updated_time_ms": 1795855385552,
+              "created_time_ms": 1795855385552,
+              "config": {
+                "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+                "description": "d compat-x7",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x8",
+              "last_updated_time_ms": 1795855385563,
+              "created_time_ms": 1795855385563,
+              "config": {
+                "name": "compat-x8",
+                "description": "d compat-x8",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-off",
+              "last_updated_time_ms": 1795855385582,
+              "created_time_ms": 1795855385582,
+              "config": {
+                "name": "compat-off",
+                "description": "d compat-off",
+                "config_type": "webhook",
+                "is_enabled": false,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-priv",
+              "last_updated_time_ms": 1795855385593,
+              "created_time_ms": 1795855385593,
+              "config": {
+                "name": "compat-priv",
+                "description": "d compat-priv",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://169.254.169.254/latest/meta-data",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "text_query",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "text_query": "CHIME"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 0,
+          "total_hit_relation": "eq",
+          "config_list": []
+        }
+      }
+    },
+    {
+      "name": "sort name desc",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "sort_field": "name",
+          "sort_order": "desc"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 18,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x7",
+              "last_updated_time_ms": 1795855385552,
+              "created_time_ms": 1795855385552,
+              "config": {
+                "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+                "description": "d compat-x7",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x9",
+              "last_updated_time_ms": 1795855385573,
+              "created_time_ms": 1795855385573,
+              "config": {
+                "name": "compat-x9",
+                "description": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x8",
+              "last_updated_time_ms": 1795855385563,
+              "created_time_ms": 1795855385563,
+              "config": {
+                "name": "compat-x8",
+                "description": "d compat-x8",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x6",
+              "last_updated_time_ms": 1795855385542,
+              "created_time_ms": 1795855385542,
+              "config": {
+                "name": "compat-x6",
+                "description": "d compat-x6",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x5",
+              "last_updated_time_ms": 1795855385531,
+              "created_time_ms": 1795855385531,
+              "config": {
+                "name": "compat-x5",
+                "description": "d compat-x5",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-w1",
+              "last_updated_time_ms": 1795855385348,
+              "created_time_ms": 1795855385348,
+              "config": {
+                "name": "compat-w1",
+                "description": "d compat-w1",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-t1",
+              "last_updated_time_ms": 1795855385417,
+              "created_time_ms": 1795855385417,
+              "config": {
+                "name": "compat-t1",
+                "description": "d compat-t1",
+                "config_type": "microsoft_teams",
+                "is_enabled": true,
+                "microsoft_teams": {
+                  "url": "https://example.webhook.office.com/webhookb2/abc"
+                }
+              }
+            },
+            {
+              "config_id": "compat-sns",
+              "last_updated_time_ms": 1795855385502,
+              "created_time_ms": 1795855385502,
+              "config": {
+                "name": "compat-sns",
+                "description": "d compat-sns",
+                "config_type": "sns",
+                "is_enabled": true,
+                "sns": {
+                  "topic_arn": "arn:aws:sns:us-east-1:123456789012:t",
+                  "role_arn": "arn:aws:iam::123456789012:role/r"
+                }
+              }
+            },
+            {
+              "config_id": "compat-smtp2",
+              "last_updated_time_ms": 1795855385450,
+              "created_time_ms": 1795855385450,
+              "config": {
+                "name": "compat-smtp2",
+                "description": "d compat-smtp2",
+                "config_type": "smtp_account",
+                "is_enabled": true,
+                "smtp_account": {
+                  "host": "smtp.example.com",
+                  "port": 25,
+                  "method": "none",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-smtp",
+              "last_updated_time_ms": 1795855385436,
+              "created_time_ms": 1795855385436,
+              "config": {
+                "name": "compat-smtp",
+                "description": "d compat-smtp",
+                "config_type": "smtp_account",
+                "is_enabled": true,
+                "smtp_account": {
+                  "host": "smtp.example.com",
+                  "port": 25,
+                  "method": "none",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-ses",
+              "last_updated_time_ms": 1795855385492,
+              "created_time_ms": 1795855385492,
+              "config": {
+                "name": "compat-ses",
+                "description": "d compat-ses",
+                "config_type": "ses_account",
+                "is_enabled": true,
+                "ses_account": {
+                  "region": "us-east-1",
+                  "role_arn": "arn:aws:iam::123456789012:role/r",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-s1",
+              "last_updated_time_ms": 1795855385391,
+              "created_time_ms": 1795855385391,
+              "config": {
+                "name": "compat-s1",
+                "description": "d compat-s1",
+                "config_type": "slack",
+                "is_enabled": true,
+                "slack": {
+                  "url": "https://hooks.slack.com/services/T0/B0/xyz"
+                }
+              }
+            },
+            {
+              "config_id": "compat-priv",
+              "last_updated_time_ms": 1795855385593,
+              "created_time_ms": 1795855385593,
+              "config": {
+                "name": "compat-priv",
+                "description": "d compat-priv",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://169.254.169.254/latest/meta-data",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-off",
+              "last_updated_time_ms": 1795855385582,
+              "created_time_ms": 1795855385582,
+              "config": {
+                "name": "compat-off",
+                "description": "d compat-off",
+                "config_type": "webhook",
+                "is_enabled": false,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-mail",
+              "last_updated_time_ms": 1795855385479,
+              "created_time_ms": 1795855385479,
+              "config": {
+                "name": "compat-mail",
+                "description": "d compat-mail",
+                "config_type": "email",
+                "is_enabled": true,
+                "email": {
+                  "email_account_id": "compat-smtp",
+                  "recipient_list": [
+                    {
+                      "recipient": "z@example.com"
+                    }
+                  ],
+                  "email_group_id_list": [
+                    "compat-grp"
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-grp",
+              "last_updated_time_ms": 1795855385464,
+              "created_time_ms": 1795855385464,
+              "config": {
+                "name": "compat-grp",
+                "description": "d compat-grp",
+                "config_type": "email_group",
+                "is_enabled": true,
+                "email_group": {
+                  "recipient_list": [
+                    {
+                      "recipient": "x@example.com"
+                    },
+                    {
+                      "recipient": "y@example.com"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-c1",
+              "last_updated_time_ms": 1795855385406,
+              "created_time_ms": 1795855385406,
+              "config": {
+                "name": "compat-c1",
+                "description": "d compat-c1",
+                "config_type": "chime",
+                "is_enabled": true,
+                "chime": {
+                  "url": "https://hooks.chime.aws/incomingwebhooks/abc?token=t"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sort unknown field",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "sort_field": "nope"
+        }
+      },
+      "response": {
+        "status": 406,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Sort on nope not acceptable"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Sort on nope not acceptable"
+          },
+          "status": 406
+        }
+      }
+    },
+    {
+      "name": "sort bad order",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "sort_field": "name",
+          "sort_order": "sideways"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "No enum constant org.opensearch.search.sort.SortOrder.SIDEWAYS"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "No enum constant org.opensearch.search.sort.SortOrder.SIDEWAYS"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "max_items 2",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "max_items": "2",
+          "sort_field": "name",
+          "sort_order": "asc"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 18,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-c1",
+              "last_updated_time_ms": 1795855385406,
+              "created_time_ms": 1795855385406,
+              "config": {
+                "name": "compat-c1",
+                "description": "d compat-c1",
+                "config_type": "chime",
+                "is_enabled": true,
+                "chime": {
+                  "url": "https://hooks.chime.aws/incomingwebhooks/abc?token=t"
+                }
+              }
+            },
+            {
+              "config_id": "compat-grp",
+              "last_updated_time_ms": 1795855385464,
+              "created_time_ms": 1795855385464,
+              "config": {
+                "name": "compat-grp",
+                "description": "d compat-grp",
+                "config_type": "email_group",
+                "is_enabled": true,
+                "email_group": {
+                  "recipient_list": [
+                    {
+                      "recipient": "x@example.com"
+                    },
+                    {
+                      "recipient": "y@example.com"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "from_index 2 max_items 2",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "from_index": "2",
+          "max_items": "2",
+          "sort_field": "name",
+          "sort_order": "asc"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 2,
+          "total_hits": 18,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-mail",
+              "last_updated_time_ms": 1795855385479,
+              "created_time_ms": 1795855385479,
+              "config": {
+                "name": "compat-mail",
+                "description": "d compat-mail",
+                "config_type": "email",
+                "is_enabled": true,
+                "email": {
+                  "email_account_id": "compat-smtp",
+                  "recipient_list": [
+                    {
+                      "recipient": "z@example.com"
+                    }
+                  ],
+                  "email_group_id_list": [
+                    "compat-grp"
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-off",
+              "last_updated_time_ms": 1795855385582,
+              "created_time_ms": 1795855385582,
+              "config": {
+                "name": "compat-off",
+                "description": "d compat-off",
+                "config_type": "webhook",
+                "is_enabled": false,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "max_items 0",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "max_items": "0"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: maxItems is not +ve;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: maxItems is not +ve;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "max_items 1000",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "max_items": "1000"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 18,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w1",
+              "last_updated_time_ms": 1795855385348,
+              "created_time_ms": 1795855385348,
+              "config": {
+                "name": "compat-w1",
+                "description": "d compat-w1",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            },
+            {
+              "config_id": "compat-s1",
+              "last_updated_time_ms": 1795855385391,
+              "created_time_ms": 1795855385391,
+              "config": {
+                "name": "compat-s1",
+                "description": "d compat-s1",
+                "config_type": "slack",
+                "is_enabled": true,
+                "slack": {
+                  "url": "https://hooks.slack.com/services/T0/B0/xyz"
+                }
+              }
+            },
+            {
+              "config_id": "compat-c1",
+              "last_updated_time_ms": 1795855385406,
+              "created_time_ms": 1795855385406,
+              "config": {
+                "name": "compat-c1",
+                "description": "d compat-c1",
+                "config_type": "chime",
+                "is_enabled": true,
+                "chime": {
+                  "url": "https://hooks.chime.aws/incomingwebhooks/abc?token=t"
+                }
+              }
+            },
+            {
+              "config_id": "compat-t1",
+              "last_updated_time_ms": 1795855385417,
+              "created_time_ms": 1795855385417,
+              "config": {
+                "name": "compat-t1",
+                "description": "d compat-t1",
+                "config_type": "microsoft_teams",
+                "is_enabled": true,
+                "microsoft_teams": {
+                  "url": "https://example.webhook.office.com/webhookb2/abc"
+                }
+              }
+            },
+            {
+              "config_id": "compat-smtp",
+              "last_updated_time_ms": 1795855385436,
+              "created_time_ms": 1795855385436,
+              "config": {
+                "name": "compat-smtp",
+                "description": "d compat-smtp",
+                "config_type": "smtp_account",
+                "is_enabled": true,
+                "smtp_account": {
+                  "host": "smtp.example.com",
+                  "port": 25,
+                  "method": "none",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-smtp2",
+              "last_updated_time_ms": 1795855385450,
+              "created_time_ms": 1795855385450,
+              "config": {
+                "name": "compat-smtp2",
+                "description": "d compat-smtp2",
+                "config_type": "smtp_account",
+                "is_enabled": true,
+                "smtp_account": {
+                  "host": "smtp.example.com",
+                  "port": 25,
+                  "method": "none",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-grp",
+              "last_updated_time_ms": 1795855385464,
+              "created_time_ms": 1795855385464,
+              "config": {
+                "name": "compat-grp",
+                "description": "d compat-grp",
+                "config_type": "email_group",
+                "is_enabled": true,
+                "email_group": {
+                  "recipient_list": [
+                    {
+                      "recipient": "x@example.com"
+                    },
+                    {
+                      "recipient": "y@example.com"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-mail",
+              "last_updated_time_ms": 1795855385479,
+              "created_time_ms": 1795855385479,
+              "config": {
+                "name": "compat-mail",
+                "description": "d compat-mail",
+                "config_type": "email",
+                "is_enabled": true,
+                "email": {
+                  "email_account_id": "compat-smtp",
+                  "recipient_list": [
+                    {
+                      "recipient": "z@example.com"
+                    }
+                  ],
+                  "email_group_id_list": [
+                    "compat-grp"
+                  ]
+                }
+              }
+            },
+            {
+              "config_id": "compat-ses",
+              "last_updated_time_ms": 1795855385492,
+              "created_time_ms": 1795855385492,
+              "config": {
+                "name": "compat-ses",
+                "description": "d compat-ses",
+                "config_type": "ses_account",
+                "is_enabled": true,
+                "ses_account": {
+                  "region": "us-east-1",
+                  "role_arn": "arn:aws:iam::123456789012:role/r",
+                  "from_address": "a@example.com"
+                }
+              }
+            },
+            {
+              "config_id": "compat-sns",
+              "last_updated_time_ms": 1795855385502,
+              "created_time_ms": 1795855385502,
+              "config": {
+                "name": "compat-sns",
+                "description": "d compat-sns",
+                "config_type": "sns",
+                "is_enabled": true,
+                "sns": {
+                  "topic_arn": "arn:aws:sns:us-east-1:123456789012:t",
+                  "role_arn": "arn:aws:iam::123456789012:role/r"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x5",
+              "last_updated_time_ms": 1795855385531,
+              "created_time_ms": 1795855385531,
+              "config": {
+                "name": "compat-x5",
+                "description": "d compat-x5",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x6",
+              "last_updated_time_ms": 1795855385542,
+              "created_time_ms": 1795855385542,
+              "config": {
+                "name": "compat-x6",
+                "description": "d compat-x6",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x7",
+              "last_updated_time_ms": 1795855385552,
+              "created_time_ms": 1795855385552,
+              "config": {
+                "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+                "description": "d compat-x7",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x8",
+              "last_updated_time_ms": 1795855385563,
+              "created_time_ms": 1795855385563,
+              "config": {
+                "name": "compat-x8",
+                "description": "d compat-x8",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-x9",
+              "last_updated_time_ms": 1795855385573,
+              "created_time_ms": 1795855385573,
+              "config": {
+                "name": "compat-x9",
+                "description": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-off",
+              "last_updated_time_ms": 1795855385582,
+              "created_time_ms": 1795855385582,
+              "config": {
+                "name": "compat-off",
+                "description": "d compat-off",
+                "config_type": "webhook",
+                "is_enabled": false,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            },
+            {
+              "config_id": "compat-priv",
+              "last_updated_time_ms": 1795855385593,
+              "created_time_ms": 1795855385593,
+              "config": {
+                "name": "compat-priv",
+                "description": "d compat-priv",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://169.254.169.254/latest/meta-data",
+                  "header_params": {},
+                  "method": "POST"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "from_index negative",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "from_index": "-1"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: fromIndex is -ve;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: fromIndex is -ve;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "channels",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/channels"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 14,
+          "total_hit_relation": "eq",
+          "channel_list": [
+            {
+              "config_id": "compat-w1",
+              "name": "compat-w1",
+              "description": "d compat-w1",
+              "config_type": "webhook",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-w2",
+              "name": "w2",
+              "description": "d compat-w2",
+              "config_type": "webhook",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-s1",
+              "name": "compat-s1",
+              "description": "d compat-s1",
+              "config_type": "slack",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-c1",
+              "name": "compat-c1",
+              "description": "d compat-c1",
+              "config_type": "chime",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-t1",
+              "name": "compat-t1",
+              "description": "d compat-t1",
+              "config_type": "microsoft_teams",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-mail",
+              "name": "compat-mail",
+              "description": "d compat-mail",
+              "config_type": "email",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-sns",
+              "name": "compat-sns",
+              "description": "d compat-sns",
+              "config_type": "sns",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-x5",
+              "name": "compat-x5",
+              "description": "d compat-x5",
+              "config_type": "webhook",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-x6",
+              "name": "compat-x6",
+              "description": "d compat-x6",
+              "config_type": "webhook",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-x7",
+              "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+              "description": "d compat-x7",
+              "config_type": "webhook",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-x8",
+              "name": "compat-x8",
+              "description": "d compat-x8",
+              "config_type": "webhook",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-x9",
+              "name": "compat-x9",
+              "description": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+              "config_type": "webhook",
+              "is_enabled": true
+            },
+            {
+              "config_id": "compat-off",
+              "name": "compat-off",
+              "description": "d compat-off",
+              "config_type": "webhook",
+              "is_enabled": false
+            },
+            {
+              "config_id": "compat-priv",
+              "name": "compat-priv",
+              "description": "d compat-priv",
+              "config_type": "webhook",
+              "is_enabled": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "replace",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_notifications/configs/compat-w1",
+        "body": {
+          "config": {
+            "name": "w1 renamed",
+            "description": "d w1 renamed",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/201",
+              "header_params": {
+                "A": "1"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-w1"
+        }
+      }
+    },
+    {
+      "name": "get replaced",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs/compat-w1"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 1,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w1",
+              "last_updated_time_ms": 1795855385681,
+              "created_time_ms": 1795855385348,
+              "config": {
+                "name": "w1 renamed",
+                "description": "d w1 renamed",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/201",
+                  "header_params": {
+                    "A": "1"
+                  },
+                  "method": "POST"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "replace missing",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_notifications/configs/compat-nope",
+        "body": {
+          "config": {
+            "name": "n",
+            "description": "d n",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "NotificationConfig compat-nope not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "NotificationConfig compat-nope not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "replace changing type",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_notifications/configs/compat-w1",
+        "body": {
+          "config": {
+            "name": "n",
+            "description": "d n",
+            "config_type": "slack",
+            "is_enabled": true,
+            "slack": {
+              "url": "https://hooks.slack.com/services/a"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Config type cannot be changed after creation"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Config type cannot be changed after creation"
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "test send 200",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-w2"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "event_source": {
+            "title": "Test Message Title-compat-w2",
+            "reference_id": "compat-w2",
+            "severity": "info",
+            "tags": []
+          },
+          "status_list": [
+            {
+              "config_id": "compat-w2",
+              "config_type": "webhook",
+              "config_name": "w2",
+              "email_recipient_status": [],
+              "delivery_status": {
+                "status_code": "200",
+                "status_text": "hook says hi"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "test send 201",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-w1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "event_source": {
+            "title": "Test Message Title-compat-w1",
+            "reference_id": "compat-w1",
+            "severity": "info",
+            "tags": []
+          },
+          "status_list": [
+            {
+              "config_id": "compat-w1",
+              "config_type": "webhook",
+              "config_name": "w1 renamed",
+              "email_recipient_status": [],
+              "delivery_status": {
+                "status_code": "200",
+                "status_text": "hook says hi"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "create target 3",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "w3",
+            "description": "d compat-w3",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/404"
+            }
+          },
+          "config_id": "compat-w3"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-w3"
+        }
+      }
+    },
+    {
+      "name": "test send to 404",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-w3"
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "{\"event_status_list\": [{\"config_id\":\"compat-w3\",\"config_type\":\"webhook\",\"config_name\":\"w3\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Failed: Not Found\"}}]}"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "{\"event_status_list\": [{\"config_id\":\"compat-w3\",\"config_type\":\"webhook\",\"config_name\":\"w3\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Failed: Not Found\"}}]}"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "create target 4",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "w4",
+            "description": "d compat-w4",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/500"
+            }
+          },
+          "config_id": "compat-w4"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-w4"
+        }
+      }
+    },
+    {
+      "name": "test send to 500",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-w4"
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "{\"event_status_list\": [{\"config_id\":\"compat-w4\",\"config_type\":\"webhook\",\"config_name\":\"w4\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Failed: Internal Server Error\"}}]}"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "{\"event_status_list\": [{\"config_id\":\"compat-w4\",\"config_type\":\"webhook\",\"config_name\":\"w4\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Failed: Internal Server Error\"}}]}"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "create target 5",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "w5",
+            "description": "d compat-w5",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/redir"
+            }
+          },
+          "config_id": "compat-w5"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-w5"
+        }
+      }
+    },
+    {
+      "name": "test send to redirect",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-w5"
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "{\"event_status_list\": [{\"config_id\":\"compat-w5\",\"config_type\":\"webhook\",\"config_name\":\"w5\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Failed: Found\"}}]}"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "{\"event_status_list\": [{\"config_id\":\"compat-w5\",\"config_type\":\"webhook\",\"config_name\":\"w5\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Failed: Found\"}}]}"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "create target 6",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "w6",
+            "description": "d compat-w6",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:9/x"
+            }
+          },
+          "config_id": "compat-w6"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "compat-w6"
+        }
+      }
+    },
+    {
+      "name": "test send to refused port",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-w6"
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "{\"event_status_list\": [{\"config_id\":\"compat-w6\",\"config_type\":\"webhook\",\"config_name\":\"w6\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Connect to http://127.0.0.1:9 failed: Connection refused (connect failed)\"}}]}"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "{\"event_status_list\": [{\"config_id\":\"compat-w6\",\"config_type\":\"webhook\",\"config_name\":\"w6\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Connect to http://127.0.0.1:9 failed: Connection refused (connect failed)\"}}]}"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "test send link-local",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-priv"
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "{\"event_status_list\": [{\"config_id\":\"compat-priv\",\"config_type\":\"webhook\",\"config_name\":\"compat-priv\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Failed: Forbidden\"}}]}"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "{\"event_status_list\": [{\"config_id\":\"compat-priv\",\"config_type\":\"webhook\",\"config_name\":\"compat-priv\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"500\",\"status_text\":\"Failed to send webhook message Failed: Forbidden\"}}]}"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "test send disabled",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-off"
+      },
+      "response": {
+        "status": 423,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "{\"event_status_list\": [{\"config_id\":\"compat-off\",\"config_type\":\"webhook\",\"config_name\":\"compat-off\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"423\",\"status_text\":\"The channel is muted\"}}]}"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "{\"event_status_list\": [{\"config_id\":\"compat-off\",\"config_type\":\"webhook\",\"config_name\":\"compat-off\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"423\",\"status_text\":\"The channel is muted\"}}]}"
+          },
+          "status": 423
+        }
+      }
+    },
+    {
+      "name": "test send missing",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-nope"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "{\"event_status_list\": [{\"config_id\":\"compat-nope\",\"config_type\":\"none\",\"config_name\":\"invalid-config\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"404\",\"status_text\":\"Channel compat-nope not found\"}}]}"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "{\"event_status_list\": [{\"config_id\":\"compat-nope\",\"config_type\":\"none\",\"config_name\":\"invalid-config\",\"email_recipient_status\":[],\"delivery_status\":{\"status_code\":\"404\",\"status_text\":\"Channel compat-nope not found\"}}]}"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "test send email group",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/feature/test/compat-mail"
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "{\"event_status_list\": [{\"config_id\":\"compat-mail\",\"config_type\":\"email\",\"config_name\":\"compat-mail\",\"email_recipient_status\":[{\"recipient\":\"z@example.com\",\"delivery_status\":{\"status_code\":\"503\",\"status_text\":\"sendEmail Error, status:Couldn't connect to host, port: smtp.example.com, 25; timeout -1\"}},{\"recipient\":\"x@example.com\",\"delivery_status\":{\"status_code\":\"503\",\"status_text\":\"sendEmail Error, status:Couldn't connect to host, port: smtp.example.com, 25; timeout -1\"}},{\"recipient\":\"y@example.com\",\"delivery_status\":{\"status_code\":\"503\",\"status_text\":\"sendEmail Error, status:Couldn't connect to host, port: smtp.example.com, 25; timeout -1\"}}],\"delivery_status\":{\"status_code\":\"503\",\"status_text\":\"sendEmail Error, status:Couldn't connect to host, port: smtp.example.com, 25; timeout -1\"}}]}"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "{\"event_status_list\": [{\"config_id\":\"compat-mail\",\"config_type\":\"email\",\"config_name\":\"compat-mail\",\"email_recipient_status\":[{\"recipient\":\"z@example.com\",\"delivery_status\":{\"status_code\":\"503\",\"status_text\":\"sendEmail Error, status:Couldn't connect to host, port: smtp.example.com, 25; timeout -1\"}},{\"recipient\":\"x@example.com\",\"delivery_status\":{\"status_code\":\"503\",\"status_text\":\"sendEmail Error, status:Couldn't connect to host, port: smtp.example.com, 25; timeout -1\"}},{\"recipient\":\"y@example.com\",\"delivery_status\":{\"status_code\":\"503\",\"status_text\":\"sendEmail Error, status:Couldn't connect to host, port: smtp.example.com, 25; timeout -1\"}}],\"delivery_status\":{\"status_code\":\"503\",\"status_text\":\"sendEmail Error, status:Couldn't connect to host, port: smtp.example.com, 25; timeout -1\"}}]}"
+          },
+          "status": 503
+        }
+      }
+    },
+    {
+      "name": "test send POST",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/feature/test/compat-w2"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "event_source": {
+            "title": "Test Message Title-compat-w2",
+            "reference_id": "compat-w2",
+            "severity": "info",
+            "tags": []
+          },
+          "status_list": [
+            {
+              "config_id": "compat-w2",
+              "config_type": "webhook",
+              "config_name": "w2",
+              "email_recipient_status": [],
+              "delivery_status": {
+                "status_code": "200",
+                "status_text": "hook says hi"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "delete one",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_notifications/configs/compat-w1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "delete_response_list": {
+            "compat-w1": "OK"
+          }
+        }
+      }
+    },
+    {
+      "name": "delete missing",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_notifications/configs/compat-w1"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "NotificationConfig compat-w1 not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "NotificationConfig compat-w1 not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete list",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_notifications/configs",
+        "query": {
+          "config_id_list": "compat-w2,compat-w3,compat-nope"
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "NotificationConfig [compat-nope] not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "NotificationConfig [compat-nope] not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete none named",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_notifications/configs"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "either config_id or config_id_list is required"
+      }
+    },
+    {
+      "name": "get after delete",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/configs/compat-w2"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_list/*/last_updated_time_ms",
+          "reason": "write time"
+        },
+        {
+          "pointer": "/body/config_list/*/created_time_ms",
+          "reason": "write time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "start_index": 0,
+          "total_hits": 1,
+          "total_hit_relation": "eq",
+          "config_list": [
+            {
+              "config_id": "compat-w2",
+              "last_updated_time_ms": 1795855385377,
+              "created_time_ms": 1795855385377,
+              "config": {
+                "name": "w2",
+                "description": "d compat-w2",
+                "config_type": "webhook",
+                "is_enabled": true,
+                "webhook": {
+                  "url": "http://127.0.0.1:18080/200",
+                  "header_params": {
+                    "X-A": "b"
+                  },
+                  "method": "PUT"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "create generated id",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_notifications/configs",
+        "body": {
+          "config": {
+            "name": "gen",
+            "description": "d gen",
+            "config_type": "webhook",
+            "is_enabled": true,
+            "webhook": {
+              "url": "http://127.0.0.1:18080/200"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/config_id",
+          "reason": "generated id"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config_id": "i1tSIaIBhgcpnfudh0_F"
+        }
+      }
+    },
+    {
+      "name": "stats",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_notifications/stats"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_notifications/stats] and method [GET]"
+        }
+      }
+    }
+  ]
+}
