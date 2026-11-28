@@ -48,6 +48,7 @@ mod json;
 mod json_write;
 mod key_owner;
 mod keys;
+mod knn_model;
 mod location;
 mod manifest;
 mod members;
@@ -109,6 +110,10 @@ pub use keys::{
     TRANSPORT_SECRET_KEY, change_stripe_key, cluster_config_key, descriptor_key, looks_like_an_id,
     node_log_key, node_pack_key, point_in_time_key, point_in_time_state_key, reclaim_intent_key,
     tombstone_marker_key, transport_secret_key,
+};
+pub use knn_model::{
+    MAX_BLOB_BYTES as MAX_MODEL_BLOB_BYTES, ModelEncoder, ModelHeader, ModelSpace, ModelView,
+    PQ_ENTRIES, encode as encode_model, parse as parse_model,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestEntry, ManifestFile, encode as encode_manifest};

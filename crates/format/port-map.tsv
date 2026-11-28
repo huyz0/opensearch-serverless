@@ -70,3 +70,5 @@ src/pack_seed.rs	new		the register recording how far the one-time seeding walk o
 src/schedule_registry.rs	new		the alerting registry shards and the run claim value (alerting spec, slice 1); no Java counterpart
 src/monitor_index.rs	new		the alerting monitor index register and its keys (alerting spec, slice 2); no Java counterpart
 src/pack_retired.rs	new		the record of a departed Java node's packs, listed once and kept as a sidecar of the packs that exist, or an over-cap state (ADR 0025, spec pack-retirement); Rust only
+src/knn_model.rs	new		the trained k-NN model's blob: centroids and PQ codebooks, our own layout (docs/adr/0087); the plugin's model_blob is Faiss's serialization, which is not read
+src/knn_model_tests.rs	new		the model blob's round trip and refusals
