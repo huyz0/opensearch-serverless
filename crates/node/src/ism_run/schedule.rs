@@ -192,6 +192,11 @@ impl Scheduler {
         let mut next = step.record;
         let floor = i64::try_from(slot).unwrap_or(i64::MAX).saturating_add(1);
         next["next_eval"] = step.next_eval.map_or(Value::Null, |t| json!(t.max(floor)));
+        if next["deleted"] == true {
+            // The index is gone with its record's reason to exist.
+            self.managed.delete(&owned.index, marker)?;
+            return Ok(None);
+        }
         if next == fresh {
             return Ok(Some(next));
         }
