@@ -1,6 +1,6 @@
 # 0075: Alerting is ported natively; it is no longer proxied
 
-**Status:** Proposed (needs an independent review before it is accepted)
+**Status:** Accepted (independent review, five rounds, 2026-11-28; the last found no blocking defect and its text fixes are in the spec)
 
 ## Context
 
