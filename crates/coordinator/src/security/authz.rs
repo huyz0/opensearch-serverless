@@ -95,6 +95,17 @@ fn built_in() -> &'static Shipped {
                 roles.insert(name.clone(), role_of(role));
             }
         }
+        // The reserved roles of the plugin's default configuration.
+        if let Some(Json::Obj(members)) = parse(super::BUILTIN_DATA.as_bytes())
+            .ok()
+            .and_then(|d| d.get("roles").cloned())
+        {
+            for (name, entry) in &members {
+                if let Some(doc) = entry.get("doc") {
+                    roles.entry(name.clone()).or_insert_with(|| role_of(doc));
+                }
+            }
+        }
         // ALLOC: built once per process, from the static configuration.
         let mut groups = BTreeMap::new();
         if let Some(Json::Obj(members)) = doc.get("action_groups") {

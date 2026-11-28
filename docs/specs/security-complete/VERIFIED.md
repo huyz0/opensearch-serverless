@@ -11,3 +11,10 @@
 - AC-7: `a_patch_costs_what_a_replacing_put_costs` in crates/node/tests/server/security_patch.rs
 - AC-8: `listing_a_kind_is_refused_to_a_user_and_served_to_an_administrator` in crates/node/tests/server/security_authn.rs; `every_registered_route_has_an_action_row` in crates/node/src/security_authz.rs
 - AC-9: `with_security_off_no_guard_is_installed` in crates/node/src/admin_assemble.rs
+
+## Slice 2
+
+- AC-10: `the_built_in_set_is_the_recorded_one` in crates/coordinator/tests/it/security_builtin.rs; `a_list_holds_the_built_in_documents_with_their_flags` and `a_built_in_is_read_by_name_without_a_store_request` in crates/node/tests/server/security_builtin.rs
+- AC-11: `a_change_to_a_shipped_document_is_refused_as_the_plugin_refuses_it` in crates/coordinator/tests/it/security_builtin.rs; `a_built_in_cannot_be_written_patched_or_deleted` and `a_bulk_patch_naming_a_built_in_writes_nothing` in crates/node/tests/server/security_builtin.rs
+- AC-12: `a_mapping_for_a_built_in_role_is_accepted` in crates/node/tests/server/security_builtin.rs; `a_reserved_role_grants_what_the_plugin_grants` in crates/coordinator/tests/it/security_builtin.rs
+- AC-13: `no_user_or_mapping_is_shipped` in crates/coordinator/tests/it/security_builtin.rs; `no_demo_user_is_shipped` in crates/node/tests/server/security_builtin.rs
