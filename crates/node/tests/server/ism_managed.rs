@@ -134,8 +134,8 @@ fn adding_reading_and_removing_a_policy_cost_their_requests_and_nothing_lists() 
     call(&r, "POST", "/_plugins/_ism/add/logs-1", Some(ADD));
     assert_eq!(
         (total(&r, S3Op::Get) - gets, total(&r, S3Op::Put) - puts),
-        (4, 2),
-        "an add: the policy's 2 GETs, the index's 1, the record's 1 GET and 2 PUTs"
+        (5, 3),
+        "an add: the policy's 2 GETs, the index's 1, the record's 1 GET and 2 PUTs, the registry shard's 1 GET and 1 PUT"
     );
     let gets = total(&r, S3Op::Get);
     call(&r, "GET", "/_plugins/_ism/explain/logs-1", None);
@@ -339,4 +339,19 @@ fn a_change_policy_and_a_retry_cost_their_reads_and_one_put() {
         "the policy's 2 GETs, the index's 1, the record's 2, the replace's 1 GET and 2 PUTs"
     );
     assert_eq!(total(&r, S3Op::List), 0);
+}
+
+// AC-5: an add names the tenant in the `ism` registry, so the runner finds it
+#[test]
+fn an_add_names_the_tenant_in_the_ism_registry() {
+    let r = rig();
+    seed(&r, "logs-1", 1);
+    call(&r, "PUT", "/_plugins/_ism/policies/logs", Some(POLICY));
+    let registry = || {
+        let store: Arc<dyn BlobStore> = Arc::clone(&r.store) as Arc<dyn BlobStore>;
+        oss_meta::ScheduleRegistry::in_namespace(store, "", "ism").expect("a registry")
+    };
+    assert!(!registry().is_registered("_default_").unwrap());
+    call(&r, "POST", "/_plugins/_ism/add/logs-1", Some(ADD));
+    assert!(registry().is_registered("_default_").unwrap());
 }

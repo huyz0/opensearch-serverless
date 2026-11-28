@@ -123,6 +123,7 @@ mod read_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
 mod reindex_route;
+mod reports_routes;
 mod restore_flags;
 mod restore_settings;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -135,6 +136,7 @@ mod script_route;
 mod search_default_pipeline_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod search_pipeline_route;
+mod security_account;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authn;
 #[cfg(all(feature = "reader", feature = "writer"))]

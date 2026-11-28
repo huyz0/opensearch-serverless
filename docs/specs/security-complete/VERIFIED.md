@@ -25,3 +25,9 @@
 - AC-15: `the_configuration_that_stock_keeps_closed_is_403_and_makes_no_request` in crates/node/tests/server/security_config_api.rs
 - AC-16: `permissionsinfo_names_the_caller` in crates/node/tests/server/security_config_api.rs
 - AC-17: `flushing_the_cache_makes_the_next_request_read_the_sets` and `a_user_without_admin_access_is_refused_every_one_of_these_routes` in crates/node/tests/server/security_config_api.rs
+
+## Slice 4
+
+- AC-18: `account_answers_the_recorded_shape` and `the_account_of_the_administrator_is_reserved` in crates/node/tests/server/security_account.rs
+- AC-19: `a_user_changes_its_own_password`, `a_wrong_current_password_changes_nothing`, `a_malformed_password_change_is_400` and `the_administrator_cannot_change_a_stored_password` in crates/node/tests/server/security_account.rs; `a_password_change_needs_both_strings` in crates/coordinator/tests/it/security_info.rs
+- AC-20: `a_user_without_admin_access_reads_its_own_account` in crates/node/tests/server/security_account.rs; `every_registered_route_has_an_action_row` in crates/node/tests/server/security_authz.rs

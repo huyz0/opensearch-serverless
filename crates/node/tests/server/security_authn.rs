@@ -11,7 +11,9 @@ use oss_blob::emulator::faults::Faults;
 use oss_blob::{BlobStore, Emulator, S3Op};
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
 use oss_node::security_auth::{AuthGuard, Authenticator};
-use oss_node::security_route::{SecurityService, authinfo_route, config_routes, routes};
+use oss_node::security_route::{
+    SecurityService, account_routes, authinfo_route, config_routes, routes,
+};
 use oss_node::security_state::{Clock, SecurityState};
 use oss_rest::{Router, Server};
 
@@ -61,6 +63,7 @@ pub fn rig_over(store: Arc<Emulator>) -> Rig {
     let auth = Arc::new(Authenticator::new(Arc::clone(&state), Arc::clone(&clock)));
     let router = routes(Router::new(), &service).expect("routes");
     let router = config_routes(router, &service, &state).expect("config routes");
+    let router = account_routes(router, &service, &state).expect("account routes");
     let router = authinfo_route(router, &state)
         .expect("authinfo")
         .with_guard(Arc::new(AuthGuard(Arc::clone(&auth))));

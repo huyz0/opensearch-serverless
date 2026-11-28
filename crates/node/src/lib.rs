@@ -117,6 +117,7 @@ pub mod lease_age;
 pub mod lease_announce;
 #[cfg(feature = "writer")]
 pub mod lifecycle;
+pub mod lifecycle_bus;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod ltr_route;
 pub mod ltr_setting;
@@ -172,6 +173,9 @@ pub mod read_forward;
 pub mod reader_ramp_setting;
 #[cfg(feature = "writer")]
 pub mod refresh_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod reports_route;
+pub mod reports_setting;
 #[cfg(feature = "writer")]
 pub mod restore_background;
 #[cfg(all(feature = "writer", feature = "coordinator"))]

@@ -20,7 +20,22 @@ impl IndexService {
         self
     }
 
+    /// Publishes `index.created` to `bus` after every create.
+    #[must_use]
+    pub fn with_events(mut self, bus: crate::lifecycle_bus::Bus) -> Self {
+        self.events = Some(bus);
+        self
+    }
+
     pub(super) fn notify_created(&self, req: &mut Request<'_>, index: &str, uuid: &str) {
+        if let Some(bus) = &self.events {
+            bus.publish(
+                "index.created",
+                req.principal().unwrap_or_default(),
+                index,
+                (self.clock)(),
+            );
+        }
         if let Some(hook) = &self.created {
             let now = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
             hook(req, index, uuid, now);
