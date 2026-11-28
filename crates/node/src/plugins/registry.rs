@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use oss_ext::breaker::BreakerConfig;
+use oss_ext::host::{Backend, CallHost, NoBackend, Who};
 use oss_ext::manifest::{Manifest, ManifestError};
-use oss_ext::native::{Guard, NativeInstance};
+use oss_ext::native::{Guard, GuardError, NativeInstance};
 use oss_ext::{Capability, Tier};
 
 use super::policy::{Entry, Policy, PolicyTier};
@@ -39,6 +40,7 @@ pub struct Plugin {
     manifest: Option<Manifest>,
     instance: Option<Arc<dyn NativeInstance>>,
     guard: Guard,
+    backend: Arc<dyn Backend>,
 }
 
 impl Plugin {
@@ -70,6 +72,35 @@ impl Plugin {
     /// The bulkhead, breaker and panic fence around its calls.
     pub fn guard(&self) -> &Guard {
         &self.guard
+    }
+
+    /// Calls `point` through the guard, giving the plugin a host that holds
+    /// it to what its manifest asked and the policy granted, and to the
+    /// manifest's budget for the call.
+    ///
+    /// # Errors
+    ///
+    /// Why the call was refused or failed; also when the plugin did not load.
+    pub fn call(
+        &self,
+        tenant: &str,
+        point: &str,
+        input: &[u8],
+        max_out: usize,
+        now: fn() -> u64,
+    ) -> Result<Vec<u8>, GuardError> {
+        let (Some(instance), Some(manifest)) = (self.instance.as_ref(), self.manifest.as_ref())
+        else {
+            return Err(GuardError::BreakerOpen);
+        };
+        let who = Who {
+            plugin: &self.entry.id,
+            tenant,
+            grants: manifest.capabilities(),
+        };
+        let host = CallHost::new(who, manifest.budget(), &*self.backend);
+        self.guard
+            .call_host(&**instance, tenant, point, input, max_out, &host, now)
     }
 }
 
@@ -198,6 +229,22 @@ impl Registry {
         linked: &HashMap<String, Arc<dyn NativeInstance>>,
         builtin: &[Taken],
     ) -> Self {
+        Self::load_with(
+            policy,
+            linked,
+            builtin,
+            &(Arc::new(NoBackend) as Arc<dyn Backend>),
+        )
+    }
+
+    /// [`Registry::load`] with the node's `backend` behind the host
+    /// operations the plugins may call.
+    pub fn load_with(
+        policy: &Policy,
+        linked: &HashMap<String, Arc<dyn NativeInstance>>,
+        builtin: &[Taken],
+        backend: &Arc<dyn Backend>,
+    ) -> Self {
         // ALLOC: at most the policy's MAX_PLUGINS entries, once at start.
         let mut taken: Vec<Taken> = builtin.to_vec();
         let mut plugins = Vec::new();
@@ -222,6 +269,7 @@ impl Registry {
                 manifest,
                 instance,
                 guard,
+                backend: Arc::clone(backend),
             }));
         }
         Self { plugins }
