@@ -6,7 +6,7 @@
 /// Where a plugin runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tier {
-    /// Compiled into the node, trusted.
+    /// A trusted plugin: a shared library the node loads at start, or code linked in.
     Native,
     /// A sandboxed WebAssembly module.
     Wasm,
