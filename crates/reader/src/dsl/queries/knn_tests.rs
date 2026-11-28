@@ -100,7 +100,6 @@ fn the_parameters_that_change_the_walk_are_refused_not_ignored() {
         r#""method_parameters":{"ef_search":10}"#,
         r#""rescore":true"#,
         r#""expand_nested_docs":true"#,
-        r#""ignore_unmapped":true"#,
     ] {
         let r = reason(&format!(r#""vector":[1],"k":1,{param}"#));
         assert!(r.ends_with("is not supported by this node yet"), "{r}");
@@ -230,4 +229,21 @@ fn the_nodes_of_a_query_are_found_through_its_compound_queries() {
 fn knn_is_among_the_registered_names() {
     assert!(NAMES.contains(&"knn"));
     assert!(crate::dsl::query::REGISTERED_QUERIES.contains(&"knn"));
+}
+
+#[test]
+fn ignore_unmapped_parses_as_a_boolean_and_defaults_to_false() {
+    let q = |extra: &str| {
+        knn(&format!(
+            r#"{{"knn":{{"v":{{"vector":[1],"k":1{extra}}}}}}}"#
+        ))
+    };
+    assert!(!q("").ignore_unmapped);
+    assert!(q(r#","ignore_unmapped":true"#).ignore_unmapped);
+    assert!(!q(r#","ignore_unmapped":false"#).ignore_unmapped);
+    let r = reason(r#""vector":[1],"k":1,"ignore_unmapped":"maybe""#);
+    assert!(
+        r.ends_with("failed to parse field [ignore_unmapped]"),
+        "{r}"
+    );
 }
