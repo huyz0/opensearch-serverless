@@ -6,6 +6,7 @@
 //! the marker's read and the content's; nothing lists. The plugin's
 //! `.opensearch-observability` index is not created.
 
+mod list;
 mod object;
 mod routes;
 
@@ -33,13 +34,13 @@ fn bad(reason: impl Into<String>) -> RestError {
     refuse(400, "illegal_argument_exception", reason)
 }
 
+fn status(code: u16, reason: impl Into<String>) -> RestError {
+    refuse(code, "status_exception", reason)
+}
+
 fn not_found(id: &str) -> RestError {
-    refuse(
-        404,
-        "resource_not_found_exception",
-        // ALLOC: error path; one message.
-        format!("observability object [{id}] not found"),
-    )
+    // ALLOC: error path; one message.
+    status(404, format!("ObservabilityObject {id} not found"))
 }
 
 /// What a failed store call answers.
@@ -111,32 +112,96 @@ impl ObservabilityService {
         Ok(vec![0u8; self.buffer_bytes])
     }
 
-    /// `POST /object`: stores the body's one object under a new id and
-    /// answers `{"objectId": id}`.
+    fn doc_buffer(req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
+        let bytes = DocKind::ObservabilityObjects.max_doc_bytes();
+        req.body().reserve(bytes)?;
+        // ALLOC: one document buffer a request, the kind's bound, reserved above.
+        Ok(vec![0u8; bytes])
+    }
+
+    /// The stored document `id`, parsed, or `None`.
+    fn read(
+        set: &DocSet,
+        id: &str,
+        marker: &mut [u8],
+        doc: &mut [u8],
+    ) -> Result<Option<Value>, RestError> {
+        let Some(n) = set.get(id, marker, doc).map_err(|e| failed(&e))? else {
+            return Ok(None);
+        };
+        serde_json::from_slice(doc.get(..n).unwrap_or_default())
+            .map(Some)
+            .map_err(|_| {
+                refuse(
+                    500,
+                    "observability_store_failure",
+                    "a stored object is unreadable",
+                )
+            })
+    }
+
+    fn body(req: &mut Request<'_>) -> Result<object::Parsed, RestError> {
+        let max = DocKind::ObservabilityObjects.max_doc_bytes();
+        let raw = read_body(req, max, "the body is over the limit for an object")?;
+        object::parse(&raw)
+    }
+
+    /// `POST /object`: stores the body's object under the id it names or a
+    /// new one, and answers `{"objectId": id}`.
     pub(crate) fn create(
         &self,
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
-        let max = DocKind::ObservabilityObjects.max_doc_bytes();
-        let raw = read_body(req, max, "the body is over the limit for an object")?;
-        let body: Value =
-            serde_json::from_slice(&raw).map_err(|e| bad(format!("invalid body: {e}")))?;
-        let ty = object::checked(&body).map_err(bad)?;
-        let id = fresh_id()?;
+        let parsed = Self::body(req)?;
+        let id = match parsed.object_id.clone() {
+            Some(id) => id,
+            None => fresh_id()?,
+        };
         let now = now_millis();
-        let stored = json!({
-            "createdTimeMs": now,
-            "lastUpdatedTimeMs": now,
-            "tenant": "",
-            "access": [],
-            ty: body[ty],
-        });
-        // ALLOC: the document's text, bounded by the body's, checked by the put.
-        let bytes = stored.to_string().into_bytes();
+        let bytes = stored(parsed, now, now, 1);
         let mut marker = self.marker(req)?;
-        self.set()?
-            .put_counted(&id, &bytes, true, &mut marker)
+        let set = self.set()?;
+        match set.put_counted(&id, &bytes, true, &mut marker) {
+            Ok(_) => {}
+            Err(MetaError::AlreadyExists) => {
+                let mut doc = Self::doc_buffer(req)?;
+                let version = Self::read(&set, &id, &mut marker, &mut doc)?
+                    .and_then(|d| d["version"].as_i64())
+                    .unwrap_or(1);
+                return Err(status(
+                    409,
+                    // ALLOC: error path; one message.
+                    format!(
+                        "[{id}]: version conflict, document already exists (current version [{version}])"
+                    ),
+                ));
+            }
+            Err(e) => return Err(failed(&e)),
+        }
+        resp.send(200, JSON, json!({"objectId": id}).to_string().as_bytes())
+    }
+
+    /// `PUT /object/{id}`: replaces the object, keeping its type and its
+    /// creation time.
+    pub(crate) fn replace(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        let id = Self::id(req)?;
+        let parsed = Self::body(req)?;
+        let mut marker = self.marker(req)?;
+        let mut doc = Self::doc_buffer(req)?;
+        let set = self.set()?;
+        let old = Self::read(&set, &id, &mut marker, &mut doc)?.ok_or_else(|| not_found(&id))?;
+        if object::type_of(&old).is_none_or(|(ty, _)| ty != parsed.ty) {
+            return Err(status(409, "Object type cannot be changed after creation"));
+        }
+        let created = old["createdTimeMs"].as_i64().unwrap_or(0);
+        let version = old["version"].as_i64().unwrap_or(1).saturating_add(1);
+        let bytes = stored(parsed, created, now_millis(), version);
+        set.put_counted(&id, &bytes, false, &mut marker)
             .map_err(|e| failed(&e))?;
         resp.send(200, JSON, json!({"objectId": id}).to_string().as_bytes())
     }
@@ -147,39 +212,97 @@ impl ObservabilityService {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
-        let id = req
-            .path_param("id")
-            .map(std::borrow::Cow::into_owned)
-            .ok_or_else(|| bad("an object id is required"))?;
+        let id = Self::id(req)?;
         let mut marker = self.marker(req)?;
-        let bytes = DocKind::ObservabilityObjects.max_doc_bytes();
-        req.body().reserve(bytes)?;
-        // ALLOC: one document buffer a request, the kind's bound, reserved above.
-        let mut doc = vec![0u8; bytes];
-        let n = self
-            .set()?
-            .get(&id, &mut marker, &mut doc)
-            .map_err(|e| failed(&e))?
-            .ok_or_else(|| not_found(&id))?;
-        let mut object: Value =
-            serde_json::from_slice(doc.get(..n).unwrap_or_default()).map_err(|_| {
-                refuse(
-                    500,
-                    "observability_store_failure",
-                    "a stored object is unreadable",
-                )
-            })?;
-        if let Some(m) = object.as_object_mut() {
-            m.insert("objectId".to_owned(), Value::String(id));
-        }
+        let mut doc = Self::doc_buffer(req)?;
+        let stored =
+            Self::read(&self.set()?, &id, &mut marker, &mut doc)?.ok_or_else(|| not_found(&id))?;
         let body = json!({
             "startIndex": 0,
             "totalHits": 1,
             "totalHitRelation": "eq",
-            "observabilityObjectList": [object],
+            "observabilityObjectList": [list::shape(&id, &stored)],
         });
         resp.send(200, JSON, body.to_string().as_bytes())
     }
+
+    /// `DELETE /object/{id}` and `DELETE /object?objectIdList=a,b`: all of
+    /// the named objects or, when one is missing, none.
+    pub(crate) fn delete(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        let single = req.path_param("id").map(std::borrow::Cow::into_owned);
+        let ids: Vec<String> = match (&single, req.param("objectId"), req.param("objectIdList")) {
+            (Some(id), _, _) => vec![id.clone()],
+            (None, Some(id), _) => vec![id.into_owned()],
+            (None, None, Some(list)) => list::split(&list),
+            (None, None, None) => {
+                return resp.send(
+                    400,
+                    JSON,
+                    b"\"either objectId or objectIdList is required\"",
+                );
+            }
+        };
+        if ids.len() > MAX_IDS {
+            return Err(bad(format!("at most {MAX_IDS} object ids a request")));
+        }
+        let mut marker = self.marker(req)?;
+        let set = self.set()?;
+        let present = set.names(&mut marker).map_err(|e| failed(&e))?;
+        let missing: Vec<&str> = ids
+            .iter()
+            .filter(|i| {
+                present
+                    .binary_search_by(|p| p.as_str().cmp(i.as_str()))
+                    .is_err()
+            })
+            .map(String::as_str)
+            .collect();
+        if !missing.is_empty() {
+            let named = if single.is_some() || ids.len() == 1 {
+                missing.join(", ")
+            } else {
+                format!("[{}]", missing.join(", "))
+            };
+            return Err(status(
+                404,
+                format!("ObservabilityObject {named} not found"),
+            ));
+        }
+        let mut done = serde_json::Map::new();
+        for id in &ids {
+            set.delete(id, &mut marker).map_err(|e| failed(&e))?;
+            done.insert(id.clone(), json!("OK"));
+        }
+        resp.send(
+            200,
+            JSON,
+            json!({"deleteResponseList": done}).to_string().as_bytes(),
+        )
+    }
+
+    fn id(req: &Request<'_>) -> Result<String, RestError> {
+        req.path_param("id")
+            .map(std::borrow::Cow::into_owned)
+            .ok_or_else(|| bad("an object id is required"))
+    }
+}
+
+/// The most object ids one request may name.
+const MAX_IDS: usize = 100;
+
+/// The stored form of an object: its bookkeeping and the body under its type.
+fn stored(parsed: object::Parsed, created: i64, updated: i64, version: i64) -> Vec<u8> {
+    let mut doc = serde_json::Map::new();
+    doc.insert("createdTimeMs".to_owned(), json!(created));
+    doc.insert("lastUpdatedTimeMs".to_owned(), json!(updated));
+    doc.insert("version".to_owned(), json!(version));
+    doc.insert(parsed.ty.to_owned(), Value::Object(parsed.object));
+    // ALLOC: the document's text, bounded by the body's, checked by the put.
+    Value::Object(doc).to_string().into_bytes()
 }
 
 #[cfg(test)]

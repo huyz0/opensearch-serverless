@@ -85,6 +85,8 @@ pub enum DocKind {
     MlModelGroups,
     /// ML Commons connectors, `ml/connectors/`.
     MlConnectors,
+    /// ML Commons models, `ml/models/`.
+    MlModels,
     /// Anomaly detection detectors, `ad/detectors/`.
     AdDetectors,
     /// The indices an ISM policy manages, one document each, `ism/managed/`.
@@ -122,6 +124,7 @@ impl DocKind {
             Self::IsmPolicies => "ism/policies/",
             Self::MlModelGroups => "ml/model_groups/",
             Self::MlConnectors => "ml/connectors/",
+            Self::MlModels => "ml/models/",
             Self::AdDetectors => "ad/detectors/",
             Self::IsmManaged => "ism/managed/",
             Self::NotificationConfigs => "notifications/configs/",
