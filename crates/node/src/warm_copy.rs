@@ -107,6 +107,9 @@ pub struct Settings<'a> {
     pub bytes_per_second: u64,
     /// The most of the peer's shards opened at once; at least 1.
     pub open_parallel: usize,
+    /// How many times one ask is made before the peer is given up on, from
+    /// 1; a node uses `PAGES_ATTEMPTS`.
+    pub ask_attempts: usize,
 }
 
 /// Opens the shards a peer named, up to `parallel` at once, answers in
@@ -153,7 +156,7 @@ fn open_shards(
 /// How many times a page batch is asked for before the peer is given up on:
 /// a peer serving its limit of warm requests refuses the next, and the
 /// refusal is only worth waiting out.
-const PAGES_ATTEMPTS: usize = 40;
+pub const PAGES_ATTEMPTS: usize = 12;
 
 /// The longest wait between two asks.
 const RETRY_BACKOFF_MAX: Duration = Duration::from_millis(400);
@@ -168,17 +171,18 @@ const REFUSAL_WITHIN: Duration = Duration::from_secs(1);
 
 /// The answer `ask` gives, retried after a backoff while the peer refuses fast.
 fn with_retries<T>(
+    attempts: usize,
     pause: &dyn Pause,
     expired: &(dyn Fn() -> bool + Sync),
     mut ask: impl FnMut() -> Option<T>,
 ) -> Option<T> {
     let mut wait = RETRY_BACKOFF;
-    for attempt in 1..=PAGES_ATTEMPTS {
+    for attempt in 1..=attempts.max(1) {
         let started = Instant::now();
         if let Some(answer) = ask() {
             return Some(answer);
         }
-        if attempt == PAGES_ATTEMPTS || started.elapsed() >= REFUSAL_WITHIN || expired() {
+        if attempt >= attempts || started.elapsed() >= REFUSAL_WITHIN || expired() {
             return None;
         }
         pause.pause(wait);
@@ -188,12 +192,13 @@ fn with_retries<T>(
 }
 
 fn pages_with_retries(
+    attempts: usize,
     peer: &dyn Peer,
     ask: &PagesRequest,
     pause: &dyn Pause,
     expired: &(dyn Fn() -> bool + Sync),
 ) -> Option<PagesResponse> {
-    with_retries(pause, expired, || peer.pages(ask))
+    with_retries(attempts, pause, expired, || peer.pages(ask))
 }
 
 fn pause_for(bytes: u64, rate: u64) -> Duration {
@@ -221,7 +226,9 @@ pub fn copy_from_peer(
         max_shards: settings.max_shards,
         max_bytes: settings.max_bytes,
     };
-    let Some(listed) = with_retries(pause, expired, || peer.hot_set(&request)) else {
+    let Some(listed) = with_retries(settings.ask_attempts, pause, expired, || {
+        peer.hot_set(&request)
+    }) else {
         return Outcome::Unreachable;
     };
     let ours = i32::try_from(cache.config().page_size).unwrap_or(-1);
@@ -279,7 +286,8 @@ pub fn copy_from_peer(
             // ALLOC: one ask per page of the batch, at most MAX_PAGES_PER_REQUEST.
             asks: batch.iter().map(|(ask, _)| ask.clone()).collect(),
         };
-        let Some(answer) = pages_with_retries(peer, &ask, pause, expired) else {
+        let Some(answer) = pages_with_retries(settings.ask_attempts, peer, &ask, pause, expired)
+        else {
             break Outcome::Unreachable;
         };
         let asked: HashSet<(&str, u64)> = batch
