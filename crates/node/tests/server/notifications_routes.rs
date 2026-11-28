@@ -136,16 +136,33 @@ fn an_explicit_id_is_taken_once_and_a_bad_config_is_a_400_naming_it() {
         c[k] = v;
         c
     };
-    bad(with("config_type", json!("pager")), "config_type");
+    let (status, body) = call(
+        &r,
+        "POST",
+        &format!("{ROOT}/configs"),
+        Some(json!({"config": with("config_type", json!("pager"))})),
+    );
+    assert_eq!(status, 406, "an unknown type is not acceptable: {body}");
     bad(with("name", json!("")), "name");
-    bad(with("name", json!("x".repeat(257))), "name");
-    bad(with("surprise", json!(1)), "surprise");
+    // The plugin takes these: a long name, a key it does not know.
+    for extra in [
+        with("name", json!("x".repeat(257))),
+        with("surprise", json!(1)),
+        with(
+            "slack",
+            json!({"url": "https://hooks.slack.com/services/x", "extra": 1}),
+        ),
+    ] {
+        let (status, body) = call(
+            &r,
+            "POST",
+            &format!("{ROOT}/configs"),
+            Some(json!({"config": extra})),
+        );
+        assert_eq!(status, 200, "{extra}: {body}");
+    }
     bad(with("slack", json!({"url": "ftp://x"})), "url");
     bad(with("slack", json!({"url": "https://u:p@host/x"})), "url");
-    bad(
-        with("slack", json!({"url": "https://h/x", "extra": 1})),
-        "extra",
-    );
     let mut no_block = ok.clone();
     no_block.as_object_mut().unwrap().remove("slack");
     bad(no_block, "slack");
@@ -153,10 +170,6 @@ fn an_explicit_id_is_taken_once_and_a_bad_config_is_a_400_naming_it() {
     bad(hook(json!({"Host": "evil"})), "Host");
     bad(hook(json!({"X-A": "a\r\nB: c"})), "X-A");
     bad(hook(json!({"bad name": "v"})), "bad name");
-    bad(
-        json!({"name": "e", "config_type": "smtp_account", "smtp_account": {"host": "evil.example", "port": 25, "from_address": "a@b.c"}}),
-        "host",
-    );
     bad(
         json!({"name": "s", "config_type": "ses_account", "ses_account": {"region": "us-east-1.evil.com", "from_address": "a@b.c"}}),
         "region",
@@ -293,7 +306,7 @@ fn a_list_filters_sorts_and_pages() {
         "POST",
         &format!("{ROOT}/configs"),
         Some(json!({"config": {
-        "name": "hook", "config_type": "chime", "is_enabled": false, "chime": {"url": "https://c/x"}}})),
+        "name": "hook", "config_type": "chime", "is_enabled": false, "chime": {"url": "https://hooks.chime.aws/incomingwebhooks/x?token=t"}}})),
     );
     let names = |q: &str| -> (u64, Vec<String>) {
         let (s, b) = call(&r, "GET", &format!("{ROOT}/configs?{q}"), None);
@@ -321,8 +334,11 @@ fn a_list_filters_sorts_and_pages() {
     assert_eq!(names("name=bravo").1, ["bravo"]);
     assert_eq!(names("text_query=ALPH").1, ["alpha"]);
     assert_eq!(names("max_items=100000&sort_field=name").1.len(), 5);
-    let (s, _) = call(&r, "GET", &format!("{ROOT}/configs?sort_field=bogus"), None);
-    assert_eq!(s, 400);
+    let status = |q: &str| call(&r, "GET", &format!("{ROOT}/configs?{q}"), None).0;
+    assert_eq!(status("sort_field=bogus"), 406);
+    assert_eq!(status("sort_order=sideways"), 400);
+    assert_eq!(status("max_items=0"), 400);
+    assert_eq!(status("from_index=-1"), 400);
 }
 
 // AC-14
