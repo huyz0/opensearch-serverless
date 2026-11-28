@@ -7,3 +7,7 @@ src/error.rs	new		the typed failure of a call and the HTTP status each maps to
 src/json.rs	new		a small strict JSON reader for a descriptor: bounded depth, no duplicate keys, integers apart from other numbers
 src/analyzer.rs	new		the analyzer point's wire form: a block of texts in, tokens out, validated before use
 src/pin.rs	new		an index's analyzer pins read from create settings and written to the descriptor; the keys are the Java's own for a custom analyzer
+src/manifest.rs	new		the plugin manifest: one strict parse of what a plugin says about itself, whatever tier delivers it (ADR 0080)
+src/catalogue.rs	new		the point catalogue and the tiers: which points exist and which tier may serve each (ADR 0080)
+src/capability.rs	new		the capabilities a plugin may ask the host for and the per-call budget (ADR 0080)
+src/breaker.rs	new		the circuit breaker every plugin call goes through, over an injected clock (ADR 0080)

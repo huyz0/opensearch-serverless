@@ -8,13 +8,19 @@
 //! module reports.
 
 pub mod analyzer;
+pub mod breaker;
+mod capability;
+mod catalogue;
 mod descriptor;
 mod error;
 mod json;
+pub mod manifest;
 pub mod pin;
 mod status;
 mod version;
 
+pub use capability::{Budget, Capability, MAX_BUDGET};
+pub use catalogue::{Determinism, POINTS, PointSpec, Tier, point};
 pub use descriptor::{Descriptor, DescriptorError, Limits, Point};
 pub use error::{CallError, FailureKind, MAX_ERROR_DETAIL_BYTES, printable};
 pub use status::{Status, status_of};

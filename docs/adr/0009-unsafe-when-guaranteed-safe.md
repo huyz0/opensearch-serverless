@@ -1,6 +1,6 @@
 # 0009: `unsafe` in any crate, only when guaranteed safe
 
-**Status:** Accepted by the owner, 2026-11-16 ("any crates can use unsafe but need to be in a safe manner"; "store it as a rule").
+**Status:** Accepted by the owner, 2026-11-16 ("any crates can use unsafe but need to be in a safe manner"; "store it as a rule"). Amended by [ADR 0080](0080-one-plugin-system-three-tiers.md), accepted by the owner 2026-11-28: one exception, FFI and `dlopen` in the crate `oss-ext-native` alone, to load plugin libraries the operator allow-listed or signed; the exception is trust, not a soundness guarantee, and its entry in `scripts/check-unsafe.py` lands with that crate.
 
 ## Context
 
