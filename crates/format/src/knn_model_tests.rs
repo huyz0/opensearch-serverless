@@ -124,3 +124,17 @@ fn a_flat_model_that_names_sub_quantizers_is_refused_even_with_a_good_checksum()
         ),
     }
 }
+
+#[test]
+fn an_empty_model_and_the_size_constant_are_pinned() {
+    assert_eq!(MAX_BLOB_BYTES, 64 * 1024 * 1024);
+    let flat = |dimension, nlist| ModelHeader {
+        space: ModelSpace::L2,
+        dimension,
+        nlist,
+        encoder: ModelEncoder::Flat,
+    };
+    assert!(flat(0, 1).encoded_len().is_none());
+    assert!(flat(3, 0).encoded_len().is_none());
+    assert_eq!(flat(1, 1).encoded_len(), Some(HEADER + 4 + CRC));
+}
