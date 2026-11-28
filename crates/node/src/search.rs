@@ -423,6 +423,7 @@ pub(crate) mod open_shard;
 mod rank_eval;
 #[path = "search_shard.rs"]
 mod shard_query;
+#[cfg(feature = "writer")]
 #[path = "search_sql.rs"]
 mod sql;
 #[path = "search_template.rs"]

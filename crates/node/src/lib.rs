@@ -204,7 +204,7 @@ pub mod snapshot_restore_route;
 pub mod snapshot_route;
 #[cfg(feature = "writer")]
 pub mod snapshot_take_route;
-#[cfg(feature = "reader")]
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod sql_route;
 pub mod sql_setting;
 #[cfg(feature = "writer")]
