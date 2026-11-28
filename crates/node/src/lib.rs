@@ -95,6 +95,8 @@ pub mod index_templates;
 pub mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod ism_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod ism_run;
 pub mod ism_setting;
 #[cfg(feature = "reader")]
 pub mod jobs;
