@@ -9,6 +9,9 @@ use oss_rest::{Authorization, Authorizer, Denial, Method};
 use crate::security_route::admin_refusal;
 use crate::security_state::SecurityState;
 
+#[path = "security_authz_knn.rs"]
+mod knn;
+
 const JSON: &str = "application/json; charset=UTF-8";
 const TEXT: &str = "text/plain; charset=UTF-8";
 
@@ -24,6 +27,8 @@ pub enum Rule {
     /// A `_bulk`: the cluster permission `indices:data/write/bulk` and
     /// write on every index, since its items name their own.
     Bulk,
+    /// An action on the indices the body names: the handler checks each name.
+    Body(&'static str),
     /// Decided by the handler, which answers the recorded `FORBIDDEN` of the
     /// management API to a user without the administrator role.
     Handler,
@@ -35,6 +40,7 @@ pub enum Rule {
 const GET: &[Method] = &[Method::Get];
 const GET_POST: &[Method] = &[Method::Get, Method::Post];
 const GET_HEAD: &[Method] = &[Method::Get, Method::Head];
+const SQL: Rule = Rule::Body("indices:data/read/search");
 const WRITES: &[Method] = &[Method::Put, Method::Post];
 
 /// The rules: methods, pattern, rule. A pattern in [`ALL_ACCESS`] is
@@ -56,6 +62,10 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         "/_cluster/settings",
         Rule::Cluster("cluster:admin/settings/update"),
     ),
+    (GET_POST, "/_plugins/_sql", SQL),
+    (GET_POST, "/_opendistro/_sql", SQL),
+    (GET_POST, "/_plugins/_sql/_explain", SQL),
+    (GET_POST, "/_opendistro/_sql/_explain", SQL),
     (WRITES, "/_bulk", Rule::Bulk),
     (WRITES, "/{index}/_bulk", Rule::Bulk),
     (
@@ -178,36 +188,6 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         "/{index}/_search/point_in_time",
         Rule::Index("indices:data/read/point_in_time/create"),
     ),
-    (
-        &[Method::Get],
-        "/_plugins/_knn/stats",
-        Rule::Cluster("cluster:admin/knn_stats_action"),
-    ),
-    (
-        &[Method::Get],
-        "/_plugins/_knn/stats/{stat}",
-        Rule::Cluster("cluster:admin/knn_stats_action"),
-    ),
-    (
-        &[Method::Get],
-        "/_plugins/_knn/{node}/stats",
-        Rule::Cluster("cluster:admin/knn_stats_action"),
-    ),
-    (
-        &[Method::Get],
-        "/_plugins/_knn/{node}/stats/{stat}",
-        Rule::Cluster("cluster:admin/knn_stats_action"),
-    ),
-    (
-        &[Method::Get],
-        "/_plugins/_knn/warmup/{index}",
-        Rule::Cluster("cluster:admin/knn_warmup_action"),
-    ),
-    (
-        &[Method::Get],
-        "/_plugins/_knn/clear_cache/{index}",
-        Rule::Index("indices:admin/knn_clear_cache_action"),
-    ),
 ];
 
 /// The management API's patterns, for every method: the handler decides.
@@ -285,6 +265,11 @@ const ALL_ACCESS: &[&str] = &[
     "/_pit/{id}",
     "/_serverless/usage",
     "/_prometheus/metrics",
+    "/_plugins/_notifications/configs",
+    "/_plugins/_notifications/configs/{id}",
+    "/_plugins/_notifications/features",
+    "/_plugins/_notifications/channels",
+    "/_plugins/_notifications/feature/test/{id}",
 ];
 
 /// The rule for a registered route, or none when the table has no row for
@@ -301,6 +286,7 @@ pub fn rule(method: Option<Method>, pattern: &str) -> Option<Rule> {
     }
     RULES
         .iter()
+        .chain(knn::RULES.iter())
         .find(|(methods, p, _)| *p == pattern && methods.contains(&method))
         .map(|(_, _, r)| *r)
 }
@@ -355,7 +341,7 @@ fn refuse(config: &Config, user: &str, action: &str) -> Denial {
 
 fn allowed(config: &Config, user: &str, rule: Rule, req: &Authorization<'_>) -> Result<(), String> {
     match rule {
-        Rule::Open | Rule::Handler => Ok(()),
+        Rule::Open | Rule::Handler | Rule::Body(_) => Ok(()),
         Rule::Cluster(action) => config
             .cluster_allows(user, action)
             .then_some(())
@@ -437,42 +423,4 @@ impl Authorizer for RouteAuthorizer {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    // docs/specs/security-authz AC-6
-    #[test]
-    fn a_route_with_no_row_and_a_prefix_route_need_all_access() {
-        assert_eq!(rule(Some(Method::Get), "/new/{index}/route"), None);
-        assert_eq!(
-            rule_of(false, Some(Method::Get), "/new/{index}/route"),
-            Rule::AllAccess
-        );
-        assert_eq!(rule_of(true, None, "/_plugins/_ml"), Rule::AllAccess);
-        assert_eq!(
-            rule_of(false, Some(Method::Get), "/{index}/_search"),
-            Rule::Index("indices:data/read/search")
-        );
-        assert_eq!(
-            rule_of(false, Some(Method::Delete), "/{index}/_search"),
-            Rule::AllAccess,
-            "a method with no row for a known pattern is not allowed through"
-        );
-    }
-
-    // docs/specs/stock-snapshot-restore AC-7: registering a stock repository
-    // is a cluster-admin act, as every repository and snapshot route is.
-    #[test]
-    fn every_repository_and_snapshot_route_needs_all_access() {
-        for method in [Method::Put, Method::Post, Method::Get, Method::Delete] {
-            for pattern in [
-                "/_snapshot/{repo}",
-                "/_snapshot/{repo}/_verify",
-                "/_snapshot/{repo}/{name}",
-                "/_snapshot/{repo}/{name}/_restore",
-            ] {
-                assert_eq!(rule_of(false, Some(method), pattern), Rule::AllAccess);
-            }
-        }
-    }
-}
+mod tests;

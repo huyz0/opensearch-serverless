@@ -1,0 +1,62 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "explain": {
+    "Physical Plan": {
+      "Project [ columns=[a.name] ]": {
+        "Top [ count=200 ]": {
+          "BlockHashJoin[ conditions=( a.name = b.name ), type=JOIN, blockSize=[FixedBlockSize with size=10000] ]": {
+            "PointInTime [ compat-sql-b as b, pageSize=10000 ]": {
+              "request": {
+                "size": 200,
+                "from": 0
+              }
+            },
+            "useTermsFilterOptimization": false,
+            "PointInTime [ compat-sql as a, pageSize=10000 ]": {
+              "request": {
+                "size": 200,
+                "from": 0,
+                "_source": {
+                  "includes": [
+                    "name"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "description": "Hash Join algorithm builds hash table based on result of first query, and then probes hash table to find matched rows for each row returned by second query",
+    "Logical Plan": {
+      "Project [ columns=[a.name] ]": {
+        "Top [ count=200 ]": {
+          "Join [ conditions=( a.name = b.name ) type=JOIN ]": {
+            "Group": [
+              {
+                "Project [ columns=[a.name] ]": {
+                  "TableScan": {
+                    "tableAlias": "a",
+                    "tableName": "compat-sql"
+                  }
+                }
+              },
+              {
+                "Project [ columns=[b.name] ]": {
+                  "TableScan": {
+                    "tableAlias": "b",
+                    "tableName": "compat-sql-b"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

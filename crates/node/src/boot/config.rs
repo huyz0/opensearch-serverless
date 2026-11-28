@@ -1,13 +1,13 @@
 //! A node's configuration, read from named variables.
 //!
-//! The lookup is a function, so a test supplies variables without touching
-//! the process environment.
+//! The lookup is a function, so a test supplies variables without the process environment.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
 
+use crate::security_setting::admin_pair;
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod apply;
@@ -17,11 +17,13 @@ pub(super) mod edge;
 pub(super) mod ltr;
 mod packs;
 pub(super) mod page_cache;
+pub(super) mod plugins;
 mod reader_ramp;
 pub(super) mod roles;
 pub(super) mod search_queue;
 pub(super) mod search_slots;
 pub(super) mod snapshots;
+pub(super) mod sql;
 mod store;
 mod store_debug;
 pub(super) mod write_limit;
@@ -110,15 +112,17 @@ pub struct NodeConfig {
     pub commit_logged: commits::Logged,
     /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
     pub ltr: bool,
-    /// `serverless.ism.enabled` (`OSS_ISM`): serve the ISM policy routes. Off by default.
-    pub ism: bool,
-    /// `serverless.ad.enabled` (`OSS_AD`): serve the anomaly detection detector routes. Off by default.
-    pub ad: bool,
+    /// `serverless.sql.enabled` (`OSS_SQL`): serve the SQL endpoint. On by default.
+    pub sql: bool,
+    /// The SQL row and request bounds.
+    pub sql_bounds: sql::Bounds,
+    /// The ported plugins' switches (`OSS_ISM`, `OSS_AD`, `OSS_ML`).
+    pub plugins: plugins::Switches,
     /// The `sltr` window and model cache bounds.
     pub ltr_bounds: ltr::Bounds,
     /// `OSS_SCRIPT_CACHE_TTL`: seconds a stored script is trusted before the set is checked.
     pub script_cache_ttl_secs: u64,
-    /// `serverless.security.enabled`: serve the security configuration API. Off by default.
+    /// `serverless.security.enabled`: serve the security configuration API. On when an administrator is configured, off otherwise.
     pub security: bool,
     /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).
     pub security_admin: Option<(String, String)>,
@@ -320,23 +324,16 @@ impl NodeConfig {
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
-        let (ltr, ism) = (flag("OSS_LTR", "true")?, flag("OSS_ISM", "false")?);
+        let (ltr, plugins) = (flag("OSS_LTR", "true")?, plugins::read(&flag)?);
         let ltr_bounds = ltr::read(&bounded)?;
+        let (sql, sql_bounds) = (flag("OSS_SQL", "true")?, sql::read(&bounded)?);
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
-        let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
-        let security_admin = match (
+        let security_admin = admin_pair(
             get("OSS_SECURITY_ADMIN_USER").filter(|v| !v.is_empty()),
             get("OSS_SECURITY_ADMIN_HASH").filter(|v| !v.is_empty()),
-        ) {
-            (Some(user), Some(hash)) => Some((user, hash)),
-            (None, None) => None,
-            _ => {
-                return Err(
-                    "OSS_SECURITY_ADMIN_USER and OSS_SECURITY_ADMIN_HASH go together".to_owned(),
-                );
-            }
-        };
+        )?;
+        let security = flag("OSS_SECURITY", &security_admin.is_some().to_string())?;
         let store_usage = flag("OSS_STORE_USAGE", "true")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
         let tenant_levels = match or("OSS_TENANT_LEVELS", "observe").as_str() {
@@ -448,8 +445,9 @@ impl NodeConfig {
             commit_logged,
             node_packs: packs::read(&flag, &bounded)?,
             ltr,
-            ism,
-            ad: flag("OSS_AD", "false")?,
+            sql,
+            sql_bounds,
+            plugins,
             ltr_bounds,
             script_cache_ttl_secs,
             security,

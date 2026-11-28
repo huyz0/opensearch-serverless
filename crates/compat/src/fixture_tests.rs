@@ -105,7 +105,7 @@ fn json_and_empty_bodies_encode_as_sent() {
 
 #[test]
 fn every_method_round_trips_its_name() {
-    for name in ["GET", "PUT", "POST", "DELETE", "HEAD"] {
+    for name in ["GET", "PUT", "POST", "DELETE", "HEAD", "PATCH"] {
         assert_eq!(Method::parse(name).unwrap().as_str(), name);
     }
 }
@@ -137,9 +137,9 @@ fn a_bad_pointer_is_refused_where_it_stands() {
 
 #[test]
 fn an_unknown_method_is_refused() {
-    let e = refusal(with(minimal(), "/steps/0/request/method", json!("PATCH")));
+    let e = refusal(with(minimal(), "/steps/0/request/method", json!("TRACE")));
     assert_eq!(e.at, "steps[0].request.method");
-    assert!(e.message.contains("PATCH"));
+    assert!(e.message.contains("TRACE"));
 }
 
 #[test]

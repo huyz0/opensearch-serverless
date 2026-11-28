@@ -139,6 +139,7 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = crate::knn_train_route::mount(router, store, config)?;
     let router = if config.ism {
         let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
             .map_err(store_error)?;
@@ -148,6 +149,7 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = crate::ml_route::mount(router, store, config)?;
     let router = if config.notifications {
         let service = crate::notifications_route::NotificationsService::new(
             store,

@@ -34,7 +34,7 @@ fn action_refusal(name: &str) -> String {
         "shrink" | "allocation" => "an index has no replicas or node placement to change here",
         "rollup" | "transform" => "rollup and transform jobs are not ported",
         "notification" => "notification channels are not served yet",
-        _ => "it is not an action of the plugin",
+        _ => return format!("Invalid field: [{name}] found in Actions."),
     };
     format!("action [{name}] is not supported: {why}")
 }
@@ -47,6 +47,22 @@ fn condition_refusal(name: &str) -> String {
         _ => "it is not a condition of the plugin",
     };
     format!("condition [{name}] is not supported: {why}")
+}
+
+/// The time units a setting value may end in.
+const UNITS: &[&str] = &["nanos", "micros", "ms", "s", "m", "h", "d"];
+
+/// Checks a `min_index_age` style value the way the plugin's time setting does.
+fn time_value(setting: &str, v: &Value) -> Result<(), String> {
+    let text = v.as_str().unwrap_or_default();
+    let digits = text.chars().take_while(char::is_ascii_digit).count();
+    let (number, unit) = text.split_at(digits);
+    if number.is_empty() || !UNITS.contains(&unit) {
+        return Err(format!(
+            "failed to parse setting [{setting}] with value [{text}] as a time value: unit is missing or unrecognized"
+        ));
+    }
+    Ok(())
 }
 
 fn object<'a>(v: &'a Value, what: &str) -> Result<&'a Map<String, Value>, String> {
@@ -106,12 +122,12 @@ fn action(a: &Value, state: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn transition(t: &Value, names: &[&str]) -> Result<(), String> {
+fn transition(t: &Value, state: &str, names: &[&str]) -> Result<(), String> {
     let m = object(t, "transition")?;
     let target = string(m, "state_name", "a transition")?;
     if !names.contains(&target) {
         return Err(format!(
-            "transition names state [{target}], which does not exist"
+            "Policy contains a transition in state={state} pointing to a nonexistent state={target}"
         ));
     }
     if let Some(conditions) = m.get("conditions") {
@@ -119,9 +135,12 @@ fn transition(t: &Value, names: &[&str]) -> Result<(), String> {
         if c.len() > 1 {
             return Err("a transition takes at most one condition".to_owned());
         }
-        for key in c.keys() {
+        for (key, value) in c {
             if !CONDITIONS.contains(&key.as_str()) {
                 return Err(condition_refusal(key));
+            }
+            if key != "cron" {
+                time_value(key, value)?;
             }
         }
     }
@@ -136,12 +155,15 @@ fn transition(t: &Value, names: &[&str]) -> Result<(), String> {
 /// The reason the policy is refused, for a 400.
 pub(super) fn checked(id: &str, body: &Value, now_millis: u64) -> Result<Value, String> {
     let policy = object(body.get("policy").unwrap_or(&Value::Null), "policy")?;
-    let default_state = string(policy, "default_state", "a policy")?;
+    let default_state = match policy.get("default_state").and_then(Value::as_str) {
+        Some(s) if !s.is_empty() => s,
+        _ => return Err("default_state is null".to_owned()),
+    };
     let states = policy
         .get("states")
         .and_then(Value::as_array)
         .filter(|s| !s.is_empty())
-        .ok_or("a policy needs a non-empty [states] array")?;
+        .ok_or("Policy must contain at least one State")?;
     if states.len() > MAX_STATES {
         return Err(format!("a policy holds at most {MAX_STATES} states"));
     }
@@ -149,14 +171,12 @@ pub(super) fn checked(id: &str, body: &Value, now_millis: u64) -> Result<Value, 
     for state in states {
         let name = string(object(state, "state")?, "name", "a state")?;
         if names.contains(&name) {
-            return Err(format!("state [{name}] is named twice"));
+            return Err("Policy cannot have duplicate state names".to_owned());
         }
         names.push(name);
     }
     if !names.contains(&default_state) {
-        return Err(format!(
-            "default_state [{default_state}] is not a state of the policy"
-        ));
+        return Err("Policy must have a valid default state".to_owned());
     }
     for state in states {
         let m = object(state, "state")?;
@@ -178,14 +198,48 @@ pub(super) fn checked(id: &str, body: &Value, now_millis: u64) -> Result<Value, 
             .and_then(Value::as_array)
             .map_or(&[][..], Vec::as_slice)
         {
-            transition(t, &names)?;
+            transition(t, name, &names)?;
         }
     }
     let mut stored = policy.clone();
+    normalise(&mut stored, now_millis);
     stored.insert("policy_id".to_owned(), json!(id));
     stored.insert("schema_version".to_owned(), json!(1));
     stored.insert("last_updated_time".to_owned(), json!(now_millis));
     Ok(Value::Object(stored))
+}
+
+/// What the plugin fills in when a policy is stored: `error_notification`
+/// and `ism_template` as null, each template's time, and every action's default retry.
+fn normalise(policy: &mut Map<String, Value>, now_millis: u64) {
+    policy.entry("error_notification").or_insert(Value::Null);
+    policy.entry("ism_template").or_insert(Value::Null);
+    let template = policy.get_mut("ism_template");
+    let templates = match template {
+        Some(Value::Array(a)) => a.iter_mut().collect(),
+        Some(t @ Value::Object(_)) => vec![t],
+        _ => Vec::new(),
+    };
+    for t in templates {
+        if let Some(m) = t.as_object_mut() {
+            m.entry("last_updated_time").or_insert(json!(now_millis));
+        }
+    }
+    let states = policy.get_mut("states").and_then(Value::as_array_mut);
+    for state in states.into_iter().flatten() {
+        let actions = state.get_mut("actions").and_then(Value::as_array_mut);
+        for action in actions.into_iter().flatten() {
+            if let Some(m) = action.as_object_mut() {
+                m.entry("retry").or_insert_with(
+                    || json!({"count": 3, "backoff": "exponential", "delay": "1m"}),
+                );
+            }
+        }
+        if let Some(m) = state.as_object_mut() {
+            m.entry("actions").or_insert_with(|| json!([]));
+            m.entry("transitions").or_insert_with(|| json!([]));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -210,6 +264,23 @@ mod tests {
         assert_eq!(stored["policy_id"], "p");
         assert_eq!(stored["last_updated_time"], 9);
         assert_eq!(stored["schema_version"], 1);
+        assert!(stored["error_notification"].is_null());
+        assert!(stored["ism_template"].is_null());
+    }
+
+    #[test]
+    fn every_action_gets_the_default_retry() {
+        let stored = checked(
+            "p",
+            &put(
+                r#"[{"name":"a","actions":[{"delete":{}},{"read_only":{},"retry":{"count":1}}]}]"#,
+            ),
+            0,
+        )
+        .unwrap();
+        let a = &stored["states"][0]["actions"];
+        assert_eq!(a[0]["retry"]["count"], 3);
+        assert_eq!(a[1]["retry"]["count"], 1);
     }
 
     #[test]
@@ -226,6 +297,10 @@ mod tests {
             (
                 r#"[{"name":"a","actions":[{"rollover":{}}]}]"#,
                 "min_index_age",
+            ),
+            (
+                r#"[{"name":"a","transitions":[{"state_name":"a","conditions":{"min_index_age":"soon"}}]}]"#,
+                "unit is missing",
             ),
             (
                 r#"[{"name":"a","actions":[{"replica_count":{"number_of_replicas":2}}]}]"#,

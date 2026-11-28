@@ -1,0 +1,4781 @@
+{
+  "name": "alerting routes",
+  "description": "The stock Alerting plugin's monitor, execute, destination, alert and finding routes: every monitor type, the validation messages and the dry run results. Generated ids are placeholders.",
+  "setup": "index compat-alert-src: one shard, four documents (city x, x, y, z; n 0 to 3)",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "placeholders": "`{label}` in a request is the value the step that captured it received; `<label>` in a response is where that value appeared. `<volatile>` is a time, a counter or a generated value that differs on every run.",
+  "steps": [
+    {
+      "name": "create query monitor",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-q1",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<mon>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-q1",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.results[0].hits.total.value > 0",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "get monitor",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/{mon}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<mon>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-q1",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.results[0].hits.total.value > 0",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          },
+          "associated_workflows": []
+        }
+      }
+    },
+    {
+      "name": "get monitor head",
+      "request": {
+        "method": "HEAD",
+        "path": "/_plugins/_alerting/monitors/{mon}"
+      },
+      "response": {
+        "status": 200,
+        "body": null
+      }
+    },
+    {
+      "name": "get missing monitor",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Monitor not found."
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Monitor not found.",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.OpenSearchStatusException: Monitor not found."
+            }
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create duplicate name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-q1",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<dup>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-q1",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.results[0].hits.total.value > 0",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "create with if_seq_no",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_alerting/monitors/{mon}",
+        "query": {
+          "if_seq_no": "0",
+          "if_primary_term": "1"
+        },
+        "body": {
+          "type": "monitor",
+          "name": "compat-q1",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 409,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Document version conflict putting <mon> in index .opendistro-alerting-config"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Document version conflict putting <mon> in index .opendistro-alerting-config",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.OpenSearchStatusException: Document version conflict putting <mon> in index .opendistro-alerting-config"
+            }
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "update with stale seq_no",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_alerting/monitors/{mon}",
+        "query": {
+          "if_seq_no": "0",
+          "if_primary_term": "1"
+        },
+        "body": {
+          "type": "monitor",
+          "name": "compat-q1",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 409,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Document version conflict putting <mon> in index .opendistro-alerting-config"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Document version conflict putting <mon> in index .opendistro-alerting-config",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.OpenSearchStatusException: Document version conflict putting <mon> in index .opendistro-alerting-config"
+            }
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "update without seq_no",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_alerting/monitors/{mon}",
+        "body": {
+          "type": "monitor",
+          "name": "compat-q1",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<mon>",
+          "_version": 2,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 9,
+            "name": "compat-q1",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.results[0].hits.total.value > 0",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "update missing",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_alerting/monitors/nope",
+        "query": {
+          "if_seq_no": "0",
+          "if_primary_term": "1"
+        },
+        "body": {
+          "type": "monitor",
+          "name": "compat-q1",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Monitor with nope is not found"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Monitor with nope is not found",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.OpenSearchStatusException: Monitor with nope is not found"
+            }
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create interval schedule days",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-q2",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 2,
+              "unit": "DAYS"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<mon2>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-q2",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 2,
+                "unit": "DAYS"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.results[0].hits.total.value > 0",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "create cron schedule",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-q3",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "cron": {
+              "expression": "0 * * * *",
+              "timezone": "UTC"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<mon3>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-q3",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "cron": {
+                "expression": "0 * * * *",
+                "timezone": "UTC"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.results[0].hits.total.value > 0",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "create bad cron",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-bad-cron",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "cron": {
+              "expression": "nope",
+              "timezone": "UTC"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Cron expression contains 1 parts but we expect one of [5]"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Cron expression contains 1 parts but we expect one of [5]",
+            "caused_by": {
+              "type": "exception",
+              "reason": "java.lang.IllegalArgumentException: Cron expression contains 1 parts but we expect one of [5]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create bad unit",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-bad-unit",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "FORTNIGHTS"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "No enum constant java.time.temporal.ChronoUnit.FORTNIGHTS"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "No enum constant java.time.temporal.ChronoUnit.FORTNIGHTS",
+            "caused_by": {
+              "type": "exception",
+              "reason": "java.lang.IllegalArgumentException: No enum constant java.time.temporal.ChronoUnit.FORTNIGHTS"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create interval zero",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-zero",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 0,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Interval is not allowed to be 0 or negative"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Interval is not allowed to be 0 or negative",
+            "caused_by": {
+              "type": "exception",
+              "reason": "java.lang.IllegalArgumentException: Interval is not allowed to be 0 or negative"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create without name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Monitor name is null"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Monitor name is null",
+            "caused_by": {
+              "type": "exception",
+              "reason": "java.lang.IllegalArgumentException: Monitor name is null"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create without inputs",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-noin",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<noin>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-noin",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.results[0].hits.total.value > 0",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "create unknown index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-unk",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-nope"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Configured indices are not found: [compat-nope]"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Configured indices are not found: [compat-nope]",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.index.IndexNotFoundException: no such index [compat-nope]"
+            }
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create unknown monitor_type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-unk-type",
+          "monitor_type": "nope",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Monitor type should follow pattern [a-zA-Z0-9_]{5,25}"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Monitor type should follow pattern [a-zA-Z0-9_]{5,25}",
+            "caused_by": {
+              "type": "exception",
+              "reason": "java.lang.IllegalStateException: Monitor type should follow pattern [a-zA-Z0-9_]{5,25}"
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "create bad trigger script",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-badtrig",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-4",
+                "name": "t",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.nope(",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<badscript>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-badtrig",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.nope(",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "create bad severity",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-badsev",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-5",
+                "name": "t",
+                "severity": "9",
+                "condition": {
+                  "script": {
+                    "source": "true",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<badsev>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-badsev",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t",
+                  "severity": "9",
+                  "condition": {
+                    "script": {
+                      "source": "true",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "create with action to a missing destination",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-badact",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-6",
+                "name": "t",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "true",
+                    "lang": "painless"
+                  }
+                },
+                "actions": [
+                  {
+                    "id": "act-1",
+                    "name": "a",
+                    "destination_id": "nope",
+                    "message_template": {
+                      "source": "x",
+                      "lang": "mustache"
+                    },
+                    "throttle_enabled": false,
+                    "subject_template": {
+                      "source": "s",
+                      "lang": "mustache"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<badact>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-badact",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "true",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": [
+                    {
+                      "id": "<volatile>",
+                      "name": "a",
+                      "destination_id": "nope",
+                      "message_template": {
+                        "source": "x",
+                        "lang": "mustache"
+                      },
+                      "throttle_enabled": false,
+                      "subject_template": {
+                        "source": "s",
+                        "lang": "mustache"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "create bucket monitor",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-bucket",
+          "monitor_type": "bucket_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "aggregations": {
+                    "composite_agg": {
+                      "composite": {
+                        "sources": [
+                          {
+                            "city": {
+                              "terms": {
+                                "field": "city"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "bucket_level_trigger": {
+                "id": "trig-2",
+                "name": "b1",
+                "severity": "2",
+                "condition": {
+                  "buckets_path": {
+                    "_count": "_count"
+                  },
+                  "parent_bucket_path": "composite_agg",
+                  "script": {
+                    "source": "params._count > 1",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<bmon>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-bucket",
+            "monitor_type": "bucket_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "aggregations": {
+                      "composite_agg": {
+                        "composite": {
+                          "size": 10,
+                          "sources": [
+                            {
+                              "city": {
+                                "terms": {
+                                  "field": "city",
+                                  "missing_bucket": false,
+                                  "order": "asc"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "bucket_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "b1",
+                  "severity": "2",
+                  "condition": {
+                    "buckets_path": {
+                      "_count": "_count"
+                    },
+                    "parent_bucket_path": "composite_agg",
+                    "script": {
+                      "source": "params._count > 1",
+                      "lang": "painless"
+                    },
+                    "gap_policy": "skip"
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "create doc monitor",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors",
+        "body": {
+          "type": "monitor",
+          "name": "compat-doc",
+          "monitor_type": "doc_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "doc_level_input": {
+                "description": "d",
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "queries": [
+                  {
+                    "id": "q1",
+                    "name": "q1",
+                    "query": "city:x",
+                    "tags": []
+                  }
+                ]
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "document_level_trigger": {
+                "id": "trig-3",
+                "name": "d1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "query[tag=\"\"]",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<dmon>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-doc",
+            "monitor_type": "doc_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "doc_level_input": {
+                  "description": "d",
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "queries": [
+                    {
+                      "id": "<volatile>",
+                      "name": "q1",
+                      "fields": [],
+                      "query": "city:x",
+                      "tags": [],
+                      "query_field_names": []
+                    }
+                  ],
+                  "fan_out_enabled": true
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "document_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "d1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "query[tag=\"\"]",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          }
+        }
+      }
+    },
+    {
+      "name": "get bucket monitor",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/{bmon}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<bmon>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-bucket",
+            "monitor_type": "bucket_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "aggregations": {
+                      "composite_agg": {
+                        "composite": {
+                          "size": 10,
+                          "sources": [
+                            {
+                              "city": {
+                                "terms": {
+                                  "field": "city",
+                                  "missing_bucket": false,
+                                  "order": "asc"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "bucket_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "b1",
+                  "severity": "2",
+                  "condition": {
+                    "buckets_path": {
+                      "_count": "_count"
+                    },
+                    "parent_bucket_path": "composite_agg",
+                    "script": {
+                      "source": "params._count > 1",
+                      "lang": "painless"
+                    },
+                    "gap_policy": "skip"
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          },
+          "associated_workflows": []
+        }
+      }
+    },
+    {
+      "name": "get doc monitor",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/{dmon}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<dmon>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 0,
+            "name": "compat-doc",
+            "monitor_type": "doc_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "doc_level_input": {
+                  "description": "d",
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "queries": [
+                    {
+                      "id": "<volatile>",
+                      "name": "q1",
+                      "fields": [],
+                      "query": "city:x",
+                      "tags": [],
+                      "query_field_names": []
+                    }
+                  ],
+                  "fan_out_enabled": true
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "document_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "d1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "query[tag=\"\"]",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          },
+          "associated_workflows": []
+        }
+      }
+    },
+    {
+      "name": "search monitors",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "monitor.name.keyword": "asc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 10,
+              "relation": "eq"
+            },
+            "max_score": "<volatile>",
+            "hits": [
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<badact>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-badact",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 1,
+                      "unit": "MINUTES"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "query": {
+                            "match_all": {
+                              "boost": 1.0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "true",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": [
+                          {
+                            "id": "<volatile>",
+                            "name": "a",
+                            "destination_id": "nope",
+                            "message_template": {
+                              "source": "x",
+                              "lang": "mustache"
+                            },
+                            "throttle_enabled": false,
+                            "subject_template": {
+                              "source": "s",
+                              "lang": "mustache"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-badact"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<badsev>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-badsev",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 1,
+                      "unit": "MINUTES"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "query": {
+                            "match_all": {
+                              "boost": 1.0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t",
+                        "severity": "9",
+                        "condition": {
+                          "script": {
+                            "source": "true",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-badsev"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<badscript>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-badtrig",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 1,
+                      "unit": "MINUTES"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "query": {
+                            "match_all": {
+                              "boost": 1.0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "ctx.nope(",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-badtrig"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<bmon>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-bucket",
+                  "monitor_type": "bucket_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 1,
+                      "unit": "MINUTES"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "aggregations": {
+                            "composite_agg": {
+                              "composite": {
+                                "size": 10,
+                                "sources": [
+                                  {
+                                    "city": {
+                                      "terms": {
+                                        "field": "city",
+                                        "missing_bucket": false,
+                                        "order": "asc"
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "bucket_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "b1",
+                        "severity": "2",
+                        "condition": {
+                          "buckets_path": {
+                            "_count": "_count"
+                          },
+                          "parent_bucket_path": "composite_agg",
+                          "script": {
+                            "source": "params._count > 1",
+                            "lang": "painless"
+                          },
+                          "gap_policy": "skip"
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-bucket"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<dmon>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-doc",
+                  "monitor_type": "doc_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 1,
+                      "unit": "MINUTES"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "doc_level_input": {
+                        "description": "d",
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "queries": [
+                          {
+                            "id": "<volatile>",
+                            "name": "q1",
+                            "fields": [],
+                            "query": "city:x",
+                            "tags": [],
+                            "query_field_names": []
+                          }
+                        ],
+                        "fan_out_enabled": true
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "document_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "d1",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "query[tag=\"\"]",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-doc"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<noin>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-noin",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 1,
+                      "unit": "MINUTES"
+                    }
+                  },
+                  "inputs": [],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t1",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "ctx.results[0].hits.total.value > 0",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-noin"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<dup>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-q1",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 1,
+                      "unit": "MINUTES"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "query": {
+                            "match_all": {
+                              "boost": 1.0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t1",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "ctx.results[0].hits.total.value > 0",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-q1"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<mon>",
+                "_version": 2,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 9,
+                  "name": "compat-q1",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 1,
+                      "unit": "MINUTES"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "query": {
+                            "match_all": {
+                              "boost": 1.0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t1",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "ctx.results[0].hits.total.value > 0",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-q1"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<mon2>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-q2",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 2,
+                      "unit": "DAYS"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "query": {
+                            "match_all": {
+                              "boost": 1.0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t1",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "ctx.results[0].hits.total.value > 0",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-q2"
+                ]
+              },
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<mon3>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-q3",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "cron": {
+                      "expression": "0 * * * *",
+                      "timezone": "UTC"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "query": {
+                            "match_all": {
+                              "boost": 1.0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t1",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "ctx.results[0].hits.total.value > 0",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                },
+                "sort": [
+                  "compat-q3"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search monitors by name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/_search",
+        "body": {
+          "query": {
+            "term": {
+              "monitor.name.keyword": "compat-q2"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": "<volatile>",
+            "hits": [
+              {
+                "_index": ".opendistro-alerting-config",
+                "_id": "<mon2>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "type": "monitor",
+                  "schema_version": 0,
+                  "name": "compat-q2",
+                  "monitor_type": "query_level_monitor",
+                  "enabled": false,
+                  "enabled_time": "<volatile>",
+                  "schedule": {
+                    "period": {
+                      "interval": 2,
+                      "unit": "DAYS"
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "search": {
+                        "indices": [
+                          "compat-alert-src"
+                        ],
+                        "query": {
+                          "size": 0,
+                          "query": {
+                            "match_all": {
+                              "boost": 1.0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "triggers": [
+                    {
+                      "query_level_trigger": {
+                        "id": "<volatile>",
+                        "name": "t1",
+                        "severity": "1",
+                        "condition": {
+                          "script": {
+                            "source": "ctx.results[0].hits.total.value > 0",
+                            "lang": "painless"
+                          }
+                        },
+                        "actions": []
+                      }
+                    }
+                  ],
+                  "last_update_time": "<volatile>",
+                  "data_sources": {
+                    "query_index": ".opensearch-alerting-queries",
+                    "findings_index": ".opensearch-alerting-finding-history-write",
+                    "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+                    "alerts_index": ".opendistro-alerting-alerts",
+                    "alerts_history_index": ".opendistro-alerting-alert-history-write",
+                    "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+                    "comments_index": ".opensearch-alerting-comments-history-write",
+                    "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+                    "query_index_mappings_by_type": {},
+                    "findings_enabled": false
+                  },
+                  "delete_query_index_in_every_run": false,
+                  "should_create_single_alert_for_findings": false,
+                  "owner": "alerting"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search monitors with size 0",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/_search",
+        "body": {
+          "size": 0,
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 10,
+              "relation": "eq"
+            },
+            "max_score": "<volatile>",
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "search monitors GET",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/_search",
+        "query": {
+          "q": "monitor.name:compat-q2"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "request body or source parameter is required"
+              }
+            ],
+            "type": "parse_exception",
+            "reason": "request body or source parameter is required"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "execute dryrun",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/{mon}/_execute",
+        "query": {
+          "dryrun": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "monitor_name": "compat-q1",
+          "period_start": "<volatile>",
+          "period_end": "<volatile>",
+          "error": null,
+          "input_results": {
+            "results": [
+              {
+                "_shards": {
+                  "total": 1,
+                  "failed": 0,
+                  "successful": 1,
+                  "skipped": 0
+                },
+                "hits": {
+                  "hits": [],
+                  "total": {
+                    "value": 4,
+                    "relation": "eq"
+                  },
+                  "max_score": "<volatile>"
+                },
+                "took": "<volatile>",
+                "timed_out": false
+              }
+            ],
+            "ppl_query_results": [],
+            "ppl_num_results": null,
+            "error": null
+          },
+          "trigger_results": {
+            "trig-1": {
+              "name": "t1",
+              "triggered": true,
+              "action_results": {},
+              "ppl_query_results": [],
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "execute dryrun with a body monitor",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/_execute",
+        "query": {
+          "dryrun": "true"
+        },
+        "body": {
+          "type": "monitor",
+          "name": "compat-adhoc",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "monitor_name": "compat-adhoc",
+          "period_start": "<volatile>",
+          "period_end": "<volatile>",
+          "error": null,
+          "input_results": {
+            "results": [
+              {
+                "_shards": {
+                  "total": 1,
+                  "failed": 0,
+                  "successful": 1,
+                  "skipped": 0
+                },
+                "hits": {
+                  "hits": [],
+                  "total": {
+                    "value": 4,
+                    "relation": "eq"
+                  },
+                  "max_score": "<volatile>"
+                },
+                "took": "<volatile>",
+                "timed_out": false
+              }
+            ],
+            "ppl_query_results": [],
+            "ppl_num_results": null,
+            "error": null
+          },
+          "trigger_results": {
+            "trig-1": {
+              "name": "t1",
+              "triggered": true,
+              "action_results": {},
+              "ppl_query_results": [],
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "execute bucket dryrun",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/{bmon}/_execute",
+        "query": {
+          "dryrun": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "monitor_name": "compat-bucket",
+          "period_start": "<volatile>",
+          "period_end": "<volatile>",
+          "error": null,
+          "input_results": {
+            "results": [
+              {
+                "_shards": {
+                  "total": 1,
+                  "failed": 0,
+                  "successful": 1,
+                  "skipped": 0
+                },
+                "hits": {
+                  "hits": [],
+                  "total": {
+                    "value": 4,
+                    "relation": "eq"
+                  },
+                  "max_score": "<volatile>"
+                },
+                "took": "<volatile>",
+                "terminated_early": true,
+                "timed_out": false,
+                "aggregations": {
+                  "trig-2": {
+                    "parent_bucket_path": "composite_agg",
+                    "bucket_indices": [
+                      0
+                    ]
+                  },
+                  "composite_agg": {
+                    "buckets": [
+                      {
+                        "doc_count": 2,
+                        "key": {
+                          "city": "x"
+                        }
+                      },
+                      {
+                        "doc_count": 1,
+                        "key": {
+                          "city": "y"
+                        }
+                      },
+                      {
+                        "doc_count": 1,
+                        "key": {
+                          "city": "z"
+                        }
+                      }
+                    ],
+                    "after_key": {
+                      "city": "z"
+                    }
+                  }
+                }
+              }
+            ],
+            "ppl_query_results": [],
+            "ppl_num_results": null,
+            "error": null
+          },
+          "trigger_results": {
+            "trig-2": {
+              "name": "b1",
+              "agg_result_buckets": {
+                "x": {
+                  "agg_alert_content": {
+                    "parent_bucket_path": "composite_agg",
+                    "bucket_keys": [
+                      "x"
+                    ],
+                    "bucket": {
+                      "doc_count": 2,
+                      "key": {
+                        "city": "x"
+                      }
+                    }
+                  }
+                }
+              },
+              "action_results": {},
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "execute doc dryrun",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/{dmon}/_execute",
+        "query": {
+          "dryrun": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "monitor_name": "compat-doc",
+          "period_start": "<volatile>",
+          "period_end": "<volatile>",
+          "error": null,
+          "input_results": {
+            "results": [
+              {
+                "q1": [
+                  "0|compat-alert-src",
+                  "1|compat-alert-src"
+                ]
+              }
+            ],
+            "ppl_query_results": [],
+            "ppl_num_results": null,
+            "error": null
+          },
+          "trigger_results": {
+            "trig-3": {
+              "name": "d1",
+              "triggeredDocs": [],
+              "action_results": {},
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "execute missing",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/nope/_execute",
+        "query": {
+          "dryrun": "true"
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Can't find monitor with id: nope"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Can't find monitor with id: nope",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.OpenSearchStatusException: Can't find monitor with id: nope"
+            }
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "execute with period_end",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/{mon}/_execute",
+        "query": {
+          "dryrun": "true"
+        },
+        "body": {
+          "period_end": "2026-01-01T00:00:00Z"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "monitor_name": "compat-q1",
+          "period_start": "<volatile>",
+          "period_end": "<volatile>",
+          "error": null,
+          "input_results": {
+            "results": [
+              {
+                "_shards": {
+                  "total": 1,
+                  "failed": 0,
+                  "successful": 1,
+                  "skipped": 0
+                },
+                "hits": {
+                  "hits": [],
+                  "total": {
+                    "value": 4,
+                    "relation": "eq"
+                  },
+                  "max_score": "<volatile>"
+                },
+                "took": "<volatile>",
+                "timed_out": false
+              }
+            ],
+            "ppl_query_results": [],
+            "ppl_num_results": null,
+            "error": null
+          },
+          "trigger_results": {
+            "trig-1": {
+              "name": "t1",
+              "triggered": true,
+              "action_results": {},
+              "ppl_query_results": [],
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "execute for real",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/{mon}/_execute"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "monitor_name": "compat-q1",
+          "period_start": "<volatile>",
+          "period_end": "<volatile>",
+          "error": null,
+          "input_results": {
+            "results": [
+              {
+                "_shards": {
+                  "total": 1,
+                  "failed": 0,
+                  "successful": 1,
+                  "skipped": 0
+                },
+                "hits": {
+                  "hits": [],
+                  "total": {
+                    "value": 4,
+                    "relation": "eq"
+                  },
+                  "max_score": "<volatile>"
+                },
+                "took": "<volatile>",
+                "timed_out": false
+              }
+            ],
+            "ppl_query_results": [],
+            "ppl_num_results": null,
+            "error": null
+          },
+          "trigger_results": {
+            "trig-1": {
+              "name": "t1",
+              "triggered": true,
+              "action_results": {},
+              "ppl_query_results": [],
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "execute failing search",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/_execute",
+        "query": {
+          "dryrun": "true"
+        },
+        "body": {
+          "type": "monitor",
+          "name": "compat-bad-search",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "nope": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-1",
+                "name": "t1",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].hits.total.value > 0",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "unknown query [nope]"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "unknown query [nope]",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.core.common.ParsingException: unknown query [nope]"
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "execute trigger error",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/_execute",
+        "query": {
+          "dryrun": "true"
+        },
+        "body": {
+          "type": "monitor",
+          "name": "compat-trig-error",
+          "monitor_type": "query_level_monitor",
+          "enabled": false,
+          "schedule": {
+            "period": {
+              "interval": 1,
+              "unit": "MINUTES"
+            }
+          },
+          "inputs": [
+            {
+              "search": {
+                "indices": [
+                  "compat-alert-src"
+                ],
+                "query": {
+                  "size": 0,
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              }
+            }
+          ],
+          "triggers": [
+            {
+              "query_level_trigger": {
+                "id": "trig-7",
+                "name": "t",
+                "severity": "1",
+                "condition": {
+                  "script": {
+                    "source": "ctx.results[0].nope.nope > 1",
+                    "lang": "painless"
+                  }
+                },
+                "actions": []
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "monitor_name": "compat-trig-error",
+          "period_start": "<volatile>",
+          "period_end": "<volatile>",
+          "error": null,
+          "input_results": {
+            "results": [
+              {
+                "_shards": {
+                  "total": 1,
+                  "failed": 0,
+                  "successful": 1,
+                  "skipped": 0
+                },
+                "hits": {
+                  "hits": [],
+                  "total": {
+                    "value": 4,
+                    "relation": "eq"
+                  },
+                  "max_score": "<volatile>"
+                },
+                "took": "<volatile>",
+                "timed_out": false
+              }
+            ],
+            "ppl_query_results": [],
+            "ppl_num_results": null,
+            "error": null
+          },
+          "trigger_results": {
+            "trig-7": {
+              "name": "t",
+              "triggered": true,
+              "action_results": {},
+              "ppl_query_results": [],
+              "error": "{\n  \"type\" : \"script_exception\",\n  \"reason\" : \"runtime error\",\n  \"script_stack\" : [\n    \"ctx.results[0].nope.nope > 1\",\n    \"                   ^---- HERE\"\n  ],\n  \"script\" : \"ctx.results[0].nope.nope > 1\",\n  \"lang\" : \"painless\",\n  \"position\" : {\n    \"offset\" : 19,\n    \"start\" : 0,\n    \"end\" : 28\n  },\n  \"caused_by\" : {\n    \"type\" : \"null_pointer_exception\",\n    \"reason\" : \"Cannot invoke \\\"Object.getClass()\\\" because \\\"callArgs[0]\\\" is null\"\n  }\n}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "destinations list",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/destinations"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "totalDestinations": 0,
+          "destinations": []
+        }
+      }
+    },
+    {
+      "name": "destinations missing id",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/destinations/nope"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "totalDestinations": 0,
+          "destinations": []
+        }
+      }
+    },
+    {
+      "name": "email accounts search",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/destinations/email_accounts/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": "<volatile>",
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "alerts list",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/alerts"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "alerts": [
+            {
+              "id": "<alert>",
+              "version": 1,
+              "monitor_id": "<mon>",
+              "workflow_id": "",
+              "workflow_name": "",
+              "associated_alert_ids": [],
+              "schema_version": 6,
+              "monitor_version": 2,
+              "monitor_name": "compat-q1",
+              "execution_id": "<volatile>",
+              "trigger_id": "trig-1",
+              "trigger_name": "t1",
+              "finding_ids": [],
+              "related_doc_ids": [],
+              "state": "ACTIVE",
+              "error_message": null,
+              "alert_history": [],
+              "severity": "1",
+              "action_execution_results": [],
+              "start_time": "<volatile>",
+              "last_notification_time": "<volatile>",
+              "end_time": "<volatile>",
+              "acknowledged_time": "<volatile>"
+            }
+          ],
+          "totalAlerts": 1
+        }
+      }
+    },
+    {
+      "name": "alerts of a monitor",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/alerts",
+        "query": {
+          "monitorId": "{mon}"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "alerts": [
+            {
+              "id": "<alert>",
+              "version": 1,
+              "monitor_id": "<mon>",
+              "workflow_id": "",
+              "workflow_name": "",
+              "associated_alert_ids": [],
+              "schema_version": 6,
+              "monitor_version": 2,
+              "monitor_name": "compat-q1",
+              "execution_id": "<volatile>",
+              "trigger_id": "trig-1",
+              "trigger_name": "t1",
+              "finding_ids": [],
+              "related_doc_ids": [],
+              "state": "ACTIVE",
+              "error_message": null,
+              "alert_history": [],
+              "severity": "1",
+              "action_execution_results": [],
+              "start_time": "<volatile>",
+              "last_notification_time": "<volatile>",
+              "end_time": "<volatile>",
+              "acknowledged_time": "<volatile>"
+            }
+          ],
+          "totalAlerts": 1
+        }
+      }
+    },
+    {
+      "name": "alerts by severity",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/alerts",
+        "query": {
+          "severityLevel": "1",
+          "alertState": "ACTIVE"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "alerts": [
+            {
+              "id": "<alert>",
+              "version": 1,
+              "monitor_id": "<mon>",
+              "workflow_id": "",
+              "workflow_name": "",
+              "associated_alert_ids": [],
+              "schema_version": 6,
+              "monitor_version": 2,
+              "monitor_name": "compat-q1",
+              "execution_id": "<volatile>",
+              "trigger_id": "trig-1",
+              "trigger_name": "t1",
+              "finding_ids": [],
+              "related_doc_ids": [],
+              "state": "ACTIVE",
+              "error_message": null,
+              "alert_history": [],
+              "severity": "1",
+              "action_execution_results": [],
+              "start_time": "<volatile>",
+              "last_notification_time": "<volatile>",
+              "end_time": "<volatile>",
+              "acknowledged_time": "<volatile>"
+            }
+          ],
+          "totalAlerts": 1
+        }
+      }
+    },
+    {
+      "name": "alerts bad alertState",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/alerts",
+        "query": {
+          "alertState": "nope"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "alerts": [],
+          "totalAlerts": 0
+        }
+      }
+    },
+    {
+      "name": "alerts sort and paging",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/alerts",
+        "query": {
+          "sortString": "monitor_name.keyword",
+          "sortOrder": "asc",
+          "size": "5",
+          "startIndex": "0"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "alerts": [
+            {
+              "id": "<alert>",
+              "version": 1,
+              "monitor_id": "<mon>",
+              "workflow_id": "",
+              "workflow_name": "",
+              "associated_alert_ids": [],
+              "schema_version": 6,
+              "monitor_version": 2,
+              "monitor_name": "compat-q1",
+              "execution_id": "<volatile>",
+              "trigger_id": "trig-1",
+              "trigger_name": "t1",
+              "finding_ids": [],
+              "related_doc_ids": [],
+              "state": "ACTIVE",
+              "error_message": null,
+              "alert_history": [],
+              "severity": "1",
+              "action_execution_results": [],
+              "start_time": "<volatile>",
+              "last_notification_time": "<volatile>",
+              "end_time": "<volatile>",
+              "acknowledged_time": "<volatile>"
+            }
+          ],
+          "totalAlerts": 1
+        }
+      }
+    },
+    {
+      "name": "acknowledge the alert",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/{mon}/_acknowledge/alerts",
+        "body": {
+          "alerts": [
+            "{alert}"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": [
+            "<alert>"
+          ],
+          "failed": []
+        }
+      }
+    },
+    {
+      "name": "acknowledge it again",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/{mon}/_acknowledge/alerts",
+        "body": {
+          "alerts": [
+            "{alert}"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": [],
+          "failed": [
+            {
+              "<alert>": {
+                "failed_reason": "Alert has already been acknowledged."
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "alerts after acknowledge",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/alerts",
+        "query": {
+          "monitorId": "{mon}"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "alerts": [
+            {
+              "id": "<alert>",
+              "version": 2,
+              "monitor_id": "<mon>",
+              "workflow_id": "",
+              "workflow_name": "",
+              "associated_alert_ids": [],
+              "schema_version": 6,
+              "monitor_version": 2,
+              "monitor_name": "compat-q1",
+              "execution_id": "<volatile>",
+              "trigger_id": "trig-1",
+              "trigger_name": "t1",
+              "finding_ids": [],
+              "related_doc_ids": [],
+              "state": "ACKNOWLEDGED",
+              "error_message": null,
+              "alert_history": [],
+              "severity": "1",
+              "action_execution_results": [],
+              "start_time": "<volatile>",
+              "last_notification_time": "<volatile>",
+              "end_time": "<volatile>",
+              "acknowledged_time": "<volatile>"
+            }
+          ],
+          "totalAlerts": 1
+        }
+      }
+    },
+    {
+      "name": "acknowledge unknown alert",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/{mon}/_acknowledge/alerts",
+        "body": {
+          "alerts": [
+            "nope"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": [],
+          "failed": [
+            {
+              "nope": {
+                "failed_reason": "Alert: nope does not exist (it may have already completed)."
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "acknowledge on missing monitor",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/nope/_acknowledge/alerts",
+        "body": {
+          "alerts": [
+            "nope"
+          ]
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "No monitor found with id [nope]"
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "No monitor found with id [nope]",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.ResourceNotFoundException: No monitor found with id [nope]"
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "findings",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/findings/_search"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "total_findings": 0,
+          "findings": []
+        }
+      }
+    },
+    {
+      "name": "findings of a monitor",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/findings/_search",
+        "query": {
+          "monitor_id": "{dmon}"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "request [/_plugins/_alerting/findings/_search] contains unrecognized parameter: [monitor_id]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "request [/_plugins/_alerting/findings/_search] contains unrecognized parameter: [monitor_id]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "stats",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/stats"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_nodes": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "cluster_name": "opensearch",
+          "opendistro.scheduled_jobs.enabled": true,
+          "plugins.scheduled_jobs.enabled": true,
+          "scheduled_job_index_exists": true,
+          "scheduled_job_index_status": "yellow",
+          "nodes_on_schedule": 1,
+          "nodes_not_on_schedule": 0,
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {
+              "name": "vm",
+              "schedule_status": "green",
+              "roles": [
+                "CLUSTER_MANAGER",
+                "DATA",
+                "INGEST",
+                "REMOTE_CLUSTER_CLIENT"
+              ],
+              "job_scheduling_metrics": {
+                "last_full_sweep_time_millis": 199,
+                "full_sweep_on_time": true
+              },
+              "jobs_info": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "settings",
+      "request": {
+        "method": "GET",
+        "path": "/_cluster/settings",
+        "query": {
+          "include_defaults": "true",
+          "filter_path": "defaults.plugins.alerting.*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "defaults": {
+            "plugins": {
+              "alerting": {
+                "alert_backoff_millis": "50ms",
+                "alert_history_max_age": "30d",
+                "request_timeout": "10s",
+                "max_comment_character_length": "2000",
+                "alert_history_max_docs": "1000",
+                "ppl_query_results_max_datarows": "10000",
+                "cross_cluster_monitoring_enabled": "true",
+                "input_timeout": "30s",
+                "tenant": {
+                  "account_id_header": ""
+                },
+                "remote_metadata_service_name": "",
+                "remote_metadata_type": "",
+                "external_scheduler": {
+                  "execution_role_name": "",
+                  "role_name": "",
+                  "job_queue_message_group_key_name": "",
+                  "account_id": "",
+                  "job_queue_name": "",
+                  "job_queue_account_id": "",
+                  "job_queue_account_provider_type": "plugin_setting",
+                  "enabled": "false"
+                },
+                "alert_finding_max_docs": "1000",
+                "alert_finding_rollover_period": "12h",
+                "max_comments_per_notification": "3",
+                "multi_tenant_trigger_eval_enabled": "false",
+                "comments_history_retention_period": "60d",
+                "alert_finding_enabled": "true",
+                "comments_enabled": "true",
+                "filter_by_backend_roles_access_strategy": "intersect",
+                "max_comments_per_alert": "500",
+                "finding_history_retention_period": "60d",
+                "move_alerts_backoff_millis": "250ms",
+                "filter_by_backend_roles": "false",
+                "index_timeout": "60s",
+                "move_alerts_backoff_count": "3",
+                "notification_context_results_allowed_roles": [],
+                "remote_metadata_endpoint": "",
+                "destination": {
+                  "allow_list": [
+                    "chime",
+                    "slack",
+                    "custom_webhook",
+                    "email",
+                    "test_action"
+                  ]
+                },
+                "comments_history_rollover_period": "12h",
+                "max_actionable_alert_count": "50",
+                "remote_metadata_region": "",
+                "ppl_monitor_max_query_length": "2000",
+                "action_throttle_max_value": "24h",
+                "alert_history_rollover_period": "12h",
+                "ppl_query_max_execution_duration": "30s",
+                "ppl_query_results_max_size": "3000",
+                "alert_backoff_count": "2",
+                "alert_history_retention_period": "60d",
+                "alert_findings_indexing_batch_size": "1000",
+                "notification_message_source_max_length": "3000",
+                "bulk_timeout": "120s",
+                "finding_history_max_age": "30d",
+                "monitor": {
+                  "max_monitors": "1000",
+                  "max_triggers": "10",
+                  "doc_level_monitor_shard_fetch_size": "10000",
+                  "percolate_query_docs_size_memory_percentage_limit": "10",
+                  "doc_level_monitor_fanout_max_duration": "3m",
+                  "max_ppl_triggers": "10",
+                  "doc_level_monitor_fan_out_nodes": "1000",
+                  "percolate_query_max_num_docs_in_memory": "50000",
+                  "doc_level_monitor_execution_max_duration": "4m",
+                  "doc_level_monitor_query_field_names_enabled": "true"
+                },
+                "notification_subject_source_max_length": "1000",
+                "multi_tenancy_enabled": "false",
+                "comments_history_max_docs": "1000",
+                "comments_history_max_age": "30d",
+                "alert_history_enabled": "true"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "legacy route",
+      "request": {
+        "method": "GET",
+        "path": "/_opendistro/_alerting/monitors/{mon}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<mon>",
+          "_version": 2,
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "monitor": {
+            "type": "monitor",
+            "schema_version": 9,
+            "name": "compat-q1",
+            "monitor_type": "query_level_monitor",
+            "enabled": false,
+            "enabled_time": "<volatile>",
+            "schedule": {
+              "period": {
+                "interval": 1,
+                "unit": "MINUTES"
+              }
+            },
+            "inputs": [
+              {
+                "search": {
+                  "indices": [
+                    "compat-alert-src"
+                  ],
+                  "query": {
+                    "size": 0,
+                    "query": {
+                      "match_all": {
+                        "boost": 1.0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "triggers": [
+              {
+                "query_level_trigger": {
+                  "id": "<volatile>",
+                  "name": "t1",
+                  "severity": "1",
+                  "condition": {
+                    "script": {
+                      "source": "ctx.results[0].hits.total.value > 0",
+                      "lang": "painless"
+                    }
+                  },
+                  "actions": []
+                }
+              }
+            ],
+            "last_update_time": "<volatile>",
+            "data_sources": {
+              "query_index": ".opensearch-alerting-queries",
+              "findings_index": ".opensearch-alerting-finding-history-write",
+              "findings_index_pattern": "<.opensearch-alerting-finding-history-{now/d}-1>",
+              "alerts_index": ".opendistro-alerting-alerts",
+              "alerts_history_index": ".opendistro-alerting-alert-history-write",
+              "alerts_history_index_pattern": "<.opendistro-alerting-alert-history-{now/d}-1>",
+              "comments_index": ".opensearch-alerting-comments-history-write",
+              "comments_index_pattern": "<.opensearch-alerting-comments-history-{now/d}-1>",
+              "query_index_mappings_by_type": {},
+              "findings_enabled": false
+            },
+            "delete_query_index_in_every_run": false,
+            "should_create_single_alert_for_findings": false,
+            "owner": "alerting"
+          },
+          "associated_workflows": []
+        }
+      }
+    },
+    {
+      "name": "delete monitor",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{mon}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<mon>",
+          "_version": 3
+        }
+      }
+    },
+    {
+      "name": "delete again",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{mon}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Monitor with <mon> is not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Monitor with <mon> is not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "get deleted",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_alerting/monitors/{mon}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "alerting_exception",
+                "reason": "Monitor not found."
+              }
+            ],
+            "type": "alerting_exception",
+            "reason": "Monitor not found.",
+            "caused_by": {
+              "type": "exception",
+              "reason": "org.opensearch.OpenSearchStatusException: Monitor not found."
+            }
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete bucket",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{bmon}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<bmon>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "delete doc",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{dmon}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<dmon>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "delete mon2",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{mon2}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<mon2>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "delete mon3",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{mon3}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<mon3>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "delete duplicate",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{dup}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<dup>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "delete without inputs",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{noin}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<noin>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "delete bad script",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{badscript}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<badscript>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "delete bad severity",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{badsev}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<badsev>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "delete bad action",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_alerting/monitors/{badact}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<badact>",
+          "_version": 2
+        }
+      }
+    },
+    {
+      "name": "search after deletes",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_alerting/monitors/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": "<volatile>",
+            "hits": []
+          }
+        }
+      }
+    }
+  ]
+}

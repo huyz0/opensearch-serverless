@@ -17,6 +17,7 @@ default = ["reader"]
 edge = ["dep:oss-edge", "dep:oss-rest", "dep:oss-mem"]
 reader = [
     "dep:oss-reader",
+    "dep:oss-query",
     "dep:oss-rest",
     "dep:oss-blob",
     "dep:lucene-store",
@@ -67,6 +68,7 @@ oss-ext = { workspace = true }
 oss-ext-wasm = { workspace = true, optional = true }
 sha2 = { version = "=0.11.1", optional = true }
 oss-rest = { workspace = true, optional = true }
+oss-query = { workspace = true, optional = true }
 oss-edge = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }
 oss-cluster = { workspace = true, optional = true }

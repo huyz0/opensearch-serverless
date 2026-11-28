@@ -1,0 +1,53 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "response": {
+    "schema": [
+      {
+        "name": "city",
+        "type": "keyword"
+      },
+      {
+        "name": "active",
+        "type": "boolean"
+      },
+      {
+        "name": "count(*)",
+        "type": "long"
+      }
+    ],
+    "datarows": [
+      [
+        null,
+        true,
+        1
+      ],
+      [
+        "x",
+        false,
+        1
+      ],
+      [
+        "x",
+        true,
+        2
+      ],
+      [
+        "y",
+        false,
+        1
+      ],
+      [
+        "z",
+        null,
+        1
+      ]
+    ],
+    "total": 5,
+    "size": 5,
+    "status": 200
+  }
+}

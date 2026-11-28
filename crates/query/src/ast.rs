@@ -75,6 +75,37 @@ pub enum Item {
     Star,
     /// A field, with its alias.
     Field(String, Option<String>),
+    /// An aggregate (`count`, `sum`, `avg`, `min`, `max`) over a field or `*`, with its alias.
+    Agg(Agg, Option<String>),
+}
+
+/// An aggregate call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Agg {
+    /// The function, lower case.
+    pub func: String,
+    /// The field, or `None` for `*`.
+    pub field: Option<String>,
+}
+
+impl Agg {
+    /// The name the plugin gives the column: `count(*)`, `sum(age)`.
+    #[must_use]
+    pub fn name(&self) -> String {
+        // ALLOC: one name, bounded by the identifier limit.
+        format!("{}({})", self.func, self.field.as_deref().unwrap_or("*"))
+    }
+}
+
+/// A `HAVING` comparison of an aggregate (by call or alias) with a literal.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Having {
+    /// The aggregate's call or alias as written.
+    pub target: String,
+    /// The comparison.
+    pub op: CmpOp,
+    /// The literal.
+    pub lit: Lit,
 }
 
 /// One `ORDER BY` key.
@@ -84,6 +115,8 @@ pub struct Order {
     pub field: String,
     /// Whether descending.
     pub desc: bool,
+    /// `NULLS FIRST` (true) or `NULLS LAST` (false) when written.
+    pub nulls_first: Option<bool>,
 }
 
 /// A `SELECT`.
@@ -92,6 +125,9 @@ pub struct Select {
     pub(crate) items: Vec<Item>,
     pub(crate) from: Vec<String>,
     pub(crate) filter: Option<Pred>,
+    pub(crate) distinct: bool,
+    pub(crate) group: Vec<String>,
+    pub(crate) having: Option<Having>,
     pub(crate) order: Vec<Order>,
     pub(crate) limit: Option<u64>,
     pub(crate) offset: u64,
@@ -109,7 +145,7 @@ impl Select {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     /// A `SELECT`.
-    Select(Select),
+    Select(Box<Select>),
     /// `SHOW TABLES LIKE pattern`.
     ShowTables {
         /// The pattern.

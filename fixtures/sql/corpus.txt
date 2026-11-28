@@ -1,0 +1,122 @@
+# name|lang|statement   (a line starting with # is a comment)
+all-fields|sql|select * from compat-sql
+two-fields|sql|select name, age from compat-sql
+alias|sql|select name as n, age as a from compat-sql
+table-alias|sql|select t.name from compat-sql t
+where-eq-keyword|sql|select name from compat-sql where city = 'x'
+where-eq-int|sql|select name from compat-sql where age = 30
+where-ne|sql|select name from compat-sql where age <> 30
+where-lt|sql|select name from compat-sql where age < 30
+where-lte|sql|select name from compat-sql where age <= 30
+where-gt|sql|select name from compat-sql where age > 30
+where-gte|sql|select name from compat-sql where age >= 30
+where-and|sql|select name from compat-sql where age > 20 and city = 'x'
+where-or|sql|select name from compat-sql where city = 'y' or city = 'z'
+where-not|sql|select name from compat-sql where not city = 'x'
+where-and-or-nested|sql|select name from compat-sql where (city = 'x' or city = 'y') and age > 26
+where-between|sql|select name from compat-sql where age between 26 and 40
+where-not-between|sql|select name from compat-sql where age not between 26 and 40
+where-in|sql|select name from compat-sql where city in ('x','z')
+where-not-in|sql|select name from compat-sql where city not in ('x','z')
+where-is-null|sql|select name from compat-sql where age is null
+where-is-not-null|sql|select name from compat-sql where age is not null
+where-like-prefix|sql|select name from compat-sql where name like 'a%'
+where-like-single|sql|select name from compat-sql where name like '_ob'
+where-not-like|sql|select name from compat-sql where name not like 'a%'
+where-text-eq|sql|select name from compat-sql where bio = 'likes tea'
+where-text-match|sql|select name from compat-sql where match(bio, 'tea')
+where-match-phrase|sql|select name from compat-sql where match_phrase(bio, 'likes tea')
+where-match-query|sql|select name from compat-sql where match_query(bio, 'coffee')
+where-multi-match|sql|select name from compat-sql where multi_match(['bio','name'], 'tea')
+where-query-string|sql|select name from compat-sql where query_string(['bio'], 'tea AND coffee')
+where-simple-query-string|sql|select name from compat-sql where simple_query_string(['bio'], 'tea +coffee')
+where-boolean-true|sql|select name from compat-sql where active = true
+where-boolean-false|sql|select name from compat-sql where active = false
+where-date-literal|sql|select name from compat-sql where joined > '2024-01-01 00:00:00'
+where-date-between|sql|select name from compat-sql where joined between '2023-01-01 00:00:00' and '2024-01-31 00:00:00'
+where-double|sql|select name from compat-sql where balance > 10.5
+where-long|sql|select name from compat-sql where score > 100
+where-ip|sql|select name from compat-sql where ip = '10.0.0.1'
+where-object-field|sql|select name from compat-sql where address.zip = '111'
+where-text-in-object|sql|select name, address.street from compat-sql where address.zip = '222'
+order-asc|sql|select name from compat-sql order by age
+order-desc|sql|select name from compat-sql order by age desc
+order-two-keys|sql|select name from compat-sql order by city, age desc
+order-nulls-first|sql|select name from compat-sql order by age nulls first
+order-nulls-last|sql|select name from compat-sql order by age desc nulls last
+order-by-keyword|sql|select name from compat-sql order by name
+limit|sql|select name from compat-sql order by name limit 2
+limit-offset|sql|select name from compat-sql order by name limit 2 offset 1
+limit-comma|sql|select name from compat-sql order by name limit 1, 2
+limit-zero|sql|select name from compat-sql limit 0
+where-order-limit|sql|select name, age from compat-sql where age > 20 order by age desc limit 3
+distinct|sql|select distinct city from compat-sql
+count-star|sql|select count(*) from compat-sql
+count-field|sql|select count(age) from compat-sql
+sum-avg-min-max|sql|select sum(age), avg(age), min(age), max(age) from compat-sql
+group-by|sql|select city, count(*) from compat-sql group by city
+group-by-having|sql|select city, count(*) as c from compat-sql group by city having c > 1
+group-by-order|sql|select city, avg(age) from compat-sql group by city order by city
+group-by-two|sql|select city, active, count(*) from compat-sql group by city, active
+count-where|sql|select count(*) from compat-sql where city = 'x'
+scalar-upper|sql|select upper(name) from compat-sql
+scalar-arith|sql|select age + 1 from compat-sql
+scalar-abs|sql|select abs(balance) from compat-sql
+scalar-concat|sql|select concat(name, '-', city) from compat-sql
+scalar-case|sql|select case when age > 30 then 'old' else 'young' end from compat-sql
+scalar-if|sql|select if(age > 30, 'old', 'young') from compat-sql
+scalar-ifnull|sql|select ifnull(age, -1) from compat-sql
+scalar-year|sql|select year(joined) from compat-sql
+scalar-date-format|sql|select date_format(joined, '%Y-%m') from compat-sql
+scalar-where|sql|select name from compat-sql where abs(balance) > 10
+where-in-expression|sql|select name from compat-sql where length(name) = 3
+join|sql|select a.name from compat-sql a join compat-sql-b b on a.name = b.name
+left-join|sql|select a.name, b.n from compat-sql a left join compat-sql-b b on a.name = b.name
+subquery|sql|select name from compat-sql where age in (select n from compat-sql-b)
+subquery-from|sql|select x.name from (select name from compat-sql) x
+union|sql|select name from compat-sql union select name from compat-sql-b
+window|sql|select name, rank() over (order by age) from compat-sql
+multi-index|sql|select name from compat-sql, compat-sql-b
+wildcard-index|sql|select name from compat-sql*
+show-tables|sql|show tables like compat-sql%
+show-tables-all|sql|show tables like %
+describe|sql|describe tables like compat-sql
+describe-columns|sql|describe tables like compat-sql column like na%
+select-no-from|sql|select 1 + 1
+select-function-no-from|sql|select abs(-3)
+syntax-error|sql|select from
+syntax-error-trailing|sql|select name from compat-sql where
+unknown-index|sql|select name from compat-sql-missing
+unknown-field|sql|select nope from compat-sql
+unknown-field-where|sql|select name from compat-sql where nope = 1
+unknown-function|sql|select nope(name) from compat-sql
+type-mismatch|sql|select name from compat-sql where age = 'x'
+delete|sql|delete from compat-sql where age > 1
+insert|sql|insert into compat-sql values (1)
+create|sql|create table t (a int)
+empty|sql|
+ppl-all|ppl|source=compat-sql
+ppl-fields|ppl|source=compat-sql | fields name, age
+ppl-where|ppl|source=compat-sql | where age > 26 | fields name, age
+ppl-where-and|ppl|source=compat-sql | where age > 20 and city = 'x' | fields name
+ppl-sort|ppl|source=compat-sql | sort - age | fields name, age
+ppl-sort-asc|ppl|source=compat-sql | sort age | fields name, age
+ppl-head|ppl|source=compat-sql | sort name | head 2 | fields name
+ppl-head-from|ppl|source=compat-sql | sort name | head 2 from 1 | fields name
+ppl-stats-count|ppl|source=compat-sql | stats count()
+ppl-stats-by|ppl|source=compat-sql | stats count() as c, avg(age) by city
+ppl-stats-by-sort|ppl|source=compat-sql | stats count() as c by city | sort - c
+ppl-dedup|ppl|source=compat-sql | dedup city | fields city
+ppl-eval|ppl|source=compat-sql | eval double_age = age * 2 | fields name, double_age
+ppl-rename|ppl|source=compat-sql | rename name as n | fields n
+ppl-top|ppl|source=compat-sql | top city
+ppl-rare|ppl|source=compat-sql | rare city
+ppl-parse|ppl|source=compat-sql | parse name '(?<first>.)(?<rest>.*)' | fields first, rest
+ppl-fields-minus|ppl|source=compat-sql | fields - bio, address, tags, ip
+ppl-where-like|ppl|source=compat-sql | where like(name, 'a%') | fields name
+ppl-where-isnull|ppl|source=compat-sql | where isnull(age) | fields name
+ppl-multi-source|ppl|source=compat-sql,compat-sql-b | stats count()
+ppl-syntax-error|ppl|source=compat-sql | where
+ppl-unknown-index|ppl|source=compat-sql-missing
+ppl-unknown-field|ppl|source=compat-sql | fields nope
+ppl-unknown-command|ppl|source=compat-sql | frobnicate

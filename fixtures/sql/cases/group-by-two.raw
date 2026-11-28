@@ -1,0 +1,6 @@
+city|active|count(*)
+|true|1
+x|false|1
+x|true|2
+y|false|1
+z||1

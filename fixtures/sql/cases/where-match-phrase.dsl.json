@@ -1,0 +1,44 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "explain": {
+    "root": {
+      "name": "ProjectOperator",
+      "description": {
+        "fields": "[name]"
+      },
+      "children": [
+        {
+          "name": "OpenSearchIndexScan",
+          "description": {
+            "request": "OpenSearchQueryRequest(indexName=compat-sql, sourceBuilder={\"from\":0,\"size\":10000,\"timeout\":\"1m\",\"query\":{\"match_phrase\":{\"bio\":{\"query\":\"likes tea\",\"slop\":0,\"zero_terms_query\":\"NONE\",\"boost\":1.0}}},\"_source\":{\"includes\":[\"name\"]}}, pitId=w5u9QQEKY29tcGF0LXNxbBZPckhYLVNIQ1Q4YVhnWk9PcmhIQmdRABZySFd3TjB4R1FPdTBKd3RnM1Z4Y3dRAAAAAAAAAASPFmRkSTVYTlE4UUhXYXJZbmZWenNRNEEBFk9ySFgtU0hDVDhhWGdaT09yaEhCZ1EAAA==, cursorKeepAlive=1m, searchAfter=null, searchResponse=null)"
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  "dsl": {
+    "from": 0,
+    "size": 10000,
+    "timeout": "1m",
+    "query": {
+      "match_phrase": {
+        "bio": {
+          "query": "likes tea",
+          "slop": 0,
+          "zero_terms_query": "NONE",
+          "boost": 1.0
+        }
+      }
+    },
+    "_source": {
+      "includes": [
+        "name"
+      ]
+    }
+  }
+}

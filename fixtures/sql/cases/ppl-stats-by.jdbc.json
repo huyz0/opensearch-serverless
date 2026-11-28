@@ -1,0 +1,47 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "response": {
+    "schema": [
+      {
+        "name": "c",
+        "type": "bigint"
+      },
+      {
+        "name": "avg(age)",
+        "type": "double"
+      },
+      {
+        "name": "city",
+        "type": "string"
+      }
+    ],
+    "datarows": [
+      [
+        1,
+        41.0,
+        null
+      ],
+      [
+        3,
+        38.333333333333336,
+        "x"
+      ],
+      [
+        1,
+        25.0,
+        "y"
+      ],
+      [
+        1,
+        null,
+        "z"
+      ]
+    ],
+    "total": 4,
+    "size": 4
+  }
+}

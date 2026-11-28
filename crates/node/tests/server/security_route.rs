@@ -13,15 +13,15 @@ use oss_meta::DocSet;
 use oss_node::security_route::{SecurityService, routes};
 use oss_rest::{Router, Server};
 
-const BUF: usize = 1 << 16;
-const API: &str = "/_plugins/_security/api";
+pub(crate) const BUF: usize = 1 << 16;
+pub(crate) const API: &str = "/_plugins/_security/api";
 
-struct Rig {
-    server: Server,
-    store: Arc<Emulator>,
+pub(crate) struct Rig {
+    pub(crate) server: Server,
+    pub(crate) store: Arc<Emulator>,
 }
 
-fn rig() -> Rig {
+pub(crate) fn rig() -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let service = Arc::new(SecurityService::new(&blobs, "", BUF, 4).expect("service"));
@@ -33,7 +33,7 @@ fn rig() -> Rig {
     Rig { server, store }
 }
 
-fn call(r: &Rig, method: &str, target: &str, body: Option<&str>) -> (u16, String) {
+pub(crate) fn call(r: &Rig, method: &str, target: &str, body: Option<&str>) -> (u16, String) {
     let reply = support::request(
         r.server.local_addr(),
         method,
@@ -46,7 +46,7 @@ fn call(r: &Rig, method: &str, target: &str, body: Option<&str>) -> (u16, String
     )
 }
 
-fn stored(r: &Rig, kind: DocKind, name: &str) -> String {
+pub(crate) fn stored(r: &Rig, kind: DocKind, name: &str) -> String {
     let set = DocSet::new(Arc::clone(&r.store) as Arc<dyn BlobStore>, "", kind).expect("set");
     let (mut marker, mut doc) = (vec![0u8; BUF], vec![0u8; BUF]);
     let len = set
@@ -56,7 +56,7 @@ fn stored(r: &Rig, kind: DocKind, name: &str) -> String {
     String::from_utf8(doc[..len].to_vec()).expect("utf8")
 }
 
-fn total(r: &Rig, ops: &[S3Op]) -> u64 {
+pub(crate) fn total(r: &Rig, ops: &[S3Op]) -> u64 {
     ops.iter().map(|op| r.store.meter().count(*op)).sum()
 }
 
