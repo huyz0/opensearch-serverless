@@ -96,3 +96,26 @@ pub fn install(
         )
         .map_err(InstallError::Route)
 }
+
+/// [`install`] for the node's own assembly: no plugin is linked into this
+/// build, and the wall clock drives the breakers.
+///
+/// # Errors
+///
+/// What [`install`] refuses, as the node's assembly error.
+pub(crate) fn install_configured(
+    router: Router,
+    policy_text: &str,
+) -> Result<Router, crate::assemble_error::AssembleError> {
+    use crate::assemble_error::AssembleError;
+    install(
+        router,
+        policy_text,
+        &HashMap::new(),
+        crate::clock::now_millis,
+    )
+    .map_err(|e| match e {
+        InstallError::Route(r) => AssembleError::Route(r),
+        InstallError::Policy(why) => AssembleError::Plugins(why),
+    })
+}

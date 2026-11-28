@@ -10,6 +10,7 @@ mod routes;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use assemble::install_configured;
 pub use assemble::{InstallError, STATUS_PATH, install};
 pub use events::{Counts, Dispatcher, QUEUE};
 pub use policy::{Entry, Policy, PolicyError, PolicyTier};

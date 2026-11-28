@@ -166,16 +166,7 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = crate::plugins::install(
-        router,
-        &config.plugin_policy,
-        &std::collections::HashMap::new(),
-        crate::clock::now_millis,
-    )
-    .map_err(|e| match e {
-        crate::plugins::InstallError::Route(r) => AssembleError::Route(r),
-        crate::plugins::InstallError::Policy(why) => AssembleError::Plugins(why),
-    })?;
+    let router = crate::plugins::install_configured(router, &config.plugin_policy)?;
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,
