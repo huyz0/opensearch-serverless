@@ -27,6 +27,10 @@ impl Backend for NodeBackend {
         self.settings.set_write_block(index, on)
     }
 
+    fn set_replicas(&self, index: &str, n: u32) -> Result<(), String> {
+        self.settings.set_replicas(index, n)
+    }
+
     fn delete(&self, index: &str) -> Result<(), String> {
         self.deletes.delete_index(index)
     }
