@@ -20,6 +20,7 @@ mod date_text;
 mod dates;
 mod error;
 mod field;
+mod geo;
 mod intern;
 pub mod json;
 mod knn;
@@ -92,6 +93,9 @@ pub struct ParseOptions {
     /// Whether `nested` objects are indexed (`serverless.nested.enabled`);
     /// off, a mapping with one is unsupported.
     pub nested: bool,
+    /// Whether `geo_point` fields are indexed (`serverless.geospatial.index_fields`);
+    /// off, a mapping with one is unsupported.
+    pub geo: bool,
 }
 
 impl Mapping {
@@ -131,6 +135,7 @@ impl Mapping {
         let mapping = Self::parse_unwrapped(text).map_err(MappingError::failed_to_parse)?;
         mapping.check_knn(options)?;
         mapping.check_nested(options)?;
+        mapping.check_geo(options)?;
         if !pinned {
             mapping.check_ext_analyzers()?;
         }
@@ -265,6 +270,7 @@ impl Mapping {
                 ParseOptions {
                     knn: Some(true),
                     nested: true,
+                    geo: true,
                 },
             ),
         }
@@ -285,6 +291,7 @@ impl Mapping {
                 ParseOptions {
                     knn: Some(true),
                     nested: true,
+                    geo: true,
                 },
             ),
         }

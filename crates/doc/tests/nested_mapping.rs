@@ -5,6 +5,7 @@ use oss_doc::mapping::{Mapping, ParseOptions};
 const ON: ParseOptions = ParseOptions {
     knn: None,
     nested: true,
+    geo: false,
 };
 
 const NESTED: &str = r#"{"properties":{"title":{"type":"keyword"},"c":{"type":"nested","properties":{"w":{"type":"keyword"},"d":{"type":"nested","properties":{"x":{"type":"long"}}}}},"o":{"properties":{"n":{"type":"nested","properties":{"y":{"type":"long"}}}}}}}"#;
@@ -48,6 +49,7 @@ fn a_caller_that_does_not_index_nested_is_told_it_is_unsupported() {
     let off = ParseOptions {
         knn: None,
         nested: false,
+        geo: false,
     };
     assert!(Mapping::parse_with(NESTED.as_bytes(), off).is_err());
     // A stored mapping is read whatever the setting is now.
@@ -66,6 +68,7 @@ fn what_is_not_indexed_in_a_nested_object_is_unsupported() {
         let both = ParseOptions {
             knn: Some(true),
             nested: true,
+            geo: false,
         };
         let e = Mapping::parse_with(text.as_bytes(), both).expect_err("refused");
         assert!(e.is_unsupported(), "{body}: {e:?}");

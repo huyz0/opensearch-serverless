@@ -18,6 +18,7 @@ use oss_writer::mapping::{Mapping, ParseOptions};
 mod backing;
 mod created;
 mod mapping;
+mod options;
 
 use crate::index_templates::TemplateSets;
 use crate::lifecycle_bus::Bus;
@@ -66,6 +67,7 @@ pub struct IndexService {
     templates: Option<Arc<TemplateSets>>,
     knn: bool,
     nested: bool,
+    geo: bool,
     pins: Option<Arc<dyn PinPolicy>>,
     pipelines: bool,
     search_pipelines: bool,
@@ -86,6 +88,7 @@ impl IndexService {
             templates: None,
             knn: false,
             nested: false,
+            geo: false,
             pins: None,
             pipelines: false,
             search_pipelines: false,
@@ -99,14 +102,6 @@ impl IndexService {
     #[must_use]
     pub fn with_knn(mut self, on: bool) -> Self {
         self.knn = on;
-        self
-    }
-
-    /// Accepts a `nested` object in a created index's mapping when `on`
-    /// (`serverless.nested.enabled`); off, it is refused as unsupported.
-    #[must_use]
-    pub fn with_nested(mut self, on: bool) -> Self {
-        self.nested = on;
         self
     }
 
@@ -296,6 +291,7 @@ impl IndexService {
             let options = ParseOptions {
                 knn: self.knn.then_some(true),
                 nested: self.nested,
+                geo: self.geo,
             };
             let parsed = if pins.is_empty() {
                 Mapping::parse_with(text.as_bytes(), options)

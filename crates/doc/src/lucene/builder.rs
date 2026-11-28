@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use lucene_codecs::field_infos::IndexOptions;
 use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
+use lucene_index::document::{LatLonDocValuesField, LatLonPoint};
 use lucene_index::index_writer::{DocumentVector, ExplicitDocument, ExplicitFields};
 
 use lucene_util::half_float::half_float_to_sortable_short;
@@ -14,6 +15,14 @@ use super::encode::{
 };
 use super::fields::{Shape, Spec};
 use super::invert::Inverted;
+use crate::mapping::MappingError;
+use crate::mapping::json::java_double;
+
+/// Lucene's refusal of a coordinate it cannot encode.
+fn geo_error(e: impl std::fmt::Display) -> MappingError {
+    // ALLOC: error path; one message.
+    MappingError::illegal_argument(&e.to_string())
+}
 
 /// A Lucene document under construction.
 #[derive(Default)]
@@ -88,6 +97,37 @@ impl Builder {
     pub(super) fn double(&mut self, number: i32, spec: &Spec, d: f64) {
         let s = double_to_sortable_long(d);
         self.number(number, spec, long_point(s), s, Stored::Double(d));
+    }
+
+    /// A `geo_point`: a `LatLonPoint`, a `LatLonDocValuesField` and the
+    /// stored `"lat, lon"` text.
+    pub(super) fn geo_point(
+        &mut self,
+        number: i32,
+        spec: &Spec,
+        lat: f64,
+        lon: f64,
+    ) -> Result<(), MappingError> {
+        if spec.points {
+            self.point(
+                number,
+                LatLonPoint::encode(lat, lon).map_err(geo_error)?.to_vec(),
+            );
+        }
+        if spec.doc_values {
+            self.doc_value(
+                number,
+                LatLonDocValuesField::encode(lat, lon).map_err(geo_error)?,
+            );
+        }
+        if spec.store {
+            // ALLOC: one stored value, a short text.
+            self.stored(
+                number,
+                Stored::String(format!("{}, {}", java_double(lat), java_double(lon))),
+            );
+        }
+        Ok(())
     }
 
     /// A `half_float`: its sortable short in a 2-byte point and as the doc value.

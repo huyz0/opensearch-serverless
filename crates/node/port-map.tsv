@@ -394,3 +394,5 @@ src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors 
 src/ism_run/schedule.rs	new		the runner schedule: the indices this node owns and evaluates, found by registry and rendezvous, claimed by slot
 src/ism_run/schedule_tests.rs	new		the schedule over an emulator
 src/lifecycle_bus.rs	new		the fill-once handle index and node events are published through
+src/geospatial_setting.rs	new		the node setting that accepts the geo_point field type; the Java shell always maps it
+src/index_route/options.rs	new		the create-time switches (nested, geo_point) read when a mapping is parsed
