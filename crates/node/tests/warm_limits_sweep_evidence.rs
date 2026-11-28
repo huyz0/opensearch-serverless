@@ -128,7 +128,25 @@ fn the_warm_copy_limits_against_one_peer() {
             std::thread::sleep(Duration::from_secs(5));
             let tier = root.join(format!("n2-{round}-{label}"));
             let started = Instant::now();
-            let joiner = spawn_joiner(&cluster, &tier, *warm, "n2", extra);
+            // `JOINERS=n` in a config starts n joiners together (each with its
+            // own tier), and ready is when the last one is.
+            let count = extra
+                .iter()
+                .find(|(k, _)| k == "JOINERS")
+                .and_then(|(_, v)| v.parse::<usize>().ok())
+                .unwrap_or(1);
+            let env: Settings = extra
+                .iter()
+                .filter(|(k, _)| k != "JOINERS")
+                .cloned()
+                .collect();
+            let mut joiners = Vec::new();
+            for n in 0..count {
+                let id = format!("n{}", n + 2);
+                joiners.push(spawn_joiner(&cluster, &tier.join(&id), *warm, &id, &env));
+            }
+            let joiner = &joiners[0];
+            let mut ready_at = vec![0.0_f64; joiners.len()];
             let mut ms = Vec::new();
             let mut ready = 0.0;
             let mut held_at_ready = 0;
@@ -139,8 +157,13 @@ fn the_warm_copy_limits_against_one_peer() {
                 i += 1;
                 let took = query(peer, i, 10);
                 ms.push(took);
-                if ready == 0.0 && send(joiner.http, "GET", "/_serverless/ready", "").0 == 200 {
-                    ready = started.elapsed().as_secs_f64();
+                for (at, j) in ready_at.iter_mut().zip(&joiners) {
+                    if *at == 0.0 && send(j.http, "GET", "/_serverless/ready", "").0 == 200 {
+                        *at = started.elapsed().as_secs_f64();
+                    }
+                }
+                if ready == 0.0 && ready_at.iter().all(|a| *a > 0.0) {
+                    ready = ready_at.iter().copied().fold(0.0, f64::max);
                     held_at_ready = used(&tier);
                 }
                 if let Some(rest) = gap.checked_sub(t.elapsed()) {
@@ -156,7 +179,7 @@ fn the_warm_copy_limits_against_one_peer() {
                 ms.last().copied().unwrap_or(0.0),
                 ms.len()
             );
-            drop(joiner);
+            drop(joiners);
             let _ = std::fs::remove_dir_all(&tier);
         }
     }

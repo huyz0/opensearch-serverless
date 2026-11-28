@@ -11,7 +11,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use lucene_store::page_cache::PageCache;
 use oss_transport::actions::tail::ShardRef;
@@ -150,6 +150,39 @@ fn open_shards(
     opened
 }
 
+/// How many times a page batch is asked for before the peer is given up on:
+/// a peer serving its limit of warm requests refuses the next, and the
+/// refusal is only worth waiting out.
+const PAGES_ATTEMPTS: usize = 6;
+
+/// The wait before the first retry; each retry waits twice as long.
+const RETRY_BACKOFF: Duration = Duration::from_millis(25);
+
+/// A call that failed after this long was a timeout, not a refusal, and is
+/// not asked again.
+const REFUSAL_WITHIN: Duration = Duration::from_secs(1);
+
+/// The answer to `ask`, retried after a backoff when the peer refuses fast.
+fn pages_with_retries(
+    peer: &dyn Peer,
+    ask: &PagesRequest,
+    pause: &dyn Pause,
+) -> Option<PagesResponse> {
+    let mut wait = RETRY_BACKOFF;
+    for attempt in 1..=PAGES_ATTEMPTS {
+        let started = Instant::now();
+        if let Some(answer) = peer.pages(ask) {
+            return Some(answer);
+        }
+        if attempt == PAGES_ATTEMPTS || started.elapsed() >= REFUSAL_WITHIN {
+            return None;
+        }
+        pause.pause(wait);
+        wait = wait.saturating_mul(2);
+    }
+    None
+}
+
 fn pause_for(bytes: u64, rate: u64) -> Duration {
     Duration::from_nanos(
         bytes
@@ -233,7 +266,7 @@ pub fn copy_from_peer(
             // ALLOC: one ask per page of the batch, at most MAX_PAGES_PER_REQUEST.
             asks: batch.iter().map(|(ask, _)| ask.clone()).collect(),
         };
-        let Some(answer) = peer.pages(&ask) else {
+        let Some(answer) = pages_with_retries(peer, &ask, pause) else {
             break Outcome::Unreachable;
         };
         let asked: HashSet<(&str, u64)> = batch

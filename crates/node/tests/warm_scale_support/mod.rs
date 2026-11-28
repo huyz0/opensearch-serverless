@@ -27,12 +27,18 @@ pub fn send(addr: SocketAddr, method: &str, target: &str, body: &str) -> (u16, S
     };
     s.set_read_timeout(Some(Duration::from_secs(900)))
         .expect("timeout");
+    // No delay and one write: a head and a body in two small writes meet
+    // Nagle's algorithm and the peer's delayed acknowledgement, which adds
+    // about 40 ms to a request now and then and was read as a node's median
+    // latency stepping from 10 to 50 ms.
+    let _ = s.set_nodelay(true);
     let head = format!(
         "{method} {target} HTTP/1.1\r\nhost: test\r\nconnection: close\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n",
         body.len()
     );
-    s.write_all(head.as_bytes()).expect("head");
-    let _ = s.write_all(body.as_bytes());
+    let mut request = head.into_bytes();
+    request.extend_from_slice(body.as_bytes());
+    let _ = s.write_all(&request);
     let mut raw = Vec::new();
     let _ = s.read_to_end(&mut raw);
     let text = String::from_utf8_lossy(&raw).into_owned();
