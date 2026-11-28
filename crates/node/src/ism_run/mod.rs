@@ -8,6 +8,7 @@ use backend::Backend;
 use serde_json::{Value, json};
 
 pub mod backend;
+#[cfg(feature = "coordinator")]
 pub mod node_backend;
 pub mod schedule;
 
