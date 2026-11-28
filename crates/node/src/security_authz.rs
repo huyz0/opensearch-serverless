@@ -285,6 +285,11 @@ const ALL_ACCESS: &[&str] = &[
     "/_pit/{id}",
     "/_serverless/usage",
     "/_prometheus/metrics",
+    "/_plugins/_notifications/configs",
+    "/_plugins/_notifications/configs/{id}",
+    "/_plugins/_notifications/features",
+    "/_plugins/_notifications/channels",
+    "/_plugins/_notifications/feature/test/{id}",
 ];
 
 /// The rule for a registered route, or none when the table has no row for

@@ -165,7 +165,7 @@ impl Config {
             search_pipelines: false,
             ltr: false,
             ism: false,
-            notifications: false,
+            notifications: true,
             ad: false,
             ltr_max_window: 1_000,
             ltr_cache_ttl_secs: 30,
