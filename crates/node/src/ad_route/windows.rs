@@ -124,6 +124,15 @@ pub fn delay_ms(detector: &Value) -> i64 {
 ///
 /// A detector whose features cannot be read.
 pub fn request(detector: &Value, span: &Span) -> Result<Value, String> {
+    request_entities(detector, span, MAX_ENTITIES)
+}
+
+/// [`request`] with up to `per_level` entities in each `terms` level.
+///
+/// # Errors
+///
+/// A detector whose features cannot be read.
+pub fn request_entities(detector: &Value, span: &Span, per_level: usize) -> Result<Value, String> {
     let time_field = detector["time_field"]
         .as_str()
         .ok_or("the detector has no time field")?;
@@ -136,7 +145,7 @@ pub fn request(detector: &Value, span: &Span) -> Result<Value, String> {
     let mut inner = Value::Object(subs);
     for (level, field) in categories(detector).iter().enumerate().rev() {
         inner = json!({level_name(level): {
-            "terms": {"field": field, "size": MAX_ENTITIES},
+            "terms": {"field": field, "size": per_level},
             "aggs": inner,
         }});
     }
@@ -261,6 +270,20 @@ pub fn parse_entities(
     detector: &Value,
     span: &Span,
 ) -> Result<Vec<Entity>, String> {
+    parse_entities_up_to(answer, detector, span, MAX_ENTITIES)
+}
+
+/// [`parse_entities`] keeping the `limit` entities with the most documents.
+///
+/// # Errors
+///
+/// An answer that does not hold the histogram.
+pub fn parse_entities_up_to(
+    answer: &Value,
+    detector: &Value,
+    span: &Span,
+    limit: usize,
+) -> Result<Vec<Entity>, String> {
     let buckets = answer["aggregations"]["windows"]["buckets"]
         .as_array()
         .ok_or("the search answer has no windows")?;
@@ -287,7 +310,7 @@ pub fn parse_entities(
     }
     let mut docs: Vec<(Vec<(String, String)>, u64)> = seen.into_iter().collect();
     docs.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-    docs.truncate(MAX_ENTITIES);
+    docs.truncate(limit);
     let mut found: Vec<Entity> = docs
         .into_iter()
         .map(|(key, docs)| Entity {
