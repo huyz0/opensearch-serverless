@@ -3,12 +3,12 @@
 use oss_types::settings::{BoolSetting, IntSetting, LongSetting, Scope, Setting};
 
 /// `serverless.ltr.enabled`: serve `/_ltr` and `/_plugins/_ltr`, the stock
-/// plugin's feature store, natively, and `sltr` rescores. Default `false`
-/// until the measurements the spec names are recorded; with it off those
-/// paths go to a plugin upstream when one is configured.
+/// plugin's feature store, natively, and `sltr` rescores. Default `true`
+/// since the measurements the spec names were recorded; with it off those
+/// paths answer as an unknown route.
 pub const LTR_ENABLED: BoolSetting = BoolSetting::new(
     "serverless.ltr.enabled",
-    false,
+    true,
     Scope::Node,
     "Serve the learning to rank plugin's feature store, models and sltr rescore over document \
      sets in the object store.",

@@ -43,7 +43,7 @@ Management calls: the stored-scripts shape (put 1 GET and 2 PUTs, read 2 GETs, n
 
 ## Switch
 
-`serverless.ltr.enabled` (`OSS_LTR`), default off; with it off `/_ltr` and `/_plugins/_ltr` go to a plugin upstream when one is configured, and the proxy's prefixes for them are removed when the default turns on, not before. It flips on only when the measurements are recorded in VERIFIED.md: a search's latency with and without `sltr` at a 1,000-hit window and 50 features, the cache's bytes, and the request counts of AC-6 and AC-10; if the rescore costs more than a plain search by more than its own work, the default stays off. Slice 3 ships with `serverless.ltr.max_window` (default 1,000, the most hits an `sltr` rescore scores) and `serverless.ltr.cache_ttl` and `serverless.ltr.cache_bytes`, which the cache reserves from the open-indexes pool.
+`serverless.ltr.enabled` (`OSS_LTR`), default on since the measurements in VERIFIED.md were recorded (the rescore costs what its feature queries cost, and no extra requests); with it off every route answers as an unknown route, and the proxy no longer forwards `/_ltr` and `/_plugins/_ltr`. Slice 3 ships with `serverless.ltr.max_window` (default 1,000, the most hits an `sltr` rescore scores) and `serverless.ltr.cache_ttl` and `serverless.ltr.cache_bytes`, which the cache reserves from the open-indexes pool.
 
 ## Risks
 

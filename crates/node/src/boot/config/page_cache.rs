@@ -45,6 +45,9 @@ pub struct WarmPeer {
     pub parallel_peers: u64,
     /// The most of a peer's shards a joining node opens at once.
     pub open_parallel: u64,
+    /// The most bytes a second a peer serves to joining nodes, across all of
+    /// them.
+    pub serve_bytes_per_second: u64,
 }
 
 /// The longest a joining node is held out of the readers, in seconds.
@@ -81,9 +84,15 @@ pub(in crate::boot) fn read(
             ready_percent: bounded("OSS_WARM_READY_PERCENT", "90", 1, 100)?,
             max_wait_secs: bounded("OSS_WARM_MAX_WAIT_SECONDS", "60", 1, 86_400)?
                 .min(MAX_WAIT_CAP_SECS),
-            bytes_per_second: bounded("OSS_WARM_BYTES_PER_SECOND", "67108864", 1, MAX_BYTES)?,
+            bytes_per_second: bounded("OSS_WARM_BYTES_PER_SECOND", "268435456", 1, MAX_BYTES)?,
             parallel_peers: bounded("OSS_WARM_PARALLEL_PEERS", "4", 1, 64)?,
             open_parallel: bounded("OSS_WARM_OPEN_PARALLEL", "8", 1, 64)?,
+            serve_bytes_per_second: bounded(
+                "OSS_WARM_SERVE_BYTES_PER_SECOND",
+                "134217728",
+                1,
+                MAX_BYTES,
+            )?,
         })
     } else {
         None
@@ -160,9 +169,10 @@ mod tests {
                 max_concurrent: 2,
                 ready_percent: 90,
                 max_wait_secs: 60,
-                bytes_per_second: 64 << 20,
+                bytes_per_second: 256 << 20,
                 parallel_peers: 4,
                 open_parallel: 8,
+                serve_bytes_per_second: 128 << 20,
             })
         );
     }
@@ -181,6 +191,7 @@ mod tests {
             ("OSS_WARM_BYTES_PER_SECOND", "1000"),
             ("OSS_WARM_PARALLEL_PEERS", "3"),
             ("OSS_WARM_OPEN_PARALLEL", "5"),
+            ("OSS_WARM_SERVE_BYTES_PER_SECOND", "2000"),
         ]);
         let warm = read_with(&vars).expect("reads").expect("tier").warm;
         assert_eq!(
@@ -195,6 +206,7 @@ mod tests {
                 bytes_per_second: 1000,
                 parallel_peers: 3,
                 open_parallel: 5,
+                serve_bytes_per_second: 2000,
             })
         );
         for (key, bad) in [
@@ -209,6 +221,7 @@ mod tests {
             ("OSS_WARM_PARALLEL_PEERS", "65"),
             ("OSS_WARM_OPEN_PARALLEL", "0"),
             ("OSS_WARM_OPEN_PARALLEL", "65"),
+            ("OSS_WARM_SERVE_BYTES_PER_SECOND", "0"),
         ] {
             let mut vars = TIER.to_vec();
             vars.extend([("OSS_WARM_ON_JOIN", "true"), (key, bad)]);

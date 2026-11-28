@@ -36,11 +36,11 @@ fn the_administrator_is_a_pair_and_the_refresh_is_bounded() {
     );
 }
 
-// docs/specs/ltr: the learning to rank store is a switch, off until measured
+// docs/specs/ltr: the learning to rank store is a switch, on since it was measured
 #[test]
-fn learning_to_rank_is_off_by_default_and_set_by_its_variable() {
-    assert!(!NodeConfig::from_lookup(lookup(FS)).expect("valid").ltr);
-    let on = NodeConfig::from_lookup(lookup(&with(&[("OSS_LTR", "true")])));
-    assert!(on.expect("valid").ltr);
+fn learning_to_rank_is_on_by_default_and_set_by_its_variable() {
+    assert!(NodeConfig::from_lookup(lookup(FS)).expect("valid").ltr);
+    let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_LTR", "false")])));
+    assert!(!off.expect("valid").ltr);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_LTR", "maybe")]))).is_err());
 }

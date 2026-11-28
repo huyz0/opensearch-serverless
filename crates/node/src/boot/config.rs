@@ -329,7 +329,7 @@ impl NodeConfig {
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
-        let ltr = flag("OSS_LTR", "false")?;
+        let ltr = flag("OSS_LTR", "true")?;
         let ltr_bounds = ltr::read(&bounded)?;
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
         let security = flag("OSS_SECURITY", "false")?;
