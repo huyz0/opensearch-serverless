@@ -1,0 +1,6437 @@
+{
+  "name": "geo_point values in every input form",
+  "description": "Documents with each form a geo_point accepts and the ones it refuses, read back through _source, fields, docvalue_fields (with formats), get and mget, plus the queries and aggregations a geo field answers or refuses that are not geo.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-geo-values",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create compat-geo-values",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values",
+        "body": {
+          "mappings": {
+            "properties": {
+              "label": {
+                "type": "keyword"
+              },
+              "location": {
+                "type": "geo_point"
+              }
+            }
+          },
+          "settings": {
+            "number_of_replicas": 0,
+            "number_of_shards": 1
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-geo-values"
+        }
+      }
+    },
+    {
+      "name": "mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-geo-values": {
+            "mappings": {
+              "properties": {
+                "label": {
+                  "type": "keyword"
+                },
+                "location": {
+                  "type": "geo_point"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "index: object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/1",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "object",
+          "location": {
+            "lat": 41.12,
+            "lon": -71.34
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: object with string numbers",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/2",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "object with string numbers",
+          "location": {
+            "lat": "41.12",
+            "lon": "-71.34"
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "2",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 1,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: object with integers",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/3",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "object with integers",
+          "location": {
+            "lat": 41,
+            "lon": -71
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "3",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 2,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: object with extra keys",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/4",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "object with extra keys",
+          "location": {
+            "lat": 41.12,
+            "lon": -71.34,
+            "name": "x"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "field must be either [lon|lat], [type|coordinates], or [geohash]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "field must be either [lon|lat], [type|coordinates], or [geohash]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "index: lat,lon string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/5",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lat,lon string",
+          "location": "41.12,-71.34"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "5",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 3,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: lat,lon string with spaces",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/6",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lat,lon string with spaces",
+          "location": " 41.12 , -71.34 "
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "6",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 4,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: geohash string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/7",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "geohash string",
+          "location": "drm3btev3e86"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "7",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 5,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: short geohash string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/8",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "short geohash string",
+          "location": "drm3b"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "8",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 6,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: upper case geohash string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/9",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "upper case geohash string",
+          "location": "DRM3BTEV3E86"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "unsupported symbol [D] in geohash [DRM3BTEV3E86]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "unsupported symbol [D] in geohash [DRM3BTEV3E86]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "unsupported symbol [D] in geohash [DRM3BTEV3E86]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "index: geohash object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/10",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "geohash object",
+          "location": {
+            "geohash": "drm3btev3e86"
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "10",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 7,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: lon,lat array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/11",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lon,lat array",
+          "location": [
+            -71.34,
+            41.12
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "11",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 8,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: lon,lat,z array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/12",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lon,lat,z array",
+          "location": [
+            -71.34,
+            41.12,
+            10.5
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "12",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 9,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: lat,lon,z string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/13",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lat,lon,z string",
+          "location": "41.12,-71.34,10.5"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "13",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 10,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: WKT point",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/14",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "WKT point",
+          "location": "POINT (-71.34 41.12)"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "14",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 11,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: WKT point without space",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/15",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "WKT point without space",
+          "location": "POINT(-71.34 41.12)"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "15",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 12,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: WKT point lower case",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/16",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "WKT point lower case",
+          "location": "point (-71.34 41.12)"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "16",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 13,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: WKT point with z",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/17",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "WKT point with z",
+          "location": "POINT Z (-71.34 41.12 10.5)"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "Invalid WKT format"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "Invalid WKT format",
+              "caused_by": {
+                "type": "parse_exception",
+                "reason": "expected EMPTY or ( but found: Z"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "index: GeoJSON point",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/18",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "GeoJSON point",
+          "location": {
+            "coordinates": [
+              -71.34,
+              41.12
+            ],
+            "type": "Point"
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "18",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 14,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: GeoJSON point with z",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/19",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "GeoJSON point with z",
+          "location": {
+            "coordinates": [
+              -71.34,
+              41.12,
+              7
+            ],
+            "type": "Point"
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "19",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 15,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: array of objects",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/20",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "array of objects",
+          "location": [
+            {
+              "lat": 41.12,
+              "lon": -71.34
+            },
+            {
+              "lat": -10.5,
+              "lon": 20.25
+            }
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "20",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 16,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: array of mixed forms",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/21",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "array of mixed forms",
+          "location": [
+            "41.12,-71.34",
+            [
+              20.25,
+              -10.5
+            ],
+            "POINT (1 2)",
+            {
+              "lat": 3,
+              "lon": 4
+            }
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "21",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 17,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: array of two arrays",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/22",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "array of two arrays",
+          "location": [
+            [
+              -71.34,
+              41.12
+            ],
+            [
+              20.25,
+              -10.5
+            ]
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "22",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 18,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: empty array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/23",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "empty array",
+          "location": []
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "23",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 19,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: null",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/24",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "null",
+          "location": null
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "24",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 20,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: boundary pole and dateline",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/25",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "boundary pole and dateline",
+          "location": {
+            "lat": 90,
+            "lon": 180
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "25",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 21,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: boundary south west",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/26",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "boundary south west",
+          "location": {
+            "lat": -90,
+            "lon": -180
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "26",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 22,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: tiny fractions",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/27",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "tiny fractions",
+          "location": {
+            "lat": 1e-06,
+            "lon": -1e-06
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "27",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 23,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "index: many decimals",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/28",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "many decimals",
+          "location": {
+            "lat": 12.3456789012345,
+            "lon": 98.7654321098765
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "28",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 24,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "refused: lat out of range",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/29",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lat out of range",
+          "location": {
+            "lat": 91,
+            "lon": 0
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [location] of type [geo_point]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "illegal latitude value [91.0] for location"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: lon out of range",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/30",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lon out of range",
+          "location": {
+            "lat": 0,
+            "lon": 181
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [location] of type [geo_point]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "illegal longitude value [181.0] for location"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: lat below range",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/31",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lat below range",
+          "location": {
+            "lat": -90.5,
+            "lon": 0
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [location] of type [geo_point]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "illegal latitude value [-90.5] for location"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: lon below range",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/32",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lon below range",
+          "location": {
+            "lat": 0,
+            "lon": -180.5
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [location] of type [geo_point]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "illegal longitude value [-180.5] for location"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: missing lon",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/33",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "missing lon",
+          "location": {
+            "lat": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "field [lon] missing"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "field [lon] missing"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: missing lat",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/34",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "missing lat",
+          "location": {
+            "lon": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "field [lat] missing"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "field [lat] missing"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: text",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/35",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "text",
+          "location": "not a point"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "Invalid WKT format"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "Invalid WKT format",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Unknown geometry type: not"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: one number string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/36",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "one number string",
+          "location": "41.12"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "unsupported symbol [.] in geohash [41.12]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "unsupported symbol [.] in geohash [41.12]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "unsupported symbol [.] in geohash [41.12]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: three part string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/37",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "three part string",
+          "location": "1,2,3,4"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "failed to parse [1,2,3,4], expected 2 or 3 coordinates but found: [4]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "failed to parse [1,2,3,4], expected 2 or 3 coordinates but found: [4]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: one element array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/38",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "one element array",
+          "location": [
+            1
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [location] of type [geo_point]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "input_coercion_exception",
+              "reason": "Current token (END_ARRAY) not numeric, cannot use numeric value accessors\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #43]",
+              "caused_by": {
+                "type": "input_coercion_exception",
+                "reason": "Current token (END_ARRAY) not numeric, cannot use numeric value accessors\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #43]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: number",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/39",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "number",
+          "location": 5
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "geo_point expected"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "geo_point expected"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: boolean",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/40",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "boolean",
+          "location": true
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "geo_point expected"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "geo_point expected"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: bad geohash",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/41",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "bad geohash",
+          "location": "!!!!"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "unsupported symbol [!] in geohash [!!!!]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "unsupported symbol [!] in geohash [!!!!]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "unsupported symbol [!] in geohash [!!!!]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: empty string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/42",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "empty string",
+          "location": ""
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "empty geohash"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "empty geohash",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "empty geohash"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: empty object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/43",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "empty object",
+          "location": {}
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "token [END_OBJECT] not allowed"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "token [END_OBJECT] not allowed"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: lat is a string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/44",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lat is a string",
+          "location": {
+            "lat": "abc",
+            "lon": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "[lon] and [lat] must be valid double values"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "[lon] and [lat] must be valid double values",
+              "caused_by": {
+                "type": "number_format_exception",
+                "reason": "For input string: \"abc\""
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: lat is an object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/45",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "lat is an object",
+          "location": {
+            "lat": {
+              "x": 1
+            },
+            "lon": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "lat must be a number"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "lat must be a number"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: bad WKT",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/46",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "bad WKT",
+          "location": "POINT (1)"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "Invalid WKT format"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "Invalid WKT format",
+              "caused_by": {
+                "type": "parse_exception",
+                "reason": "expected number but found: ')'"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: WKT polygon",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/47",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "WKT polygon",
+          "location": "POLYGON ((0 0, 1 0, 1 1, 0 0))"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "failed to parse [POLYGON ((0 0, 1 0, 1 1, 0 0))], expected 2 or 3 coordinates but found: [4]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "failed to parse [POLYGON ((0 0, 1 0, 1 1, 0 0))], expected 2 or 3 coordinates but found: [4]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: GeoJSON polygon",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/48",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "GeoJSON polygon",
+          "location": {
+            "coordinates": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  1
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            ],
+            "type": "Polygon"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "numeric value expected"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "numeric value expected"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: GeoJSON no coordinates",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/49",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "GeoJSON no coordinates",
+          "location": {
+            "type": "Point"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "field [coordinates] missing"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "field [coordinates] missing"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: array of bad",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/50",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "array of bad",
+          "location": [
+            {
+              "lat": 1,
+              "lon": 2
+            },
+            {
+              "lat": 100,
+              "lon": 2
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [location] of type [geo_point]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "illegal latitude value [100.0] for location"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: nan string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/51",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "nan string",
+          "location": "NaN,NaN"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [location] of type [geo_point]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "invalid latitude NaN; must be between -90.0 and 90.0"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "refused: infinity",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-geo-values/_doc/52",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "label": "infinity",
+          "location": {
+            "lat": "Infinity",
+            "lon": 0
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [location] of type [geo_point]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [location] of type [geo_point]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "illegal latitude value [Infinity] for location"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "count",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_count"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "count": 25,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "all documents, _source",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "size": 50,
+          "track_total_hits": true
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object with string numbers",
+                  "location": {
+                    "lat": "41.12",
+                    "lon": "-71.34"
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object with integers",
+                  "location": {
+                    "lat": 41,
+                    "lon": -71
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon string",
+                  "location": "41.12,-71.34"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "6",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon string with spaces",
+                  "location": " 41.12 , -71.34 "
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "7",
+                "_score": 1.0,
+                "_source": {
+                  "label": "geohash string",
+                  "location": "drm3btev3e86"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "8",
+                "_score": 1.0,
+                "_source": {
+                  "label": "short geohash string",
+                  "location": "drm3b"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "10",
+                "_score": 1.0,
+                "_source": {
+                  "label": "geohash object",
+                  "location": {
+                    "geohash": "drm3btev3e86"
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "11",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lon,lat array",
+                  "location": [
+                    -71.34,
+                    41.12
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "12",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lon,lat,z array",
+                  "location": [
+                    -71.34,
+                    41.12,
+                    10.5
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "13",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon,z string",
+                  "location": "41.12,-71.34,10.5"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object",
+                  "location": {
+                    "lat": 41.12,
+                    "lon": -71.34
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "21",
+                "_score": 1.0,
+                "_source": {
+                  "label": "array of mixed forms",
+                  "location": [
+                    "41.12,-71.34",
+                    [
+                      20.25,
+                      -10.5
+                    ],
+                    "POINT (1 2)",
+                    {
+                      "lat": 3,
+                      "lon": 4
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "19",
+                "_score": 1.0,
+                "_source": {
+                  "label": "GeoJSON point with z",
+                  "location": {
+                    "coordinates": [
+                      -71.34,
+                      41.12,
+                      7
+                    ],
+                    "type": "Point"
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "20",
+                "_score": 1.0,
+                "_source": {
+                  "label": "array of objects",
+                  "location": [
+                    {
+                      "lat": 41.12,
+                      "lon": -71.34
+                    },
+                    {
+                      "lat": -10.5,
+                      "lon": 20.25
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "14",
+                "_score": 1.0,
+                "_source": {
+                  "label": "WKT point",
+                  "location": "POINT (-71.34 41.12)"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "15",
+                "_score": 1.0,
+                "_source": {
+                  "label": "WKT point without space",
+                  "location": "POINT(-71.34 41.12)"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "16",
+                "_score": 1.0,
+                "_source": {
+                  "label": "WKT point lower case",
+                  "location": "point (-71.34 41.12)"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "18",
+                "_score": 1.0,
+                "_source": {
+                  "label": "GeoJSON point",
+                  "location": {
+                    "coordinates": [
+                      -71.34,
+                      41.12
+                    ],
+                    "type": "Point"
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "22",
+                "_score": 1.0,
+                "_source": {
+                  "label": "array of two arrays",
+                  "location": [
+                    [
+                      -71.34,
+                      41.12
+                    ],
+                    [
+                      20.25,
+                      -10.5
+                    ]
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "23",
+                "_score": 1.0,
+                "_source": {
+                  "label": "empty array",
+                  "location": []
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "24",
+                "_score": 1.0,
+                "_source": {
+                  "label": "null",
+                  "location": null
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "25",
+                "_score": 1.0,
+                "_source": {
+                  "label": "boundary pole and dateline",
+                  "location": {
+                    "lat": 90,
+                    "lon": 180
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "26",
+                "_score": 1.0,
+                "_source": {
+                  "label": "boundary south west",
+                  "location": {
+                    "lat": -90,
+                    "lon": -180
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "27",
+                "_score": 1.0,
+                "_source": {
+                  "label": "tiny fractions",
+                  "location": {
+                    "lat": 1e-06,
+                    "lon": -1e-06
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "28",
+                "_score": 1.0,
+                "_source": {
+                  "label": "many decimals",
+                  "location": {
+                    "lat": 12.3456789012345,
+                    "lon": 98.7654321098765
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "fields": [
+            "location"
+          ],
+          "size": 50
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.0,
+                        41.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "6",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "7",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34000029414892,
+                        41.119999922811985
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "8",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.3671875,
+                        41.0888671875
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "10",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34000029414892,
+                        41.119999922811985
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "11",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "12",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "13",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "1",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "21",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        20.25,
+                        -10.5
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        1.0,
+                        2.0
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        4.0,
+                        3.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "19",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "20",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        20.25,
+                        -10.5
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "14",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "15",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "16",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "18",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "22",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        20.25,
+                        -10.5
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "23",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "24",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "25",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        180.0,
+                        90.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "26",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -180.0,
+                        -90.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "27",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -1e-06,
+                        1e-06
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "28",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        98.7654321098765,
+                        12.3456789012345
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fields, a pattern",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "fields": [
+            "loc*",
+            "label"
+          ],
+          "size": 3
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ],
+                  "label": [
+                    "object with string numbers"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.0,
+                        41.0
+                      ],
+                      "type": "Point"
+                    }
+                  ],
+                  "label": [
+                    "object with integers"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ],
+                  "label": [
+                    "lat,lon string"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fields, geojson format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "fields": [
+            {
+              "field": "location",
+              "format": "geojson"
+            }
+          ],
+          "size": 50
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.0,
+                        41.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "6",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "7",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34000029414892,
+                        41.119999922811985
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "8",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.3671875,
+                        41.0888671875
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "10",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34000029414892,
+                        41.119999922811985
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "11",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "12",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "13",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "1",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "21",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        20.25,
+                        -10.5
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        1.0,
+                        2.0
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        4.0,
+                        3.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "19",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "20",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        20.25,
+                        -10.5
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "14",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "15",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "16",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "18",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "22",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    },
+                    {
+                      "coordinates": [
+                        20.25,
+                        -10.5
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "23",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "24",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "25",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        180.0,
+                        90.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "26",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -180.0,
+                        -90.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "27",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -1e-06,
+                        1e-06
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "28",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        98.7654321098765,
+                        12.3456789012345
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fields, wkt format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "fields": [
+            {
+              "field": "location",
+              "format": "wkt"
+            }
+          ],
+          "size": 50
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.0 41.0)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "6",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "7",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34000029414892 41.119999922811985)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "8",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.3671875 41.0888671875)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "10",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34000029414892 41.119999922811985)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "11",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "12",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "13",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "1",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "21",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)",
+                    "POINT (20.25 -10.5)",
+                    "POINT (1.0 2.0)",
+                    "POINT (4.0 3.0)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "19",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "20",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)",
+                    "POINT (20.25 -10.5)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "14",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "15",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "16",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "18",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "22",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-71.34 41.12)",
+                    "POINT (20.25 -10.5)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "23",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "24",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "25",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (180.0 90.0)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "26",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-180.0 -90.0)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "27",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (-1.0E-6 1.0E-6)"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "28",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "POINT (98.7654321098765 12.3456789012345)"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fields, unknown format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "fields": [
+            {
+              "field": "location",
+              "format": "nope"
+            }
+          ],
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Unrecognized geometry format [nope]."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Unrecognized geometry format [nope]."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Unrecognized geometry format [nope].",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Unrecognized geometry format [nope]."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            "location"
+          ],
+          "size": 50
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "40.999999986961484, -71.00000004284084"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "6",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "7",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.119999922811985, -71.34000029414892"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "8",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.0888671875, -71.3671875"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "10",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.119999922811985, -71.34000029414892"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "11",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "12",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "13",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "1",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "21",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "-10.500000002793968, 20.249999966472387",
+                    "1.9999999646097422, 0.9999999403953552",
+                    "2.999999988824129, 3.9999999292194843",
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "19",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "20",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "-10.500000002793968, 20.249999966472387",
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "14",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "15",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "16",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "18",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "22",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "-10.500000002793968, 20.249999966472387",
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "23",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "24",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "25",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "89.99999995809048, 179.99999991618097"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "26",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "-90.0, -180.0"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "27",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "9.639188647270203E-7, -1.0058283805847168E-6"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "28",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "12.345678862184286, 98.76543207094073"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields, geojson format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            {
+              "field": "location",
+              "format": "geojson"
+            }
+          ],
+          "size": 50
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] does not support custom formats"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Field [location] of type [geo_point] does not support custom formats"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Field [location] of type [geo_point] does not support custom formats",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] does not support custom formats"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields, wkt format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            {
+              "field": "location",
+              "format": "wkt"
+            }
+          ],
+          "size": 50
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] does not support custom formats"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Field [location] of type [geo_point] does not support custom formats"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Field [location] of type [geo_point] does not support custom formats",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] does not support custom formats"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields, unknown format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            {
+              "field": "location",
+              "format": "nope"
+            }
+          ],
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] does not support custom formats"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Field [location] of type [geo_point] does not support custom formats"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Field [location] of type [geo_point] does not support custom formats",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] does not support custom formats"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields, a pattern",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            "loc*"
+          ],
+          "size": 2
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "41.1199999647215, -71.34000004269183"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "fields": {
+                  "location": [
+                    "40.999999986961484, -71.00000004284084"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields, an unmapped field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            "nope"
+          ],
+          "size": 2
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fields and docvalue_fields together",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": [
+            "label"
+          ],
+          "docvalue_fields": [
+            "location"
+          ],
+          "fields": [
+            "location"
+          ],
+          "size": 4
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object with string numbers"
+                },
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object with integers"
+                },
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.0,
+                        41.0
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon string"
+                },
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "6",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon string with spaces"
+                },
+                "fields": {
+                  "location": [
+                    {
+                      "coordinates": [
+                        -71.34,
+                        41.12
+                      ],
+                      "type": "Point"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "_source filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": [
+            "location"
+          ],
+          "size": 3
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "location": {
+                    "lon": "-71.34",
+                    "lat": "41.12"
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "location": {
+                    "lon": -71,
+                    "lat": 41
+                  }
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "location": "41.12,-71.34"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "_source excludes",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": {
+            "excludes": [
+              "location"
+            ]
+          },
+          "size": 3
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object with string numbers"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object with integers"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon string"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "stored_fields none",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "size": 2,
+          "stored_fields": "_none_"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 0,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-geo-values",
+                "_score": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "exists",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": [
+            "label"
+          ],
+          "query": {
+            "exists": {
+              "field": "location"
+            }
+          },
+          "size": 50,
+          "track_total_hits": true
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 23,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object with string numbers"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object with integers"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon string"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "6",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon string with spaces"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "7",
+                "_score": 1.0,
+                "_source": {
+                  "label": "geohash string"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "8",
+                "_score": 1.0,
+                "_source": {
+                  "label": "short geohash string"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "10",
+                "_score": 1.0,
+                "_source": {
+                  "label": "geohash object"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "11",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lon,lat array"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "12",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lon,lat,z array"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "13",
+                "_score": 1.0,
+                "_source": {
+                  "label": "lat,lon,z string"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "label": "object"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "21",
+                "_score": 1.0,
+                "_source": {
+                  "label": "array of mixed forms"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "19",
+                "_score": 1.0,
+                "_source": {
+                  "label": "GeoJSON point with z"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "20",
+                "_score": 1.0,
+                "_source": {
+                  "label": "array of objects"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "14",
+                "_score": 1.0,
+                "_source": {
+                  "label": "WKT point"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "15",
+                "_score": 1.0,
+                "_source": {
+                  "label": "WKT point without space"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "16",
+                "_score": 1.0,
+                "_source": {
+                  "label": "WKT point lower case"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "18",
+                "_score": 1.0,
+                "_source": {
+                  "label": "GeoJSON point"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "22",
+                "_score": 1.0,
+                "_source": {
+                  "label": "array of two arrays"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "25",
+                "_score": 1.0,
+                "_source": {
+                  "label": "boundary pole and dateline"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "26",
+                "_score": 1.0,
+                "_source": {
+                  "label": "boundary south west"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "27",
+                "_score": 1.0,
+                "_source": {
+                  "label": "tiny fractions"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "28",
+                "_score": 1.0,
+                "_source": {
+                  "label": "many decimals"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "exists in must_not",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": [
+            "label"
+          ],
+          "query": {
+            "bool": {
+              "must_not": {
+                "exists": {
+                  "field": "location"
+                }
+              }
+            }
+          },
+          "size": 50,
+          "track_total_hits": true
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.0,
+            "hits": [
+              {
+                "_index": "compat-geo-values",
+                "_id": "23",
+                "_score": 0.0,
+                "_source": {
+                  "label": "empty array"
+                }
+              },
+              {
+                "_index": "compat-geo-values",
+                "_id": "24",
+                "_score": 0.0,
+                "_source": {
+                  "label": "null"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "sort by the field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": [
+            "label"
+          ],
+          "size": 3,
+          "sort": [
+            {
+              "location": "asc"
+            }
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "can't sort on geo_point field without using specific sorting feature, like geo_distance"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "can't sort on geo_point field without using specific sorting feature, like geo_distance"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "can't sort on geo_point field without using specific sorting feature, like geo_distance",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "can't sort on geo_point field without using specific sorting feature, like geo_distance"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "sort by the field, desc",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": [
+            "label"
+          ],
+          "size": 3,
+          "sort": [
+            {
+              "location": "desc"
+            }
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "can't sort on geo_point field without using specific sorting feature, like geo_distance"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "can't sort on geo_point field without using specific sorting feature, like geo_distance"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "can't sort on geo_point field without using specific sorting feature, like geo_distance",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "can't sort on geo_point field without using specific sorting feature, like geo_distance"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "term on the field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": [
+            "label"
+          ],
+          "query": {
+            "term": {
+              "location": "drm3btev3e86"
+            }
+          },
+          "size": 3
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "the index uuid is generated"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "the index uuid is generated"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "the index uuid is generated"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "Geometry fields do not support exact searching, use dedicated geometry queries instead: [location]",
+                "index": "compat-geo-values",
+                "index_uuid": "pHWpI3T_RBSEsnag56CyQQ"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "Geometry fields do not support exact searching, use dedicated geometry queries instead: [location]",
+                  "index": "compat-geo-values",
+                  "index_uuid": "pHWpI3T_RBSEsnag56CyQQ"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "Geometry fields do not support exact searching, use dedicated geometry queries instead: [location]",
+              "index": "compat-geo-values",
+              "index_uuid": "pHWpI3T_RBSEsnag56CyQQ"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "match on the field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "_source": [
+            "label"
+          ],
+          "query": {
+            "match": {
+              "location": "41.12,-71.34"
+            }
+          },
+          "size": 3
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "the index uuid is generated"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "the index uuid is generated"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "the index uuid is generated"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "Geometry fields do not support exact searching, use dedicated geometry queries instead: [location]",
+                "index": "compat-geo-values",
+                "index_uuid": "pHWpI3T_RBSEsnag56CyQQ"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "Geometry fields do not support exact searching, use dedicated geometry queries instead: [location]",
+                  "index": "compat-geo-values",
+                  "index_uuid": "pHWpI3T_RBSEsnag56CyQQ"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "Geometry fields do not support exact searching, use dedicated geometry queries instead: [location]",
+              "index": "compat-geo-values",
+              "index_uuid": "pHWpI3T_RBSEsnag56CyQQ"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "terms aggregation on the field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "location"
+              }
+            }
+          },
+          "size": 0
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] is not supported for aggregation [terms]"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Field [location] of type [geo_point] is not supported for aggregation [terms]"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Field [location] of type [geo_point] is not supported for aggregation [terms]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] is not supported for aggregation [terms]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "sum aggregation on the field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "sum": {
+                "field": "location"
+              }
+            }
+          },
+          "size": 0
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] is not supported for aggregation [sum]"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-geo-values",
+                "node": "GhCOnuSQSBOUiW84v7jbzg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Field [location] of type [geo_point] is not supported for aggregation [sum]"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Field [location] of type [geo_point] is not supported for aggregation [sum]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field [location] of type [geo_point] is not supported for aggregation [sum]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality aggregation on the field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "cardinality": {
+                "field": "location"
+              }
+            }
+          },
+          "size": 0
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "value": 11
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "value_count aggregation on the field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "value_count": {
+                "field": "location"
+              }
+            }
+          },
+          "size": 0
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "terminated_early": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 25,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "value": 28
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 1",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/1"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "1",
+          "_version": 1,
+          "_seq_no": 0,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "object",
+            "location": {
+              "lat": 41.12,
+              "lon": -71.34
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 7",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/7"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "7",
+          "_version": 1,
+          "_seq_no": 5,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "geohash string",
+            "location": "drm3btev3e86"
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 11",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/11"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "11",
+          "_version": 1,
+          "_seq_no": 8,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "lon,lat array",
+            "location": [
+              -71.34,
+              41.12
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 12",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/12"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "12",
+          "_version": 1,
+          "_seq_no": 9,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "lon,lat,z array",
+            "location": [
+              -71.34,
+              41.12,
+              10.5
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 13",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/13"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "13",
+          "_version": 1,
+          "_seq_no": 10,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "lat,lon,z string",
+            "location": "41.12,-71.34,10.5"
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 17",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/17"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "17",
+          "found": false
+        }
+      }
+    },
+    {
+      "name": "get document 19",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/19"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "19",
+          "_version": 1,
+          "_seq_no": 15,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "GeoJSON point with z",
+            "location": {
+              "coordinates": [
+                -71.34,
+                41.12,
+                7
+              ],
+              "type": "Point"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 20",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/20"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "20",
+          "_version": 1,
+          "_seq_no": 16,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "array of objects",
+            "location": [
+              {
+                "lat": 41.12,
+                "lon": -71.34
+              },
+              {
+                "lat": -10.5,
+                "lon": 20.25
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 21",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/21"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "21",
+          "_version": 1,
+          "_seq_no": 17,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "array of mixed forms",
+            "location": [
+              "41.12,-71.34",
+              [
+                20.25,
+                -10.5
+              ],
+              "POINT (1 2)",
+              {
+                "lat": 3,
+                "lon": 4
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 22",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/22"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "22",
+          "_version": 1,
+          "_seq_no": 18,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "array of two arrays",
+            "location": [
+              [
+                -71.34,
+                41.12
+              ],
+              [
+                20.25,
+                -10.5
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 23",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/23"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "23",
+          "_version": 1,
+          "_seq_no": 19,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "empty array",
+            "location": []
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 24",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/24"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "24",
+          "_version": 1,
+          "_seq_no": 20,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "null",
+            "location": null
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 25",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/25"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "25",
+          "_version": 1,
+          "_seq_no": 21,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "boundary pole and dateline",
+            "location": {
+              "lat": 90,
+              "lon": 180
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 26",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/26"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "26",
+          "_version": 1,
+          "_seq_no": 22,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "boundary south west",
+            "location": {
+              "lat": -90,
+              "lon": -180
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 27",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/27"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "27",
+          "_version": 1,
+          "_seq_no": 23,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "tiny fractions",
+            "location": {
+              "lat": 1e-06,
+              "lon": -1e-06
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get document 28",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/28"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "28",
+          "_version": 1,
+          "_seq_no": 24,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "label": "many decimals",
+            "location": {
+              "lat": 12.3456789012345,
+              "lon": 98.7654321098765
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get _source of 11",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_source/11"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "label": "lon,lat array",
+          "location": [
+            -71.34,
+            41.12
+          ]
+        }
+      }
+    },
+    {
+      "name": "get document 11 with fields filter",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_doc/11",
+        "query": {
+          "_source_includes": "location"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-geo-values",
+          "_id": "11",
+          "_version": 1,
+          "_seq_no": 8,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "location": [
+              -71.34,
+              41.12
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "mget",
+      "request": {
+        "method": "POST",
+        "path": "/compat-geo-values/_mget",
+        "body": {
+          "ids": [
+            "1",
+            "20",
+            "23"
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/docs/*/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "docs": [
+            {
+              "_index": "compat-geo-values",
+              "_id": "1",
+              "_version": 1,
+              "_seq_no": 0,
+              "_primary_term": 1,
+              "found": true,
+              "_source": {
+                "label": "object",
+                "location": {
+                  "lat": 41.12,
+                  "lon": -71.34
+                }
+              }
+            },
+            {
+              "_index": "compat-geo-values",
+              "_id": "20",
+              "_version": 1,
+              "_seq_no": 16,
+              "_primary_term": 1,
+              "found": true,
+              "_source": {
+                "label": "array of objects",
+                "location": [
+                  {
+                    "lat": 41.12,
+                    "lon": -71.34
+                  },
+                  {
+                    "lat": -10.5,
+                    "lon": 20.25
+                  }
+                ]
+              }
+            },
+            {
+              "_index": "compat-geo-values",
+              "_id": "23",
+              "_version": 1,
+              "_seq_no": 19,
+              "_primary_term": 1,
+              "found": true,
+              "_source": {
+                "label": "empty array",
+                "location": []
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "analyze is no use on a geo field",
+      "request": {
+        "method": "GET",
+        "path": "/compat-geo-values/_analyze",
+        "body": {
+          "field": "location",
+          "text": "1,2"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Can't process field [location], Analysis requests are only supported on tokenized fields"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Can't process field [location], Analysis requests are only supported on tokenized fields"
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}

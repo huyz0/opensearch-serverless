@@ -146,3 +146,17 @@ Recorded from the same tarball with its bundled plugins, the same way (`record.p
 - `security-api/`: the REST management API, recorded from a node with the security plugin on (see [../stock-plugins/README.md](../stock-plugins/README.md)).
 
 Plugins that generate ids (alerting, ISM, anomaly detection, ML Commons, `_train`) and async search use the scenario format in [../stock-plugins/README.md](../stock-plugins/README.md) and [../async-search/](../async-search/); SQL and PPL are in [../sql/README.md](../sql/README.md).
+
+## Geo fixtures
+
+`geo/` records the geospatial features of stock OpenSearch 3.10.0 (the release tarball, `opensearch-geospatial` and `opensearch-job-scheduler` kept, the other plugins removed; SHA-512 of the tarball checked), so the native geo fields are compared against stock rather than against a brute-force oracle. Every request is a plain `record.py` step on a fresh single-shard index; documents use explicit ids, and the keys of a body are written sorted so the replay sends what the recorder sent. A step whose message embeds an object hash (`KeywordFieldMapper$KeywordFieldType@...`) is normalised whole.
+
+| File | Covers |
+|---|---|
+| [geo/point-values.json](geo/point-values.json) | `geo_point` values in every input form (object, `lat,lon`, geohash, `[lon, lat]`, WKT, GeoJSON, arrays, z values, boundaries) and the ones refused with their error bodies; read back through `_source`, `fields` and `docvalue_fields` with their formats, `get`, `mget`, `exists`, and the queries, sorts and aggregations a geo field refuses without a geo feature |
+| [geo/point-options.json](geo/point-options.json) | `ignore_malformed` (field and index setting, with `_ignored`), `ignore_z_value`, `null_value`, `doc_values` and `index` off, `store`, `copy_to`, sub-fields, unknown and bad parameters, dynamic mapping and templates, put-mapping updates and conflicts, objects, dotted names and nested |
+| [geo/query-distance.json](geo/query-distance.json) | `geo_distance`: point forms, distance units and malformed distances, `distance_type`, `validation_method` and out-of-range points, poles and the date line, `boost`, `_name`, bool nesting, refusals, `_validate/query`, `_explain`, `_count`, `_msearch` |
+| [geo/query-bounding-box.json](geo/query-bounding-box.json) | `geo_bounding_box`: corner forms, `wkt` `BBOX`, `top`/`left`/`bottom`/`right`, date-line boxes, poles, `validation_method` and `type`, refusals |
+| [geo/query-polygon.json](geo/query-polygon.json) | `geo_polygon`: point forms, open and closed rings, both windings, concave and self-intersecting polygons, date line and poles, `validation_method`, too few points, refusals |
+| [geo/sort-geo-distance.json](geo/sort-geo-distance.json) | the `_geo_distance` sort (every `unit`, `mode`, `order` and `distance_type`, several points, missing and multi-valued documents, `search_after`, refusals, 500s from a non-geo field), plus the geo decay functions and the painless geo accessors |
+| [geo/aggs-geo.json](geo/aggs-geo.json) | `geo_bounds`, `geo_centroid`, `geohash_grid`, `geotile_grid`, `geohex_grid` and the `geo_distance` aggregation: precisions, `size`, `shard_size`, `bounds`, sub-aggregations, empty and date-line cases, refusals |
