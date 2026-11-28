@@ -17,11 +17,16 @@ use oss_format::{DocKind, MAX_DOC_BYTES};
 use oss_meta::{DocSet, MetaError};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
+mod patch;
+
 use crate::route_util::{read_body, refuse};
 use crate::security_state::SecurityState;
 
 /// The bcrypt cost the plugin's own hashes use.
 pub const DEFAULT_COST: u32 = 12;
+
+/// The most documents one bulk patch changes: each may hash a password.
+pub const MAX_BULK_DOCS: usize = 100;
 
 fn doc_kind(kind: Kind) -> DocKind {
     match kind {
@@ -93,18 +98,18 @@ impl SecurityService {
         Ok(admin_refusal(&config, req.principal().unwrap_or_default()))
     }
 
-    fn changed(&self) {
+    pub(super) fn changed(&self) {
         if let Some(state) = &self.state {
             state.invalidate();
         }
     }
 
-    fn set(&self, kind: Kind) -> &DocSet {
+    pub(super) fn set(&self, kind: Kind) -> &DocSet {
         &self.sets[Kind::ALL.iter().position(|k| *k == kind).unwrap_or(0)]
     }
 
     /// The stored document `name` of `kind`, if there is one.
-    fn read(
+    pub(super) fn read(
         &self,
         kind: Kind,
         name: &str,
@@ -125,7 +130,7 @@ impl SecurityService {
             MAX_DOC_BYTES,
             "a security document is larger than 1 MiB",
         )?;
-        let mut stored = match validate(kind, &body) {
+        let stored = match validate(kind, &body) {
             Ok(doc) => doc,
             Err(answer) => return Ok(answer),
         };
@@ -133,34 +138,60 @@ impl SecurityService {
         // ALLOC: two scratch buffers a request, buffer_bytes each, reserved above.
         let mut marker = vec![0u8; self.buffer_bytes];
         let mut doc = vec![0u8; self.buffer_bytes];
-        let failed = |e: MetaError| failure(&e);
-        if kind == Kind::RolesMapping
-            && self
-                .read(Kind::Roles, name, &mut marker, &mut doc)
-                .map_err(failed)?
-                .is_none()
-        {
-            return Ok(missing(Kind::Roles, name));
+        if let Some(refused) = self.role_missing(kind, name, &mut marker, &mut doc)? {
+            return Ok(refused);
         }
         let existing = self
             .read(kind, name, &mut marker, &mut doc)
-            .map_err(failed)?;
-        if kind == Kind::InternalUsers {
-            match self.credentials(&mut stored, existing.as_ref()) {
-                Ok(()) => {}
-                Err(answer) => return Ok(answer),
-            }
+            .map_err(|e| failure(&e))?;
+        self.commit(kind, name, stored, existing.as_ref(), &mut marker)
+    }
+
+    /// The refusal of a mapping whose role is not there.
+    pub(super) fn role_missing(
+        &self,
+        kind: Kind,
+        name: &str,
+        marker: &mut [u8],
+        doc: &mut [u8],
+    ) -> Result<Option<Answer>, RestError> {
+        if kind != Kind::RolesMapping {
+            return Ok(None);
+        }
+        let there = self
+            .read(Kind::Roles, name, marker, doc)
+            .map_err(|e| failure(&e))?;
+        Ok(there.is_none().then(|| missing(Kind::Roles, name)))
+    }
+
+    /// Stores the validated `stored` as `name`, hashing a user's password.
+    fn commit(
+        &self,
+        kind: Kind,
+        name: &str,
+        mut stored: Json,
+        existing: Option<&Json>,
+        marker: &mut [u8],
+    ) -> Result<Answer, RestError> {
+        if kind == Kind::InternalUsers
+            && let Err(answer) = self.credentials(&mut stored, existing)
+        {
+            return Ok(answer);
         }
         self.set(kind)
-            .put(name, stored.to_json().as_bytes(), false, &mut marker)
-            .map_err(failed)?;
+            .put(name, stored.to_json().as_bytes(), false, marker)
+            .map_err(|e| failure(&e))?;
         self.changed();
         Ok(saved(name, existing.is_none()))
     }
 
     /// Leaves `stored` holding a hash: the password hashed, the given hash,
     /// or on an update the hash it already had.
-    fn credentials(&self, stored: &mut Json, existing: Option<&Json>) -> Result<(), Answer> {
+    pub(super) fn credentials(
+        &self,
+        stored: &mut Json,
+        existing: Option<&Json>,
+    ) -> Result<(), Answer> {
         let text = |doc: &Json, key: &str| match doc.get(key) {
             Some(Json::Str(s)) => Some(s.clone()),
             _ => None,
@@ -198,6 +229,7 @@ impl SecurityService {
         }
         let answer = match req.method() {
             Method::Put => self.put(kind, &name, req)?,
+            Method::Patch => self.patch(kind, &name, req)?,
             Method::Delete => {
                 req.body().reserve(self.buffer_bytes)?;
                 // ALLOC: one marker buffer a request, buffer_bytes, reserved above.
@@ -242,7 +274,7 @@ fn refused_hash() -> Answer {
 }
 
 /// What a failed store call answers.
-fn failure(e: &MetaError) -> RestError {
+pub(super) fn failure(e: &MetaError) -> RestError {
     match e {
         MetaError::TooManyDocs => refuse(400, "too_many_documents", e.to_string()),
         MetaError::InvalidDocName(_) | MetaError::InvalidArgument(_) => {
@@ -253,8 +285,8 @@ fn failure(e: &MetaError) -> RestError {
     }
 }
 
-/// The management routes: `GET`, `PUT` and `DELETE` of one document of each
-/// kind.
+/// The management routes: `GET`, `PUT`, `PATCH` and `DELETE` of one document
+/// of each kind, and `GET` and `PATCH` of the kind.
 ///
 /// # Errors
 ///
@@ -269,22 +301,25 @@ pub fn routes(router: Router, service: &Arc<SecurityService>) -> Result<Router, 
         (Kind::ActionGroups, "/_plugins/_security/api/actiongroups"),
     ];
     for (kind, path) in LISTS {
-        let service = Arc::clone(service);
-        router = router.route(
-            Method::Get,
-            path,
-            &[],
-            move |req: &mut Request<'_>, resp: &mut Response<'_>| {
-                if let Some(refused) = service.admin_only(req)? {
-                    return resp.send(refused.status, JSON, refused.body.as_bytes());
-                }
-                Err(refuse(
-                    501,
-                    "not_implemented",
-                    format!("listing {} is not served by this node", kind.segment()),
-                ))
-            },
-        )?;
+        for method in [Method::Get, Method::Patch] {
+            let service = Arc::clone(service);
+            router = router.route(
+                method,
+                path,
+                &[],
+                move |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                    if let Some(refused) = service.admin_only(req)? {
+                        return resp.send(refused.status, JSON, refused.body.as_bytes());
+                    }
+                    let answer = if req.method() == Method::Patch {
+                        service.bulk_patch(kind, req)?
+                    } else {
+                        service.read_all(kind, req)?
+                    };
+                    resp.send(answer.status, JSON, answer.body.as_bytes())
+                },
+            )?;
+        }
     }
     const PATHS: [(Kind, &str); 5] = [
         (Kind::Roles, "/_plugins/_security/api/roles/{name}"),
@@ -303,7 +338,7 @@ pub fn routes(router: Router, service: &Arc<SecurityService>) -> Result<Router, 
         ),
     ];
     for (kind, path) in PATHS {
-        for method in [Method::Get, Method::Put, Method::Delete] {
+        for method in [Method::Get, Method::Put, Method::Patch, Method::Delete] {
             let service = Arc::clone(service);
             router = router.route(
                 method,

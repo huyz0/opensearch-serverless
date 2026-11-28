@@ -25,6 +25,7 @@ Not in this change: authorization of any request ([security-authz](../security-a
 - AC-9: With security on and no administrator the node refuses to start, and with security off no request needs credentials and the guard is not installed. Tests: `security_on_without_an_administrator_does_not_start`, `with_security_off_no_guard_is_installed`.
 - AC-10: The snapshot's age is read from a monotonic clock, and a clock that has gone back counts the copy as old, so a node never keeps a copy fresh by a clock step. While the stores are unreadable a request does not read them again before the one-second back-off ends, whether or not a change was made here. One request reads while the others are served the held copy, unless a change made through this node is newer than it. Tests: `a_clock_that_goes_back_does_not_keep_a_copy_fresh`, `a_change_made_here_does_not_read_the_stores_on_every_request_while_they_are_down`, `a_change_made_here_is_seen_by_the_next_request_even_inside_the_interval`.
 - AC-11: A name that is not a user costs a check against a decoy hash and is counted and throttled like a known name, so neither timing nor `429` tells them apart; failures are tracked for at most 4096 names and a full table never drops a name still inside its window. A stored hash asking for a cost above 15 is a wrong password and is not run. A static administrator hash that is not bcrypt stops the node starting. Test: `an_unknown_name_is_throttled_like_a_known_one`; the hash check is in `security_on_without_an_administrator_does_not_start`.
+- AC-12: Configuring `OSS_SECURITY_ADMIN_USER` and `OSS_SECURITY_ADMIN_HASH` turns security on with no other flag, `OSS_SECURITY=false` still turns it off, and `OSS_SECURITY=true` with no administrator still refuses to start. Test: `configuring_an_administrator_turns_security_on_and_the_variable_still_wins`.
 
 ## S3 request budget
 
@@ -36,7 +37,7 @@ Not in this change: authorization of any request ([security-authz](../security-a
 
 ## Switch
 
-`serverless.security.enabled` (default off), `serverless.security.refresh_interval` (default 10 s, minimum 1 s), `OSS_SECURITY_ADMIN_USER` and `OSS_SECURITY_ADMIN_HASH`. On by default waits for the ADR's measurement.
+`serverless.security.enabled` (on when an administrator is configured, off otherwise; `OSS_SECURITY=false` turns it off), `serverless.security.refresh_interval` (default 10 s, minimum 1 s), `OSS_SECURITY_ADMIN_USER` and `OSS_SECURITY_ADMIN_HASH`. On by default waits for the ADR's measurement.
 
 ## Risks
 

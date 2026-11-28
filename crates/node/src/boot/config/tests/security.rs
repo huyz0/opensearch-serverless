@@ -11,6 +11,33 @@ fn security_is_off_by_default_and_set_by_its_variable() {
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_SECURITY", "yes")]))).is_err());
 }
 
+// docs/specs/security-authn AC-12: no flag is needed to turn security on
+#[test]
+fn configuring_an_administrator_turns_security_on_and_the_variable_still_wins() {
+    let admin = [
+        ("OSS_SECURITY_ADMIN_USER", "root"),
+        ("OSS_SECURITY_ADMIN_HASH", "$2b$12$h"),
+    ];
+    assert!(
+        NodeConfig::from_lookup(lookup(&with(&admin)))
+            .expect("valid")
+            .security
+    );
+    let off = [admin[0], admin[1], ("OSS_SECURITY", "false")];
+    assert!(
+        !NodeConfig::from_lookup(lookup(&with(&off)))
+            .expect("valid")
+            .security
+    );
+    // On with no administrator is still refused at assembly, never open.
+    let on = [("OSS_SECURITY", "true")];
+    assert!(
+        NodeConfig::from_lookup(lookup(&with(&on)))
+            .expect("valid")
+            .security
+    );
+}
+
 // docs/specs/security-authn AC-9
 #[test]
 fn the_administrator_is_a_pair_and_the_refresh_is_bounded() {
