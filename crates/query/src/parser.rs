@@ -1,6 +1,6 @@
 //! A recursive-descent parser for the statements of slice 1.
 
-use crate::ast::{Item, Order, Select, Statement};
+use crate::ast::{Dialect, Item, Order, Select, Statement};
 use crate::lexer::{Kind, Token, lex};
 use crate::{Error, Limits};
 
@@ -47,6 +47,8 @@ pub fn parse(sql: &str, limits: &Limits) -> Result<Statement, Error> {
         depth: 0,
         max_depth: limits.max_depth,
         end: sql.len(),
+        src: String::new(),
+        ppl: false,
     };
     let stmt = p.statement()?;
     if let Some(t) = p.tokens.get(p.at) {
@@ -70,6 +72,10 @@ pub(crate) struct Parser {
     pub(crate) depth: usize,
     pub(crate) max_depth: usize,
     pub(crate) end: usize,
+    /// The statement text, kept by the PPL parser for its error texts.
+    pub(crate) src: String,
+    /// Whether the PPL predicate functions are accepted.
+    pub(crate) ppl: bool,
 }
 
 impl Parser {
@@ -205,6 +211,7 @@ impl Parser {
             }
         }
         let mut sel = Select {
+            dialect: Dialect::Sql,
             items,
             from: vec![from],
             filter: None,
@@ -270,7 +277,7 @@ impl Parser {
         Ok(sel)
     }
 
-    fn uint(&mut self) -> Result<u64, Error> {
+    pub(crate) fn uint(&mut self) -> Result<u64, Error> {
         if let Some(Kind::Int(n)) = self.peek() {
             let n = *n;
             self.bump();

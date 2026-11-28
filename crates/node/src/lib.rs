@@ -29,6 +29,8 @@ pub mod boot;
 pub mod bulk_handler;
 #[cfg(feature = "writer")]
 pub mod bulk_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod bulk_sink;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod by_query;
 #[cfg(feature = "writer")]
@@ -95,6 +97,8 @@ pub mod index_templates;
 pub mod ingest_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod ism_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod ism_run;
 pub mod ism_setting;
 #[cfg(feature = "reader")]
 pub mod jobs;
@@ -129,6 +133,9 @@ pub mod newest_ask;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod notifications_route;
 pub mod notifications_setting;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod observability_route;
+pub mod observability_setting;
 #[cfg(feature = "reader")]
 pub mod open_indexes;
 #[cfg(feature = "reader")]

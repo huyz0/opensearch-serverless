@@ -336,7 +336,11 @@ src/ad_route/windows.rs	new		the reader search for a detector's windows and the 
 src/ad_route/windows_tests.rs	new		tests of windows.rs
 src/ad_route/preview.rs	new		preview: train a model on the windows and render the plugin's anomaly_result
 src/ad_route/preview_tests.rs	new		tests of preview.rs
+src/ad_route/job.rs	new		the _start and _stop routes: the detector's job record and the ad registry entry
 src/ad_route/preview_route.rs	new		the _preview routes of a stored or inline detector
+src/ad_route/run.rs	new		one run of a detector: claim the slot, search its window, feed the model, write the result; no stock recording of results exists yet (AC-15 gap)
+src/ad_route/sink.rs	new		the DocSink seam a run's result documents leave through, shaped as the host API's
+src/ad_route/slots.rs	new		the due slot, its window and the skew wait
 src/ad_route/source.rs	new		the seam a detector's windows are searched through
 src/search_window.rs	new		the node's search as that seam
 src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a request through its guard (ADR 0080)
@@ -353,6 +357,10 @@ src/sql_setting.rs	new		serverless.sql.enabled
 src/knn_model_route.rs	new		the k-NN plugin model store (get, delete, search) over a document set; plugin source not in this repository (docs/specs/knn-plugin-api, ADR 0086)
 src/ad_route/validate_route.rs	new		the _validate route: what a create would refuse, answered without writing
 src/sql_route/mount.rs	new		the SQL routes mounted on the node router
+src/observability_setting.rs	new		serverless.observability.enabled
+src/observability_route/mod.rs	new		the observability object service over a document set; the plugin is ported natively by ADR 0088
+src/observability_route/object.rs	new		what an object body must hold: one of the plugin object types
+src/observability_route/routes.rs	new		the route table under /_plugins/_observability/object
 src/knn_train_request.rs	new		the _train request's own checks: TrainingModelRequest and the Faiss method validation (opensearch-project/k-NN 3.10.0.0)
 src/knn_train_request_tests.rs	new		the _train request checks replayed from the stock 3.10.0 recording
 src/knn_train_route.rs	new		POST /_plugins/_knn/models/{id}/_train: the model-exists, index, field and dimension checks (opensearch-project/k-NN 3.10.0.0 TrainingModelRequest)
@@ -363,6 +371,9 @@ src/async_search/params.rs	new		the request parameters of asynchronous search wi
 src/async_search/render.rs	new		the response envelopes, stats and refusals of asynchronous search
 src/async_search/tests.rs	new		the service against the stock recording
 src/jobs/manage.rs	new		extending, deleting and counting jobs
+src/security_route/admin.rs	new		securityconfig, permissionsinfo, closed routes and the cache flush
 src/plugins/assemble.rs	new		reading the policy, loading the registry and mounting the plugins and the status route
 src/boot/config/plugin_policy.rs	new		the OSS_PLUGINS variable
 src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins from bounded queues
+src/ism_run/mod.rs	new		the runner decision: a managed index record, its policy and the time give the next record and the next evaluation time; cron conditions and actions come later
+src/bulk_sink.rs	new		index.docs for plugins: documents indexed through the _bulk service

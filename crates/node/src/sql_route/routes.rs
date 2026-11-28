@@ -11,13 +11,17 @@ const PARAMS: &[&str] = &["format", "sanitize", "pretty", "request_timeout"];
 
 type Handler = fn(&SqlService, &mut Request<'_>, &mut Response<'_>) -> Result<(), RestError>;
 
-/// Mounts `/_plugins/_sql`, `/_opendistro/_sql` and their `_explain`.
+/// Mounts `/_plugins/_sql`, `/_plugins/_ppl`, their `_opendistro` twins and `_explain`.
 ///
 /// # Errors
 ///
 /// A route that cannot be registered.
 pub fn routes(router: Router, service: &Arc<SqlService>) -> Result<Router, RouteError> {
-    let table: [(&str, Handler); 4] = [
+    let table: [(&str, Handler); 8] = [
+        ("/_plugins/_ppl", SqlService::run_ppl),
+        ("/_opendistro/_ppl", SqlService::run_ppl),
+        ("/_plugins/_ppl/_explain", SqlService::explain_ppl),
+        ("/_opendistro/_ppl/_explain", SqlService::explain_ppl),
         ("/_plugins/_sql", SqlService::run),
         ("/_opendistro/_sql", SqlService::run),
         ("/_plugins/_sql/_explain", SqlService::explain),

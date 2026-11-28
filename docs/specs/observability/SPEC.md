@@ -2,7 +2,7 @@
 
 ## Serves
 
-The "Observability" row of [java-dependencies](../../java-dependencies.md) and the owner's rule (2026-11-28) that every plugin is native with no Java in the runtime path. Pattern: [LTR](../ltr/SPEC.md) and [ADR 0071](../../adr/0071-learning-to-rank-is-ported-natively.md). No ADR of its own: the decision is the store shape of [ADR 0073](../../adr/0073-stored-painless-scripts-resolve-through-a-ttl-cache.md) applied to a new family, and it adds no process, no timer and no new blob format kind beyond one document-set directory.
+The "Observability" row of [java-dependencies](../../java-dependencies.md) and the owner's rule (2026-11-28) that every plugin is native with no Java in the runtime path. Pattern: [LTR](../ltr/SPEC.md) and [ADR 0071](../../adr/0071-learning-to-rank-is-ported-natively.md). [ADR 0088](../../adr/0088-observability-is-ported-natively.md): the store shape of [ADR 0073](../../adr/0073-stored-painless-scripts-resolve-through-a-ttl-cache.md) applied to a new family, with one document-set directory and no process or timer.
 
 ## Change
 
@@ -10,9 +10,9 @@ The stock Observability plugin is, on the server, a store of typed documents beh
 
 Four slices, one PR each, behind the switch below.
 
-1. **Store and create/read.** A document set under `observability/<tenant>/`: a marker register (the stored-scripts shape) whose entries carry a bounded summary of each object (`id`, `type`, `name`, `lastUpdatedTimeMs`, `createdTimeMs`, `tenant`, `access`) and immutable content blobs for the object bodies. `POST /_plugins/_observability/object` (body `{"<objectType>": {...}}`, answers `{"objectId": "..."}`) and `GET /_plugins/_observability/object/{id}`. Ids are generated (a 22-character URL-safe id) or supplied by `object_id` on the way the plugin allows.
-2. **Update, delete, list.** `PUT` and `DELETE /object/{id}`, `DELETE /object?objectIdList=a,b,c` (at most 100), `GET /object` with `objectType`, `sortField` (`lastUpdatedTimeMs`, `createdTimeMs`, `name`, `objectType`), `sortOrder`, `fromIndex`, `maxItems` (at most 100) and `name`. The list is answered from the marker's summaries (sort, filter, page), then reads only the content blobs of the returned page.
-3. **Object types.** The plugin's types, each validated by a typed shape and size bound: `savedQuery`, `savedVisualization`, `operationalPanel` (the panel's visualisation ids must exist or are refused 400), `notebook`, `timestamp`, `integration` (stored only; installing an integration bundle is not served), `observabilityDashboard`. An unknown type is 400 `invalid_object_type` naming the supported set.
+1. **Store and create/read.** A document set `observability/objects/` under the tenant's base (a tenant is a deployment base here, as for ISM and LTR): the stored-scripts shape, a marker register naming immutable content blobs. Slice 1 stores each object whole; summaries in the marker are a format change that slice 2 decides. `POST /_plugins/_observability/object` (body `{"<objectType>": {...}}`, answers `{"objectId": "..."}`) and `GET /_plugins/_observability/object/{id}`. Ids are generated (a 22-character URL-safe id) or supplied by `object_id` on the way the plugin allows.
+2. **Update, delete, list.** `PUT` and `DELETE /object/{id}`, `DELETE /object?objectIdList=a,b,c` (at most 100), `GET /object` with `objectType`, `sortField` (`lastUpdatedTimeMs`, `createdTimeMs`, `name`, `objectType`), `sortOrder`, `fromIndex`, `maxItems` (at most 100) and `name`. The list reads the names from the marker and one content blob per object it filters, sorts or returns, in pages of at most 100; whether the marker should carry summaries to avoid that is slice 2's decision, with its own format ADR.
+3. **Object types.** The plugin's types, each validated by a typed shape and size bound: `savedQuery`, `savedVisualization`, `operationalPanel` (the panel's visualisation ids must exist or are refused 400), `savedNotebook`, `timestamp`, `integration` (stored only; installing an integration bundle is not served), `observabilityDashboard`. An unknown type is 400 `invalid_object_type` naming the supported set.
 4. **Stats.** `GET /_plugins/_observability/_local/stats` for this node: request, success and failure counts per route, as the plugin's metrics API does.
 
 Not here: running PPL ([SQL and PPL](../../java-dependencies.md) row), notebook execution, PDF export of a notebook (a [reports](../reports/SPEC.md) concern), integrations that create index templates and dashboards, the Dashboards saved-objects API, and any multi-tenancy that is not this build's tenant. The plugin's `.opensearch-observability` system index is not created and is not a way in or out.
@@ -20,10 +20,10 @@ Not here: running PPL ([SQL and PPL](../../java-dependencies.md) row), notebook 
 ## Acceptance criteria
 
 - AC-1: create, read, replace, delete of each object type through the routes returns the shapes in `shapes.md` beside this spec (taken from the plugin's published API documentation, so `provisional` until a stock recording exists, as LTR's); a missing id is 404 `resource_not_found_exception`, and a stale concurrent replace loses the swap and is 409, never a lost update.
-- AC-2: an object's content is at most 1 MiB (413 above), a name at most 256 bytes, a tenant holds at most 1,000 objects (429 `object_limit` beyond), and a body that does not parse or does not match its type's shape is 400 with the failing key, never a 500 or a panic.
-- AC-3: list, sort, filter by type and name and page return what the marker's summaries say with no content read except for the page; `maxItems` above 100 is clamped to 100 with the response saying so; an unknown `sortField` is 400.
+- AC-2: an object's content is at most 1 MiB, a name at most 256 bytes, an object over 1 MiB is refused 400 `illegal_argument_exception` as every other document set refuses one (not 413), a deployment holds at most 1,000 objects (429 `object_limit` beyond), and a body that does not parse or does not match its type's shape is 400 with the failing key, never a 500 or a panic.
+- AC-3: list, sort, filter by type and name and page return the objects in order; `maxItems` above 100 is clamped to 100 with the response saying so; an unknown `sortField` is 400.
 - AC-4: `DELETE ...?objectIdList=` removes all named objects in one marker swap, reports each id's result, and a list past 100 is 400.
-- AC-5: **tenancy**: an object created under one tenant is not readable, listable or deletable under another (404), asserted with two tenants on one store; `access` and `tenant` fields in a body are ignored on write and set by the node.
+- AC-5: **tenancy**: an object created under one tenant is not readable, listable or deletable under another (404), asserted with two bases on one store; `access` and `tenant` fields in a body are ignored on write and set by the node.
 - AC-6: the request meter: create 1 GET + 2 PUT, read 2 GET, replace 1 GET + 2 PUT, delete 1 GET + 1 PUT, list 1 GET + 1 GET per returned object, none lists the store, and an idle node makes zero requests; a row for each lands in [request-budgets](../../request-budgets.md) and `check-budgets.py` holds it.
 - AC-7: memory is reserved from the request pool before a body or a marker is held (marker at most 512 KiB: 1,000 summaries at about 400 bytes), asserted by the counting allocator on a replace of a 1 MiB object.
 - AC-8: with the switch off every route answers as today (400 `no handler found`, or the proxy when an upstream is configured) ; with it on the existing suite passes unchanged and both run in CI; the prefix is not in the proxy list today, so there is nothing to remove.
@@ -41,7 +41,7 @@ The stored-scripts shape, per route as AC-6. The standing cost is zero: no timer
 
 ## Switch
 
-`serverless.observability.enabled` (`OSS_OBSERVABILITY`), default **off** until AC-1 to AC-9 pass; then **on**, because with no schedule, no standing request and a bounded marker it has no measured downside and the proxy prefix stops being needed. The janitor reclaims a content blob left dead by a replace or delete (AC-9 tests that too). Bounds `serverless.observability.max_objects` (1,000) and `max_object_bytes` (1 MiB) are settings.
+`serverless.observability.enabled` (`OSS_OBSERVABILITY`), default **on** (the owner's rule of 2026-11-28: a ported plugin needs no flag, or its flag is on by default), because with no schedule, no standing request and a bounded marker it has no measured downside and the proxy prefix stops being needed. The janitor reclaims a content blob left dead by a replace or delete (AC-9 tests that too). Bounds `serverless.observability.max_objects` (1,000) and `max_object_bytes` (1 MiB) are settings.
 
 ## Risks
 

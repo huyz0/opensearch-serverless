@@ -107,6 +107,7 @@ Capabilities, v1:
 |---|---|---|---|
 | `state.read`, `state.write` | tenant-scoped key-value state under `plugins/<id>/<tenant>/`, section 5 | native, wasm | the table in section 5 |
 | `search` | run a search as the calling tenant through the reader | native, wasm | a search; charged to the tenant |
+| `index.write` | index documents into the node's own indexes through the `_bulk` path, bounded by `budget.index_ops` | native, wasm | the writer's own cost, charged to the bulk budget |
 | `egress:<host>` | bounded HTTP(S) to an allow-listed host | native, wasm | no store request; resolve once, check the resolved address against private, loopback and link-local ranges (refused unless the node's policy allows it), connect to that address (no DNS rebinding), no redirect, body at most 1 MiB, time at most the call's deadline, TLS verified |
 | `identity` | the caller's user name and roles in the request | all | none |
 | `log`, `metrics` | host-rate-limited log lines and plugin-labelled counters | native, wasm | none |

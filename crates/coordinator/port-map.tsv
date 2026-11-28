@@ -65,3 +65,4 @@ src/snapshot_restore_global.rs	new		the global-state report and refusal of a res
 src/security/patch.rs	new		RFC 6902 patches of one security document and of a kind
 src/security/builtin.rs	new		the static and reserved documents the stock plugin ships
 src/security/builtin.json	port	security/src/main/resources/static_config/static_roles.yml@3.10.0	the recorded 3.10.0 built-in roles, action groups and global tenant
+src/security/info.rs	new		securityconfig, permissionsinfo and the closed-route answers

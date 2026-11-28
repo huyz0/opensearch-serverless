@@ -109,3 +109,23 @@ There is no `serverless.plugins.enabled`: with no downside to hide behind a swit
 - **gRPC adds an outbound connection surface.** Off by default, endpoints named by the deployer in the policy, no redirects, no discovery; TLS verification is not optional for TCP.
 - **The policy file must match across nodes.** A node with a different policy answers differently; the status route makes it visible, and a mixed policy is a deployment error this does not detect (the same as ADR 0052's node switch).
 - **ADR number.** 0080 leaves room for the numbers other threads have taken; renumber before merge if one is taken.
+
+## Host API 1.0
+
+A plugin that holds a capability asks the host through one call, `Host::call(op, bytes) -> bytes` (`oss_ext::host`), whose operation names are versioned data, so a new operation is an additive change. The node supplies a `Backend`; `CallHost` stands between them and judges every operation the same way for every tier (AC-4, AC-14): the operation's capability must be granted (else 403), the call's budget for that kind must not be spent (else 429; a `state.*` op spends `state_ops`, `search` and `job.submit` spend `searches`, `egress` spends `egress`, the rest spend nothing), and the answer must fit the ceiling the plugin gave (else 413). A refused operation never reaches the backend. With no backend an operation is 503.
+
+| Operation | Needs | Spends |
+|---|---|---|
+| `state.get` | `state.read` | state op |
+| `state.put`, `state.delete` | `state.write` | state op |
+| `search` | `search` | search |
+| `job.submit` | `job` | search |
+| `job.get`, `job.delete`, `job.stats` | `job` | none |
+| `index.docs` | `index.write` | index op |
+| `egress` | `egress:<host>` (the backend checks the host) | egress |
+| `identity` | `identity` | none |
+| `log`, `metrics` | `log`, `metrics` | none |
+
+A native plugin reaches it by overriding `NativeInstance::call_host`; a plugin that asks for nothing implements `call` only. The backend's operations are bytes in and bytes out, and a port that wants one (asynchronous search's submit, get, delete and stats) implements the `job.*` operations behind `Backend` and keeps its own module a function of bytes.
+
+`index.docs` indexes up to 1,000 documents (each at most 1 MiB, 8 MiB in all) into one named index through the service `_bulk` uses, so a plugin's writes take the writer path, the bulk budget and the same refusals; a document that fails fails alone with its `_bulk` status, a source that is not a JSON object refuses the call (400). `DocSink::index(index, docs)` is the node's side, `DocSinkBackend` serves the operation from it, and the manifest's `budget.index_ops` bounds the calls of one invocation.

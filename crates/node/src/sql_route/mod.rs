@@ -72,6 +72,8 @@ impl SqlGuard for AllowAll {
 pub struct SqlLimits {
     /// Whether the endpoint answers.
     pub enabled: bool,
+    /// Whether the PPL endpoint answers.
+    pub ppl_enabled: bool,
     /// The most rows a statement returns.
     pub size_limit: usize,
     /// The largest request body.

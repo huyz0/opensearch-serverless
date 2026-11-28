@@ -139,7 +139,7 @@ pub fn write(
                     Value::Object(m)
                 })
                 .collect();
-            jdbc(&mut out, schema, rows)?;
+            jdbc(&mut out, schema, rows, !plan.ppl)?;
         }
         Format::Csv => {
             let header: Vec<String> = plan
@@ -167,7 +167,12 @@ pub fn write(
 }
 
 /// The `jdbc` form of `schema` and `rows`, written row by row against the bound.
-pub(crate) fn jdbc(out: &mut Out, schema: Vec<Value>, rows: &[Vec<Value>]) -> Result<(), Error> {
+pub(crate) fn jdbc(
+    out: &mut Out,
+    schema: Vec<Value>,
+    rows: &[Vec<Value>],
+    status: bool,
+) -> Result<(), Error> {
     out.push("{\"schema\":")?;
     out.push(&Value::Array(schema).to_string())?;
     out.push(",\"datarows\":[")?;
@@ -177,8 +182,9 @@ pub(crate) fn jdbc(out: &mut Out, schema: Vec<Value>, rows: &[Vec<Value>]) -> Re
         }
         out.push(&serde_json::to_string(r).unwrap_or_default())?;
     }
+    let tail = if status { ",\"status\":200" } else { "" };
     out.push(&format!(
-        "],\"total\":{n},\"size\":{n},\"status\":200}}",
+        "],\"total\":{n},\"size\":{n}{tail}}}",
         n = rows.len()
     ))
 }

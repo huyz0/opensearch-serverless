@@ -96,6 +96,7 @@ fn rig_with(enabled: bool, max_buckets: usize) -> Rig {
         Arc::new(NoSecret),
         SqlLimits {
             enabled,
+            ppl_enabled: true,
             size_limit: 200,
             max_request_bytes: 4096,
             max_buckets,

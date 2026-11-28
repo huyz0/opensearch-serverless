@@ -108,6 +108,16 @@ pub fn interval_ms(detector: &Value) -> Result<i64, String> {
         .ok_or_else(|| "the detector has no detection interval".to_owned())
 }
 
+/// The delay a window leaves for late documents, in milliseconds: the
+/// detector's `window_delay`, none when it has none.
+#[must_use]
+pub fn delay_ms(detector: &Value) -> i64 {
+    detector["window_delay"]["period"]["interval"]
+        .as_i64()
+        .filter(|m| *m >= 0)
+        .map_or(0, |m| m.saturating_mul(60_000))
+}
+
 /// The search body for the windows of `span`: nothing but the histogram.
 ///
 /// # Errors
