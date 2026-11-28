@@ -145,8 +145,8 @@ pub struct NodeConfig {
     pub reader_ramp: reader_ramp::Secs,
     /// `OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE`: compile Painless source here.
     pub painless_native_compile: bool,
-    /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
-    pub extensions_percent: usize,
+    /// What the `extensions` and `training` pools take from the page cache.
+    pub pool_sizes: budget::PoolSizes,
     /// `OSS_EXTENSIONS_REPLAY_FUEL_FACTOR`: a replayed call's fuel and memory, times its record's.
     pub extensions_replay_factor: u64,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
@@ -328,8 +328,7 @@ impl NodeConfig {
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let (commit_checkpoint_millis, commit_logged) = commits::read(&flag, &bounded)?;
         let knn = flag("OSS_KNN", "true")?;
-        let extensions_percent =
-            usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
+        let pool_sizes = budget::read(&bounded)?;
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
         let (ltr, plugins) = (flag("OSS_LTR", "true")?, plugins::read(&flag)?);
         let ltr_bounds = ltr::read(&bounded)?;
@@ -468,7 +467,7 @@ impl NodeConfig {
             vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
             reader_ramp: reader_ramp::read(&get)?,
             painless_native_compile: flag("OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE", "false")?,
-            extensions_percent,
+            pool_sizes,
             extensions_replay_factor,
             store_usage,
             tenant_levels,
