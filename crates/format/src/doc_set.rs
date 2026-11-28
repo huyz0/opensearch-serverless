@@ -75,6 +75,8 @@ pub enum DocKind {
     LtrModels,
     /// Index state management policies, `ism/policies/`.
     IsmPolicies,
+    /// Anomaly detection detectors, `ad/detectors/`.
+    AdDetectors,
     /// The indices an ISM policy manages, one document each, `ism/managed/`.
     IsmManaged,
 }
@@ -97,6 +99,7 @@ impl DocKind {
             Self::LtrFeatureSets => "featuresets/",
             Self::LtrModels => "models/",
             Self::IsmPolicies => "ism/policies/",
+            Self::AdDetectors => "ad/detectors/",
             Self::IsmManaged => "ism/managed/",
         }
     }

@@ -242,3 +242,19 @@ fn the_ism_policies_have_their_own_directory_and_the_common_bound() {
         "ism/managed/_version"
     );
 }
+
+#[test]
+fn the_ad_detectors_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::AdDetectors).unwrap(),
+        "ad/detectors/_version"
+    );
+    assert_eq!(
+        doc_content_key("", DocKind::AdDetectors, "k").unwrap(),
+        "ad/detectors/blob-k"
+    );
+    assert_eq!(
+        DocKind::AdDetectors.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+}

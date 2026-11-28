@@ -148,6 +148,12 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = if config.ad {
+        let ad = crate::ad_route::AdService::new(store, &config.base, config.pit_buffer_bytes);
+        crate::ad_route::routes(router, &Arc::new(ad)).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,
