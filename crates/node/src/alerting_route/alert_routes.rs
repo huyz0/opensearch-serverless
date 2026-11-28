@@ -79,6 +79,11 @@ impl AlertingService {
     ) -> Result<(), RestError> {
         let (monitor, ctx, execution) = run;
         let now = now_millis();
+        // Throttles count from the run's own period end, so a late run does not shift them.
+        let at = ctx["periodEnd"]
+            .as_str()
+            .and_then(|t| oss_reader::date::parse_to_millis(t, false).ok())
+            .unwrap_or(now);
         let set = self.alert_set_of(tenant, subject.id)?;
         let mut sends = Vec::new();
         set.change(|current| {
@@ -99,7 +104,7 @@ impl AlertingService {
                 }
             }
             let (due, stamped) = if self.sender.is_some() {
-                notify::due(&mut next, monitor, ctx, now)
+                notify::due(&mut next, monitor, ctx, at)
             } else {
                 (Vec::new(), false)
             };

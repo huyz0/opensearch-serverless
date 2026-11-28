@@ -12,6 +12,7 @@ mod ad_preview;
 mod ad_routes;
 mod ad_run;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod alerting_actions;
 mod alerting_execute;
 mod alerting_routes;
 mod alerting_run;
