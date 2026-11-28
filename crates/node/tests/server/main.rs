@@ -84,6 +84,8 @@ mod ltr_cache;
 mod ltr_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod metadata_block;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ml_routes;
 #[cfg(feature = "reader")]
 mod newest_ask;
 mod notifications_routes;

@@ -302,6 +302,11 @@ src/ism_setting.rs	new		serverless.ism.enabled
 src/ism_route/mod.rs	new		the index state management policy service over a document set; the Java plugin is ported natively by ADR 0077
 src/ism_route/policy.rs	new		policy validation: the actions and conditions a serverless node can run
 src/ism_route/routes.rs	new		the route table under /_plugins/_ism and /_opendistro/_ism
+src/ml_setting.rs	new		serverless.ml.enabled
+src/ml_route/mod.rs	new		the ML Commons model group service over a document set and name claims; the Java plugin is ported natively by ADR 0079
+src/ml_route/routes.rs	new		the route table under /_plugins/_ml
+src/boot/config/plugins.rs	new		the switches of the natively ported plugins (ISM, ML Commons), read from the environment
+src/ml_route/search.rs	new		the model group search: match-all, exact name and name token queries over the set
 src/ism_route/managed.rs	new		add, remove and explain: which policy manages which index
 src/ism_route/hook.rs	new		the create hook: attaches the policy whose template matches a new index
 src/ism_route/templates.rs	new		ism_template: the aggregate of every policy's patterns, and the attach on create
