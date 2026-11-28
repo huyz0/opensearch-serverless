@@ -1,0 +1,1 @@
+source=compat-sql | rename name as n | fields n

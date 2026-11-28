@@ -175,6 +175,7 @@ fn name_of(c: &Capability) -> String {
         Capability::StateRead => "state.read".to_owned(),
         Capability::StateWrite => "state.write".to_owned(),
         Capability::Search => "search".to_owned(),
+        Capability::Job => "job".to_owned(),
         Capability::Egress(h) => format!("egress:{h}"),
         Capability::Identity => "identity".to_owned(),
         Capability::Log => "log".to_owned(),

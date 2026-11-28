@@ -1,0 +1,38 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "response": {
+    "schema": [
+      {
+        "name": "date_format(joined, '%Y-%m')",
+        "type": "keyword"
+      }
+    ],
+    "datarows": [
+      [
+        "2024-01"
+      ],
+      [
+        "2024-02"
+      ],
+      [
+        "2023-12"
+      ],
+      [
+        "2024-03"
+      ],
+      [
+        "2022-06"
+      ],
+      [
+        "2021-01"
+      ]
+    ],
+    "total": 6,
+    "size": 6,
+    "status": 200
+  }
+}

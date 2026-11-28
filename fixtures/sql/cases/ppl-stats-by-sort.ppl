@@ -1,0 +1,1 @@
+source=compat-sql | stats count() as c by city | sort - c

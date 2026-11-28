@@ -8,8 +8,15 @@
 //! another detector never moves it.
 
 mod detector;
+mod preview;
+mod preview_route;
 mod routes;
 mod search;
+mod source;
+mod validate_route;
+pub mod windows;
+
+pub use source::WindowSearch;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -33,6 +40,7 @@ pub struct AdService {
     store: Arc<dyn BlobStore>,
     base: String,
     buffer_bytes: usize,
+    search: Option<Arc<dyn WindowSearch>>,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -112,6 +120,7 @@ impl AdService {
             // ALLOC: one copy of the base, once.
             base: base.to_owned(),
             buffer_bytes,
+            search: None,
         }
     }
 

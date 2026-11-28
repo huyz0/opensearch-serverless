@@ -139,6 +139,13 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = if config.knn {
+        use crate::knn_model_route::{KnnModelService as Models, routes};
+        let models = Models::new(store, &config.base, config.pit_buffer_bytes);
+        routes(router, &Arc::new(models)).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = if config.ism {
         let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
             .map_err(store_error)?;
@@ -148,9 +155,20 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = if config.ad {
-        let ad = crate::ad_route::AdService::new(store, &config.base, config.pit_buffer_bytes);
-        crate::ad_route::routes(router, &Arc::new(ad)).map_err(AssembleError::Route)?
+    let router = crate::ml_route::mount(router, store, config)?;
+    let router = if config.notifications {
+        let service = crate::notifications_route::NotificationsService::new(
+            store,
+            &config.base,
+            config.pit_buffer_bytes,
+        )
+        .with_deliverer(Arc::new(crate::notifications_route::Deliverer::new(
+            crate::notifications_route::system_lookup(),
+            crate::notifications_route::EgressPolicy::from_env(),
+            crate::notifications_route::Limits::default(),
+        )));
+        crate::notifications_route::routes(router, &Arc::new(service))
+            .map_err(AssembleError::Route)?
     } else {
         router
     };
@@ -332,6 +350,23 @@ pub(crate) fn system_indices(
     Arc::new(oss_coordinator::system_indices::SystemIndices::parse(
         &config.system_index_patterns,
     ))
+}
+
+/// Registers the anomaly detection routes when the setting is on, their
+/// previews reading through `search`.
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub(crate) fn ad_routes<S: BlobStore + 'static>(
+    router: Router,
+    config: &Config,
+    store: &Arc<dyn BlobStore>,
+    search: &Arc<crate::search::SearchService<S>>,
+) -> Result<Router, AssembleError> {
+    if !config.ad {
+        return Ok(router);
+    }
+    let ad = crate::ad_route::AdService::new(store, &config.base, config.pit_buffer_bytes)
+        .with_search(Arc::clone(search) as _);
+    crate::ad_route::routes(router, &Arc::new(ad)).map_err(AssembleError::Route)
 }
 
 #[cfg(test)]

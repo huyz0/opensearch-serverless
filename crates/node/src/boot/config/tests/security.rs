@@ -48,7 +48,12 @@ fn learning_to_rank_is_on_by_default_and_set_by_its_variable() {
 // docs/specs/ism: no plugin needs a flag to be on; the variable only turns it off
 #[test]
 fn index_state_management_is_on_by_default_and_set_by_its_variable() {
-    assert!(NodeConfig::from_lookup(lookup(FS)).expect("valid").ism);
+    assert!(
+        NodeConfig::from_lookup(lookup(FS))
+            .expect("valid")
+            .plugins
+            .ism
+    );
     let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_ISM", "false")])));
-    assert!(!off.expect("valid").ism);
+    assert!(!off.expect("valid").plugins.ism);
 }

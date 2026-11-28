@@ -1,0 +1,1 @@
+source=compat-sql | eval double_age = age * 2 | fields name, double_age

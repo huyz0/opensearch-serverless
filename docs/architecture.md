@@ -40,6 +40,7 @@ graph TD
     oss-mem
     oss-meta --> oss-blob
     oss-meta --> oss-format
+    oss-node --> oss-anomaly
     oss-node -.-> oss-blob
     oss-node -.-> oss-cluster
     oss-node -.-> oss-coordinator
@@ -56,6 +57,7 @@ graph TD
     oss-node -.-> oss-transport
     oss-node --> oss-types
     oss-node -.-> oss-writer
+    oss-query
     oss-reader --> oss-blob
     oss-reader --> oss-cluster
     oss-reader --> oss-doc

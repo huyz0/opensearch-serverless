@@ -248,6 +248,27 @@ fn the_ism_policies_have_their_own_directory_and_the_common_bound() {
 }
 
 #[test]
+fn the_notification_sets_have_their_own_directories_and_the_catalogue_a_larger_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::NotificationConfigs).unwrap(),
+        "notifications/configs/_version"
+    );
+    assert_eq!(
+        doc_content_key("", DocKind::NotificationConfigs, "k").unwrap(),
+        "notifications/configs/blob-k"
+    );
+    assert_eq!(
+        doc_set_marker_key("", DocKind::NotificationCatalogue).unwrap(),
+        "notifications/catalogue/_version"
+    );
+    assert_eq!(
+        DocKind::NotificationConfigs.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+    assert_eq!(DocKind::NotificationCatalogue.max_doc_bytes(), 2 << 20);
+}
+
+#[test]
 fn the_ad_detectors_have_their_own_directory_and_the_common_bound() {
     assert_eq!(
         doc_set_marker_key("", DocKind::AdDetectors).unwrap(),
@@ -259,6 +280,18 @@ fn the_ad_detectors_have_their_own_directory_and_the_common_bound() {
     );
     assert_eq!(
         DocKind::AdDetectors.max_doc_bytes(),
+        oss_format::MAX_DOC_BYTES
+    );
+}
+
+#[test]
+fn the_ml_model_groups_have_their_own_directory_and_the_common_bound() {
+    assert_eq!(
+        doc_set_marker_key("", DocKind::MlModelGroups).unwrap(),
+        "ml/model_groups/_version"
+    );
+    assert_eq!(
+        DocKind::MlModelGroups.max_doc_bytes(),
         oss_format::MAX_DOC_BYTES
     );
 }

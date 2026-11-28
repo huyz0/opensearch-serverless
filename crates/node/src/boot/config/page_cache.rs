@@ -48,6 +48,9 @@ pub struct WarmPeer {
     /// The most bytes a second a peer serves to joining nodes, across all of
     /// them.
     pub serve_bytes_per_second: u64,
+    /// Whether the peer serves slower while its own searches are slowed,
+    /// with `serve_bytes_per_second` the most.
+    pub serve_adaptive: bool,
 }
 
 /// The longest a joining node is held out of the readers, in seconds.
@@ -93,6 +96,7 @@ pub(in crate::boot) fn read(
                 1,
                 MAX_BYTES,
             )?,
+            serve_adaptive: flag("OSS_WARM_SERVE_ADAPTIVE", "false")?,
         })
     } else {
         None
@@ -173,6 +177,7 @@ mod tests {
                 parallel_peers: 4,
                 open_parallel: 8,
                 serve_bytes_per_second: 128 << 20,
+                serve_adaptive: false,
             })
         );
     }
@@ -192,6 +197,7 @@ mod tests {
             ("OSS_WARM_PARALLEL_PEERS", "3"),
             ("OSS_WARM_OPEN_PARALLEL", "5"),
             ("OSS_WARM_SERVE_BYTES_PER_SECOND", "2000"),
+            ("OSS_WARM_SERVE_ADAPTIVE", "true"),
         ]);
         let warm = read_with(&vars).expect("reads").expect("tier").warm;
         assert_eq!(
@@ -207,6 +213,7 @@ mod tests {
                 parallel_peers: 3,
                 open_parallel: 5,
                 serve_bytes_per_second: 2000,
+                serve_adaptive: true,
             })
         );
         for (key, bad) in [
