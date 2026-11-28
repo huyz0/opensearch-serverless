@@ -176,10 +176,10 @@ All three tiers draw on the `Extensions` pool of ADR 0052 (`OSS_EXTENSIONS_PERCE
 
 ### 8. Switch, defaults and the build rule
 
-- No master switch (the owner's decision, 2026-11-28: plugin support is new code, and with no policy nothing loads, no request is made and the one route added is answered from memory, so there is no downside for a switch to hold back). `OSS_PLUGINS`, the deployer's policy, is the opt-in to running anyone's code; the native and gRPC tiers keep their own switches below.
-- `serverless.plugins.grpc.enabled` (default false, requires the above): the one tier that opens outbound connections.
+- No master switch (the owner's decision, 2026-11-28: plugin support is new code, and with no policy nothing loads, no request is made and the one route added is answered from memory, so there is no downside for a switch to hold back). `OSS_PLUGINS`, the deployer's policy, is the opt-in to running anyone's code; the native and gRPC tiers keep their own opt-outs below, on by default (owner's decision, 2026-11-28).
+- `serverless.plugins.grpc.enabled` (opt-out, default true): the one tier that opens outbound connections.
 - Existing tests pin the old behaviour: the proxy, the ported routes, the analyzer pin and its switch are unchanged. New tests cover the new behaviour; both run in CI.
-- `serverless.plugins.native.enabled` (default false, requires the first): the one tier that runs foreign code in the node's process; with it off no library is read and the `plugins-native` code path is unreachable. A plugin linked in is dormant whenever the first setting is off: it registers nothing, mounts no route and receives no event. Existing in-tree ports keep their own switches and are not governed by these until they adopt the system.
+- `serverless.plugins.native.enabled` (opt-out, default true): the one tier that runs foreign code in the node's process; with it off no library is read and the `plugins-native` code path is unreachable. A plugin linked in needs only the policy. Existing in-tree ports keep their own switches and are not governed by these until they adopt the system.
 
 ### 9. How learning to rank and the four ports could be built as dynamic plugins
 
