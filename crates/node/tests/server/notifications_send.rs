@@ -20,12 +20,17 @@ use serde_json::{Value, json};
 const ROOT: &str = "/_plugins/_notifications";
 
 /// A target that records each request and answers with `status` and `extra`.
-struct Sink {
-    addr: SocketAddr,
-    seen: Arc<Mutex<Vec<String>>>,
+pub(crate) struct Sink {
+    pub(crate) addr: SocketAddr,
+    pub(crate) seen: Arc<Mutex<Vec<String>>>,
 }
 
-fn sink(status: &'static str, extra: &'static str, body: &'static str, delay: Duration) -> Sink {
+pub(crate) fn sink(
+    status: &'static str,
+    extra: &'static str,
+    body: &'static str,
+    delay: Duration,
+) -> Sink {
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let addr = listener.local_addr().unwrap();
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -73,7 +78,7 @@ fn sink(status: &'static str, extra: &'static str, body: &'static str, delay: Du
     Sink { addr, seen }
 }
 
-fn open_policy(port: u16) -> EgressPolicy {
+pub(crate) fn open_policy(port: u16) -> EgressPolicy {
     EgressPolicy {
         allow_private: true,
         ports: vec![port, 80, 443],

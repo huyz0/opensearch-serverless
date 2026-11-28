@@ -385,3 +385,4 @@ src/async_search/runner.rs	new		the runner that plans a submit as one search of 
 src/async_search_setting.rs	new		the serverless.async_search.enabled setting, on by default
 src/bulk_sink.rs	new		index.docs for plugins: documents indexed through the _bulk service
 src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors from the registry, run the ones this node owns that are due; no stock recording exists (AC-15 gap)
+src/notifications_route/notifier.rs	new		the in-process sender alerting and ISM call: a config by id through a per-node cache

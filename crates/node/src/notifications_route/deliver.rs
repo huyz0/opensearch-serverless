@@ -21,7 +21,7 @@ pub struct Delivery {
 }
 
 impl Delivery {
-    fn failed(code: u16, text: &str) -> Self {
+    pub(super) fn failed(code: u16, text: &str) -> Self {
         // ALLOC: one short word, once a failed delivery.
         Self {
             status_code: code,
