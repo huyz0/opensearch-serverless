@@ -60,6 +60,8 @@ pub struct Assembled {
     /// What the page cache's records are charged, held for the node's life.
     cache_records: Option<oss_mem::Reservation>,
     pub(crate) search_queue: Option<Arc<crate::search_queue::QueueAdmission>>,
+    /// Where lifecycle events go, for the plugins that subscribe.
+    pub(crate) events: crate::lifecycle_bus::Bus,
 }
 
 /// A node listening.
@@ -343,6 +345,7 @@ pub fn assemble(
     let janitor = JanitorTimer::spawn(pass, config.janitor_every, Box::new(move || sweep));
     Ok(Assembled {
         search_queue: None,
+        events: bus,
         router,
         search,
         role,
