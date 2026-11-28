@@ -96,6 +96,8 @@ pub mod ism_route;
 pub mod ism_setting;
 #[cfg(feature = "reader")]
 pub mod jobs;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod knn_model_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod knn_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -104,7 +106,6 @@ pub mod lease_age;
 pub mod lease_announce;
 #[cfg(feature = "writer")]
 pub mod lifecycle;
-#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod ltr_route;
 pub mod ltr_setting;
 #[cfg(all(feature = "writer", feature = "coordinator"))]

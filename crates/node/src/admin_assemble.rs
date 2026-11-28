@@ -139,6 +139,16 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = if config.knn {
+        let models = crate::knn_model_route::KnnModelService::new(
+            store,
+            &config.base,
+            config.pit_buffer_bytes,
+        );
+        crate::knn_model_route::routes(router, &Arc::new(models)).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = if config.ism {
         let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
             .map_err(store_error)?;
