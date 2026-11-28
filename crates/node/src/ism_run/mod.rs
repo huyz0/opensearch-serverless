@@ -7,6 +7,7 @@
 use backend::Backend;
 use serde_json::{Value, json};
 
+mod actions;
 pub mod backend;
 #[cfg(feature = "coordinator")]
 pub mod node_backend;
@@ -65,20 +66,6 @@ fn state_of<'a>(policy: &'a Value, name: &str) -> Option<&'a Value> {
         .find(|s| s["name"] == name)
 }
 
-/// The step a read-only or read-write action takes: its name, what it asks
-/// the backend for, and the message it leaves.
-fn block_step(name: &str) -> Option<(&'static str, bool, &'static str)> {
-    match name {
-        "read_only" => Some(("set_read_only", true, "Successfully set index to read-only")),
-        "read_write" => Some((
-            "set_read_write",
-            false,
-            "Successfully set index to read-write",
-        )),
-        _ => None,
-    }
-}
-
 /// Runs the action at position `at` of the state, once, and records how it went.
 fn run_action(record: &Value, action: &Value, at: usize, now: i64, backend: &dyn Backend) -> Step {
     let mut out = record.clone();
@@ -90,24 +77,7 @@ fn run_action(record: &Value, action: &Value, at: usize, now: i64, backend: &dyn
                 .find(|k| !matches!(k.as_str(), "timeout" | "retry"))
         })
         .map_or("", String::as_str);
-    let (step, result) = match (block_step(name), name) {
-        (Some((step, on, said)), _) => (
-            step,
-            backend
-                .set_read_only(index, on)
-                .map(|()| format!("{said} [index={index}]")),
-        ),
-        (None, "delete") => (
-            "attempt_delete",
-            backend
-                .delete(index)
-                .map(|()| format!("Successfully deleted index [index={index}]")),
-        ),
-        _ => (
-            "",
-            Err(format!("action [{name}] cannot run on this node yet")),
-        ),
-    };
+    let (step, result) = actions::perform(name, action, index, backend);
     let failed = result.is_err();
     let (status, message) = match result {
         Ok(m) => ("completed", m),
@@ -209,6 +179,17 @@ mod tests {
     }
 
     impl Backend for Fake {
+        fn set_replicas(&self, index: &str, n: u32) -> Result<(), String> {
+            if self.refuse {
+                return Err("index [logs] is missing".to_owned());
+            }
+            self.asked
+                .lock()
+                .unwrap()
+                .push((format!("{index}:{n}"), false));
+            Ok(())
+        }
+
         fn delete(&self, index: &str) -> Result<(), String> {
             if self.refuse {
                 return Err("index [logs] is missing".to_owned());
@@ -308,6 +289,23 @@ mod tests {
         let s = evaluate(&started(), &p, 7000, &refused);
         assert_eq!(s.record["step"]["step_status"], "failed");
         assert!(s.record["deleted"].is_null());
+    }
+
+    #[test]
+    fn a_replica_count_action_sets_the_number_and_a_missing_number_fails() {
+        let p = acting(json!([{"replica_count":{"number_of_replicas":0}}]));
+        let fake = Fake::default();
+        let s = evaluate(&started(), &p, 7000, &fake);
+        assert_eq!(*fake.asked.lock().unwrap(), [("logs:0".to_owned(), false)]);
+        assert_eq!(s.record["step"]["name"], "attempt_set_replica_count");
+        assert_eq!(
+            s.record["info"]["message"],
+            "Successfully updated number_of_replicas to 0 [index=logs]"
+        );
+        let p = acting(json!([{"replica_count":{}}]));
+        let s = evaluate(&started(), &p, 7000, &fake);
+        assert_eq!(s.record["step"]["step_status"], "failed");
+        assert_eq!(fake.asked.lock().unwrap().len(), 1, "nothing was asked");
     }
 
     #[test]

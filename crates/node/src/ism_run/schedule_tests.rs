@@ -123,6 +123,10 @@ impl super::backend::Backend for Deleting {
         Ok(())
     }
 
+    fn set_replicas(&self, _index: &str, _n: u32) -> Result<(), String> {
+        Ok(())
+    }
+
     fn delete(&self, index: &str) -> Result<(), String> {
         self.0.lock().unwrap().push(index.to_owned());
         Ok(())
