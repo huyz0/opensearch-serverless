@@ -63,8 +63,7 @@ pub struct NodeConfig {
     pub index_confirm_millis: u64,
     /// How often the janitor sweeps and the dead-log pass runs; also the first wait before a dead node's log is tried again.
     pub janitor_every_millis: u64,
-    /// `serverless.janitor.dry_run`: count what the janitor would delete and
-    /// delete nothing. Off by default.
+    /// `serverless.janitor.dry_run`: count what the janitor would delete and delete nothing. Off by default.
     pub janitor_dry_run: bool,
     /// `serverless.buckets.enabled`: own and publish a shard whose index
     /// descriptor names a bucket through the bucket. Off by default.
@@ -150,11 +149,9 @@ pub struct NodeConfig {
     pub extensions_percent: usize,
     /// `OSS_EXTENSIONS_REPLAY_FUEL_FACTOR`: a replayed call's fuel and memory, times its record's.
     pub extensions_replay_factor: u64,
-    /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
-    /// and serve them at `GET /_serverless/usage`.
+    /// `OSS_STORE_USAGE`: count the store's requests and bytes per index and serve them at `GET /_serverless/usage`.
     pub store_usage: bool,
-    /// `OSS_STORE_USAGE_MAX_INDICES`: how many indices the usage tracks
-    /// before counting the rest together.
+    /// `OSS_STORE_USAGE_MAX_INDICES`: how many indices the usage tracks before counting the rest together.
     pub store_usage_max_indices: usize,
     /// `OSS_TENANT_LEVELS`: `off`, `observe` or `enforce`; with store usage
     /// on, each tenant's cost is judged against its budget and the level is
