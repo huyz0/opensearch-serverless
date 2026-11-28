@@ -220,6 +220,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
     super::config::snapshots::apply(config, node);
+    super::config::replication::apply(config, node);
     super::config::authoring::apply(config, node);
     super::config::plugin_policy::apply(config, node);
     node.plugin_upstreams.clone_from(&config.plugin_upstreams);

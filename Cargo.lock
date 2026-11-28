@@ -1962,6 +1962,7 @@ dependencies = [
  "oss-ml",
  "oss-query",
  "oss-reader",
+ "oss-replication",
  "oss-rest",
  "oss-testkit",
  "oss-transport",
@@ -2014,6 +2015,16 @@ dependencies = [
  "oss-testkit",
  "oss-types",
  "ureq",
+]
+
+[[package]]
+name = "oss-replication"
+version = "0.1.0"
+dependencies = [
+ "oss-blob",
+ "oss-format",
+ "oss-meta",
+ "oss-testkit",
 ]
 
 [[package]]

@@ -6,13 +6,16 @@
 //! `oss_coordinator::cluster::settings`'s; this reads the register and writes
 //! it.
 
+use std::io::Write;
 use std::sync::Arc;
 
 use oss_blob::BlobStore;
-use oss_coordinator::cluster::settings::{Setting, Shown, ack_body, parse_update, settings_body};
+use oss_coordinator::cluster::settings::{
+    Setting, Shown, ack_body, parse_update_noted, settings_body,
+};
 use oss_format::{ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, Setting as Held};
 use oss_meta::{ClusterConfig, MetaError};
-use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
+use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
 
 use crate::route_util::{flag, refuse, refused};
 
@@ -36,6 +39,7 @@ const READ_PARAMS: &[&str] = &[
 pub struct ClusterService {
     config: ClusterConfig,
     commit_period_millis: u64,
+    remotes: Option<crate::remote_roots::RemoteRoots>,
 }
 
 fn shown(settings: &ClusterSettings) -> Vec<(String, Shown)> {
@@ -85,7 +89,16 @@ impl ClusterService {
         Ok(Self {
             config: ClusterConfig::new(store, base)?,
             commit_period_millis,
+            remotes: None,
         })
+    }
+
+    /// Checks the replication remotes an update names against `remotes`.
+    /// Without it a service refuses every remote: nothing is readable until an operator names a root.
+    #[must_use]
+    pub fn with_remotes(mut self, remotes: crate::remote_roots::RemoteRoots) -> Self {
+        self.remotes = Some(remotes);
+        self
     }
 
     fn buffer(req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
@@ -130,11 +143,13 @@ impl ClusterService {
     pub fn update(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let flat = flag(req, "flat_settings", false);
         let body = Self::body(req)?;
-        let settings: Vec<Setting> = parse_update(
+        let none = crate::remote_roots::RemoteRoots::default();
+        let remotes = self.remotes.as_ref().unwrap_or(&none);
+        let (settings, warnings): (Vec<Setting>, Vec<String>) = parse_update_noted(
             Some(&body),
             self.commit_period_millis,
-            // No plugin owns a setting here.
-            &|_: &[Setting]| Ok(()),
+            // Only the replication remotes are checked here.
+            &|flat: &[Setting]| remotes.check(flat),
         )
         .map_err(refused)?;
         // ALLOC: one pair of references a setting, bounded by the body.
@@ -148,7 +163,24 @@ impl ClusterService {
             .update(&changes, &mut buf)
             .map_err(|e| failed(&e))?;
         let body = ack_body(&shown(&written), flat);
-        resp.send(200, JSON, body.as_bytes())
+        if warnings.is_empty() {
+            return resp.send(200, JSON, body.as_bytes());
+        }
+        // ALLOC: one header value, bounded by the body's seed lists.
+        let warning = warnings
+            .iter()
+            .map(|w| format!("299 - \"{}\"", w.replace('"', "'")))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let len = u64::try_from(body.len()).unwrap_or(u64::MAX);
+        let mut out = resp.start(
+            200,
+            Some(JSON),
+            Length::Known(len),
+            &[("warning", &warning)],
+        )?;
+        out.write_all(body.as_bytes())?;
+        out.finish()
     }
 }
 

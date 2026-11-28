@@ -1,0 +1,10 @@
+# Cross-cluster replication, slice 1: verified
+
+Run with `cargo test -p oss-replication`, `cargo test -p oss-node --features writer,coordinator --test server replication_remotes`, `cargo test -p oss-node --features writer,coordinator --lib replication` and `cargo test -p oss-coordinator` on 2026-11-28 (Linux sandbox, emulator only, numbers provisional). Mutation and coverage are left to CI.
+
+- AC-1: `crates/node/tests/server/replication_remotes.rs`: `a_remote_under_a_listed_root_is_accepted_and_read_back`, `a_remote_outside_every_root_over_a_symlink_or_with_no_roots_is_refused_naming_the_rule`, `an_s3_remote_over_this_deployments_own_bucket_is_refused_and_one_beside_it_is_not`; the checks themselves in `crates/replication/tests/settings.rs::a_remote_is_readable_only_under_a_listed_root_and_never_over_its_own_store`
+- AC-2: the compile-fail doc test on the handle in `crates/replication/src/remote.rs` (a write call does not compile); the handle wraps the read-only store of `crates/blob/src/read_only.rs`, which also denies at run time
+- AC-3: `crates/replication/tests/remote.rs::a_shard_manifest_is_the_latest_generation_and_its_files`, `a_descriptor_gives_the_leaders_uuid_shard_count_and_mapping`, `a_missing_index_or_shard_is_remote_missing`. The leader is built with the publisher's own manifest encoder (`crates/format/src/manifest.rs`) and the descriptor store (`crates/meta/src/descriptors.rs`), not by the writer crate (a dependency this crate may not have)
+- AC-4: `crates/replication/tests/remote.rs::a_manifest_costs_one_get_a_descriptor_one_get_and_nothing_lists`, `an_idle_remote_makes_no_request`. The spec's "1 HEAD when the generation is asked for alone" is dropped: a register's generation is not in a HEAD
+- AC-5: `replication_remotes.rs::seeds_are_accepted_ignored_and_warned_about`, `a_bad_type_alias_or_count_is_400`; `crates/replication/tests/settings.rs`
+- AC-6: `replication_remotes.rs::the_replication_switch_validates_and_changes_nothing_else`, `crates/node/src/boot/config/replication.rs` tests; the existing coordinator and node suites pass unchanged

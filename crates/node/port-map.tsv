@@ -402,3 +402,5 @@ src/index_route/options.rs	new		the create-time switches (nested, geo_point) rea
 src/notifications_assemble.rs	new		mounts the notifications routes and builds the shared in-process sender
 src/plugins/wasm.rs	new		a WASM module as a plugin: its descriptor is its manifest and each call is one call into the extension host
 src/plugins/wasm_load.rs	new		reads the WASM modules a policy names by hash from the store at start, one GET each
+src/boot/config/replication.rs	new		replication is new: the stock plugin has no object-store remotes
+src/remote_roots.rs	new		the allow-list check of a replication remote, over oss_blob::SourceRoots

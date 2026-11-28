@@ -23,6 +23,7 @@ crates/meta/src/stock_restore.rs	source
 crates/reader/src/commit_push/mod.rs	source	
 crates/reader/src/frozen.rs	source	
 crates/reader/src/shard_files.rs	source	
+crates/replication/src/remote.rs	source	reads a leader shard's manifest in the leader's own store; persists nothing here (slice 2 persists a follower manifest and must be reviewed then)
 crates/writer/src/bucket/assign.rs	source	
 crates/writer/src/bucket/commits.rs	source	
 crates/writer/src/bucket/store.rs	source	

@@ -64,7 +64,7 @@ impl Routes for Local {
     }
 }
 
-fn budget(request_bodies: usize, open_indexes: usize) -> MemoryBudget {
+pub(crate) fn budget(request_bodies: usize, open_indexes: usize) -> MemoryBudget {
     MemoryBudget::new(
         &BudgetConfig::new(512 << 20)
             .with_pool(Pool::RequestBodies, request_bodies)
@@ -74,7 +74,7 @@ fn budget(request_bodies: usize, open_indexes: usize) -> MemoryBudget {
     )
 }
 
-fn config() -> Config {
+pub(crate) fn config() -> Config {
     Config {
         publish_every: Duration::from_millis(10),
         publish_age_millis: 0,
@@ -82,7 +82,7 @@ fn config() -> Config {
     }
 }
 
-fn writer(store: &Arc<Emulator>) -> Writer {
+pub(crate) fn writer(store: &Arc<Emulator>) -> Writer {
     let log =
         NodeLogStore::new(Arc::clone(store) as Arc<dyn BlobStore>, "", "node-1").expect("names");
     Writer {
@@ -104,7 +104,7 @@ fn writer(store: &Arc<Emulator>) -> Writer {
     }
 }
 
-fn call(r: &Running, method: &str, target: &str, body: Option<&str>) -> support::Reply {
+pub(crate) fn call(r: &Running, method: &str, target: &str, body: Option<&str>) -> support::Reply {
     support::request(r.addr(), method, target, body.map(str::as_bytes))
 }
 

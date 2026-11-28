@@ -123,6 +123,8 @@ mod read_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
 mod reindex_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod replication_remotes;
 mod reports_routes;
 mod restore_flags;
 mod restore_settings;

@@ -20,6 +20,7 @@ pub(super) mod page_cache;
 pub(super) mod plugin_policy;
 pub(super) mod plugins;
 mod reader_ramp;
+pub(super) mod replication;
 pub(super) mod roles;
 pub(super) mod search_queue;
 pub(super) mod search_slots;
@@ -55,14 +56,12 @@ pub struct NodeConfig {
     pub memory_bytes: usize,
     /// How far ahead a lease renewal stamps its expiry.
     pub lease_ttl_millis: i64,
-    /// How often the node reads the fleet's leases again; unset, the same
-    /// as the lease is renewed (a third of its lifetime).
+    /// How often the node reads the fleet's leases again; unset, as often as a lease is renewed (a third of its lifetime).
     pub lease_refresh_millis: Option<u64>,
     /// How long a writer trusts an index it read before confirming it by
     /// the change stripes; zero reads the descriptor on every lookup.
     pub index_confirm_millis: u64,
-    /// How often the janitor sweeps and the dead-log pass runs; it is also
-    /// the first wait before a dead node's log is tried again.
+    /// How often the janitor sweeps and the dead-log pass runs; also the first wait before a dead node's log is tried again.
     pub janitor_every_millis: u64,
     /// `serverless.janitor.dry_run`: count what the janitor would delete and
     /// delete nothing. Off by default.
@@ -76,6 +75,8 @@ pub struct NodeConfig {
     pub plugin_policy: plugin_policy::PluginPolicy,
     /// What a node serves of snapshots, and the names it refuses.
     pub snapshots: snapshots::SnapshotConfig,
+    /// What a node serves of cross-cluster replication.
+    pub replication: replication::ReplicationConfig,
     /// `serverless.plugins.upstreams`: `http(s)` bases of Java nodes that serve the plugins not ported; none by default.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`.
@@ -433,6 +434,7 @@ impl NodeConfig {
             janitor_dry_run,
             buckets_enabled,
             snapshots,
+            replication: replication::read(&flag, &or)?,
             authoring,
             plugin_policy,
             plugin_upstreams,

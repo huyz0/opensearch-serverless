@@ -56,6 +56,7 @@ graph TD
     oss-node -.-> oss-ml
     oss-node -.-> oss-query
     oss-node -.-> oss-reader
+    oss-node -.-> oss-replication
     oss-node -.-> oss-rest
     oss-node -.-> oss-transport
     oss-node --> oss-types
@@ -68,6 +69,8 @@ graph TD
     oss-reader --> oss-format
     oss-reader --> oss-rest
     oss-reader --> oss-types
+    oss-replication --> oss-blob
+    oss-replication --> oss-format
     oss-rest --> chunkjson
     oss-rest --> oss-mem
     oss-testkit

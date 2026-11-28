@@ -19,6 +19,8 @@ pub const BUCKET_KEY: &str = "serverless.bucket";
 pub const TAIL_OVERLAY_KEY: &str = "serverless.tail_overlay";
 /// The cluster default of refresh visibility.
 pub const REFRESH_VISIBILITY_KEY: &str = "serverless.refresh_visibility";
+/// The cluster switch of cross-cluster replication.
+pub const REPLICATION_KEY: &str = "serverless.replication.enabled";
 /// How old a staged commit may get before the register must hold it.
 pub const CHECKPOINT_KEY: &str = "serverless.wal.node_log.commits.checkpoint_millis";
 
@@ -69,6 +71,28 @@ pub fn parse_update(
     commit_period_millis: u64,
     plugins: &dyn Fn(&[Setting]) -> Result<(), String>,
 ) -> Result<Vec<Setting>, Refusal> {
+    parse_update_noted(body, commit_period_millis, plugins).map(|(settings, _)| settings)
+}
+
+/// Whether `key` is a remote cluster's transport seed list, which this build
+/// accepts and ignores: a remote here is a store, not a transport address.
+fn is_ignored_seeds(key: &str) -> bool {
+    key.strip_prefix("cluster.remote.")
+        .and_then(|rest| rest.strip_suffix(".seeds"))
+        .is_some_and(|alias| !alias.is_empty() && !alias.contains('.'))
+}
+
+/// As [`parse_update`], and the warnings the answer carries: a setting that
+/// was accepted and ignored.
+///
+/// # Errors
+///
+/// As [`parse_update`].
+pub fn parse_update_noted(
+    body: Option<&[u8]>,
+    commit_period_millis: u64,
+    plugins: &dyn Fn(&[Setting]) -> Result<(), String>,
+) -> Result<(Vec<Setting>, Vec<String>), Refusal> {
     const NEEDS_PERSISTENT: &str = "a settings update needs a 'persistent' object";
     let body = body
         .filter(|b| !b.is_empty())
@@ -106,9 +130,21 @@ pub fn parse_update(
         Some(Json::Obj(transient)) => transient.as_slice(),
         Some(_) => return Err(illegal("'transient' settings must be an object")),
     };
-    let persistent = flatten(persistent);
+    let mut persistent = flatten(persistent);
     let transient = flatten(transient);
-    if persistent.is_empty() && transient.is_empty() {
+    // ALLOC: one message a seed list, once.
+    let mut warnings: Vec<String> = Vec::new();
+    persistent.retain(|(key, _)| {
+        let ignored = is_ignored_seeds(key);
+        if ignored {
+            // ALLOC: one message a seed list, bounded by the body.
+            warnings.push(format!(
+                "[{key}] is accepted and ignored: a remote cluster here is an object store (cluster.remote.<alias>.store), not transport seeds"
+            ));
+        }
+        !ignored
+    });
+    if persistent.is_empty() && transient.is_empty() && warnings.is_empty() {
         return Err(Refusal::new(
             400,
             "action_request_validation_exception",
@@ -141,7 +177,7 @@ pub fn parse_update(
         .collect();
     check_values(&flat, commit_period_millis)?;
     plugins(&flat).map_err(refuse_value)?;
-    Ok(flat)
+    Ok((flat, warnings))
 }
 
 /// What a flattened leaf is.
@@ -232,6 +268,12 @@ fn check_values(flat: &[Setting], commit_period_millis: u64) -> Result<(), Refus
         TAIL_OVERLAY_KEY,
         &["true", "false"],
         "tail overlay must be [true] or [false]",
+        true,
+    )?;
+    one_of(
+        REPLICATION_KEY,
+        &["true", "false"],
+        "replication must be [true] or [false]",
         true,
     )?;
     one_of(
