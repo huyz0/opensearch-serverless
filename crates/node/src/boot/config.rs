@@ -1,7 +1,6 @@
 //! A node's configuration, read from named variables.
 //!
-//! The lookup is a function, so a test supplies variables without touching
-//! the process environment.
+//! The lookup is a function, so a test supplies variables without the process environment.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -17,6 +16,7 @@ pub(super) mod edge;
 pub(super) mod ltr;
 mod packs;
 pub(super) mod page_cache;
+pub(super) mod plugins;
 mod reader_ramp;
 pub(super) mod roles;
 pub(super) mod search_queue;
@@ -115,10 +115,8 @@ pub struct NodeConfig {
     pub sql: bool,
     /// The SQL row and request bounds.
     pub sql_bounds: sql::Bounds,
-    /// `serverless.ism.enabled` (`OSS_ISM`): serve the ISM policy routes. Off by default.
-    pub ism: bool,
-    /// `serverless.ad.enabled` (`OSS_AD`): serve the anomaly detection detector routes. Off by default.
-    pub ad: bool,
+    /// The ported plugins' switches (`OSS_ISM`, `OSS_AD`, `OSS_ML`).
+    pub plugins: plugins::Switches,
     /// The `sltr` window and model cache bounds.
     pub ltr_bounds: ltr::Bounds,
     /// `OSS_SCRIPT_CACHE_TTL`: seconds a stored script is trusted before the set is checked.
@@ -325,7 +323,7 @@ impl NodeConfig {
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
-        let (ltr, ism) = (flag("OSS_LTR", "true")?, flag("OSS_ISM", "false")?);
+        let (ltr, plugins) = (flag("OSS_LTR", "true")?, plugins::read(&flag)?);
         let ltr_bounds = ltr::read(&bounded)?;
         let (sql, sql_bounds) = (flag("OSS_SQL", "true")?, sql::read(&bounded)?);
         let script_cache_ttl_secs = bounded("OSS_SCRIPT_CACHE_TTL", "10", 1, 3_600)?;
@@ -456,8 +454,7 @@ impl NodeConfig {
             ltr,
             sql,
             sql_bounds,
-            ism,
-            ad: flag("OSS_AD", "false")?,
+            plugins,
             ltr_bounds,
             script_cache_ttl_secs,
             security,

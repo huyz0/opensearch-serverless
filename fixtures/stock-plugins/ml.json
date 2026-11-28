@@ -1,0 +1,2587 @@
+{
+  "name": "ml commons routes",
+  "description": "The stock ML Commons plugin's model group, connector, remote model, deploy, predict, train, execute, agent and memory routes. The remote model calls a local target (127.0.0.1:18080) that answers {\"out\":[1,2,3],\"echo\":\"ok\"} to any path starting /json. Local (ONNX or TorchScript) models are not recorded: they need model files.",
+  "setup": "cluster settings: {\"plugins.ml_commons.only_run_on_ml_node\": false, \"plugins.ml_commons.allow_registering_model_via_url\": true, \"plugins.ml_commons.trusted_connector_endpoints_regex\": [\"^http://127\\\\.0\\\\.0\\\\.1:18080/.*$\"], \"plugins.ml_commons.connector.private_ip_enabled\": true, \"plugins.ml_commons.agent_framework_enabled\": true, \"plugins.ml_commons.memory_feature_enabled\": true}; index compat-ml-src: 40 documents with numeric x, y and keyword g",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "placeholders": "`{label}` in a request is the value the step that captured it received; `<label>` in a response is where that value appeared. `<volatile>` is a time, a counter or a generated value that differs on every run.",
+  "steps": [
+    {
+      "name": "register model group",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/model_groups/_register",
+        "body": {
+          "name": "compat-g1",
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_group_id": "<g>",
+          "status": "CREATED"
+        }
+      }
+    },
+    {
+      "name": "register duplicate model group",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/model_groups/_register",
+        "body": {
+          "name": "compat-g1",
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "The name you provided is already being used by a model group with ID: <g>."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "The name you provided is already being used by a model group with ID: <g>."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "register group without name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/model_groups/_register",
+        "body": {
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "null_pointer_exception",
+                "reason": "model group name must not be null"
+              }
+            ],
+            "type": "null_pointer_exception",
+            "reason": "model group name must not be null"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "register group with access mode",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/model_groups/_register",
+        "body": {
+          "name": "compat-g2",
+          "description": "d",
+          "access_mode": "public"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "You cannot specify model access control parameters because the Security plugin or model access control is disabled on your cluster."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "You cannot specify model access control parameters because the Security plugin or model access control is disabled on your cluster."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "get model group",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/model_groups/{g}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "name": "compat-g1",
+          "latest_version": 0,
+          "description": "d",
+          "access": "<volatile>",
+          "created_time": "<volatile>",
+          "last_updated_time": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "get missing model group",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/model_groups/nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Failed to find model group with the provided model group id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Failed to find model group with the provided model group id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "update model group",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ml/model_groups/{g}",
+        "body": {
+          "description": "changed"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "status": "Updated"
+        }
+      }
+    },
+    {
+      "name": "update missing model group",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ml/model_groups/nope",
+        "body": {
+          "description": "changed"
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Failed to find model group with the provided model group id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Failed to find model group with the provided model group id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "search model groups",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/model_groups/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "name.keyword": "asc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": ".plugins-ml-model-group",
+                "_id": "<g>",
+                "_version": "<volatile>",
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": null,
+                "_source": {
+                  "created_time": "<volatile>",
+                  "access": "<volatile>",
+                  "latest_version": 0,
+                  "last_updated_time": "<volatile>",
+                  "name": "compat-g1",
+                  "description": "changed"
+                },
+                "sort": [
+                  "compat-g1"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create connector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/connectors/_create",
+        "body": {
+          "name": "compat-c1",
+          "description": "d",
+          "version": "1",
+          "protocol": "http",
+          "parameters": {
+            "endpoint": "127.0.0.1:18080"
+          },
+          "credential": {
+            "k": "v"
+          },
+          "actions": [
+            {
+              "action_type": "predict",
+              "method": "POST",
+              "url": "http://127.0.0.1:18080/json",
+              "headers": {
+                "x": "y"
+              },
+              "request_body": "{\"input\":\"${parameters.input}\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "connector_id": "<c>"
+        }
+      }
+    },
+    {
+      "name": "create connector with untrusted url",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/connectors/_create",
+        "body": {
+          "name": "compat-c2",
+          "description": "d",
+          "version": "1",
+          "protocol": "http",
+          "parameters": {
+            "endpoint": "127.0.0.1:18080"
+          },
+          "credential": {
+            "k": "v"
+          },
+          "actions": [
+            {
+              "action_type": "predict",
+              "method": "POST",
+              "url": "http://203.0.113.9/x",
+              "request_body": "{}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Connector URL is not matching the trusted connector endpoint regex"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Connector URL is not matching the trusted connector endpoint regex"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create connector without actions",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/connectors/_create",
+        "body": {
+          "name": "compat-c3",
+          "description": "d",
+          "version": "1",
+          "protocol": "http",
+          "parameters": {
+            "endpoint": "127.0.0.1:18080"
+          },
+          "credential": {
+            "k": "v"
+          },
+          "actions": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "connector_id": "<c3>"
+        }
+      }
+    },
+    {
+      "name": "create connector bad protocol",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/connectors/_create",
+        "body": {
+          "name": "compat-c4",
+          "description": "d",
+          "version": "1",
+          "protocol": "carrier",
+          "parameters": {
+            "endpoint": "127.0.0.1:18080"
+          },
+          "credential": {
+            "k": "v"
+          },
+          "actions": [
+            {
+              "action_type": "predict",
+              "method": "POST",
+              "url": "http://127.0.0.1:18080/json",
+              "headers": {
+                "x": "y"
+              },
+              "request_body": "{\"input\":\"${parameters.input}\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Unsupported connector protocol. Please use one of [aws_sigv4, http, google_cloud, mcp_sse, mcp_streamable_http]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Unsupported connector protocol. Please use one of [aws_sigv4, http, google_cloud, mcp_sse, mcp_streamable_http]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create connector without name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/connectors/_create",
+        "body": {
+          "description": "d",
+          "version": "1",
+          "protocol": "http",
+          "parameters": {
+            "endpoint": "127.0.0.1:18080"
+          },
+          "credential": {
+            "k": "v"
+          },
+          "actions": [
+            {
+              "action_type": "predict",
+              "method": "POST",
+              "url": "http://127.0.0.1:18080/json",
+              "headers": {
+                "x": "y"
+              },
+              "request_body": "{\"input\":\"${parameters.input}\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Connector name is null"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Connector name is null"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create connector duplicate name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/connectors/_create",
+        "body": {
+          "name": "compat-c1",
+          "description": "d",
+          "version": "1",
+          "protocol": "http",
+          "parameters": {
+            "endpoint": "127.0.0.1:18080"
+          },
+          "credential": {
+            "k": "v"
+          },
+          "actions": [
+            {
+              "action_type": "predict",
+              "method": "POST",
+              "url": "http://127.0.0.1:18080/json",
+              "headers": {
+                "x": "y"
+              },
+              "request_body": "{\"input\":\"${parameters.input}\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "connector_id": "<c_dup>"
+        }
+      }
+    },
+    {
+      "name": "get connector",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/connectors/{c}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "name": "compat-c1",
+          "version": "1",
+          "description": "d",
+          "protocol": "http",
+          "parameters": {
+            "endpoint": "127.0.0.1:18080"
+          },
+          "actions": [
+            {
+              "action_type": "PREDICT",
+              "method": "POST",
+              "url": "http://127.0.0.1:18080/json",
+              "headers": {
+                "x": "y"
+              },
+              "request_body": "{\"input\":\"${parameters.input}\"}"
+            }
+          ],
+          "created_time": "<volatile>",
+          "last_updated_time": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "get missing connector",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/connectors/nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Failed to find connector with the provided connector id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Failed to find connector with the provided connector id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "update connector",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ml/connectors/{c}",
+        "body": {
+          "description": "changed"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-connector",
+          "_id": "<c>",
+          "_version": "<volatile>",
+          "result": "updated",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "get updated connector",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/connectors/{c}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "name": "compat-c1",
+          "version": "1",
+          "description": "changed",
+          "protocol": "http",
+          "parameters": {
+            "endpoint": "127.0.0.1:18080"
+          },
+          "actions": [
+            {
+              "action_type": "PREDICT",
+              "method": "POST",
+              "url": "http://127.0.0.1:18080/json",
+              "headers": {
+                "x": "y"
+              },
+              "request_body": "{\"input\":\"${parameters.input}\"}"
+            }
+          ],
+          "created_time": "<volatile>",
+          "last_updated_time": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "search connectors",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/connectors/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "name.keyword": "asc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": ".plugins-ml-connector",
+                "_id": "<c_dup>",
+                "_version": "<volatile>",
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": null,
+                "_source": {
+                  "created_time": "<volatile>",
+                  "protocol": "http",
+                  "last_updated_time": "<volatile>",
+                  "name": "compat-c1",
+                  "description": "d",
+                  "version": "1",
+                  "parameters": {
+                    "endpoint": "127.0.0.1:18080"
+                  },
+                  "actions": [
+                    {
+                      "headers": {
+                        "x": "y"
+                      },
+                      "method": "POST",
+                      "request_body": "{\"input\":\"${parameters.input}\"}",
+                      "action_type": "PREDICT",
+                      "url": "http://127.0.0.1:18080/json"
+                    }
+                  ]
+                },
+                "sort": [
+                  "compat-c1"
+                ]
+              },
+              {
+                "_index": ".plugins-ml-connector",
+                "_id": "<c>",
+                "_version": "<volatile>",
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": null,
+                "_source": {
+                  "created_time": "<volatile>",
+                  "protocol": "http",
+                  "last_updated_time": "<volatile>",
+                  "name": "compat-c1",
+                  "description": "changed",
+                  "version": "1",
+                  "parameters": {
+                    "endpoint": "127.0.0.1:18080"
+                  },
+                  "actions": [
+                    {
+                      "headers": {
+                        "x": "y"
+                      },
+                      "method": "POST",
+                      "request_body": "{\"input\":\"${parameters.input}\"}",
+                      "action_type": "PREDICT",
+                      "url": "http://127.0.0.1:18080/json"
+                    }
+                  ]
+                },
+                "sort": [
+                  "compat-c1"
+                ]
+              },
+              {
+                "_index": ".plugins-ml-connector",
+                "_id": "<c3>",
+                "_version": "<volatile>",
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": null,
+                "_source": {
+                  "created_time": "<volatile>",
+                  "protocol": "http",
+                  "last_updated_time": "<volatile>",
+                  "name": "compat-c3",
+                  "description": "d",
+                  "version": "1",
+                  "parameters": {
+                    "endpoint": "127.0.0.1:18080"
+                  },
+                  "actions": []
+                },
+                "sort": [
+                  "compat-c3"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "register remote model",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_register",
+        "body": {
+          "name": "compat-m1",
+          "function_name": "remote",
+          "description": "d",
+          "connector_id": "{c}",
+          "model_group_id": "{g}"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "task_id": "<t>",
+          "status": "CREATED",
+          "model_id": "<m>"
+        }
+      }
+    },
+    {
+      "name": "get register task",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/tasks/{t}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "<m>",
+          "task_type": "REGISTER_MODEL",
+          "function_name": "REMOTE",
+          "state": "COMPLETED",
+          "worker_node": [
+            "rHWwN0xGQOu0Jwtg3VxcwQ"
+          ],
+          "create_time": "<volatile>",
+          "last_update_time": "<volatile>",
+          "is_async": false
+        }
+      }
+    },
+    {
+      "name": "get model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/models/{m}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "name": "compat-m1",
+          "model_group_id": "<g>",
+          "algorithm": "REMOTE",
+          "model_version": "<volatile>",
+          "description": "d",
+          "model_state": "REGISTERED",
+          "created_time": "<volatile>",
+          "last_updated_time": "<volatile>",
+          "is_hidden": false,
+          "connector_id": "<c>"
+        }
+      }
+    },
+    {
+      "name": "get missing model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/models/nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Failed to find model with the provided model id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Failed to find model with the provided model id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "predict on an undeployed model",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/{m}/_predict",
+        "body": {
+          "parameters": {
+            "input": "hi"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "inference_results": [
+            {
+              "output": [
+                {
+                  "name": "response",
+                  "dataAsMap": {
+                    "out": [
+                      1,
+                      2,
+                      3
+                    ],
+                    "echo": "ok"
+                  }
+                }
+              ],
+              "status_code": 200
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "deploy model",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/{m}/_deploy"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "task_id": "<dt>",
+          "task_type": "DEPLOY_MODEL",
+          "status": "COMPLETED"
+        }
+      }
+    },
+    {
+      "name": "get deploy task",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/tasks/{dt}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "<m>",
+          "task_type": "DEPLOY_MODEL",
+          "function_name": "REMOTE",
+          "state": "COMPLETED",
+          "worker_node": [
+            "rHWwN0xGQOu0Jwtg3VxcwQ"
+          ],
+          "create_time": "<volatile>",
+          "last_update_time": "<volatile>",
+          "is_async": true
+        }
+      }
+    },
+    {
+      "name": "get deployed model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/models/{m}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "name": "compat-m1",
+          "model_group_id": "<g>",
+          "algorithm": "REMOTE",
+          "model_version": "<volatile>",
+          "description": "d",
+          "model_state": "DEPLOYED",
+          "created_time": "<volatile>",
+          "last_updated_time": "<volatile>",
+          "last_deployed_time": "<volatile>",
+          "auto_redeploy_retry_times": 0,
+          "planning_worker_node_count": "<volatile>",
+          "current_worker_node_count": "<volatile>",
+          "planning_worker_nodes": [
+            "rHWwN0xGQOu0Jwtg3VxcwQ"
+          ],
+          "deploy_to_all_nodes": true,
+          "is_hidden": false,
+          "connector_id": "<c>"
+        }
+      }
+    },
+    {
+      "name": "predict",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/{m}/_predict",
+        "body": {
+          "parameters": {
+            "input": "hi"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "inference_results": [
+            {
+              "output": [
+                {
+                  "name": "response",
+                  "dataAsMap": {
+                    "out": [
+                      1,
+                      2,
+                      3
+                    ],
+                    "echo": "ok"
+                  }
+                }
+              ],
+              "status_code": 200
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "predict without parameters",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/{m}/_predict",
+        "body": {}
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Some parameter placeholder not filled in payload: input"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Some parameter placeholder not filled in payload: input"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "predict with unknown parameter",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/{m}/_predict",
+        "body": {
+          "parameters": {
+            "nope": "x"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Some parameter placeholder not filled in payload: input"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Some parameter placeholder not filled in payload: input"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "predict unified path",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_predict/remote/{m}",
+        "body": {
+          "parameters": {
+            "input": "hi"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "inference_results": [
+            {
+              "output": [
+                {
+                  "name": "response",
+                  "dataAsMap": {
+                    "out": [
+                      1,
+                      2,
+                      3
+                    ],
+                    "echo": "ok"
+                  }
+                }
+              ],
+              "status_code": 200
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "profile models",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/profile/models"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {
+              "models": {
+                "<m>": {
+                  "model_state": "DEPLOYED",
+                  "predictor": "<volatile>",
+                  "target_worker_nodes": [
+                    "rHWwN0xGQOu0Jwtg3VxcwQ"
+                  ],
+                  "worker_nodes": [
+                    "rHWwN0xGQOu0Jwtg3VxcwQ"
+                  ],
+                  "model_inference_stats": {
+                    "count": 3,
+                    "max": "<volatile>",
+                    "min": "<volatile>",
+                    "average": "<volatile>",
+                    "p50": "<volatile>",
+                    "p90": "<volatile>",
+                    "p99": "<volatile>"
+                  },
+                  "predict_request_stats": {
+                    "count": 5,
+                    "max": "<volatile>",
+                    "min": "<volatile>",
+                    "average": "<volatile>",
+                    "p50": "<volatile>",
+                    "p90": "<volatile>",
+                    "p99": "<volatile>"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "profile model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/profile/models/{m}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {
+              "models": {
+                "<m>": {
+                  "model_state": "DEPLOYED",
+                  "predictor": "<volatile>",
+                  "target_worker_nodes": [
+                    "rHWwN0xGQOu0Jwtg3VxcwQ"
+                  ],
+                  "worker_nodes": [
+                    "rHWwN0xGQOu0Jwtg3VxcwQ"
+                  ],
+                  "model_inference_stats": {
+                    "count": 3,
+                    "max": "<volatile>",
+                    "min": "<volatile>",
+                    "average": "<volatile>",
+                    "p50": "<volatile>",
+                    "p90": "<volatile>",
+                    "p99": "<volatile>"
+                  },
+                  "predict_request_stats": {
+                    "count": 5,
+                    "max": "<volatile>",
+                    "min": "<volatile>",
+                    "average": "<volatile>",
+                    "p50": "<volatile>",
+                    "p90": "<volatile>",
+                    "p99": "<volatile>"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "stats by name",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/stats/ml_connector_count,ml_model_count"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "ml_connector_count": "<volatile>",
+          "ml_model_count": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "stats of unknown name",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/stats/nope"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Wrong ML cluster level stat"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Wrong ML cluster level stat"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "update model",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ml/models/{m}",
+        "body": {
+          "description": "changed"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-model",
+          "_id": "<m>",
+          "_version": "<volatile>",
+          "result": "updated",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "search models",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "_source": {
+            "excludes": [
+              "model_content"
+            ]
+          },
+          "sort": [
+            {
+              "name.keyword": "asc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": ".plugins-ml-model",
+                "_id": "<m>",
+                "_version": "<volatile>",
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": null,
+                "_source": {
+                  "last_deployed_time": "<volatile>",
+                  "model_version": "<volatile>",
+                  "created_time": "<volatile>",
+                  "deploy_to_all_nodes": true,
+                  "is_hidden": false,
+                  "description": "changed",
+                  "model_state": "DEPLOYED",
+                  "planning_worker_node_count": "<volatile>",
+                  "model_id": "<m>",
+                  "auto_redeploy_retry_times": 0,
+                  "last_updated_time": "<volatile>",
+                  "name": "compat-m1",
+                  "connector_id": "<c>",
+                  "current_worker_node_count": "<volatile>",
+                  "model_group_id": "<g>",
+                  "planning_worker_nodes": [
+                    "rHWwN0xGQOu0Jwtg3VxcwQ"
+                  ],
+                  "algorithm": "REMOTE"
+                },
+                "sort": [
+                  "compat-m1"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search tasks",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/tasks/_search",
+        "body": {
+          "size": 0,
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "delete connector in use",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/connectors/{c}"
+      },
+      "response": {
+        "status": 409,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "1 models are still using this connector, please delete or update the models first: [<m>]"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "1 models are still using this connector, please delete or update the models first: [<m>]"
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "delete deployed model",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/models/{m}"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Model cannot be deleted in deploying or deployed state. Try undeploy model first then delete"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Model cannot be deleted in deploying or deployed state. Try undeploy model first then delete"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "undeploy model",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/{m}/_undeploy"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "rHWwN0xGQOu0Jwtg3VxcwQ": {
+            "stats": {
+              "<m>": "undeployed"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "undeploy again",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/{m}/_undeploy"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "rHWwN0xGQOu0Jwtg3VxcwQ": {
+            "stats": {
+              "<m>": "not_found"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete model",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/models/{m}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-model",
+          "_id": "<m>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete model again",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/models/{m}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Failed to find model"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Failed to find model"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "register remote model with inline connector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_register",
+        "body": {
+          "name": "compat-m2",
+          "function_name": "remote",
+          "description": "d",
+          "connector": {
+            "name": "compat-inline",
+            "description": "d",
+            "version": "1",
+            "protocol": "http",
+            "parameters": {
+              "endpoint": "127.0.0.1:18080"
+            },
+            "credential": {
+              "k": "v"
+            },
+            "actions": [
+              {
+                "action_type": "predict",
+                "method": "POST",
+                "url": "http://127.0.0.1:18080/json",
+                "headers": {
+                  "x": "y"
+                },
+                "request_body": "{\"input\":\"${parameters.input}\"}"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "task_id": "<volatile>",
+          "status": "CREATED",
+          "model_id": "<m2>"
+        }
+      }
+    },
+    {
+      "name": "register remote model without connector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_register",
+        "body": {
+          "name": "compat-m3",
+          "function_name": "remote",
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "You must provide connector content when creating a remote model without connector id!"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "You must provide connector content when creating a remote model without connector id!"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "register unknown function",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_register",
+        "body": {
+          "name": "compat-m4",
+          "function_name": "nope",
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Wrong function name"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Wrong function name"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "register without name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_register",
+        "body": {
+          "function_name": "remote"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "model name is null"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "model name is null"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "register with unknown group",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_register",
+        "body": {
+          "name": "compat-m5",
+          "function_name": "remote",
+          "connector_id": "{c}",
+          "model_group_id": "nope"
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "m_l_resource_not_found_exception",
+                "reason": "Model Group Response is empty for nope"
+              }
+            ],
+            "type": "m_l_resource_not_found_exception",
+            "reason": "Model Group Response is empty for nope"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "register text embedding from a url that is not allowed",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_register",
+        "body": {
+          "name": "compat-m6",
+          "version": "1.0.0",
+          "model_format": "ONNX",
+          "function_name": "TEXT_EMBEDDING",
+          "url": "http://127.0.0.1:18080/200",
+          "model_content_hash_value": "00",
+          "model_config": {
+            "model_type": "bert",
+            "embedding_dimension": 3,
+            "framework_type": "sentence_transformers"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "task_id": "<volatile>",
+          "status": "CREATED"
+        }
+      }
+    },
+    {
+      "name": "register pretrained model not available",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/models/_register",
+        "body": {
+          "name": "huggingface/sentence-transformers/nope",
+          "version": "1.0.1",
+          "model_format": "TORCH_SCRIPT"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "task_id": "<volatile>",
+          "status": "CREATED"
+        }
+      }
+    },
+    {
+      "name": "delete inline model",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/models/{m2}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-model",
+          "_id": "<m2>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "kmeans train",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_train/kmeans",
+        "body": {
+          "parameters": {
+            "centroids": 2,
+            "iterations": 10,
+            "distance_type": "EUCLIDEAN"
+          },
+          "input_query": {
+            "_source": [
+              "x",
+              "y"
+            ],
+            "size": 40,
+            "query": {
+              "match_all": {}
+            }
+          },
+          "input_index": [
+            "compat-ml-src"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "<km>",
+          "status": "COMPLETED"
+        }
+      }
+    },
+    {
+      "name": "kmeans train without input",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_train/kmeans",
+        "body": {
+          "parameters": {
+            "centroids": 2
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: input data can't be null;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: input data can't be null;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "kmeans train with unknown index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_train/kmeans",
+        "body": {
+          "parameters": {
+            "centroids": 2
+          },
+          "input_index": [
+            "compat-ml-nope"
+          ],
+          "input_query": {
+            "query": {
+              "match_all": {}
+            },
+            "size": 5
+          }
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-ml-nope]",
+                "index": "compat-ml-nope",
+                "resource.id": "compat-ml-nope",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-ml-nope]",
+            "index": "compat-ml-nope",
+            "resource.id": "compat-ml-nope",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "train unknown algorithm",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_train/nope",
+        "body": {
+          "parameters": {}
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Wrong function name"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Wrong function name"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train and predict kmeans",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_train_predict/kmeans",
+        "body": {
+          "parameters": {
+            "centroids": 2,
+            "iterations": 10,
+            "distance_type": "EUCLIDEAN"
+          },
+          "input_query": {
+            "_source": [
+              "x",
+              "y"
+            ],
+            "size": 6,
+            "query": {
+              "match_all": {}
+            },
+            "sort": [
+              {
+                "x": "asc"
+              },
+              {
+                "y": "asc"
+              }
+            ]
+          },
+          "input_index": [
+            "compat-ml-src"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "status": "COMPLETED",
+          "prediction_result": {
+            "column_metas": [
+              {
+                "name": "ClusterID",
+                "column_type": "INTEGER"
+              }
+            ],
+            "rows": [
+              {
+                "values": [
+                  {
+                    "column_type": "INTEGER",
+                    "value": "<volatile>"
+                  }
+                ]
+              },
+              {
+                "values": [
+                  {
+                    "column_type": "INTEGER",
+                    "value": "<volatile>"
+                  }
+                ]
+              },
+              {
+                "values": [
+                  {
+                    "column_type": "INTEGER",
+                    "value": "<volatile>"
+                  }
+                ]
+              },
+              {
+                "values": [
+                  {
+                    "column_type": "INTEGER",
+                    "value": "<volatile>"
+                  }
+                ]
+              },
+              {
+                "values": [
+                  {
+                    "column_type": "INTEGER",
+                    "value": "<volatile>"
+                  }
+                ]
+              },
+              {
+                "values": [
+                  {
+                    "column_type": "INTEGER",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "execute sample calculator",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_execute/local_sample_calculator",
+        "body": {
+          "operation": "sum",
+          "input_data": [
+            1.0,
+            2.0,
+            3.0
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "result": 6.0
+        }
+      }
+    },
+    {
+      "name": "execute max",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_execute/local_sample_calculator",
+        "body": {
+          "operation": "max",
+          "input_data": [
+            1.0,
+            2.0,
+            3.0
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "result": 3.0
+        }
+      }
+    },
+    {
+      "name": "execute unknown operation",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_execute/local_sample_calculator",
+        "body": {
+          "operation": "nope",
+          "input_data": [
+            1.0
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "status": 400,
+          "error": {
+            "type": "IllegalArgumentException",
+            "reason": "Invalid Request",
+            "details": "can't support this operation"
+          }
+        }
+      }
+    },
+    {
+      "name": "execute unknown algorithm",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/_execute/nope",
+        "body": {}
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Wrong function name"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Wrong function name"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "register agent",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/agents/_register",
+        "body": {
+          "name": "compat-a1",
+          "type": "flow",
+          "description": "d",
+          "tools": [
+            {
+              "type": "MLModelTool",
+              "parameters": {
+                "model_id": "nope"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "agent_id": "<a>"
+        }
+      }
+    },
+    {
+      "name": "register agent without tools",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/agents/_register",
+        "body": {
+          "name": "compat-a2",
+          "type": "flow",
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "agent_id": "<a2>"
+        }
+      }
+    },
+    {
+      "name": "register agent bad type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/agents/_register",
+        "body": {
+          "name": "compat-a3",
+          "type": "nope",
+          "description": "d",
+          "tools": []
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Invalid Agent Type"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Invalid Agent Type"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "get agent",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/agents/{a}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "name": "compat-a1",
+          "type": "flow",
+          "description": "d",
+          "tools": [
+            {
+              "type": "MLModelTool",
+              "parameters": {
+                "model_id": "nope"
+              },
+              "include_output_in_agent_response": false
+            }
+          ],
+          "created_time": "<volatile>",
+          "last_updated_time": "<volatile>",
+          "is_hidden": false
+        }
+      }
+    },
+    {
+      "name": "search agents",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/agents/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": ".plugins-ml-agent",
+                "_id": "<a>",
+                "_version": "<volatile>",
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": 1.0,
+                "_source": {
+                  "created_time": "<volatile>",
+                  "last_updated_time": "<volatile>",
+                  "name": "compat-a1",
+                  "is_hidden": false,
+                  "description": "d",
+                  "type": "flow",
+                  "tools": [
+                    {
+                      "include_output_in_agent_response": false,
+                      "type": "MLModelTool",
+                      "parameters": {
+                        "model_id": "nope"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "_index": ".plugins-ml-agent",
+                "_id": "<a2>",
+                "_version": "<volatile>",
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": 1.0,
+                "_source": {
+                  "created_time": "<volatile>",
+                  "last_updated_time": "<volatile>",
+                  "name": "compat-a2",
+                  "is_hidden": false,
+                  "description": "d",
+                  "type": "flow"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "delete agent",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/agents/{a}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-agent",
+          "_id": "<a>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "get deleted agent",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/agents/{a}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Failed to find agent with the provided agent id: <a>"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Failed to find agent with the provided agent id: <a>"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "list tools",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/tools"
+      },
+      "response": {
+        "status": 200,
+        "body": [
+          {
+            "name": "ConnectorTool",
+            "description": "Invokes external service. Required: 'connector_id'. Returns: service response.",
+            "type": "ConnectorTool",
+            "version": "undefined",
+            "attributes": {}
+          },
+          {
+            "name": "IndexInsightTool",
+            "description": "Use this tool to get details of one index according to different task type, including STATISTICAL_DATA: the data distribution and index mapping of the index, FIELD_DESCRIPTION: The description of each column, LOG_RELATED_INDEX_CHECK: Whether the index is related to log/trace and whether it contains trace/log fields",
+            "type": "IndexInsightTool",
+            "version": "undefined",
+            "attributes": {
+              "input_schema": "        {\n            \"type\": \"object\",\n            \"properties\": {\n                \"index\": {\n                    \"type\": \"string\",\n                    \"description\": \"OpenSearch index name\"\n                },\n                \"question\": {\n                    \"type\": \"string\",\n                    \"description\": \"Natural language question to query data from opensearch index\"\n                }\n            }\n        },\n        \"strict\": false\n      }\n",
+              "strict": false
+            }
+          },
+          {
+            "name": "QueryPlanningTool",
+            "description": "Use this tool to generate OpenSearch Query DSL from natural language queries.Provide a 'question' parameter containing the complete natural language query with all necessary context, requirements, filters, and constraints.The question should be self-contained with all information needed to generate the OpenSearch DSL.Provide 'index_name' to help generate more accurate queries based on the index structure.Optionally provide embedding model ID to be used for neural search The tool will return a valid OpenSearch query that can be used to search your data.",
+            "type": "QueryPlanningTool",
+            "version": "undefined",
+            "attributes": {}
+          },
+          {
+            "name": "ReadFromScratchPadTool",
+            "description": "Retrieve previous research work and notes from the persistent scratchpad.",
+            "type": "ReadFromScratchPadTool",
+            "version": "1",
+            "attributes": {
+              "input_schema": "{\"type\":\"object\",\"properties\":{}}",
+              "strict": true
+            }
+          },
+          {
+            "name": "VisualizationTool",
+            "description": "Searches for saved visualizations by name. Required: 'input' (visualization name, supports partial matches). Returns: list of matching visualizations with their titles and IDs.",
+            "type": "VisualizationTool",
+            "version": "undefined",
+            "attributes": {
+              "input_schema": "{\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"string\",\"description\":\"Visualization name to search for\"}},\"required\":[\"input\"],\"additionalProperties\":false}",
+              "strict": false
+            }
+          },
+          {
+            "name": "McpSseTool",
+            "description": "A tool from MCP Server",
+            "type": "McpSseTool",
+            "version": "undefined",
+            "attributes": {}
+          },
+          {
+            "name": "MLModelTool",
+            "description": "Use this tool to run any model.",
+            "type": "MLModelTool",
+            "version": "undefined",
+            "attributes": {}
+          },
+          {
+            "name": "AgentTool",
+            "description": "Use this tool to run any agent.",
+            "type": "AgentTool",
+            "version": "undefined",
+            "attributes": {}
+          },
+          {
+            "name": "WriteToScratchPadTool",
+            "description": "Save research plans, findings, and progress updates to a persistent scratchpad.",
+            "type": "WriteToScratchPadTool",
+            "version": "1",
+            "attributes": {
+              "input_schema": "{\"type\":\"object\",\"properties\":{\"notes\":{\"type\":\"string\",\"description\":\"The notes to be saved to the scratchpad.\"}},\"required\":[\"notes\"]}",
+              "strict": true
+            }
+          },
+          {
+            "name": "SearchTemplateFillTool",
+            "description": "Use this tool to generate OpenSearch Query DSL from a natural language question by filling the parameters of a registered search template. Provide a 'question' parameter with the complete natural language query and 'index_name' with the index to search. The tool returns a valid OpenSearch query.",
+            "type": "SearchTemplateFillTool",
+            "version": "undefined",
+            "attributes": {
+              "input_schema": "{\"type\":\"object\",\"properties\":{\"question\":{\"type\":\"string\",\"description\":\"Complete natural language query with all necessary context.\"},\"index_name\":{\"type\":\"string\",\"description\":\"the name of the index against which the query needs to be generated.\"}},\"required\":[\"question\", \"index_name\"],\"additionalProperties\":false}",
+              "strict": false
+            }
+          },
+          {
+            "name": "IndexMappingTool",
+            "description": "This tool returns index mappings and settings for specified indices. Required argument: 'index' - comma-delimited list of one or more indices (supports wildcards like 'my-index-*'). Optional argument: 'local' - if true, returns info from local node only instead of cluster manager (default: false). Response format: For each index, 'mappings' contains field definitions under 'properties' (each field has a 'type'), and 'settings' contains configuration as a flattened key-value map.",
+            "type": "IndexMappingTool",
+            "version": "undefined",
+            "attributes": {
+              "input_schema": "{\"type\":\"object\",\"properties\":{\"index\":{\"type\":\"array\",\"description\":\"OpenSearch index name list, separated by comma. for example: [\\\"index1\\\", \\\"index2\\\"]\",\"items\":{\"type\":\"string\"}}},\"required\":[\"index\"],\"additionalProperties\":false}",
+              "strict": true
+            }
+          },
+          {
+            "name": "McpStreamableHttpTool",
+            "description": "A tool from MCP Streamable HTTP Server",
+            "type": "McpStreamableHttpTool",
+            "version": "undefined",
+            "attributes": {}
+          },
+          {
+            "name": "ListIndexTool",
+            "description": "This tool returns information about indices in the OpenSearch cluster along with the index `health`, `status`, `index`, `uuid`, `pri`, `rep`, `docs.count`, `docs.deleted`, `store.size`, `pri.store. size `, `pri.store.size`, `pri.store`. Optional arguments: 1. `indices`, a comma-delimited list of one or more indices to get information from (default is an empty list meaning all indices). Use only valid index names. 2. `local`, whether to return information from the local node only instead of the cluster manager node (Default is false)",
+            "type": "ListIndexTool",
+            "version": "undefined",
+            "attributes": {
+              "input_schema": "{\"type\":\"object\",\"properties\":{\"indices\":{\"type\":\"array\",\"items\": {\"type\": \"string\"},\"description\":\"OpenSearch index name list, separated by comma. for example: [\\\"index1\\\", \\\"index2\\\"], use empty array [] to list all indices in the cluster\"}},\"additionalProperties\":false}",
+              "strict": false
+            }
+          },
+          {
+            "name": "SearchIndexTool",
+            "description": "Use this tool to search an index by providing two parameters: 'index' for the index name, and 'query' for the OpenSearch DSL formatted query. Only use this tool when both index name and DSL query is available. Returns documents matching the query in the provided index.",
+            "type": "SearchIndexTool",
+            "version": "undefined",
+            "attributes": {
+              "input_schema": "{\"type\":\"object\",\"properties\":{\"index\":{\"type\":\"string\",\"description\":\"OpenSearch index name. Example: index1\"},\"query\":{\"type\":\"object\",\"description\":\"OpenSearch Query DSL as a JSON object. You need to get index mapping to write correct search query. The object MUST follow OpenSearch Query DSL and MUST include a top-level 'query' field. Preferred format for reliable parsing. Example: {\\\"query\\\":{\\\"match\\\":{\\\"field\\\":\\\"value\\\"}},\\\"size\\\":10}. String format is also supported for backward compatibility, but object format is strongly recommended.\"}},\"required\":[\"index\",\"query\"],\"additionalProperties\":false}",
+              "strict": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "get tool",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/tools/MLModelTool"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "name": "MLModelTool",
+          "description": "Use this tool to run any model.",
+          "type": "MLModelTool",
+          "version": "undefined"
+        }
+      }
+    },
+    {
+      "name": "create memory",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ml/memory",
+        "body": {
+          "name": "compat-mem"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "memory_id": "<mem>"
+        }
+      }
+    },
+    {
+      "name": "get memory",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/memory/{mem}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "memory_id": "<mem>",
+          "create_time": "<volatile>",
+          "updated_time": "<volatile>",
+          "name": "compat-mem"
+        }
+      }
+    },
+    {
+      "name": "delete memory",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/memory/{mem}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true
+        }
+      }
+    },
+    {
+      "name": "delete connector",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/connectors/{c}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-connector",
+          "_id": "<c>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete duplicate connector",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/connectors/{c_dup}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-connector",
+          "_id": "<c_dup>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete connector without actions",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/connectors/{c3}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-connector",
+          "_id": "<c3>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete agent without tools",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/agents/{a2}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-agent",
+          "_id": "<a2>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete kmeans model",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/models/{km}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-model",
+          "_id": "<km>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete model group",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ml/model_groups/{g}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".plugins-ml-model-group",
+          "_id": "<g>",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "get deleted model group",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ml/model_groups/{g}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Failed to find model group with the provided model group id: <g>"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Failed to find model group with the provided model group id: <g>"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "settings",
+      "request": {
+        "method": "GET",
+        "path": "/_cluster/settings",
+        "query": {
+          "include_defaults": "true",
+          "filter_path": "defaults.plugins.ml_commons.model_access_control_enabled,defaults.plugins.ml_commons.max_ml_task_per_node,defaults.plugins.ml_commons.only_run_on_ml_node"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "defaults": {
+            "plugins": {
+              "ml_commons": {
+                "max_ml_task_per_node": "10",
+                "model_access_control_enabled": "false"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

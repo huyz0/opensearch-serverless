@@ -155,6 +155,7 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = crate::ml_route::mount(router, store, config)?;
     let router = if config.notifications {
         let service = crate::notifications_route::NotificationsService::new(
             store,

@@ -1,0 +1,2292 @@
+{
+  "name": "k-NN model training and models",
+  "description": "Training faiss models (_train), the model routes and an index mapped from a model, as the stock plugin 3.10.0 answers them. Training is asynchronous; a poll step keeps the first answer that shows the wanted state.",
+  "setup": "index compat-knntrain: 300 documents with a 3-dimensional vector v from a fixed seed",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "placeholders": "`{label}` in a request is the value the step that captured it received; `<label>` in a response is where that value appeared. `<volatile>` is a time, a counter or a generated value that differs on every run.",
+  "steps": [
+    {
+      "name": "train ivf",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m1/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          },
+          "description": "first"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m1"
+        }
+      }
+    },
+    {
+      "name": "train answers while training",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m1"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m1",
+          "model_blob": "<volatile>",
+          "state": "created",
+          "timestamp": "<volatile>",
+          "description": "first",
+          "error": "",
+          "space_type": "l2",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 2,
+              "nlist": 4,
+              "encoder": {
+                "name": "flat",
+                "parameters": {}
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "1x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "get model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m1"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m1",
+          "model_blob": "<volatile>",
+          "state": "created",
+          "timestamp": "<volatile>",
+          "description": "first",
+          "error": "",
+          "space_type": "l2",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 2,
+              "nlist": 4,
+              "encoder": {
+                "name": "flat",
+                "parameters": {}
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "1x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "get model with filter_path",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m1",
+        "query": {
+          "filter_path": "model_id,state,dimension"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m1",
+          "state": "created",
+          "dimension": 3
+        }
+      }
+    },
+    {
+      "name": "get model head",
+      "request": {
+        "method": "HEAD",
+        "path": "/_plugins/_knn/models/compat-m1"
+      },
+      "response": {
+        "status": 405,
+        "body": null
+      }
+    },
+    {
+      "name": "train same id again",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m1/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: Model with id=\"compat-m1\" already exists;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: Model with id=\"compat-m1\" already exists;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train with generated id",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "<gen>"
+        }
+      }
+    },
+    {
+      "name": "get generated model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/{gen}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "<gen>",
+          "model_blob": "<volatile>",
+          "state": "created",
+          "timestamp": "<volatile>",
+          "description": "",
+          "error": "",
+          "space_type": "l2",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 2,
+              "nlist": 4,
+              "encoder": {
+                "name": "flat",
+                "parameters": {}
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "1x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "delete generated model",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/{gen}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "<gen>",
+          "result": "deleted"
+        }
+      }
+    },
+    {
+      "name": "train hnsw pq",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m2/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "hnsw",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "m": 8,
+              "ef_construction": 64,
+              "encoder": {
+                "name": "pq",
+                "parameters": {
+                  "m": 3,
+                  "code_size": 8
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "validation_exception",
+                "reason": "Validation Failed: 1: Training request ENCODER_PARAMETER_PQ_M is not divisible by vector dimensions;"
+              }
+            ],
+            "type": "validation_exception",
+            "reason": "Validation Failed: 1: Training request ENCODER_PARAMETER_PQ_M is not divisible by vector dimensions;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "hnsw pq model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m2"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Model [compat-m2] does not exist"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Model [compat-m2] does not exist"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "train ivf pq",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m3/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "innerproduct",
+            "parameters": {
+              "nlist": 2,
+              "encoder": {
+                "name": "pq",
+                "parameters": {
+                  "m": 3,
+                  "code_size": 8
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m3"
+        }
+      }
+    },
+    {
+      "name": "ivf pq model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m3"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m3",
+          "model_blob": "<volatile>",
+          "state": "created",
+          "timestamp": "<volatile>",
+          "description": "",
+          "error": "",
+          "space_type": "innerproduct",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 1,
+              "nlist": 2,
+              "encoder": {
+                "name": "pq",
+                "parameters": {
+                  "code_size": 8,
+                  "m": 3
+                }
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "4x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "train too few vectors for pq",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m4/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          },
+          "max_training_vector_count": 2
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m4"
+        }
+      }
+    },
+    {
+      "name": "train limited model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m4"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m4",
+          "model_blob": "<volatile>",
+          "state": "failed",
+          "timestamp": "<volatile>",
+          "description": "",
+          "error": "Failed to execute training. Error in void faiss::Clustering::train_encoded(faiss::idx_t, const uint8_t*, const faiss::Index*, faiss::Index&, const float*) at /tmp/tmpb6q2agti/k-NN/jni/external/faiss/faiss/Clustering.cpp:274: Error: 'nx >= k' failed: Number of training points (2) should be at least as large as number of clusters (4)",
+          "space_type": "l2",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 2,
+              "nlist": 4,
+              "encoder": {
+                "name": "flat",
+                "parameters": {}
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "1x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "train missing index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-nope",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: Index \"compat-nope\" does not exist.;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: Index \"compat-nope\" does not exist.;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train missing field",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "nope",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: Field \"nope\" does not exist.;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: Field \"nope\" does not exist.;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train wrong dimension",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 5,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: Field \"v\" has dimension 3, which is different from dimension specified in the training request: 5;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: Field \"v\" has dimension 3, which is different from dimension specified in the training request: 5;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train without method",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "At least \"[method]\", \"[mode]\" or \"[compression_level]\" needs to be set"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "At least \"[method]\", \"[mode]\" or \"[compression_level]\" needs to be set"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train method not needing training",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "hnsw",
+            "engine": "faiss",
+            "space_type": "l2"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: Method does not require training.;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: Method does not require training.;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train lucene",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "hnsw",
+            "engine": "lucene",
+            "space_type": "l2"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "validation_exception",
+                "reason": "Validation Failed: 1: Cannot use \"lucene\" engine from training context;"
+              }
+            ],
+            "type": "validation_exception",
+            "reason": "Validation Failed: 1: Cannot use \"lucene\" engine from training context;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train unknown parameter",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nope": 1
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: Unknown parameter 'nope' found;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: Unknown parameter 'nope' found;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train nlist zero",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 0
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: parameter validation failed for Integer parameter [nlist].;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: parameter validation failed for Integer parameter [nlist].;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train missing training_index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Request did not set \"training_index."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Request did not set \"training_index."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train missing dimension",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m5/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Request did not set \"dimension."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Request did not set \"dimension."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "train bad id",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/Compat%20Bad/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "Compat%20Bad"
+        }
+      }
+    },
+    {
+      "name": "bad id model state",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/Compat%20Bad"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "Compat%20Bad",
+          "model_blob": "<volatile>",
+          "state": "created",
+          "timestamp": "<volatile>",
+          "description": "",
+          "error": "",
+          "space_type": "l2",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 2,
+              "nlist": 4,
+              "encoder": {
+                "name": "flat",
+                "parameters": {}
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "1x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "delete bad id model",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/Compat%20Bad"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "Compat%20Bad",
+          "result": "deleted"
+        }
+      }
+    },
+    {
+      "name": "train with description too long",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m6/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          },
+          "description": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m6"
+        }
+      }
+    },
+    {
+      "name": "description model state",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m6"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m6",
+          "model_blob": "<volatile>",
+          "state": "created",
+          "timestamp": "<volatile>",
+          "description": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "error": "",
+          "space_type": "l2",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 2,
+              "nlist": 4,
+              "encoder": {
+                "name": "flat",
+                "parameters": {}
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "1x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "train with search_size",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m7/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          },
+          "search_size": 50,
+          "max_training_vector_count": 100
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m7"
+        }
+      }
+    },
+    {
+      "name": "search_size model state",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m7"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m7",
+          "model_blob": "<volatile>",
+          "state": "created",
+          "timestamp": "<volatile>",
+          "description": "",
+          "error": "",
+          "space_type": "l2",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 2,
+              "nlist": 4,
+              "encoder": {
+                "name": "flat",
+                "parameters": {}
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "1x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "train with space_type in body",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/compat-m8/_train",
+        "body": {
+          "training_index": "compat-knntrain",
+          "training_field": "v",
+          "dimension": 3,
+          "method": {
+            "name": "ivf",
+            "engine": "faiss",
+            "space_type": "l2",
+            "parameters": {
+              "nlist": 4,
+              "nprobes": 2
+            }
+          },
+          "space_type": "l2"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m8"
+        }
+      }
+    },
+    {
+      "name": "space_type model state",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m8"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m8",
+          "model_blob": "<volatile>",
+          "state": "created",
+          "timestamp": "<volatile>",
+          "description": "",
+          "error": "",
+          "space_type": "l2",
+          "dimension": 3,
+          "engine": "faiss",
+          "training_node_assignment": "<volatile>",
+          "model_definition": {
+            "name": "ivf",
+            "parameters": {
+              "nprobes": 2,
+              "nlist": 4,
+              "encoder": {
+                "name": "flat",
+                "parameters": {}
+              }
+            }
+          },
+          "data_type": "float",
+          "compression_level": "1x",
+          "model_version": "3.10.0"
+        }
+      }
+    },
+    {
+      "name": "get missing model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Model [compat-nope] does not exist"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Model [compat-nope] does not exist"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "search models",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/_search",
+        "query": {
+          "_source_excludes": "model_blob"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "model_id": "asc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 6,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m1",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "first",
+                  "model_id": "compat-m1",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m1"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m3",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":1,\"nlist\":2,\"encoder\":{\"name\":\"pq\",\"parameters\":{\"code_size\":8,\"m\":3}}}}",
+                  "compression_level": "4x",
+                  "space_type": "innerproduct",
+                  "description": "",
+                  "model_id": "compat-m3",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m3"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m4",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "",
+                  "model_id": "compat-m4",
+                  "error": "Failed to execute training. Error in void faiss::Clustering::train_encoded(faiss::idx_t, const uint8_t*, const faiss::Index*, faiss::Index&, const float*) at /tmp/tmpb6q2agti/k-NN/jni/external/faiss/faiss/Clustering.cpp:274: Error: 'nx >= k' failed: Number of training points (2) should be at least as large as number of clusters (4)",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "failed",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m4"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m6",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                  "model_id": "compat-m6",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m6"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m7",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "",
+                  "model_id": "compat-m7",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m7"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m8",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "",
+                  "model_id": "compat-m8",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m8"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search models by state",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/models/_search",
+        "body": {
+          "query": {
+            "term": {
+              "state": "created"
+            }
+          },
+          "sort": [
+            {
+              "model_id": "asc"
+            }
+          ],
+          "_source": {
+            "excludes": [
+              "model_blob"
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m1",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "first",
+                  "model_id": "compat-m1",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m1"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m3",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":1,\"nlist\":2,\"encoder\":{\"name\":\"pq\",\"parameters\":{\"code_size\":8,\"m\":3}}}}",
+                  "compression_level": "4x",
+                  "space_type": "innerproduct",
+                  "description": "",
+                  "model_id": "compat-m3",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m3"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m6",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                  "model_id": "compat-m6",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m6"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m7",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "",
+                  "model_id": "compat-m7",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m7"
+                ]
+              },
+              {
+                "_index": ".opensearch-knn-models",
+                "_id": "compat-m8",
+                "_score": null,
+                "_source": {
+                  "model_version": "3.10.0",
+                  "model_definition": "{\"name\":\"ivf\",\"parameters\":{\"nprobes\":2,\"nlist\":4,\"encoder\":{\"name\":\"flat\",\"parameters\":{}}}}",
+                  "compression_level": "1x",
+                  "space_type": "l2",
+                  "description": "",
+                  "model_id": "compat-m8",
+                  "error": "",
+                  "training_node_assignment": "<volatile>",
+                  "engine": "faiss",
+                  "data_type": "FLOAT",
+                  "state": "created",
+                  "dimension": 3,
+                  "timestamp": "<volatile>"
+                },
+                "sort": [
+                  "compat-m8"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create index from model",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmodel",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "model_id": "compat-m1"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmodel"
+        }
+      }
+    },
+    {
+      "name": "mapping from model",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmodel/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-knnmodel": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "model_id": "compat-m1"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "index into model index",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnmodel/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "raw": "{\"index\": {\"_id\": \"0\"}}\n{\"v\": [-0.352, -0.698, 0.302]}\n{\"index\": {\"_id\": \"1\"}}\n{\"v\": [-0.855, 0.072, -0.269]}\n{\"index\": {\"_id\": \"2\"}}\n{\"v\": [-0.884, 0.015, -0.925]}\n{\"index\": {\"_id\": \"3\"}}\n{\"v\": [-0.133, -0.86, -0.819]}\n{\"index\": {\"_id\": \"4\"}}\n{\"v\": [-0.151, 0.654, -0.752]}\n{\"index\": {\"_id\": \"5\"}}\n{\"v\": [-0.554, 0.255, 0.895]}\n{\"index\": {\"_id\": \"6\"}}\n{\"v\": [0.154, -0.207, 0.953]}\n{\"index\": {\"_id\": \"7\"}}\n{\"v\": [-0.907, 0.717, -0.421]}\n{\"index\": {\"_id\": \"8\"}}\n{\"v\": [-0.711, -0.764, -0.383]}\n{\"index\": {\"_id\": \"9\"}}\n{\"v\": [0.632, -0.639, 0.163]}\n{\"index\": {\"_id\": \"10\"}}\n{\"v\": [0.278, -0.255, 0.095]}\n{\"index\": {\"_id\": \"11\"}}\n{\"v\": [-0.874, -0.881, -0.588]}\n{\"index\": {\"_id\": \"12\"}}\n{\"v\": [0.361, -0.145, -0.372]}\n{\"index\": {\"_id\": \"13\"}}\n{\"v\": [0.171, -0.094, -0.4]}\n{\"index\": {\"_id\": \"14\"}}\n{\"v\": [0.589, 0.398, -0.512]}\n{\"index\": {\"_id\": \"15\"}}\n{\"v\": [0.149, 0.05, 0.75]}\n{\"index\": {\"_id\": \"16\"}}\n{\"v\": [0.459, -0.424, 0.96]}\n{\"index\": {\"_id\": \"17\"}}\n{\"v\": [-0.764, -0.164, 0.514]}\n{\"index\": {\"_id\": \"18\"}}\n{\"v\": [-0.696, -0.022, -0.922]}\n{\"index\": {\"_id\": \"19\"}}\n{\"v\": [0.336, 0.529, 0.146]}\n"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "0",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "7",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "8",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "9",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "10",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "11",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "12",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "13",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "14",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "15",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "16",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "17",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "18",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnmodel",
+                "_id": "19",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "search model index",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnmodel/_search",
+        "body": {
+          "size": 3,
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  -0.352,
+                  -0.698,
+                  0.302
+                ],
+                "k": 3
+              }
+            }
+          },
+          "_source": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnmodel",
+                "_id": "0",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-knnmodel",
+                "_id": "17",
+                "_score": 0.66673595
+              },
+              {
+                "_index": "compat-knnmodel",
+                "_id": "8",
+                "_score": 0.62403977
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search model index with nprobes",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnmodel/_search",
+        "body": {
+          "size": 3,
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  -0.352,
+                  -0.698,
+                  0.302
+                ],
+                "k": 3,
+                "method_parameters": {
+                  "nprobes": 4
+                }
+              }
+            }
+          },
+          "_source": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnmodel",
+                "_id": "0",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-knnmodel",
+                "_id": "17",
+                "_score": 0.66673595
+              },
+              {
+                "_index": "compat-knnmodel",
+                "_id": "8",
+                "_score": 0.62403977
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search model index with ef_search on ivf",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnmodel/_search",
+        "body": {
+          "size": 3,
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  -0.352,
+                  -0.698,
+                  0.302
+                ],
+                "k": 3,
+                "method_parameters": {
+                  "ef_search": 4
+                }
+              }
+            }
+          },
+          "_source": false
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Parameters not valid for [FAISS]:[ivf]:[k] combination: [Validation Failed: 1: Unknown parameter 'ef_search' found;]",
+                "index": "compat-knnmodel",
+                "index_uuid": "<volatile>"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-knnmodel",
+                "node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Parameters not valid for [FAISS]:[ivf]:[k] combination: [Validation Failed: 1: Unknown parameter 'ef_search' found;]",
+                  "index": "compat-knnmodel",
+                  "index_uuid": "<volatile>",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Parameters not valid for [FAISS]:[ivf]:[k] combination: [Validation Failed: 1: Unknown parameter 'ef_search' found;]"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Parameters not valid for [FAISS]:[ivf]:[k] combination: [Validation Failed: 1: Unknown parameter 'ef_search' found;]",
+              "index": "compat-knnmodel",
+              "index_uuid": "<volatile>",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Parameters not valid for [FAISS]:[ivf]:[k] combination: [Validation Failed: 1: Unknown parameter 'ef_search' found;]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "model of a wrong dimension",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmodel2",
+        "body": {
+          "settings": {
+            "index.knn": true
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "model_id": "compat-nope"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmodel2"
+        }
+      }
+    },
+    {
+      "name": "delete model in use",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m1"
+      },
+      "response": {
+        "status": 409,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "delete_model_exception",
+                "reason": "Cannot delete model [compat-m1].  Model is in use by the following indices [compat-knnmodel], which must be deleted first."
+              }
+            ],
+            "type": "delete_model_exception",
+            "reason": "Cannot delete model [compat-m1].  Model is in use by the following indices [compat-knnmodel], which must be deleted first."
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "delete index using the model",
+      "request": {
+        "method": "DELETE",
+        "path": "/compat-knnmodel"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "delete model",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m1"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m1",
+          "result": "deleted"
+        }
+      }
+    },
+    {
+      "name": "delete model again",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m1"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Unable to delete model [compat-m1]. Model does not exist"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Unable to delete model [compat-m1]. Model does not exist"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "get deleted model",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/compat-m1"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Model [compat-m1] does not exist"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Model [compat-m1] does not exist"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete the others",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m2"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_not_found_exception",
+                "reason": "Unable to delete model [compat-m2]. Model does not exist"
+              }
+            ],
+            "type": "resource_not_found_exception",
+            "reason": "Unable to delete model [compat-m2]. Model does not exist"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete m3",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m3"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m3",
+          "result": "deleted"
+        }
+      }
+    },
+    {
+      "name": "delete m4",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m4"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m4",
+          "result": "deleted"
+        }
+      }
+    },
+    {
+      "name": "delete m6",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m6"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m6",
+          "result": "deleted"
+        }
+      }
+    },
+    {
+      "name": "delete m7",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m7"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m7",
+          "result": "deleted"
+        }
+      }
+    },
+    {
+      "name": "delete m8",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_knn/models/compat-m8"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "model_id": "compat-m8",
+          "result": "deleted"
+        }
+      }
+    },
+    {
+      "name": "stats with models",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/stats/training_requests,training_errors,model_index_status"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_nodes": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "cluster_name": "opensearch",
+          "model_index_status": "YELLOW",
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {
+              "training_errors": "<volatile>",
+              "training_requests": "<volatile>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

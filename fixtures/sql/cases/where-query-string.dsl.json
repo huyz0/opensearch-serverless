@@ -1,0 +1,54 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "explain": {
+    "root": {
+      "name": "ProjectOperator",
+      "description": {
+        "fields": "[name]"
+      },
+      "children": [
+        {
+          "name": "OpenSearchIndexScan",
+          "description": {
+            "request": "OpenSearchQueryRequest(indexName=compat-sql, sourceBuilder={\"from\":0,\"size\":10000,\"timeout\":\"1m\",\"query\":{\"query_string\":{\"query\":\"tea AND coffee\",\"fields\":[\"bio^1.0\"],\"type\":\"best_fields\",\"default_operator\":\"or\",\"max_determinized_states\":10000,\"enable_position_increments\":true,\"fuzziness\":\"AUTO\",\"fuzzy_prefix_length\":0,\"fuzzy_max_expansions\":50,\"phrase_slop\":0,\"escape\":false,\"auto_generate_synonyms_phrase_query\":true,\"fuzzy_transpositions\":true,\"boost\":1.0}},\"_source\":{\"includes\":[\"name\"]}}, pitId=w5u9QQEKY29tcGF0LXNxbBZPckhYLVNIQ1Q4YVhnWk9PcmhIQmdRABZySFd3TjB4R1FPdTBKd3RnM1Z4Y3dRAAAAAAAAAASbFmRkSTVYTlE4UUhXYXJZbmZWenNRNEEBFk9ySFgtU0hDVDhhWGdaT09yaEhCZ1EAAA==, cursorKeepAlive=1m, searchAfter=null, searchResponse=null)"
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  "dsl": {
+    "from": 0,
+    "size": 10000,
+    "timeout": "1m",
+    "query": {
+      "query_string": {
+        "query": "tea AND coffee",
+        "fields": [
+          "bio^1.0"
+        ],
+        "type": "best_fields",
+        "default_operator": "or",
+        "max_determinized_states": 10000,
+        "enable_position_increments": true,
+        "fuzziness": "AUTO",
+        "fuzzy_prefix_length": 0,
+        "fuzzy_max_expansions": 50,
+        "phrase_slop": 0,
+        "escape": false,
+        "auto_generate_synonyms_phrase_query": true,
+        "fuzzy_transpositions": true,
+        "boost": 1.0
+      }
+    },
+    "_source": {
+      "includes": [
+        "name"
+      ]
+    }
+  }
+}

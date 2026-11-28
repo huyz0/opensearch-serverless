@@ -1,0 +1,1 @@
+source=compat-sql | where isnull(age) | fields name

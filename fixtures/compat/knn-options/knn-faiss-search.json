@@ -1,0 +1,2362 @@
+{
+  "name": "knn search over a faiss hnsw index",
+  "description": "The knn query's options, filters and radial forms over a faiss l2 index, and the stats routes.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knnfaiss",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnfaiss",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "tag": {
+                "type": "keyword"
+              },
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnfaiss"
+        }
+      }
+    },
+    {
+      "name": "bulk",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_id": "1",
+              "_index": "compat-knnfaiss"
+            }
+          },
+          {
+            "tag": "a",
+            "v": [
+              1,
+              0,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "2",
+              "_index": "compat-knnfaiss"
+            }
+          },
+          {
+            "tag": "b",
+            "v": [
+              0,
+              1,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "3",
+              "_index": "compat-knnfaiss"
+            }
+          },
+          {
+            "tag": "a",
+            "v": [
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "4",
+              "_index": "compat-knnfaiss"
+            }
+          },
+          {
+            "tag": "b",
+            "v": [
+              2,
+              2,
+              2
+            ]
+          },
+          {
+            "index": {
+              "_id": "5",
+              "_index": "compat-knnfaiss"
+            }
+          },
+          {
+            "tag": "a",
+            "v": [
+              0,
+              0,
+              1
+            ]
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 20,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnfaiss",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knnfaiss",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "plain",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "ef_search",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "method_parameters": {
+                  "ef_search": 10
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "ef_search zero",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "method_parameters": {
+                  "ef_search": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] errors in method parameter [Validation Failed: 1: Validation Failed: 1: ef_search should be greater than 0;;]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] errors in method parameter [Validation Failed: 1: Validation Failed: 1: ef_search should be greater than 0;;]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "method_parameters nprobes on hnsw",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "method_parameters": {
+                  "nprobes": 2
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "generated node id"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Parameters not valid for [FAISS]:[hnsw]:[k] combination: [Validation Failed: 1: Unknown parameter 'nprobes' found;]",
+                "index": "compat-knnfaiss",
+                "index_uuid": "A5bv1-7pQvq3ljYpta3vrw"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-knnfaiss",
+                "node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Parameters not valid for [FAISS]:[hnsw]:[k] combination: [Validation Failed: 1: Unknown parameter 'nprobes' found;]",
+                  "index": "compat-knnfaiss",
+                  "index_uuid": "A5bv1-7pQvq3ljYpta3vrw",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Parameters not valid for [FAISS]:[hnsw]:[k] combination: [Validation Failed: 1: Unknown parameter 'nprobes' found;]"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Parameters not valid for [FAISS]:[hnsw]:[k] combination: [Validation Failed: 1: Unknown parameter 'nprobes' found;]",
+              "index": "compat-knnfaiss",
+              "index_uuid": "A5bv1-7pQvq3ljYpta3vrw",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Parameters not valid for [FAISS]:[hnsw]:[k] combination: [Validation Failed: 1: Unknown parameter 'nprobes' found;]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "method_parameters unknown",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "method_parameters": {
+                  "nope": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "[knn] unknown method parameter found [nope]",
+                "line": 1,
+                "col": 75
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:75] [knn] failed to parse field [method_parameters]",
+            "caused_by": {
+              "type": "parsing_exception",
+              "reason": "[knn] unknown method parameter found [nope]",
+              "line": 1,
+              "col": 75
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "rescore true",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "rescore": true
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "rescore false",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "rescore": false
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "rescore oversample_factor",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "rescore": {
+                  "oversample_factor": 3
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "filter efficient",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "filter": {
+                  "term": {
+                    "tag": "a"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "5",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "filter matching nothing",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "filter": {
+                  "term": {
+                    "tag": "zzz"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "filter with ef_search",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "filter": {
+                  "term": {
+                    "tag": "a"
+                  }
+                },
+                "method_parameters": {
+                  "ef_search": 10
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "5",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "k larger than docs",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 50
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "5",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    2.0,
+                    2.0,
+                    2.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "min_score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "min_score": 0.3
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "5",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "max_distance",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "max_distance": 1.5
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "k and min_score together",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 2,
+                "min_score": 0.3
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires exactly one of k, distance or score to be set"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires exactly one of k, distance or score to be set"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "expand_nested_docs on flat field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "expand_nested_docs": true
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "generated node id"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field.",
+                "index": "compat-knnfaiss",
+                "index_uuid": "A5bv1-7pQvq3ljYpta3vrw"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-knnfaiss",
+                "node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field.",
+                  "index": "compat-knnfaiss",
+                  "index_uuid": "A5bv1-7pQvq3ljYpta3vrw",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field.",
+              "index": "compat-knnfaiss",
+              "index_uuid": "A5bv1-7pQvq3ljYpta3vrw",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Invalid value provided for the [expand_nested_docs] field. [expand_nested_docs] is only supported with a nested field."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "wrong dimension",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0
+                ],
+                "k": 2
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "generated index uuid"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "generated node id"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
+                "index": "compat-knnfaiss",
+                "index_uuid": "A5bv1-7pQvq3ljYpta3vrw"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-knnfaiss",
+                "node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
+                  "index": "compat-knnfaiss",
+                  "index_uuid": "A5bv1-7pQvq3ljYpta3vrw",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Query vector has invalid dimension: 2. Dimension should be: 3"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
+              "index": "compat-knnfaiss",
+              "index_uuid": "A5bv1-7pQvq3ljYpta3vrw",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Query vector has invalid dimension: 2. Dimension should be: 3"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "k zero",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 0
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires k to be in the range (0, 10000]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires k to be in the range (0, 10000]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "k too large",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 10001
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires k to be in the range (0, 10000]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires k to be in the range (0, 10000]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "_name",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3,
+                "_name": "n"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                },
+                "matched_queries": [
+                  "n"
+                ]
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                },
+                "matched_queries": [
+                  "n"
+                ]
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                },
+                "matched_queries": [
+                  "n"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain true",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ],
+                "k": 3
+              }
+            }
+          },
+          "explain": true
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_shard": "[compat-knnfaiss][0]",
+                "_node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                },
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "the type of knn search executed was Approximate-NN",
+                  "details": [
+                    {
+                      "value": 1.0,
+                      "description": "the type of knn search executed at leaf was Approximate-NN with vectorDataType = FLOAT, spaceType = l2 where score is computed as `1 / (1 + rawScore)` from:",
+                      "details": [
+                        {
+                          "value": 0.0,
+                          "description": "rawScore, returned from FAISS library",
+                          "details": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_shard": "[compat-knnfaiss][0]",
+                "_node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                },
+                "_explanation": {
+                  "value": 0.5,
+                  "description": "the type of knn search executed was Approximate-NN",
+                  "details": [
+                    {
+                      "value": 0.5,
+                      "description": "the type of knn search executed at leaf was Approximate-NN with vectorDataType = FLOAT, spaceType = l2 where score is computed as `1 / (1 + rawScore)` from:",
+                      "details": [
+                        {
+                          "value": 1.0,
+                          "description": "rawScore, returned from FAISS library",
+                          "details": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_shard": "[compat-knnfaiss][0]",
+                "_node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                },
+                "_explanation": {
+                  "value": 0.33333334,
+                  "description": "the type of knn search executed was Approximate-NN",
+                  "details": [
+                    {
+                      "value": 0.33333334,
+                      "description": "the type of knn search executed at leaf was Approximate-NN with vectorDataType = FLOAT, spaceType = l2 where score is computed as `1 / (1 + rawScore)` from:",
+                      "details": [
+                        {
+                          "value": 2.0,
+                          "description": "rawScore, returned from FAISS library",
+                          "details": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "script_score knn_score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-knnfaiss/_search",
+        "body": {
+          "query": {
+            "script_score": {
+              "query": {
+                "match_all": {}
+              },
+              "script": {
+                "source": "knn_score",
+                "lang": "knn",
+                "params": {
+                  "field": "v",
+                  "query_value": [
+                    1,
+                    0,
+                    0
+                  ],
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "5",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knnfaiss",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    2.0,
+                    2.0,
+                    2.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "warmup",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/warmup/compat-knnfaiss"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "stats",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/stats"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/nodes/*",
+          "reason": "node id and counters"
+        },
+        {
+          "pointer": "/body/cluster_name",
+          "reason": "cluster name"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_nodes": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "cluster_name": "opensearch",
+          "circuit_breaker_triggered": false,
+          "model_index_status": null,
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {
+              "remote_vector_index_build_stats": {
+                "repository_stats": {
+                  "read_success_count": 0,
+                  "read_failure_count": 0,
+                  "successful_read_time_in_millis": 0,
+                  "write_success_count": 0,
+                  "write_failure_count": 0,
+                  "successful_write_time_in_millis": 0
+                },
+                "client_stats": {
+                  "status_request_failure_count": 0,
+                  "index_build_terminal_exception": 0,
+                  "status_request_success_count": 0,
+                  "index_build_success_count": 0,
+                  "index_build_failure_count": 0,
+                  "build_request_failure_count": 0,
+                  "index_build_merge_abort_exception": 0,
+                  "build_request_success_count": 0,
+                  "waiting_time_in_ms": 0
+                },
+                "build_stats": {
+                  "remote_index_build_flush_time_in_millis": 0,
+                  "remote_index_build_current_merge_operations": 0,
+                  "remote_index_build_current_flush_operations": 0,
+                  "remote_index_build_current_merge_size": 0,
+                  "remote_index_build_current_flush_size": 0,
+                  "remote_index_build_merge_time_in_millis": 0
+                }
+              },
+              "max_distance_query_with_filter_requests": 0,
+              "graph_memory_usage_percentage": 1.6799433e-05,
+              "graph_query_requests": 29,
+              "graph_memory_usage": 1,
+              "cache_capacity_reached": false,
+              "load_success_count": 3,
+              "training_memory_usage": 0,
+              "indices_in_cache": {
+                "compat-knnfaiss": {
+                  "graph_memory_usage_percentage": 1.6799433e-05,
+                  "graph_memory_usage": 1,
+                  "graph_count": 1
+                },
+                "kf1": {
+                  "graph_memory_usage_percentage": 0.0,
+                  "graph_memory_usage": 0,
+                  "graph_count": 1
+                }
+              },
+              "script_query_errors": 0,
+              "hit_count": 28,
+              "knn_query_requests": 29,
+              "total_load_time": 5353385,
+              "miss_count": 3,
+              "min_score_query_requests": 2,
+              "knn_query_with_filter_requests": 6,
+              "training_memory_usage_percentage": 0.0,
+              "max_distance_query_requests": 2,
+              "lucene_initialized": true,
+              "graph_index_requests": 0,
+              "faiss_initialized": true,
+              "load_exception_count": 0,
+              "training_errors": 0,
+              "min_score_query_with_filter_requests": 0,
+              "eviction_count": 0,
+              "nmslib_initialized": false,
+              "script_compilations": 1,
+              "script_query_requests": 2,
+              "graph_stats": {
+                "merge": {
+                  "current": 0,
+                  "total": 0,
+                  "total_time_in_millis": 0,
+                  "current_docs": 0,
+                  "total_docs": 0,
+                  "total_size_in_bytes": 0,
+                  "current_size_in_bytes": 0
+                },
+                "refresh": {
+                  "total": 3,
+                  "total_time_in_millis": 23
+                }
+              },
+              "graph_query_errors": 0,
+              "indexing_from_model_degraded": false,
+              "graph_index_errors": 0,
+              "training_requests": 0,
+              "script_compilation_errors": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "stats graph memory",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/stats/graph_memory_usage,graph_query_requests,knn_query_requests"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/nodes/*",
+          "reason": "counters"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_nodes": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "cluster_name": "opensearch",
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {
+              "graph_query_requests": 29,
+              "graph_memory_usage": 1,
+              "knn_query_requests": 29
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "clear_cache",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_knn/clear_cache/compat-knnfaiss"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "model list",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_knn/models/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [.opensearch-knn-models]",
+                "index": ".opensearch-knn-models",
+                "resource.id": ".opensearch-knn-models",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [.opensearch-knn-models]",
+            "index": ".opensearch-knn-models",
+            "resource.id": ".opensearch-knn-models",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    }
+  ]
+}

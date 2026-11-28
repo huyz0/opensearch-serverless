@@ -1,0 +1,7 @@
+case when age > 30 then 'old' else 'young' end
+young
+young
+old
+young
+old
+old

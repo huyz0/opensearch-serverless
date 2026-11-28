@@ -42,6 +42,8 @@ pub struct Config {
     pub sql_max_request_bytes: usize,
     /// `serverless.ism.enabled`: serve the index state management policy routes.
     pub ism: bool,
+    /// `serverless.ml.enabled`: serve the ML Commons model group routes.
+    pub ml: bool,
     /// `serverless.notifications.enabled`: serve the notifications config routes.
     pub notifications: bool,
     /// `serverless.ad.enabled`: serve the anomaly detection detector routes.
@@ -174,6 +176,7 @@ impl Config {
             sql_size_limit: 200,
             sql_max_request_bytes: 1 << 20,
             ism: false,
+            ml: false,
             notifications: false,
             ad: false,
             ltr_max_window: 1_000,

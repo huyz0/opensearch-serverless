@@ -1,0 +1,1 @@
+source=compat-sql | where age > 20 and city = 'x' | fields name
