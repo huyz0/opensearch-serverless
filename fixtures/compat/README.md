@@ -25,7 +25,7 @@ Requests and normalisation rules are written by hand. **Responses are never writ
 }
 ```
 
-- **request**: `method` (GET, PUT, POST, DELETE, HEAD), `path` (starting with `/`, no query string), optional `query` (string values), and at most one of `body` (one JSON document), `raw` (a string sent as written, for a body that is no single JSON value: duplicate keys, trailing data) or `ndjson` (an array, sent one document per line, for `_bulk` and `_msearch`).
+- **request**: `method` (GET, PUT, POST, DELETE, HEAD, PATCH), `path` (starting with `/`, no query string), optional `query` (string values), and at most one of `body` (one JSON document), `raw` (a string sent as written, for a body that is no single JSON value: duplicate keys, trailing data) or `ndjson` (an array, sent one document per line, for `_bulk` and `_msearch`).
 - **response**: `status`, `headers` and `body` as recorded. Only the headers listed are compared; `record.py` keeps the names already listed, or records `content-type` for a new step. `body` is absent when the response had none.
 - **normalise**: rules for fields that legitimately vary. `pointer` is a JSON pointer into `{"status", "headers", "body"}`; a `*` segment matches every array element and object member (`/body/hits/hits/*/_id`). `reason` is required. Both the recorded and the actual value are replaced by `"<normalised>"` before comparing.
 - **cleanup**: requests sent before the steps (and by the recorder after them), so a fixture runs against a target that is not fresh. Their responses are not compared.
@@ -134,4 +134,15 @@ The mapping fixtures are replayed through the writer's mapping by `crates/writer
 
 ## k-NN fixtures
 
-`mapping/knn-*.json` and `knn/` are recorded from the stock 3.10.0 release tarball (`artifacts.opensearch.org`, SHA-512 checked against the published sum) with its bundled k-NN plugin, which the 3.10 source build above does not include. Start it as in step 2, with the security plugin directory removed, and use only the Lucene engine: the Faiss library the plugin loads is missing from the tarball and the node exits when a request reaches it.
+`mapping/knn-*.json` and `knn/` are recorded from the stock 3.10.0 release tarball (`artifacts.opensearch.org`, SHA-512 checked against the published sum) with its bundled k-NN plugin, which the 3.10 source build above does not include. Start it as in step 2, with the security plugin disabled. The Faiss engine needs its native libraries on the library path, which the tarball ships under `plugins/opensearch-knn/lib`: start the node with `LD_LIBRARY_PATH=<install>/plugins/opensearch-knn/lib` and `-Djava.library.path=<same directory>` in `OPENSEARCH_JAVA_OPTS`, or the node exits when a request reaches Faiss.
+
+## Stock plugin fixtures
+
+Recorded from the same tarball with its bundled plugins, the same way (`record.py`), and replayed by `oss-compat`:
+
+- `knn-options/`: Lucene query options (`ef_search`, `rescore`, `expand_nested_docs`, `min_score`, `max_distance`), the plugin API (stats, warmup, models, `_train`), 80 mapping cases across Faiss, Lucene and nmslib with their validation messages, and Faiss search options.
+- `notifications/`: every channel type, list filters, sort and paging, test sends against a local target, refusals.
+- `observability/`: saved objects with explicit ids. Lists are search-based, so each list step follows a refresh of `.opensearch-observability`.
+- `security-api/`: the REST management API, recorded from a node with the security plugin on (see [../stock-plugins/README.md](../stock-plugins/README.md)).
+
+Plugins that generate ids (alerting, ISM, anomaly detection, ML Commons, `_train`) and async search use the scenario format in [../stock-plugins/README.md](../stock-plugins/README.md) and [../async-search/](../async-search/); SQL and PPL are in [../sql/README.md](../sql/README.md).

@@ -1,0 +1,3644 @@
+{
+  "name": "index state management routes",
+  "description": "The stock Index Management plugin's policy, add, remove, explain, change_policy and retry routes, and the rollup, transform and snapshot-management list routes: validation messages, templates and the managed index record. Generated values are placeholders.",
+  "setup": "no setup; the scenario creates its own indices and policies",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "placeholders": "`{label}` in a request is the value the step that captured it received; `<label>` in a response is where that value appeared. `<volatile>` is a time, a counter or a generated value that differs on every run.",
+  "steps": [
+    {
+      "name": "list policies empty",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/policies"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "policies": [],
+          "total_policies": 0
+        }
+      }
+    },
+    {
+      "name": "put policy",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-pol",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "compat-pol",
+          "_version": "<volatile>",
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "policy": {
+            "policy": {
+              "policy_id": "compat-pol",
+              "description": "d",
+              "last_updated_time": "<volatile>",
+              "schema_version": "<volatile>",
+              "error_notification": null,
+              "default_state": "hot",
+              "states": [
+                {
+                  "name": "hot",
+                  "actions": [],
+                  "transitions": [
+                    {
+                      "state_name": "warm",
+                      "conditions": {
+                        "min_index_age": "7d"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "warm",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    }
+                  ],
+                  "transitions": [
+                    {
+                      "state_name": "gone",
+                      "conditions": {
+                        "min_index_age": "30d"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gone",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "delete": {}
+                    }
+                  ],
+                  "transitions": []
+                }
+              ],
+              "ism_template": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get policy",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/policies/compat-pol"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "compat-pol",
+          "_version": "<volatile>",
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "policy": {
+            "policy_id": "compat-pol",
+            "description": "d",
+            "last_updated_time": "<volatile>",
+            "schema_version": "<volatile>",
+            "error_notification": null,
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ],
+            "ism_template": null
+          }
+        }
+      }
+    },
+    {
+      "name": "get policy head",
+      "request": {
+        "method": "HEAD",
+        "path": "/_plugins/_ism/policies/compat-pol"
+      },
+      "response": {
+        "status": 200,
+        "body": null
+      }
+    },
+    {
+      "name": "put policy again without seq_no",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-pol",
+        "body": {
+          "policy": {
+            "description": "again",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 409,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "version_conflict_engine_exception",
+                "reason": "[compat-pol]: version conflict, document already exists (current version [<n>])",
+                "index": ".opendistro-ism-config",
+                "shard": "0",
+                "index_uuid": "<volatile>"
+              }
+            ],
+            "type": "version_conflict_engine_exception",
+            "reason": "[compat-pol]: version conflict, document already exists (current version [<n>])",
+            "index": ".opendistro-ism-config",
+            "shard": "0",
+            "index_uuid": "<volatile>"
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "put policy with seq_no",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-pol",
+        "query": {
+          "if_seq_no": "{seq}",
+          "if_primary_term": "{term}"
+        },
+        "body": {
+          "policy": {
+            "description": "with seq",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "compat-pol",
+          "_version": "<volatile>",
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "policy": {
+            "policy": {
+              "policy_id": "compat-pol",
+              "description": "with seq",
+              "last_updated_time": "<volatile>",
+              "schema_version": "<volatile>",
+              "error_notification": null,
+              "default_state": "hot",
+              "states": [
+                {
+                  "name": "hot",
+                  "actions": [],
+                  "transitions": [
+                    {
+                      "state_name": "warm",
+                      "conditions": {
+                        "min_index_age": "7d"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "warm",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    }
+                  ],
+                  "transitions": [
+                    {
+                      "state_name": "gone",
+                      "conditions": {
+                        "min_index_age": "30d"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gone",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "delete": {}
+                    }
+                  ],
+                  "transitions": []
+                }
+              ],
+              "ism_template": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "put policy with stale seq_no",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-pol",
+        "query": {
+          "if_seq_no": "{seq}",
+          "if_primary_term": "{term}"
+        },
+        "body": {
+          "policy": {
+            "description": "stale",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 409,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "version_conflict_engine_exception",
+                "reason": "[compat-pol]: version conflict, required seqNo [<n>], primary term [<n>]. current document has seqNo [<n>] and primary term [<n>]",
+                "index": ".opendistro-ism-config",
+                "shard": "0",
+                "index_uuid": "<volatile>"
+              }
+            ],
+            "type": "version_conflict_engine_exception",
+            "reason": "[compat-pol]: version conflict, required seqNo [<n>], primary term [<n>]. current document has seqNo [<n>] and primary term [<n>]",
+            "index": ".opendistro-ism-config",
+            "shard": "0",
+            "index_uuid": "<volatile>"
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "get missing policy",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/policies/nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Policy not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Policy not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "list policies",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/policies"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "policies": [
+            {
+              "_id": "compat-pol",
+              "_seq_no": "<volatile>",
+              "_primary_term": "<volatile>",
+              "policy": {
+                "policy_id": "compat-pol",
+                "description": "with seq",
+                "last_updated_time": "<volatile>",
+                "schema_version": "<volatile>",
+                "error_notification": null,
+                "default_state": "hot",
+                "states": [
+                  {
+                    "name": "hot",
+                    "actions": [],
+                    "transitions": [
+                      {
+                        "state_name": "warm",
+                        "conditions": {
+                          "min_index_age": "7d"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "warm",
+                    "actions": [
+                      {
+                        "retry": {
+                          "count": 3,
+                          "backoff": "exponential",
+                          "delay": "1m"
+                        },
+                        "read_only": {}
+                      }
+                    ],
+                    "transitions": [
+                      {
+                        "state_name": "gone",
+                        "conditions": {
+                          "min_index_age": "30d"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "gone",
+                    "actions": [
+                      {
+                        "retry": {
+                          "count": 3,
+                          "backoff": "exponential",
+                          "delay": "1m"
+                        },
+                        "delete": {}
+                      }
+                    ],
+                    "transitions": []
+                  }
+                ],
+                "ism_template": null
+              }
+            }
+          ],
+          "total_policies": 1
+        }
+      }
+    },
+    {
+      "name": "list policies sorted",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/policies",
+        "query": {
+          "sortField": "policy.policy_id.keyword",
+          "sortOrder": "asc",
+          "size": "5",
+          "from": "0"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "policies": [
+            {
+              "_id": "compat-pol",
+              "_seq_no": "<volatile>",
+              "_primary_term": "<volatile>",
+              "policy": {
+                "policy_id": "compat-pol",
+                "description": "with seq",
+                "last_updated_time": "<volatile>",
+                "schema_version": "<volatile>",
+                "error_notification": null,
+                "default_state": "hot",
+                "states": [
+                  {
+                    "name": "hot",
+                    "actions": [],
+                    "transitions": [
+                      {
+                        "state_name": "warm",
+                        "conditions": {
+                          "min_index_age": "7d"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "warm",
+                    "actions": [
+                      {
+                        "retry": {
+                          "count": 3,
+                          "backoff": "exponential",
+                          "delay": "1m"
+                        },
+                        "read_only": {}
+                      }
+                    ],
+                    "transitions": [
+                      {
+                        "state_name": "gone",
+                        "conditions": {
+                          "min_index_age": "30d"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "gone",
+                    "actions": [
+                      {
+                        "retry": {
+                          "count": 3,
+                          "backoff": "exponential",
+                          "delay": "1m"
+                        },
+                        "delete": {}
+                      }
+                    ],
+                    "transitions": []
+                  }
+                ],
+                "ism_template": null
+              }
+            }
+          ],
+          "total_policies": 1
+        }
+      }
+    },
+    {
+      "name": "list policies by queryString",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/policies",
+        "query": {
+          "queryString": "*compat*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "policies": [
+            {
+              "_id": "compat-pol",
+              "_seq_no": "<volatile>",
+              "_primary_term": "<volatile>",
+              "policy": {
+                "policy_id": "compat-pol",
+                "description": "with seq",
+                "last_updated_time": "<volatile>",
+                "schema_version": "<volatile>",
+                "error_notification": null,
+                "default_state": "hot",
+                "states": [
+                  {
+                    "name": "hot",
+                    "actions": [],
+                    "transitions": [
+                      {
+                        "state_name": "warm",
+                        "conditions": {
+                          "min_index_age": "7d"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "warm",
+                    "actions": [
+                      {
+                        "retry": {
+                          "count": 3,
+                          "backoff": "exponential",
+                          "delay": "1m"
+                        },
+                        "read_only": {}
+                      }
+                    ],
+                    "transitions": [
+                      {
+                        "state_name": "gone",
+                        "conditions": {
+                          "min_index_age": "30d"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "gone",
+                    "actions": [
+                      {
+                        "retry": {
+                          "count": 3,
+                          "backoff": "exponential",
+                          "delay": "1m"
+                        },
+                        "delete": {}
+                      }
+                    ],
+                    "transitions": []
+                  }
+                ],
+                "ism_template": null
+              }
+            }
+          ],
+          "total_policies": 1
+        }
+      }
+    },
+    {
+      "name": "list policies bad sortField",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/policies",
+        "query": {
+          "sortField": "nope"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "No mapping found for [nope] in order to sort on",
+                "index": ".opendistro-ism-config",
+                "index_uuid": "<volatile>"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": ".opendistro-ism-config",
+                "node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "No mapping found for [nope] in order to sort on",
+                  "index": ".opendistro-ism-config",
+                  "index_uuid": "<volatile>"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "No mapping found for [nope] in order to sort on",
+              "index": ".opendistro-ism-config",
+              "index_uuid": "<volatile>"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy without states",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-bad1",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": []
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Policy must contain at least one State"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Policy must contain at least one State"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy missing default_state",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-bad2",
+        "body": {
+          "policy": {
+            "description": "d",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "default_state is null"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "default_state is null"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy default_state not a state",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-bad3",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "nope",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Policy must have a valid default state"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Policy must have a valid default state"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy transition to unknown state",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-bad4",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "nope",
+                    "conditions": {
+                      "min_index_age": "1d"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Policy contains a transition in state=hot pointing to a nonexistent state=nope"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Policy contains a transition in state=hot pointing to a nonexistent state=nope"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy duplicate state names",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-bad5",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": []
+              },
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Policy cannot have duplicate state names"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Policy cannot have duplicate state names"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy unknown action",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-bad6",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [
+                  {
+                    "nope": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Invalid field: [nope] found in Actions."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Invalid field: [nope] found in Actions."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy bad condition",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-bad7",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "hot",
+                    "conditions": {
+                      "min_index_age": "soon"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "failed to parse setting [min_index_age] with value [soon] as a time value: unit is missing or unrecognized"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "failed to parse setting [min_index_age] with value [soon] as a time value: unit is missing or unrecognized"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy no body",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-bad8"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "request body is required"
+              }
+            ],
+            "type": "parse_exception",
+            "reason": "request body is required"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy every action",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-all",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "a",
+            "states": [
+              {
+                "name": "a",
+                "actions": [
+                  {
+                    "replica_count": {
+                      "number_of_replicas": 1
+                    }
+                  },
+                  {
+                    "force_merge": {
+                      "max_num_segments": 1
+                    }
+                  },
+                  {
+                    "read_only": {}
+                  },
+                  {
+                    "read_write": {}
+                  },
+                  {
+                    "index_priority": {
+                      "priority": 5
+                    }
+                  },
+                  {
+                    "close": {}
+                  },
+                  {
+                    "open": {}
+                  },
+                  {
+                    "allocation": {
+                      "require": {
+                        "box": "hot"
+                      },
+                      "wait_for": true
+                    }
+                  },
+                  {
+                    "rollover": {
+                      "min_doc_count": 5
+                    }
+                  },
+                  {
+                    "shrink": {
+                      "num_new_shards": 1,
+                      "force_unsafe": true
+                    }
+                  },
+                  {
+                    "snapshot": {
+                      "repository": "r",
+                      "snapshot": "s"
+                    }
+                  },
+                  {
+                    "notification": {
+                      "destination": {
+                        "custom_webhook": {
+                          "url": "http://127.0.0.1:18080/200"
+                        }
+                      },
+                      "message_template": {
+                        "source": "x"
+                      }
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 2,
+                      "backoff": "constant",
+                      "delay": "1m"
+                    },
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "b",
+                    "conditions": {
+                      "cron": {
+                        "cron": {
+                          "expression": "* * * * *",
+                          "timezone": "UTC"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "state_name": "b",
+                    "conditions": {
+                      "min_doc_count": 1
+                    }
+                  },
+                  {
+                    "state_name": "b",
+                    "conditions": {
+                      "min_size": "1gb"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "b",
+                "actions": [
+                  {
+                    "alias": {
+                      "actions": [
+                        {
+                          "add": {
+                            "aliases": [
+                              "compat-ism-al"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "timeout": "1h",
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ],
+            "ism_template": [
+              {
+                "index_patterns": [
+                  "compat-ism-tpl-*"
+                ],
+                "priority": 10
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "compat-all",
+          "_version": "<volatile>",
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "policy": {
+            "policy": {
+              "policy_id": "compat-all",
+              "description": "d",
+              "last_updated_time": "<volatile>",
+              "schema_version": "<volatile>",
+              "error_notification": null,
+              "default_state": "a",
+              "states": [
+                {
+                  "name": "a",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "replica_count": {
+                        "number_of_replicas": 1
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "force_merge": {
+                        "max_num_segments": 1
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_write": {}
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "index_priority": {
+                        "priority": 5
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "close": {}
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "open": {}
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "allocation": {
+                        "require": {
+                          "box": "hot"
+                        },
+                        "include": {},
+                        "exclude": {},
+                        "wait_for": true
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "rollover": {
+                        "min_doc_count": 5,
+                        "copy_alias": false
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "shrink": {
+                        "num_new_shards": 1,
+                        "switch_aliases": false,
+                        "force_unsafe": true
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "snapshot": {
+                        "repository": "r",
+                        "snapshot": "s"
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "notification": {
+                        "destination": {
+                          "custom_webhook": {
+                            "path": null,
+                            "header_params": {},
+                            "password": null,
+                            "scheme": null,
+                            "port": -1,
+                            "query_params": {},
+                            "host": null,
+                            "url": "http://127.0.0.1:18080/200",
+                            "username": null
+                          }
+                        },
+                        "message_template": {
+                          "source": "x",
+                          "lang": "mustache"
+                        }
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 2,
+                        "backoff": "constant",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    }
+                  ],
+                  "transitions": [
+                    {
+                      "state_name": "b",
+                      "conditions": {
+                        "cron": {
+                          "cron": {
+                            "expression": "* * * * *",
+                            "timezone": "UTC"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "state_name": "b",
+                      "conditions": {
+                        "min_doc_count": 1
+                      }
+                    },
+                    {
+                      "state_name": "b",
+                      "conditions": {
+                        "min_size": "1gb"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "b",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "alias": {
+                        "actions": [
+                          {
+                            "add": {
+                              "aliases": [
+                                "compat-ism-al"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "timeout": "1h",
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "delete": {}
+                    }
+                  ],
+                  "transitions": []
+                }
+              ],
+              "ism_template": [
+                {
+                  "index_patterns": [
+                    "compat-ism-tpl-*"
+                  ],
+                  "priority": 10,
+                  "last_updated_time": "<volatile>"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get every action policy",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/policies/compat-all"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "compat-all",
+          "_version": "<volatile>",
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "policy": {
+            "policy_id": "compat-all",
+            "description": "d",
+            "last_updated_time": "<volatile>",
+            "schema_version": "<volatile>",
+            "error_notification": null,
+            "default_state": "a",
+            "states": [
+              {
+                "name": "a",
+                "actions": [
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "replica_count": {
+                      "number_of_replicas": 1
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "force_merge": {
+                      "max_num_segments": 1
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "read_only": {}
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "read_write": {}
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "index_priority": {
+                      "priority": 5
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "close": {}
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "open": {}
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "allocation": {
+                      "require": {
+                        "box": "hot"
+                      },
+                      "include": {},
+                      "exclude": {},
+                      "wait_for": true
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "rollover": {
+                      "min_doc_count": 5,
+                      "copy_alias": false
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "shrink": {
+                      "num_new_shards": 1,
+                      "switch_aliases": false,
+                      "force_unsafe": true
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "snapshot": {
+                      "repository": "r",
+                      "snapshot": "s"
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "notification": {
+                      "destination": {
+                        "custom_webhook": {
+                          "path": null,
+                          "header_params": {},
+                          "password": null,
+                          "scheme": null,
+                          "port": -1,
+                          "query_params": {},
+                          "host": null,
+                          "url": "http://127.0.0.1:18080/200",
+                          "username": null
+                        }
+                      },
+                      "message_template": {
+                        "source": "x",
+                        "lang": "mustache"
+                      }
+                    }
+                  },
+                  {
+                    "retry": {
+                      "count": 2,
+                      "backoff": "constant",
+                      "delay": "1m"
+                    },
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "b",
+                    "conditions": {
+                      "cron": {
+                        "cron": {
+                          "expression": "* * * * *",
+                          "timezone": "UTC"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "state_name": "b",
+                    "conditions": {
+                      "min_doc_count": 1
+                    }
+                  },
+                  {
+                    "state_name": "b",
+                    "conditions": {
+                      "min_size": "1gb"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "b",
+                "actions": [
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "alias": {
+                      "actions": [
+                        {
+                          "add": {
+                            "aliases": [
+                              "compat-ism-al"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "timeout": "1h",
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ],
+            "ism_template": [
+              {
+                "index_patterns": [
+                  "compat-ism-tpl-*"
+                ],
+                "priority": 10,
+                "last_updated_time": "<volatile>"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "put policy with ism_template",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-tpl",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ],
+            "ism_template": [
+              {
+                "index_patterns": [
+                  "compat-ism-tpl-*"
+                ],
+                "priority": 5
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "compat-tpl",
+          "_version": "<volatile>",
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "policy": {
+            "policy": {
+              "policy_id": "compat-tpl",
+              "description": "d",
+              "last_updated_time": "<volatile>",
+              "schema_version": "<volatile>",
+              "error_notification": null,
+              "default_state": "hot",
+              "states": [
+                {
+                  "name": "hot",
+                  "actions": [],
+                  "transitions": [
+                    {
+                      "state_name": "warm",
+                      "conditions": {
+                        "min_index_age": "7d"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "warm",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    }
+                  ],
+                  "transitions": [
+                    {
+                      "state_name": "gone",
+                      "conditions": {
+                        "min_index_age": "30d"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gone",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "delete": {}
+                    }
+                  ],
+                  "transitions": []
+                }
+              ],
+              "ism_template": [
+                {
+                  "index_patterns": [
+                    "compat-ism-tpl-*"
+                  ],
+                  "priority": 5,
+                  "last_updated_time": "<volatile>"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "put policy with overlapping ism_template",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-tpl2",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ],
+            "ism_template": [
+              {
+                "index_patterns": [
+                  "compat-ism-tpl-*"
+                ],
+                "priority": 5
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_management_exception",
+                "reason": "New policy compat-tpl2 has an ISM template with index pattern [compat-ism-tpl-*] matching existing policy templates, please use a different priority than 5"
+              }
+            ],
+            "type": "index_management_exception",
+            "reason": "New policy compat-tpl2 has an ISM template with index pattern [compat-ism-tpl-*] matching existing policy templates, please use a different priority than 5",
+            "caused_by": {
+              "type": "exception",
+              "reason": "java.lang.IllegalArgumentException: New policy compat-tpl2 has an ISM template with index pattern [compat-ism-tpl-*] matching existing policy templates, please use a different priority than 5"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "put policy with bad ism_template",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-tpl3",
+        "body": {
+          "policy": {
+            "description": "d",
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ],
+            "ism_template": [
+              {
+                "index_patterns": [],
+                "priority": 5
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Requires at least one index pattern"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Requires at least one index pattern"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create index matching ism_template",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-ism-tpl-1",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-ism-tpl-1"
+        }
+      }
+    },
+    {
+      "name": "explain template index",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-tpl-1"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-tpl-1": {
+            "index.plugins.index_state_management.policy_id": "compat-all",
+            "index.opendistro.index_state_management.policy_id": "compat-all",
+            "index": "compat-ism-tpl-1",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-all",
+            "enabled": true
+          },
+          "total_managed_indices": 1
+        }
+      }
+    },
+    {
+      "name": "explain template index with validate",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-tpl-1",
+        "query": {
+          "validate_action": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-tpl-1": {
+            "index.plugins.index_state_management.policy_id": "compat-all",
+            "index.opendistro.index_state_management.policy_id": "compat-all",
+            "index": "compat-ism-tpl-1",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-all",
+            "enabled": true,
+            "validate": {
+              "validation_message": "Starting Validation",
+              "validation_status": "passed"
+            }
+          },
+          "total_managed_indices": 1
+        }
+      }
+    },
+    {
+      "name": "create index a",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-ism-a",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-ism-a"
+        }
+      }
+    },
+    {
+      "name": "create index b",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-ism-b",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-ism-b"
+        }
+      }
+    },
+    {
+      "name": "explain unmanaged",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-a"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-a": {
+            "index.plugins.index_state_management.policy_id": null,
+            "index.opendistro.index_state_management.policy_id": null,
+            "enabled": null
+          },
+          "total_managed_indices": 0
+        }
+      }
+    },
+    {
+      "name": "explain missing index",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-nope"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: no documents to get;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: no documents to get;"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "explain wildcard",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-*",
+        "query": {
+          "show_policy": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-a": {
+            "index.plugins.index_state_management.policy_id": null,
+            "index.opendistro.index_state_management.policy_id": null,
+            "enabled": null
+          },
+          "compat-ism-b": {
+            "index.plugins.index_state_management.policy_id": null,
+            "index.opendistro.index_state_management.policy_id": null,
+            "enabled": null
+          },
+          "compat-ism-tpl-1": {
+            "index.plugins.index_state_management.policy_id": "compat-all",
+            "index.opendistro.index_state_management.policy_id": "compat-all",
+            "index": "compat-ism-tpl-1",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-all",
+            "enabled": true,
+            "policy": {
+              "policy_id": "compat-all",
+              "description": "d",
+              "last_updated_time": "<volatile>",
+              "schema_version": "<volatile>",
+              "error_notification": null,
+              "default_state": "a",
+              "states": [
+                {
+                  "name": "a",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "replica_count": {
+                        "number_of_replicas": 1
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "force_merge": {
+                        "max_num_segments": 1
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_write": {}
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "index_priority": {
+                        "priority": 5
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "close": {}
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "open": {}
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "allocation": {
+                        "require": {
+                          "box": "hot"
+                        },
+                        "include": {},
+                        "exclude": {},
+                        "wait_for": true
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "rollover": {
+                        "min_doc_count": 5,
+                        "copy_alias": false
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "shrink": {
+                        "num_new_shards": 1,
+                        "switch_aliases": false,
+                        "force_unsafe": true
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "snapshot": {
+                        "repository": "r",
+                        "snapshot": "s"
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "notification": {
+                        "destination": {
+                          "custom_webhook": {
+                            "path": null,
+                            "header_params": {},
+                            "password": null,
+                            "scheme": null,
+                            "port": -1,
+                            "query_params": {},
+                            "host": null,
+                            "url": "http://127.0.0.1:18080/200",
+                            "username": null
+                          }
+                        },
+                        "message_template": {
+                          "source": "x",
+                          "lang": "mustache"
+                        }
+                      }
+                    },
+                    {
+                      "retry": {
+                        "count": 2,
+                        "backoff": "constant",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    }
+                  ],
+                  "transitions": [
+                    {
+                      "state_name": "b",
+                      "conditions": {
+                        "cron": {
+                          "cron": {
+                            "expression": "* * * * *",
+                            "timezone": "UTC"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "state_name": "b",
+                      "conditions": {
+                        "min_doc_count": 1
+                      }
+                    },
+                    {
+                      "state_name": "b",
+                      "conditions": {
+                        "min_size": "1gb"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "b",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "alias": {
+                        "actions": [
+                          {
+                            "add": {
+                              "aliases": [
+                                "compat-ism-al"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "timeout": "1h",
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "delete": {}
+                    }
+                  ],
+                  "transitions": []
+                }
+              ],
+              "ism_template": [
+                {
+                  "index_patterns": [
+                    "compat-ism-tpl-*"
+                  ],
+                  "priority": 10,
+                  "last_updated_time": "<volatile>"
+                }
+              ]
+            }
+          },
+          "total_managed_indices": 1
+        }
+      }
+    },
+    {
+      "name": "explain POST with filter",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/explain/compat-ism-a",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-a": {
+            "index.plugins.index_state_management.policy_id": null,
+            "index.opendistro.index_state_management.policy_id": null,
+            "enabled": null
+          },
+          "total_managed_indices": 0
+        }
+      }
+    },
+    {
+      "name": "add policy",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/add/compat-ism-a",
+        "body": {
+          "policy_id": "compat-pol"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 1,
+          "failures": false,
+          "failed_indices": []
+        }
+      }
+    },
+    {
+      "name": "add policy again",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/add/compat-ism-a",
+        "body": {
+          "policy_id": "compat-pol"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 0,
+          "failures": true,
+          "failed_indices": [
+            {
+              "index_name": "compat-ism-a",
+              "index_uuid": "<volatile>",
+              "reason": "This index already has a policy, use the update policy API to update index policies"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "add policy to missing index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/add/compat-ism-nope",
+        "body": {
+          "policy_id": "compat-pol"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 0,
+          "failures": false,
+          "failed_indices": []
+        }
+      }
+    },
+    {
+      "name": "add missing policy",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/add/compat-ism-b",
+        "body": {
+          "policy_id": "nope"
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Could not find policy=nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Could not find policy=nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "add without body",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/add/compat-ism-b"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Missing policy_id"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Missing policy_id"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "add to wildcard",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/add/compat-ism-b,compat-ism-a",
+        "body": {
+          "policy_id": "compat-pol"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 1,
+          "failures": true,
+          "failed_indices": [
+            {
+              "index_name": "compat-ism-a",
+              "index_uuid": "<volatile>",
+              "reason": "This index already has a policy, use the update policy API to update index policies"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "explain managed",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-a"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-a": {
+            "index.plugins.index_state_management.policy_id": "compat-pol",
+            "index.opendistro.index_state_management.policy_id": "compat-pol",
+            "index": "compat-ism-a",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-pol",
+            "enabled": true
+          },
+          "total_managed_indices": 1
+        }
+      }
+    },
+    {
+      "name": "explain managed with show_policy",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-a",
+        "query": {
+          "show_policy": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-a": {
+            "index.plugins.index_state_management.policy_id": "compat-pol",
+            "index.opendistro.index_state_management.policy_id": "compat-pol",
+            "index": "compat-ism-a",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-pol",
+            "enabled": true,
+            "policy": {
+              "policy_id": "compat-pol",
+              "description": "with seq",
+              "last_updated_time": "<volatile>",
+              "schema_version": "<volatile>",
+              "error_notification": null,
+              "default_state": "hot",
+              "states": [
+                {
+                  "name": "hot",
+                  "actions": [],
+                  "transitions": [
+                    {
+                      "state_name": "warm",
+                      "conditions": {
+                        "min_index_age": "7d"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "warm",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    }
+                  ],
+                  "transitions": [
+                    {
+                      "state_name": "gone",
+                      "conditions": {
+                        "min_index_age": "30d"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gone",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "delete": {}
+                    }
+                  ],
+                  "transitions": []
+                }
+              ],
+              "ism_template": null
+            }
+          },
+          "total_managed_indices": 1
+        }
+      }
+    },
+    {
+      "name": "explain managed several",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-a,compat-ism-b"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-a": {
+            "index.plugins.index_state_management.policy_id": "compat-pol",
+            "index.opendistro.index_state_management.policy_id": "compat-pol",
+            "index": "compat-ism-a",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-pol",
+            "enabled": true
+          },
+          "compat-ism-b": {
+            "index.plugins.index_state_management.policy_id": "compat-pol",
+            "index.opendistro.index_state_management.policy_id": "compat-pol",
+            "index": "compat-ism-b",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-pol",
+            "enabled": true
+          },
+          "total_managed_indices": 2
+        }
+      }
+    },
+    {
+      "name": "explain managed paging",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-*",
+        "query": {
+          "size": "1",
+          "from": "0",
+          "sortField": "index.index_name",
+          "sortOrder": "asc"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "No mapping found for [index.index_name] in order to sort on",
+                "index": ".opendistro-ism-config",
+                "index_uuid": "<volatile>"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": ".opendistro-ism-config",
+                "node": "rHWwN0xGQOu0Jwtg3VxcwQ",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "No mapping found for [index.index_name] in order to sort on",
+                  "index": ".opendistro-ism-config",
+                  "index_uuid": "<volatile>"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "No mapping found for [index.index_name] in order to sort on",
+              "index": ".opendistro-ism-config",
+              "index_uuid": "<volatile>"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "change policy",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/change_policy/compat-ism-a",
+        "body": {
+          "policy_id": "compat-tpl",
+          "state": "hot"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 1,
+          "failures": false,
+          "failed_indices": []
+        }
+      }
+    },
+    {
+      "name": "change policy with include",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/change_policy/compat-ism-a",
+        "body": {
+          "policy_id": "compat-tpl",
+          "include": [
+            {
+              "state": "hot"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 1,
+          "failures": false,
+          "failed_indices": []
+        }
+      }
+    },
+    {
+      "name": "change policy to missing policy",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/change_policy/compat-ism-a",
+        "body": {
+          "policy_id": "nope"
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Could not find policy=nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Could not find policy=nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "change policy of unmanaged index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/change_policy/compat-ism-nope",
+        "body": {
+          "policy_id": "compat-pol"
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-ism-nope]",
+                "index": "compat-ism-nope",
+                "resource.id": "compat-ism-nope",
+                "resource.type": "index_or_alias",
+                "index_uuid": "<volatile>"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-ism-nope]",
+            "index": "compat-ism-nope",
+            "resource.id": "compat-ism-nope",
+            "resource.type": "index_or_alias",
+            "index_uuid": "<volatile>"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "retry a healthy index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/retry/compat-ism-a"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 0,
+          "failures": true,
+          "failed_indices": [
+            {
+              "index_name": "compat-ism-a",
+              "index_uuid": "<volatile>",
+              "reason": "This index has no metadata information"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "retry with body",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/retry/compat-ism-a",
+        "body": {
+          "state": "hot"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 0,
+          "failures": true,
+          "failed_indices": [
+            {
+              "index_name": "compat-ism-a",
+              "index_uuid": "<volatile>",
+              "reason": "This index has no metadata information"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "retry unmanaged",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/retry/compat-ism-nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-ism-nope]",
+                "index": "compat-ism-nope",
+                "resource.id": "compat-ism-nope",
+                "resource.type": "index_or_alias",
+                "index_uuid": "<volatile>"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-ism-nope]",
+            "index": "compat-ism-nope",
+            "resource.id": "compat-ism-nope",
+            "resource.type": "index_or_alias",
+            "index_uuid": "<volatile>"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "remove policy",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/remove/compat-ism-a"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 1,
+          "failures": false,
+          "failed_indices": []
+        }
+      }
+    },
+    {
+      "name": "remove policy again",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/remove/compat-ism-a"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 0,
+          "failures": true,
+          "failed_indices": [
+            {
+              "index_name": "compat-ism-a",
+              "index_uuid": "<volatile>",
+              "reason": "This index does not have a policy to remove"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "remove from missing",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/remove/compat-ism-nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-ism-nope]",
+                "index": "compat-ism-nope",
+                "resource.id": "compat-ism-nope",
+                "resource.type": "index_or_alias",
+                "index_uuid": "<volatile>"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-ism-nope]",
+            "index": "compat-ism-nope",
+            "resource.id": "compat-ism-nope",
+            "resource.type": "index_or_alias",
+            "index_uuid": "<volatile>"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete policy in use",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ism/policies/compat-tpl"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-ism-config",
+          "_id": "compat-tpl",
+          "_version": "<volatile>",
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete policy",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ism/policies/compat-tpl2"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Policy compat-tpl2 is not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Policy compat-tpl2 is not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "delete policy again",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_ism/policies/compat-tpl2"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Policy compat-tpl2 is not found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Policy compat-tpl2 is not found"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "job interval to one minute",
+      "request": {
+        "method": "PUT",
+        "path": "/_cluster/settings",
+        "body": {
+          "persistent": {
+            "plugins.index_state_management.job_interval": 1
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true,
+          "persistent": {
+            "plugins": {
+              "index_state_management": {
+                "job_interval": "1"
+              }
+            }
+          },
+          "transient": {}
+        }
+      }
+    },
+    {
+      "name": "put running policy",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_ism/policies/compat-run",
+        "body": {
+          "policy": {
+            "description": "runs",
+            "default_state": "start",
+            "states": [
+              {
+                "name": "start",
+                "actions": [
+                  {
+                    "replica_count": {
+                      "number_of_replicas": 0
+                    }
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "end",
+                    "conditions": {
+                      "min_doc_count": 1
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "end",
+                "actions": [
+                  {
+                    "read_only": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "compat-run",
+          "_version": "<volatile>",
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "policy": {
+            "policy": {
+              "policy_id": "compat-run",
+              "description": "runs",
+              "last_updated_time": "<volatile>",
+              "schema_version": "<volatile>",
+              "error_notification": null,
+              "default_state": "start",
+              "states": [
+                {
+                  "name": "start",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "replica_count": {
+                        "number_of_replicas": 0
+                      }
+                    }
+                  ],
+                  "transitions": [
+                    {
+                      "state_name": "end",
+                      "conditions": {
+                        "min_doc_count": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "end",
+                  "actions": [
+                    {
+                      "retry": {
+                        "count": 3,
+                        "backoff": "exponential",
+                        "delay": "1m"
+                      },
+                      "read_only": {}
+                    }
+                  ],
+                  "transitions": []
+                }
+              ],
+              "ism_template": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create running index",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-ism-run",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 1
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-ism-run"
+        }
+      }
+    },
+    {
+      "name": "add running policy",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_ism/add/compat-ism-run",
+        "body": {
+          "policy_id": "compat-run"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "updated_indices": 1,
+          "failures": false,
+          "failed_indices": []
+        }
+      }
+    },
+    {
+      "name": "explain after the first run",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-run"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-run": {
+            "index.plugins.index_state_management.policy_id": "compat-run",
+            "index.opendistro.index_state_management.policy_id": "compat-run",
+            "index": "compat-ism-run",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-run",
+            "policy_seq_no": "<volatile>",
+            "policy_primary_term": "<volatile>",
+            "index_creation_date": "<volatile>",
+            "state": {
+              "name": "start",
+              "start_time": "<volatile>"
+            },
+            "retry_info": {
+              "failed": false,
+              "consumed_retries": 0
+            },
+            "info": {
+              "message": "Successfully initialized policy: compat-run"
+            },
+            "enabled": true
+          },
+          "total_managed_indices": 1
+        }
+      }
+    },
+    {
+      "name": "explain waiting on the transition",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-run"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-run": {
+            "index.plugins.index_state_management.policy_id": "compat-run",
+            "index.opendistro.index_state_management.policy_id": "compat-run",
+            "index": "compat-ism-run",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-run",
+            "policy_seq_no": "<volatile>",
+            "policy_primary_term": "<volatile>",
+            "index_creation_date": "<volatile>",
+            "state": {
+              "name": "start",
+              "start_time": "<volatile>"
+            },
+            "action": {
+              "name": "transition",
+              "start_time": "<volatile>",
+              "index": -1,
+              "failed": false,
+              "consumed_retries": 0,
+              "last_retry_time": 0
+            },
+            "step": {
+              "name": "attempt_transition_step",
+              "start_time": "<volatile>",
+              "step_status": "condition_not_met"
+            },
+            "retry_info": {
+              "failed": false,
+              "consumed_retries": 0
+            },
+            "info": {
+              "message": "Evaluating transition conditions [index=compat-ism-run]"
+            },
+            "enabled": true
+          },
+          "total_managed_indices": 1
+        }
+      }
+    },
+    {
+      "name": "index a document",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-ism-run/_doc/1",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "a": 1
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_index": "compat-ism-run",
+          "_id": "1",
+          "_version": "<volatile>",
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "explain after the transition",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_ism/explain/compat-ism-run"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "compat-ism-run": {
+            "index.plugins.index_state_management.policy_id": "compat-run",
+            "index.opendistro.index_state_management.policy_id": "compat-run",
+            "index": "compat-ism-run",
+            "index_uuid": "<volatile>",
+            "policy_id": "compat-run",
+            "policy_seq_no": "<volatile>",
+            "policy_primary_term": "<volatile>",
+            "index_creation_date": "<volatile>",
+            "state": {
+              "name": "end",
+              "start_time": "<volatile>"
+            },
+            "action": {
+              "name": "read_only",
+              "start_time": "<volatile>",
+              "index": 0,
+              "failed": false,
+              "consumed_retries": 0,
+              "last_retry_time": 0
+            },
+            "step": {
+              "name": "set_read_only",
+              "start_time": "<volatile>",
+              "step_status": "completed"
+            },
+            "retry_info": {
+              "failed": false,
+              "consumed_retries": 0
+            },
+            "info": {
+              "message": "Successfully set index to read-only [index=compat-ism-run]"
+            },
+            "enabled": true
+          },
+          "total_managed_indices": 1
+        }
+      }
+    },
+    {
+      "name": "job interval back",
+      "request": {
+        "method": "PUT",
+        "path": "/_cluster/settings",
+        "body": {
+          "persistent": {
+            "plugins.index_state_management.job_interval": null
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "acknowledged": true,
+          "persistent": {},
+          "transient": {}
+        }
+      }
+    },
+    {
+      "name": "stats of a node",
+      "request": {
+        "method": "GET",
+        "path": "/_cluster/settings",
+        "query": {
+          "include_defaults": "true",
+          "filter_path": "defaults.plugins.index_state_management.*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "defaults": {
+            "plugins": {
+              "index_state_management": {
+                "job_document_check": {
+                  "enabled": "true"
+                },
+                "coordinator": {
+                  "backoff_millis": "50ms",
+                  "sweep_period": "10m",
+                  "sweep_skip_period": "5m",
+                  "backoff_count": "2"
+                },
+                "jitter": "0.6",
+                "restricted_index_pattern": "\\.opendistro_security|\\.kibana.*|\\.opendistro-ism-config",
+                "action_validation": {
+                  "enabled": "false"
+                },
+                "allow_list": [
+                  "alias",
+                  "allocation",
+                  "close",
+                  "delete",
+                  "force_merge",
+                  "index_priority",
+                  "notification",
+                  "open",
+                  "publish_field_domains",
+                  "read_only",
+                  "read_write",
+                  "replica_count",
+                  "rollup",
+                  "rollover",
+                  "search_only",
+                  "shrink",
+                  "snapshot",
+                  "transform",
+                  "stop_replication",
+                  "convert_index_to_remote"
+                ],
+                "allow_running_on_red_cluster": "false",
+                "history": {
+                  "max_age": "24h",
+                  "number_of_shards": "1",
+                  "rollover_retention_period": "30d",
+                  "rollover_check_period": "8h",
+                  "max_docs": "2500000",
+                  "number_of_replicas": "1",
+                  "enabled": "true"
+                },
+                "policy_version_reconciliation": {
+                  "enabled": "true"
+                },
+                "job_interval": "5",
+                "enabled": "true",
+                "snapshot": {
+                  "deny_list": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "legacy route",
+      "request": {
+        "method": "GET",
+        "path": "/_opendistro/_ism/policies/compat-pol"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "compat-pol",
+          "_version": "<volatile>",
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>",
+          "policy": {
+            "policy_id": "compat-pol",
+            "description": "with seq",
+            "last_updated_time": "<volatile>",
+            "schema_version": "<volatile>",
+            "error_notification": null,
+            "default_state": "hot",
+            "states": [
+              {
+                "name": "hot",
+                "actions": [],
+                "transitions": [
+                  {
+                    "state_name": "warm",
+                    "conditions": {
+                      "min_index_age": "7d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "warm",
+                "actions": [
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "read_only": {}
+                  }
+                ],
+                "transitions": [
+                  {
+                    "state_name": "gone",
+                    "conditions": {
+                      "min_index_age": "30d"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "gone",
+                "actions": [
+                  {
+                    "retry": {
+                      "count": 3,
+                      "backoff": "exponential",
+                      "delay": "1m"
+                    },
+                    "delete": {}
+                  }
+                ],
+                "transitions": []
+              }
+            ],
+            "ism_template": null
+          }
+        }
+      }
+    },
+    {
+      "name": "rollup jobs",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_rollup/jobs"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "total_rollups": 0,
+          "rollups": []
+        }
+      }
+    },
+    {
+      "name": "transform jobs",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_transform"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "total_transforms": 0,
+          "transforms": []
+        }
+      }
+    },
+    {
+      "name": "snapshot management policies",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_sm/policies"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "policies": [],
+          "total_policies": 0
+        }
+      }
+    }
+  ]
+}

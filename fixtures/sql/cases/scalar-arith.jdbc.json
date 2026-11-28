@@ -1,0 +1,38 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "response": {
+    "schema": [
+      {
+        "name": "age + 1",
+        "type": "integer"
+      }
+    ],
+    "datarows": [
+      [
+        31
+      ],
+      [
+        26
+      ],
+      [
+        36
+      ],
+      [
+        null
+      ],
+      [
+        42
+      ],
+      [
+        51
+      ]
+    ],
+    "total": 6,
+    "size": 6,
+    "status": 200
+  }
+}
