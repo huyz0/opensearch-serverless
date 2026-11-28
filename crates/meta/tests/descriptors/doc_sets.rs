@@ -9,7 +9,7 @@ use oss_blob::SliceSource;
 use oss_meta::{DocKind, DocSet, MAX_DOC_BYTES, MAX_DOCS, MetaError};
 
 use crate::probe::{Quirk, Quirky};
-use crate::{BASE, Backend, all, counted};
+use crate::{BASE, Backend, all, counted, emulator};
 
 const KIND: DocKind = DocKind::IndexTemplate;
 
@@ -363,4 +363,67 @@ fn a_created_set_is_missing_until_created_and_a_model_may_exceed_the_mebibyte() 
         ));
         assert_eq!(MetaError::NoSuchSet.to_string(), "the set does not exist");
     }
+}
+
+/// docs/specs/notifications AC-3 and AC-4: `update` rebuilds from a fresh
+/// read, costs 2 GETs and 2 PUTs, and a concurrent writer's entry survives.
+#[test]
+fn update_rebuilds_from_the_current_document_and_costs_two_gets_and_two_puts() {
+    let n = |sent: &[(oss_blob::S3Op, u64)], op| {
+        sent.iter().find(|(o, _)| *o == op).map_or(0, |(_, c)| *c)
+    };
+    for b in all() {
+        let s = set(&b);
+        let mut buf = body();
+        let (r, sent) = counted(b.meter(), || {
+            s.update("cat", &mut marker(), &mut buf, &mut |old| {
+                assert!(old.is_none());
+                Ok(Some(b"[1]".to_vec()))
+            })
+        });
+        r.unwrap();
+        assert_eq!((n(&sent, Get), n(&sent, Put)), (1, 2), "{:?}", b.kind);
+        let (r, sent) = counted(b.meter(), || {
+            s.update("cat", &mut marker(), &mut buf, &mut |old| {
+                assert_eq!(old, Some(&b"[1]"[..]));
+                Ok(Some(b"[1,2]".to_vec()))
+            })
+        });
+        r.unwrap();
+        assert_eq!((n(&sent, Get), n(&sent, Put)), (2, 2), "{:?}", b.kind);
+        assert_eq!(read(&s, "cat").as_deref(), Some("[1,2]"));
+        let (r, sent) = counted(b.meter(), || {
+            s.update("cat", &mut marker(), &mut buf, &mut |_| Ok(None))
+        });
+        r.unwrap();
+        assert_eq!(n(&sent, Put), 0, "a no-op writes nothing {:?}", b.kind);
+        assert_eq!(read(&s, "cat").as_deref(), Some("[1,2]"));
+    }
+}
+
+#[test]
+fn concurrent_updates_never_lose_an_accepted_entry() {
+    let b = emulator();
+    let s = Arc::new(set(&b));
+    let handles: Vec<_> = (0..8)
+        .map(|i| {
+            let s = Arc::clone(&s);
+            std::thread::spawn(move || {
+                let mut buf = body();
+                s.update("cat", &mut marker(), &mut buf, &mut |old| {
+                    let mut text = old.map(<[u8]>::to_vec).unwrap_or_default();
+                    text.extend_from_slice(format!("{i};").as_bytes());
+                    Ok(Some(text))
+                })
+            })
+        })
+        .collect();
+    let ok = handles
+        .into_iter()
+        .map(|h| h.join().unwrap())
+        .filter(Result::is_ok)
+        .count();
+    let text = read(&s, "cat").unwrap();
+    assert_eq!(text.matches(';').count(), ok, "{text}");
+    assert!(ok >= 1);
 }
