@@ -2,7 +2,7 @@
 
 ## Serves
 
-R15.4's Notifications plugin, under [ADR 0081](../../adr/0081-notifications-is-ported-natively.md). The owner's decision (2026-11-28): the stock plugins are ported to Rust, no Java in the runtime path (no proxy, no fallback); Java is a test oracle only (recorded stock answers as fixtures) and a perf and memory comparison. Alerting ([ADR 0075](../../adr/0075-alerting-is-ported-natively.md)) and ISM ([ADR 0077](../../adr/0077-index-state-management-is-ported-natively.md), whose `notification` action is refused at policy put today) both send through it. A client of `opensearch-project/notifications` must work unchanged against a Rust node.
+R15.4's Notifications plugin, under [ADR 0085](../../adr/0081-notifications-is-ported-natively.md). The owner's decision (2026-11-28): the stock plugins are ported to Rust, no Java in the runtime path (no proxy, no fallback); Java is a test oracle only (recorded stock answers as fixtures) and a perf and memory comparison. Alerting ([ADR 0075](../../adr/0075-alerting-is-ported-natively.md)) and ISM ([ADR 0077](../../adr/0077-index-state-management-is-ported-natively.md), whose `notification` action is refused at policy put today) both send through it. A client of `opensearch-project/notifications` must work unchanged against a Rust node.
 
 ## Change
 

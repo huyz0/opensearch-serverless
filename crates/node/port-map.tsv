@@ -300,7 +300,19 @@ src/ism_route/mod.rs	new		the index state management policy service over a docum
 src/ism_route/policy.rs	new		policy validation: the actions and conditions a serverless node can run
 src/ism_route/routes.rs	new		the route table under /_plugins/_ism and /_opendistro/_ism
 src/ism_route/managed.rs	new		add, remove and explain: which policy manages which index
+src/ism_route/hook.rs	new		the create hook: attaches the policy whose template matches a new index
+src/ism_route/templates.rs	new		ism_template: the aggregate of every policy's patterns, and the attach on create
+src/index_route/created.rs	new		the hook an index create calls once the index exists
 src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusals (ADR 0080)
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
 src/plugins/tests.rs	new		the policy reader and the registry's refusals, tested (ADR 0080)
+src/ad_setting.rs	new		serverless.ad.enabled
+src/ad_route/mod.rs	new		the anomaly detection detector service over a document set; the Java plugin is ported natively by ADR 0078
+src/ad_route/detector.rs	new		detector validation: the features, filters and bounds a serverless node can run
+src/ad_route/search.rs	new		the _search query a detectors id can answer without reading every detector
+src/ad_route/routes.rs	new		the route table under /_plugins/_anomaly_detection and /_opendistro/_anomaly_detection
+src/plugins/routes.rs	new		mounting a ready plugin's routes and serving a request through its guard (ADR 0080)
+src/jobs/mod.rs	new		the node-local job registry of asynchronous search: bounded, memory only, no blob request (ADR 0084)
+src/jobs/types.rs	new		the registry's limits, caller, context and errors
+src/jobs/tests.rs	new		the registry bounds, with the clock and the search gates passed in

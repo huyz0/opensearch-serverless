@@ -159,8 +159,8 @@ fn a_policy_costs_the_stored_scripts_shape_and_nothing_lists() {
     call(&r, "DELETE", "/_plugins/_ism/policies/logs", None);
     assert_eq!(
         (total(&r, S3Op::Get) - gets, total(&r, S3Op::Put) - puts),
-        (1, 1),
-        "a delete"
+        (2, 1),
+        "a delete: the marker's swap, and the templates' read"
     );
     assert_eq!(total(&r, S3Op::List), 0);
 }
