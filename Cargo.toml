@@ -18,6 +18,7 @@ members = [
     "crates/reader",
     "crates/writer",
     "crates/janitor",
+    "crates/replication",
     "crates/meta",
     "crates/cluster",
     "crates/transport",
@@ -51,6 +52,7 @@ oss-edge = { path = "crates/edge" }
 oss-testkit = { path = "crates/testkit" }
 oss-blob = { path = "crates/blob" }
 oss-format = { path = "crates/format" }
+oss-replication = { path = "crates/replication" }
 oss-meta = { path = "crates/meta" }
 oss-cluster = { path = "crates/cluster" }
 oss-transport = { path = "crates/transport" }

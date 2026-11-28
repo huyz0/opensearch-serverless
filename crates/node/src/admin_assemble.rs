@@ -52,7 +52,8 @@ pub(crate) fn register(
 ) -> Result<(Router, Option<Arc<SecurityState>>), AssembleError> {
     let store_error = |e: oss_meta::MetaError| AssembleError::Store(e.to_string());
     let settings = ClusterService::new(Arc::clone(store), &config.base, config.publish_tick_millis)
-        .map_err(store_error)?;
+        .map_err(store_error)?
+        .with_remotes(crate::remote_roots::RemoteRoots::of(config));
     let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
         .map_err(store_error)?;
     let router = cluster_route::routes(router, Arc::new(settings)).map_err(AssembleError::Route)?;

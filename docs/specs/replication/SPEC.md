@@ -13,16 +13,16 @@ A **remote** is a store location. `PUT _cluster/settings` accepts `cluster.remot
 3. **Reading a leader.** `RemoteStore::shard_manifest(index, uuid, shard)` reads the leader shard's commit register (the key of `ShardRef::manifest_key`) and returns its generation and the files it names; `index_descriptor(index)` reads the leader's descriptor (`descriptor_key`). A missing leader index is a typed `RemoteMissing`, not a panic or a generic 500. The reads hold no lock and no lease and never list.
 4. **A way to see it works.** `GET /_remote/<alias>/_info` is not a stock route and is not added. The slice's evidence is `RemoteStore` unit tests and the settings path through `PUT/GET _cluster/settings`: the stock `PUT _cluster/settings` body with `seeds` is accepted, the seeds are ignored, and the response carries the warning ADR 0085 names.
 
-Not here: copying, a follower index, any `/_plugins/_replication` route, the poll loop, metadata following, auto-follow. `serverless.replication.enabled` is registered by this slice (default off, nothing reads it yet) so slice 2 adds no setting churn.
+Not here: copying, a follower index, any `/_plugins/_replication` route, the poll loop, metadata following, auto-follow. `serverless.replication.enabled` is registered by this slice (default on, nothing reads it yet) so slice 2 adds no setting churn.
 
 ## Acceptance criteria
 
 - AC-1: a remote naming a store under an allowed root is accepted and read back by `GET _cluster/settings`; one outside every root, one that overlaps this deployment's store in either direction, and one whose path is a symlink are each 400 naming the rule. With `OSS_REPLICATION_REMOTE_ROOTS` empty every remote is refused.
 - AC-2: `RemoteStore` has no method that writes, deletes or lists; a compile-fail test (`trybuild`-style, or a doc test marked `compile_fail`) holds that a `put` call does not compile. The wrapped store is opened read-only: against the fs store and the emulator a write through the handle's inner store is not reachable from the crate's public API.
 - AC-3: `shard_manifest` returns the generation and file names of a leader shard written by the writer crate in the same test (not a hand-built blob), for a shard with several generations; `index_descriptor` returns the leader's shard count and mappings; a missing index and a missing shard are `RemoteMissing`.
-- AC-4: reading a leader shard manifest makes exactly 1 GET (1 HEAD when the generation is asked for alone); reading a descriptor makes 1 GET; neither lists, asserted by the request meter. An idle node with remotes configured makes zero requests.
+- AC-4: reading a leader shard manifest makes exactly 1 GET ; reading a descriptor makes 1 GET; neither lists, asserted by the request meter. An idle node with remotes configured makes zero requests.
 - AC-5: `cluster.remote.<alias>.seeds` is accepted and ignored with a warning in the response; a `store` body with an unknown `type`, a missing `bucket`, an alias that is not a valid name, or more than 16 remotes is 400.
-- AC-6: with `serverless.replication.enabled` off (the default) the remote settings still validate and persist, and nothing else changes: the existing suite passes unchanged, and both settings values run in CI.
+- AC-6: with `serverless.replication.enabled` off the remote settings still validate and persist, and nothing else changes: the existing suite passes unchanged, and both settings values run in CI.
 
 ## Test plan
 
@@ -34,10 +34,10 @@ Reading a leader shard manifest is 1 GET, a descriptor 1 GET; there is no standi
 
 ## Switch
 
-`serverless.replication.enabled` (`OSS_REPLICATION`), default **off**, per ADR 0085: the poll cost of later slices is an operator's choice. This slice adds no cost, so its remote setting and reader are always available; the switch gates only the routes and the poll that later slices add. The measurement that decides the default is slice 6's.
+`serverless.replication.enabled` (`OSS_REPLICATION`), default **on** (the owner's 2026-11-28 rule that a ported plugin ships with no flag or one that is on by default; ADR 0085's "default off" predates it). Nothing is polled until a person starts a replication, so on costs nothing for an index that is not replicated; this slice adds no cost at all. The switch gates only the routes and the poll that later slices add, and `false` is the kill switch.
 
 ## Risks
 
 - The allow-list check is a security boundary: a remote must not let a request make the node read an arbitrary bucket. The stock validators are the tested code to reuse; extracting them must not weaken them, so their existing tests run unchanged and the planted-violation rule applies to the new check.
 - A leader written by a different build may carry a manifest this reader does not know: `shard_manifest` returns the format error typed, and slice 2 decides what to do with it.
-- Credentials: `profile` names credentials the node already holds; it never accepts a secret in the request. The profile mechanism itself may not exist for s3 yet; if not, slice 1 uses the node's own credentials only and says so in the setting's documentation.
+- Credentials: `profile` names credentials the node already holds; it never accepts a secret in the request. There is no profile mechanism yet, so slice 1 refuses a `profile` with 400 and uses the node's own credentials only; an s3 remote is read through this node's own S3 endpoint, so a node whose store is a directory refuses one.

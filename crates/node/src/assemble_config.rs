@@ -100,6 +100,10 @@ pub struct Config {
     pub snapshots_stock: bool,
     /// `OSS_STOCK_REPO_ROOTS` and `OSS_STOCK_REPO_S3_ROOTS`: where a stock repository may sit.
     pub stock_roots: (String, String),
+    /// `OSS_REPLICATION_REMOTE_ROOTS`: the directories and `bucket[/prefix]` roots a replication remote may sit under, as (directories, s3 roots); none by default, so no remote is readable.
+    pub replication_remote_roots: (String, String),
+    /// `serverless.replication.enabled` (`OSS_REPLICATION`): the cluster default of cross-cluster replication. On by default; nothing is polled until a replication is started.
+    pub replication: bool,
     /// `OSS_STOCK_RESTORE_FANOUT`: how many metadata blobs a stock restore reads at once.
     pub stock_fanout: usize,
     /// `serverless.snapshots.stock.export.enabled`: export a snapshot into a stock repository.
@@ -219,6 +223,8 @@ impl Config {
             restore_background: crate::restore_background::Settings::off(),
             snapshots_stock: false,
             stock_roots: (String::new(), String::new()),
+            replication_remote_roots: (String::new(), String::new()),
+            replication: true,
             stock_fanout: 8,
             snapshots_stock_export: false,
             stock_export_roots: (String::new(), String::new()),

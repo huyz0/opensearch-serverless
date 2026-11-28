@@ -1,0 +1,4 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root
+src/settings.rs	new		the remote settings are new; the stock plugin names remotes by transport seeds
+src/remote.rs	new		a leader store is read by its manifest register, not by a transport

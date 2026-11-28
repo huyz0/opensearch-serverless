@@ -20,6 +20,7 @@ pub(super) mod page_cache;
 pub(super) mod plugin_policy;
 pub(super) mod plugins;
 mod reader_ramp;
+pub(super) mod replication;
 pub(super) mod roles;
 pub(super) mod search_queue;
 pub(super) mod search_slots;
@@ -55,17 +56,14 @@ pub struct NodeConfig {
     pub memory_bytes: usize,
     /// How far ahead a lease renewal stamps its expiry.
     pub lease_ttl_millis: i64,
-    /// How often the node reads the fleet's leases again; unset, the same
-    /// as the lease is renewed (a third of its lifetime).
+    /// How often the node reads the fleet's leases again; unset, as often as a lease is renewed (a third of its lifetime).
     pub lease_refresh_millis: Option<u64>,
     /// How long a writer trusts an index it read before confirming it by
     /// the change stripes; zero reads the descriptor on every lookup.
     pub index_confirm_millis: u64,
-    /// How often the janitor sweeps and the dead-log pass runs; it is also
-    /// the first wait before a dead node's log is tried again.
+    /// How often the janitor sweeps and the dead-log pass runs; also the first wait before a dead node's log is tried again.
     pub janitor_every_millis: u64,
-    /// `serverless.janitor.dry_run`: count what the janitor would delete and
-    /// delete nothing. Off by default.
+    /// `serverless.janitor.dry_run`: count what the janitor would delete and delete nothing. Off by default.
     pub janitor_dry_run: bool,
     /// `serverless.buckets.enabled`: own and publish a shard whose index
     /// descriptor names a bucket through the bucket. Off by default.
@@ -76,6 +74,8 @@ pub struct NodeConfig {
     pub plugin_policy: plugin_policy::PluginPolicy,
     /// What a node serves of snapshots, and the names it refuses.
     pub snapshots: snapshots::SnapshotConfig,
+    /// What a node serves of cross-cluster replication.
+    pub replication: replication::ReplicationConfig,
     /// `serverless.plugins.upstreams`: `http(s)` bases of Java nodes that serve the plugins not ported; none by default.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`.
@@ -149,11 +149,9 @@ pub struct NodeConfig {
     pub extensions_percent: usize,
     /// `OSS_EXTENSIONS_REPLAY_FUEL_FACTOR`: a replayed call's fuel and memory, times its record's.
     pub extensions_replay_factor: u64,
-    /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
-    /// and serve them at `GET /_serverless/usage`.
+    /// `OSS_STORE_USAGE`: count the store's requests and bytes per index and serve them at `GET /_serverless/usage`.
     pub store_usage: bool,
-    /// `OSS_STORE_USAGE_MAX_INDICES`: how many indices the usage tracks
-    /// before counting the rest together.
+    /// `OSS_STORE_USAGE_MAX_INDICES`: how many indices the usage tracks before counting the rest together.
     pub store_usage_max_indices: usize,
     /// `OSS_TENANT_LEVELS`: `off`, `observe` or `enforce`; with store usage
     /// on, each tenant's cost is judged against its budget and the level is
@@ -433,6 +431,7 @@ impl NodeConfig {
             janitor_dry_run,
             buckets_enabled,
             snapshots,
+            replication: replication::read(&flag, &or)?,
             authoring,
             plugin_policy,
             plugin_upstreams,
