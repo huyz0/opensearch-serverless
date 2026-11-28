@@ -339,7 +339,6 @@ src/ad_route/preview_tests.rs	new		tests of preview.rs
 src/ad_route/job.rs	new		the _start and _stop routes: the detector's job record and the ad registry entry
 src/ad_route/preview_route.rs	new		the _preview routes of a stored or inline detector
 src/ad_route/run.rs	new		one run of a detector: claim the slot, search its window, feed the model, write the result; no stock recording of results exists yet (AC-15 gap)
-src/ad_route/sink.rs	new		the DocSink seam a run's result documents leave through, shaped as the host API's
 src/ad_route/slots.rs	new		the due slot, its window and the skew wait
 src/ad_route/source.rs	new		the seam a detector's windows are searched through
 src/search_window.rs	new		the node's search as that seam
@@ -378,3 +377,4 @@ src/boot/config/plugin_policy.rs	new		the OSS_PLUGINS variable
 src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins from bounded queues
 src/ism_run/mod.rs	new		the runner decision: a managed index record, its policy and the time give the next record and the next evaluation time; cron conditions and actions come later
 src/bulk_sink.rs	new		index.docs for plugins: documents indexed through the _bulk service
+src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors from the registry, run the ones this node owns that are due; no stock recording exists (AC-15 gap)
