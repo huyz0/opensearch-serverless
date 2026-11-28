@@ -131,3 +131,20 @@ fn methods_parse_by_name() {
     assert_eq!(Method::parse("get"), None);
     assert_eq!(Method::parse("PATCH"), None);
 }
+
+#[test]
+fn every_method_code_reads_back_as_its_method() {
+    for m in [
+        Method::Get,
+        Method::Post,
+        Method::Put,
+        Method::Delete,
+        Method::Head,
+    ] {
+        let r = RestRequest {
+            method: m,
+            ..request()
+        };
+        assert_eq!(RestRequest::decode(&r.encode(), 2).map(|r| r.method), Ok(m));
+    }
+}

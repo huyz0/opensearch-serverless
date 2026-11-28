@@ -20,6 +20,9 @@ pub const MAX_PER_TENANT: usize = 2;
 
 /// A plugin that runs in this process.
 pub trait NativeInstance: Send + Sync {
+    /// The manifest this plugin declares, as the parser reads it.
+    fn manifest(&self) -> Vec<u8>;
+
     /// Serves one call of `point` with `input`, answering at most `max_out`
     /// bytes.
     ///

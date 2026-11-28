@@ -29,6 +29,10 @@ struct Scripted {
 }
 
 impl NativeInstance for Scripted {
+    fn manifest(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
     fn call(&self, _point: &str, input: &[u8], _max_out: usize) -> Result<Vec<u8>, CallError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         match input.first().copied().unwrap_or(0) {
@@ -109,6 +113,10 @@ struct Blocking {
 }
 
 impl NativeInstance for Blocking {
+    fn manifest(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
     fn call(&self, _p: &str, _i: &[u8], _m: usize) -> Result<Vec<u8>, CallError> {
         self.arrived.lock().expect("lock").send(()).expect("send");
         let _ = self.release.lock().expect("lock").recv();
@@ -190,6 +198,10 @@ struct Reentrant {
 }
 
 impl NativeInstance for Reentrant {
+    fn manifest(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
     fn call(&self, _p: &str, _i: &[u8], _m: usize) -> Result<Vec<u8>, CallError> {
         assert_eq!(self.guard.state(), BreakerState::Closed);
         panic!("after using the guard");
