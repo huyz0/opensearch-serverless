@@ -101,7 +101,7 @@ fn a_query_that_fails_to_build_is_not_valid() {
 #[test]
 fn a_query_this_node_does_not_support_is_refused_not_invalid() {
     let node = start();
-    let body = r#"{"query":{"geo_distance":{"distance":"1km","p":[0,0]}}}"#;
+    let body = r#"{"query":{"geo_shape":{"p":{"shape":{"type":"point","coordinates":[0,0]}}}}}"#;
     let (status, text) = validate(&node, "POST", "compat-term", Some(body));
     assert_eq!(status, 400, "{text}");
     assert!(text.contains("illegal_argument_exception"), "{text}");

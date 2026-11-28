@@ -170,7 +170,8 @@ fn reads<S: BlobStore + 'static>(
         (FieldType::Float, _) => Reads::Decimal(ValueKind::Float),
         (FieldType::HalfFloat, _) => Reads::Decimal(ValueKind::HalfFloat),
         (FieldType::Scaled(bits), _) => Reads::Decimal(ValueKind::Scaled(*bits)),
-        (FieldType::Unsupported(what), _) => {
+        (other @ (FieldType::Unsupported(_) | FieldType::GeoPoint), _) => {
+            let what = other.refusal_name();
             // ALLOC: error path; one message.
             return Err(bad_request(format!(
                 "aggregating {what} [{}] is not supported by this node yet",

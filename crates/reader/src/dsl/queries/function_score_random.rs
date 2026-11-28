@@ -140,6 +140,7 @@ pub fn build(
         | FieldType::Double
         | FieldType::HalfFloat
         | FieldType::Scaled(_)
+        | FieldType::GeoPoint
         | FieldType::Unsupported(_) => {
             // ALLOC: error path; one message.
             Err(unsupported(&format!(

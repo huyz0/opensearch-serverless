@@ -41,3 +41,4 @@ src/actions/search_shard/aggs_rare.rs	port	server/src/main/java/org/opensearch/s
 src/actions/tasks.rs	new		this project's own task read and cancel, forwarded to the node that runs the task; no Java peer sends or answers it
 src/actions/search_shard/aggs_pipeline.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/DerivativePipelineAggregationBuilder.java@429b4cbc	the pipeline builders doWriteTo (the bucket and derivative ones, cumulative_sum, bucket_sort) and FieldSortBuilder.writeTo
 src/actions/search_shard/aggs_answer.rs	port	server/src/main/java/org/opensearch/search/aggregations/InternalAggregations.java@429b4cbc	InternalAggregations.writeTo, split out of aggs.rs
+src/actions/async_search.rs	new		this project's own asynchronous search read and delete, forwarded to the node that runs the search; no Java peer sends or answers it
