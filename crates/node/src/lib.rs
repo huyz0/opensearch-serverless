@@ -115,6 +115,9 @@ pub mod nested_setting;
 pub mod newest;
 #[cfg(feature = "reader")]
 pub mod newest_ask;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod notifications_route;
+pub mod notifications_setting;
 #[cfg(feature = "reader")]
 pub mod open_indexes;
 #[cfg(feature = "reader")]
