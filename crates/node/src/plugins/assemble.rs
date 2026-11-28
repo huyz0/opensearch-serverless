@@ -5,15 +5,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use oss_ext::doc_sink::{DocSink, DocSinkBackend};
-use oss_ext::host::{Backend, NoBackend};
+use oss_ext::host::Backend;
 use oss_ext::native::NativeInstance;
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 use serde_json::{Value, json};
 
 use super::policy::PolicyTier;
 use super::registry::{Registry, State, Taken};
-use super::{Policy, mount};
+use super::{Dispatcher, Policy, mount};
 
 /// The status route's path.
 pub const STATUS_PATH: &str = "/_plugins/_serverless/plugins";
@@ -71,6 +70,7 @@ pub fn install(
     linked: &HashMap<String, Arc<dyn NativeInstance>>,
     backend: &Arc<dyn Backend>,
     now: fn() -> u64,
+    bus: &crate::lifecycle_bus::Bus,
 ) -> Result<Router, InstallError> {
     let policy = if policy_text.trim().is_empty() {
         Policy::default()
@@ -88,6 +88,9 @@ pub fn install(
         .collect();
     let registry = Arc::new(Registry::load_with(&policy, linked, &builtin, backend));
     let router = mount(router, &registry, now).map_err(InstallError::Route)?;
+    let events = Arc::new(Dispatcher::start(&registry, now));
+    bus.set(Arc::clone(&events) as Arc<dyn crate::lifecycle_bus::Events>);
+    bus.publish("node.started", "", "", now());
     let seen = Arc::clone(&registry);
     router
         .route(
@@ -113,8 +116,11 @@ pub(crate) fn install_configured(
     router: Router,
     policy_text: &str,
     bulk: &Arc<crate::bulk_route::BulkService>,
+    bus: &crate::lifecycle_bus::Bus,
 ) -> Result<Router, crate::assemble_error::AssembleError> {
     use crate::assemble_error::AssembleError;
+    use oss_ext::doc_sink::{DocSink, DocSinkBackend};
+    use oss_ext::host::NoBackend;
     install(
         router,
         policy_text,
@@ -124,6 +130,7 @@ pub(crate) fn install_configured(
             Arc::new(NoBackend),
         )) as Arc<dyn Backend>),
         crate::clock::now_millis,
+        bus,
     )
     .map_err(|e| match e {
         InstallError::Route(r) => AssembleError::Route(r),
