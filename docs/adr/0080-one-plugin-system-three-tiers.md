@@ -1,6 +1,6 @@
 # 0080: One plugin system, three tiers: native shared libraries loaded at run time, sandboxed WASM, and out-of-process gRPC, behind one manifest, one point contract and one failure rule
 
-**Status:** Proposed. Amended on 2026-11-28 at the owner's direction: the native tier is a dynamic library loaded at run time, like an Envoy plugin, not code compiled in. The first text had one independent review round; the amendment (a stable C ABI, a loader that uses `unsafe`, trust by allow-list and signature, a watchdog) needs a second, and the exception to ADR 0009 needs the owner's explicit acceptance (section 1a).
+**Status:** Accepted, 2026-11-28. First text accepted after one independent review round. The amendment (the native tier as a dynamic library) had a second round, accept with changes, all folded in; the exception to ADR 0009 in section 1a was accepted by the owner on 2026-11-28.
 
 ## Context
 
