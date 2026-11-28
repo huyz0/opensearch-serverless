@@ -30,3 +30,7 @@ No JNI, no Java process, no fallback to a Java node in any stage.
 - Memory: training reserves before reading; a job that does not fit is refused 429, not run partly.
 - Rules out: sharing a model store or segments with a Java shell (the plugin's `.opensearch-knn-models` index and these blobs are separate).
 - Provisional until a stock recording exists: response shapes and the exact `_train` validation messages.
+
+## Amendment, 2026-11-28
+
+[ADR 0087](0087-knn-ivf-and-pq-search-from-a-shared-model.md) replaces decision 2's training bound with a larger one (it adds the k-means accumulators, counts and range buffers), takes the k-means and PQ trainers from lucene-rust rather than writing them here, and settles decision 3.
