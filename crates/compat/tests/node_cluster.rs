@@ -162,6 +162,11 @@ fn replay_with(fixture: Fixture, knn: bool) -> Vec<String> {
 /// [`replay`] with the k-NN index setting, the security API and nested
 /// objects on or off.
 fn replay_full(fixture: Fixture, knn: bool, security: bool, nested: bool) -> Vec<String> {
+    replay_geo(fixture, knn, security, nested, false)
+}
+
+/// [`replay_full`] with `geo_point` fields accepted on or off.
+fn replay_geo(fixture: Fixture, knn: bool, security: bool, nested: bool, geo: bool) -> Vec<String> {
     let fixtures = vec![fixture];
     let store = Arc::new(Emulator::new(1 << 28, 9));
     let budget = MemoryBudget::new(
@@ -176,6 +181,7 @@ fn replay_full(fixture: Fixture, knn: bool, security: bool, nested: bool) -> Vec
         publish_age_millis: 0,
         knn,
         nested,
+        geo,
         security,
         security_admin: security.then(|| {
             (
@@ -309,6 +315,39 @@ fn an_assembled_node_answers_every_metric_fixture_as_stock_opensearch_did() {
         .collect();
     assert_eq!(fixtures.len(), 1, "an extended_stats fixture");
     let failed: Vec<String> = fixtures.into_iter().flat_map(replay).collect();
+    assert!(
+        failed.is_empty(),
+        "{} differ:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
+
+/// The steps of the geo aggregation fixture a node serves: the setup, and
+/// every `geo_bounds` and `geo_centroid` step but those that use a feature
+/// the node refuses as not served yet: `missing`, `meta`, a sub-aggregation
+/// of `terms` or `filter`, and a grid.
+fn serves_geo_metric(name: &str) -> bool {
+    const NOT_YET: [&str; 4] = ["missing value", "meta", "under ", "of a grid"];
+    name.starts_with("create ")
+        || name.starts_with("index ")
+        || ((name.starts_with("geo_bounds") || name.starts_with("geo_centroid"))
+            && !NOT_YET.iter().any(|w| name.contains(w)))
+}
+
+#[test]
+fn an_assembled_node_answers_the_geo_metric_aggregations_as_stock_opensearch_did() {
+    let mut fixtures: Vec<Fixture> = load_dir(&root().join("compat/geo"))
+        .expect("fixtures load")
+        .into_iter()
+        .filter(|(p, _)| p.file_name().is_some_and(|n| n == "aggs-geo.json"))
+        .map(|(_, f)| f)
+        .collect();
+    assert_eq!(fixtures.len(), 1, "the geo aggregation fixture");
+    let mut fixture = fixtures.remove(0);
+    fixture.steps.retain(|s| serves_geo_metric(&s.name));
+    assert!(fixture.steps.len() > 40, "bounds and centroid steps");
+    let failed = replay_geo(fixture, false, false, false, true);
     assert!(
         failed.is_empty(),
         "{} differ:\n{}",

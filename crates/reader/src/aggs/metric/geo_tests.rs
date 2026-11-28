@@ -116,3 +116,48 @@ fn points_either_side_wrap_when_the_wrapped_box_is_narrower() {
         r#""bounds":{"top_left":{"lat":10.0,"lon":-175.0},"bottom_right":{"lat":-10.0,"lon":175.0}}"#
     );
 }
+
+fn parsed(body: &str) -> crate::dsl::SearchSource {
+    crate::dsl::parse_chunks([body.as_bytes()]).expect("parses")
+}
+
+fn refusal(body: &str) -> String {
+    crate::dsl::parse_chunks([body.as_bytes()])
+        .expect_err("refused")
+        .into_failure()
+        .reason
+        .clone()
+}
+
+#[test]
+fn a_geo_body_carries_its_field_and_wrap_longitude() {
+    let s = parsed(
+        r#"{"aggs":{"c":{"geo_centroid":{"field":"p"}},"b":{"geo_bounds":{"field":"q"}},"u":{"geo_bounds":{"field":"r","wrap_longitude":false}},"s":{"geo_bounds":{"field":"t","wrap_longitude":"false"}}}}"#,
+    );
+    let got: Vec<(&str, &str, bool)> = s
+        .aggs
+        .iter()
+        .map(|a| (a.name.as_str(), a.field.as_str(), a.wrap_longitude))
+        .collect(); // ALLOC: four entries in a test.
+    assert_eq!(
+        got,
+        [
+            ("c", "p", true),
+            ("b", "q", true),
+            ("u", "r", false),
+            ("s", "t", false)
+        ]
+    );
+}
+
+#[test]
+fn a_geo_body_with_no_field_names_the_fields_its_builder_declares() {
+    assert_eq!(
+        refusal(r#"{"aggs":{"a":{"geo_bounds":{}}}}"#),
+        "Required one of fields [field], but none were specified. "
+    );
+    assert_eq!(
+        refusal(r#"{"aggs":{"a":{"geo_centroid":{}}}}"#),
+        "Required one of fields [field, script], but none were specified. "
+    );
+}
