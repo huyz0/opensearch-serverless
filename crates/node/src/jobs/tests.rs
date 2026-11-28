@@ -4,7 +4,7 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::{Condvar, Mutex};
 
-use oss_mem::BudgetConfig;
+use oss_mem::{BudgetConfig, Pool};
 
 use super::*;
 
