@@ -13,3 +13,5 @@ src/dates.rs	new		the plugin's timestamp literal strings as epoch milliseconds
 src/hashorder.rs	new		the column order the plugin gives SELECT *: a Java HashMap over the names
 src/aggregate.rs	port	sql/sql OpenSearchSQLAggregationParser, sql/opensearch AggregationQueryBuilder	aggregates and GROUP BY lowered to one composite
 src/parser_agg.rs	port	sql/sql OpenSearchSQLParser.g4 aggregate functions, GROUP BY, HAVING	the aggregate parts of a SELECT
+src/ppl_parser.rs	port	ppl/ppl OpenSearchPPLParser.g4 source, search, where, fields, sort, head, rename, stats, top, rare	the PPL pipeline into the same Select as SQL
+src/plan_query.rs	port	sql/sql query lowering of the where clause	conditions to the query part of a search body

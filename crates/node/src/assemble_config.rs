@@ -36,6 +36,8 @@ pub struct Config {
     pub ltr: bool,
     /// `serverless.sql.enabled`: serve the SQL endpoint.
     pub sql: bool,
+    /// `serverless.ppl.enabled`: serve the PPL endpoint.
+    pub ppl: bool,
     /// `serverless.sql.size_limit`: the most rows a statement returns.
     pub sql_size_limit: usize,
     /// `serverless.sql.max_request_bytes`: the largest request body.
@@ -181,6 +183,7 @@ impl Config {
             search_pipelines: false,
             ltr: false,
             sql: false,
+            ppl: false,
             sql_size_limit: 200,
             sql_max_request_bytes: 1 << 20,
             sql_max_buckets: 10_000,
