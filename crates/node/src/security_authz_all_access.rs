@@ -66,4 +66,10 @@ pub(crate) const ALL_ACCESS: &[&str] = &[
     "/_plugins/_alerting/monitors/{id}",
     "/_opendistro/_alerting/monitors",
     "/_opendistro/_alerting/monitors/{id}",
+    "/_plugins/_serverless/plugins",
+    "/_plugins/_notifications/configs",
+    "/_plugins/_notifications/configs/{id}",
+    "/_plugins/_notifications/features",
+    "/_plugins/_notifications/channels",
+    "/_plugins/_notifications/feature/test/{id}",
 ];

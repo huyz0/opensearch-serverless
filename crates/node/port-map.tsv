@@ -304,6 +304,8 @@ src/ism_route/policy.rs	new		policy validation: the actions and conditions a ser
 src/ism_route/routes.rs	new		the route table under /_plugins/_ism and /_opendistro/_ism
 src/ml_setting.rs	new		serverless.ml.enabled
 src/ml_route/mod.rs	new		the ML Commons model group service over a document set and name claims; the Java plugin is ported natively by ADR 0079
+src/ml_route/claims.rs	new		the conditional-create name claims of model groups
+src/ml_route/connectors.rs	new		the connector routes: create, get, update, delete and search, credentials sealed with the cluster master key
 src/ml_route/routes.rs	new		the route table under /_plugins/_ml
 src/boot/config/plugins.rs	new		the switches of the natively ported plugins (ISM, ML Commons), read from the environment
 src/ml_route/search.rs	new		the model group search: match-all, exact name and name token queries over the set
@@ -355,3 +357,16 @@ src/knn_model_route.rs	new		the k-NN plugin model store (get, delete, search) ov
 src/ad_route/validate_route.rs	new		the _validate route: what a create would refuse, answered without writing
 src/sql_route/mount.rs	new		the SQL routes mounted on the node router
 src/security_authz_all_access.rs	new		the routes that are all_access for every method, split from security_authz
+src/knn_train_request.rs	new		the _train request's own checks: TrainingModelRequest and the Faiss method validation (opensearch-project/k-NN 3.10.0.0)
+src/knn_train_request_tests.rs	new		the _train request checks replayed from the stock 3.10.0 recording
+src/knn_train_route.rs	new		POST /_plugins/_knn/models/{id}/_train: the model-exists, index, field and dimension checks (opensearch-project/k-NN 3.10.0.0 TrainingModelRequest)
+src/security_authz_knn.rs	new		the k-NN plugin routes and the transport actions its security plugin names for them (opensearch-project/k-NN 3.10.0.0)
+src/security_authz/tests.rs	new		unit tests of the route rules, moved out of security_authz.rs for its size
+src/async_search/mod.rs	new		the asynchronous search service: submit, get, delete and stats over the job registry, plain bytes in and out (ADR 0084)
+src/async_search/params.rs	new		the request parameters of asynchronous search with the recorded refusals
+src/async_search/render.rs	new		the response envelopes, stats and refusals of asynchronous search
+src/async_search/tests.rs	new		the service against the stock recording
+src/jobs/manage.rs	new		extending, deleting and counting jobs
+src/plugins/assemble.rs	new		reading the policy, loading the registry and mounting the plugins and the status route
+src/boot/config/plugin_policy.rs	new		the OSS_PLUGINS variable
+src/plugins/events.rs	new		delivering lifecycle events to subscribed plugins from bounded queues

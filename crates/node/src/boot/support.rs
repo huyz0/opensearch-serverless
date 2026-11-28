@@ -199,6 +199,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.sql = config.sql;
     node.sql_size_limit = config.sql_bounds.size_limit;
     node.sql_max_request_bytes = config.sql_bounds.max_request_bytes;
+    node.sql_max_buckets = config.sql_bounds.max_buckets;
     node.ism = config.plugins.ism;
     node.ad = config.plugins.ad;
     node.ml = config.plugins.ml;
@@ -215,6 +216,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.sweep.dry_run = config.janitor_dry_run;
     super::config::snapshots::apply(config, node);
     super::config::authoring::apply(config, node);
+    super::config::plugin_policy::apply(config, node);
     node.plugin_upstreams.clone_from(&config.plugin_upstreams);
     node.plugin_max_request_bytes = config.plugin_max_request_bytes;
     node.plugin_timeout = Duration::from_millis(config.plugin_timeout_millis);

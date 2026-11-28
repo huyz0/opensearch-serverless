@@ -40,6 +40,7 @@ graph TD
     oss-mem
     oss-meta --> oss-blob
     oss-meta --> oss-format
+    oss-ml
     oss-node --> oss-anomaly
     oss-node -.-> oss-blob
     oss-node -.-> oss-cluster
@@ -52,6 +53,7 @@ graph TD
     oss-node -.-> oss-janitor
     oss-node -.-> oss-mem
     oss-node -.-> oss-meta
+    oss-node -.-> oss-ml
     oss-node -.-> oss-query
     oss-node -.-> oss-reader
     oss-node -.-> oss-rest
@@ -90,6 +92,7 @@ lucene-rust, the engine and the only sibling project used as code, comes in belo
 | `oss-types` | identifiers, value types | [crates/types](../crates/types/README.md) |
 | `oss-mem` | memory budget, pools, buffer pool | [crates/mem](../crates/mem/README.md) |
 | `oss-anomaly` | the anomaly detection model: Random Cut Forest, thresholder, shingling, checkpoint | [crates/anomaly](../crates/anomaly/README.md) |
+| `oss-ml` | the ML Commons plugin's model side: connector credential cipher now, model runners later (wraps `lucene-ml`) | [crates/ml](../crates/ml/README.md) |
 | `oss-testkit` | test-only: counting allocator, peak-memory assertions | [crates/testkit](../crates/testkit/README.md) |
 | `oss-blob` | S3 request kinds, the meter, the store | [crates/blob](../crates/blob/README.md) |
 | `oss-format` | the Java shell's blob formats (segment blobs, node packs, commit descriptors) | [crates/format](../crates/format/README.md) |

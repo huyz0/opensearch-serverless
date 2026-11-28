@@ -23,6 +23,8 @@ mod assemble_error;
 mod assemble_publishing;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod assemble_writer;
+#[cfg(feature = "reader")]
+pub mod async_search;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]
@@ -102,6 +104,10 @@ pub mod jobs;
 pub mod knn_model_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod knn_setting;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub(crate) mod knn_train_request;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod knn_train_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod lease_age;
 #[cfg(all(feature = "reader", feature = "writer"))]

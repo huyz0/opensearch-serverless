@@ -1,0 +1,5 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		wraps lucene-ml; no Java source
+src/credentials.rs	port	ml-commons MLEngine (credential encryption)	done by lucene-ml remote::esdk; this module only wraps it
+src/connector.rs	new		the stock connector checks (name, protocol, trusted URLs) from the recorded 3.10.0 answers
+src/connector/tests.rs	new		unit tests of the connector checks

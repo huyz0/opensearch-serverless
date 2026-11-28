@@ -40,6 +40,8 @@ pub struct Config {
     pub sql_size_limit: usize,
     /// `serverless.sql.max_request_bytes`: the largest request body.
     pub sql_max_request_bytes: usize,
+    /// `serverless.sql.max_buckets`: the most groups a statement reads.
+    pub sql_max_buckets: usize,
     /// `serverless.ism.enabled`: serve the index state management policy routes.
     pub ism: bool,
     /// `serverless.ml.enabled`: serve the ML Commons model group routes.
@@ -48,6 +50,8 @@ pub struct Config {
     pub notifications: bool,
     /// `serverless.ad.enabled`: serve the anomaly detection detector routes.
     pub ad: bool,
+    /// `OSS_PLUGINS`: the plugin policy text; empty names no plugin.
+    pub plugin_policy: String,
     /// `serverless.ltr.max_window`: the most hits an `sltr` rescore scores.
     pub ltr_max_window: usize,
     /// `serverless.ltr.cache_ttl`, in seconds.
@@ -175,10 +179,12 @@ impl Config {
             sql: false,
             sql_size_limit: 200,
             sql_max_request_bytes: 1 << 20,
+            sql_max_buckets: 10_000,
             ism: false,
             ml: false,
-            notifications: false,
+            notifications: true,
             ad: false,
+            plugin_policy: String::new(),
             ltr_max_window: 1_000,
             ltr_cache_ttl_secs: 30,
             ltr_cache_bytes: 64 << 20,

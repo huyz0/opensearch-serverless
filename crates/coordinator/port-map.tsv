@@ -63,3 +63,5 @@ src/snapshot_restore_settings.rs	port	serverless/shell/src/main/java/org/opensea
 src/snapshot_restore_aliases.rs	new		the alias plan of a restore (ADR 0065); the Java shell makes the matching change on its own branch
 src/snapshot_restore_global.rs	new		the global-state report and refusal of a restore (ADR 0068); the Java shell makes the matching change on its own branch
 src/security/patch.rs	new		RFC 6902 patches of one security document and of a kind
+src/security/builtin.rs	new		the static and reserved documents the stock plugin ships
+src/security/builtin.json	port	security/src/main/resources/static_config/static_roles.yml@3.10.0	the recorded 3.10.0 built-in roles, action groups and global tenant

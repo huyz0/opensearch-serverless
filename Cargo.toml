@@ -7,6 +7,7 @@ members = [
     "crates/types",
     "crates/anomaly",
     "crates/mem",
+    "crates/ml",
     "crates/query",
     "crates/testkit",
     "crates/blob",
@@ -44,6 +45,7 @@ oss-ext = { path = "crates/ext" }
 oss-ext-wasm = { path = "crates/ext-wasm" }
 oss-anomaly = { path = "crates/anomaly" }
 oss-mem = { path = "crates/mem" }
+oss-ml = { path = "crates/ml" }
 oss-query = { path = "crates/query" }
 oss-edge = { path = "crates/edge" }
 oss-testkit = { path = "crates/testkit" }
@@ -79,6 +81,7 @@ lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e987
 lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
 lucene-util = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
 lucene-aggs = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
+lucene-ml = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
 lucene-highlighter = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
 lucene-queryparser = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }
 lucene-painless = { git = "https://github.com/huyz0/lucene-rust", rev = "dbb34e9871ca93292ef46b29433252c87c8b57a6" }

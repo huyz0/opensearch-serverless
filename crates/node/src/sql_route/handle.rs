@@ -196,21 +196,49 @@ impl SqlService {
                 "description": {"request": {"index": names, "sourceBuilder": plan.body()}}}});
             return resp.send(200, JSON, out.to_string().as_bytes());
         }
-        let answer = match self.backend.search(&names, plan.body()) {
-            Ok(a) => a,
-            Err(f) => return failure(resp, f),
-        };
-        // The parsed answer and the written result each hold about the answer's size.
-        req.body().reserve(answer.len().saturating_mul(2))?;
-        let Ok(parsed) = serde_json::from_slice::<Value>(&answer) else {
-            return Err(RestError::illegal_argument(
-                "a search answer of this node could not be read back",
-            ));
-        };
-        drop(answer);
+        // A grouped statement is one search a page of the composite, up to the bucket bound.
+        let mut body = plan.body().clone();
+        let mut all = Vec::new();
+        let mut buckets = 0_usize;
+        let mut failed = None;
+        loop {
+            let answer = match self.backend.search(&names, &body) {
+                Ok(a) => a,
+                Err(f) => return failure(resp, f),
+            };
+            // The parsed answer and the written result each hold about the answer's size.
+            req.body().reserve(answer.len().saturating_mul(2))?;
+            let Ok(parsed) = serde_json::from_slice::<Value>(&answer) else {
+                return Err(RestError::illegal_argument(
+                    "a search answer of this node could not be read back",
+                ));
+            };
+            drop(answer);
+            buckets = buckets.saturating_add(plan.buckets(&parsed));
+            if buckets > self.limits.max_buckets {
+                failed = Some(Error::unsupported(format!(
+                    "the statement has more than {} groups; narrow it with WHERE",
+                    self.limits.max_buckets
+                )));
+                break;
+            }
+            match oss_query::rows(&plan, &parsed) {
+                Ok(page) => all.extend(page),
+                Err(e) => {
+                    failed = Some(e);
+                    break;
+                }
+            }
+            match plan.next_page(&parsed) {
+                Some(next) => body = next,
+                None => break,
+            }
+        }
+        if let Some(e) = failed {
+            return send_error(resp, &e);
+        }
         let max = req.body().reserved().max(1 << 20);
-        let text = oss_query::rows(&plan, &parsed)
-            .and_then(|rows| oss_query::write(format, &plan, &rows, max));
+        let text = oss_query::write(format, &plan, &all, max);
         match text {
             Ok(t) => resp.send(
                 200,

@@ -33,9 +33,10 @@ type Handler = fn(&IsmService, &mut Request<'_>, &mut Response<'_>) -> Result<()
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<IsmService>) -> Result<Router, RouteError> {
-    let table: [(Method, &'static str, Handler); 11] = [
+    let table: [(Method, &'static str, Handler); 12] = [
         (Method::Put, "/policies/{id}", IsmService::put),
         (Method::Get, "/policies/{id}", IsmService::get),
+        (Method::Head, "/policies/{id}", IsmService::get),
         (Method::Delete, "/policies/{id}", IsmService::delete),
         (Method::Get, "/policies", IsmService::list),
         (Method::Post, "/add/{index}", IsmService::add),

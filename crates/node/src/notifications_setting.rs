@@ -3,12 +3,11 @@
 use oss_types::settings::{BoolSetting, Scope, Setting};
 
 /// `serverless.notifications.enabled`: serve `/_plugins/_notifications`, the
-/// stock plugin's channel config routes, natively. Default `false` until the
-/// measurements the spec names are recorded; with it off those paths answer as
-/// an unknown route.
+/// stock plugin's channel config routes, natively. Default `true`, as for every
+/// plugin; with it off those paths answer as an unknown route.
 pub const NOTIFICATIONS_ENABLED: BoolSetting = BoolSetting::new(
     "serverless.notifications.enabled",
-    false,
+    true,
     Scope::Node,
     "Serve the notifications plugin's channel config routes over document sets in the object \
      store.",

@@ -140,13 +140,7 @@ pub(crate) fn register(
         router
     };
     let router = crate::alerting_route::install(router, store, &config.base)?;
-    let router = if config.knn {
-        use crate::knn_model_route::{KnnModelService as Models, routes};
-        let models = Models::new(store, &config.base, config.pit_buffer_bytes);
-        routes(router, &Arc::new(models)).map_err(AssembleError::Route)?
-    } else {
-        router
-    };
+    let router = crate::knn_train_route::mount(router, store, config)?;
     let router = if config.ism {
         let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
             .map_err(store_error)?;
@@ -173,6 +167,7 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = crate::plugins::install_configured(router, &config.plugin_policy)?;
     let router = if config.search_pipelines {
         let searching = crate::search_pipeline_route::SearchPipelines::open(
             store,

@@ -31,12 +31,21 @@ fn token_depth_and_identifier_bounds() {
 fn syntax_errors_name_the_position() {
     let err = parse("SELECT * FROM", &Limits::default()).unwrap_err();
     assert_eq!(err.status(), 400);
-    let err = parse("SELECT FROM a WHERE", &Limits::default()).unwrap_err();
-    assert!(
-        err.to_json()["error"]["details"]
-            .as_str()
-            .unwrap()
-            .contains("position")
+    let err = parse("select from", &Limits::default()).unwrap_err();
+    // The plugin's text: the token in capitals and the position its text ends at.
+    assert_eq!(
+        err.to_json()["error"]["details"],
+        "ERROR. token : FROM, pos : 11"
+    );
+    assert_eq!(
+        parse("SELECT a FROM b WHERE", &Limits::default())
+            .unwrap_err()
+            .to_json()["error"]["type"],
+        "EOFParserException"
+    );
+    assert_eq!(
+        parse("  ", &Limits::default()).unwrap_err().to_json()["error"]["details"],
+        "Query is empty"
     );
 }
 

@@ -1,0 +1,17 @@
+[package]
+name = "oss-ml"
+description = "opensearch-serverless: ML Commons connector credentials and, in later slices, the remote and local model runners"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+lucene-ml = { workspace = true }
+regex = { workspace = true }
+serde_json = "=1.0.145"
+
+[lints]
+workspace = true

@@ -124,6 +124,11 @@ impl MappingError {
         )
     }
 
+    /// `NullPointerException`, which the k-NN plugin throws for an encoder it does not know.
+    pub fn null_pointer(reason: &str) -> Self {
+        Self::new("null_pointer_exception", reason)
+    }
+
     /// `IllegalStateException`.
     pub fn illegal_state(reason: &str) -> Self {
         Self::new("illegal_state_exception", reason)

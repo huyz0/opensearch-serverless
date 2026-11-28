@@ -14,3 +14,5 @@ src/breaker.rs	new		the circuit breaker every plugin call goes through, over an 
 src/rest.rs	new		the rest point's bytes: one request in, one response out, strictly bounded, with golden vectors (ADR 0080)
 src/native.rs	new		the native form of a plugin and the guard every call to it goes through: bulkhead, breaker, panic fence (ADR 0080)
 src/manifest_routes.rs	new		the manifest's routes section: paths, methods, actions and query parameters, bounded (ADR 0080)
+src/lifecycle.rs	new		the lifecycle point's bytes: one event in
+tests/lifecycle.rs	new		the lifecycle codec: golden bytes and malformed inputs
