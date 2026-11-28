@@ -31,7 +31,7 @@ pub(super) const TENANT: &str = "_default_";
 /// The most models one node holds.
 pub const MAX_HELD_MODELS: usize = 300;
 /// The result index of a detector with none of its own.
-const RESULT_INDEX: &str = "opensearch-ad-plugin-result";
+pub(super) const RESULT_INDEX: &str = "opensearch-ad-plugin-result";
 
 /// What a run did.
 #[derive(Debug, Clone, PartialEq)]
