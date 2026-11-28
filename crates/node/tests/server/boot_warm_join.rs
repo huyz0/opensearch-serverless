@@ -278,7 +278,7 @@ fn a_warming_node_has_no_search_role_in_its_lease_until_it_is_ready() {
         );
         warming_polls += 1;
         assert!(started.elapsed() < Duration::from_secs(40), "never ready");
-        std::thread::sleep(Duration::from_millis(30));
+        std::thread::sleep(Duration::from_millis(5));
     }
     assert!(
         warming_polls >= 5,
