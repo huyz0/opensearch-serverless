@@ -96,3 +96,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0087](0087-knn-ivf-and-pq-search-from-a-shared-model.md) | IVF and PQ k-NN search serve model-mapped fields from lucene-rust's IVF files, with the model's centroids and codebooks shared per node | Accepted |
 | [0088](0088-observability-is-ported-natively.md) | Observability objects are ported natively over a document set | Accepted |
 | [0089](0089-report-definitions-are-ported-natively.md) | Report definitions are ported natively over a document set; rendering stays out of the node | Accepted |
+| [0090](0090-single-document-errors-name-their-root-cause.md) | A refused single-document write names its root cause as stock does | Accepted |
