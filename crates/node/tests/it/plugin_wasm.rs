@@ -152,3 +152,43 @@ fn a_module_that_traps_is_answered_and_the_next_call_is_served() {
     assert_eq!(good.status, 200, "{}", good.text());
     server.shutdown();
 }
+
+fn post(server: &Server, id: &str) -> crate::support::Reply {
+    support::request(
+        server.local_addr(),
+        "POST",
+        &format!("/_plugins/{id}/a"),
+        Some(b""),
+    )
+}
+
+// docs/specs/plugin-system AC-8: a module that spins is stopped by its limit, answered, and fenced.
+#[test]
+fn a_module_that_spins_is_stopped_by_its_limit_and_answered() {
+    let body = "(loop $l (br $l)) (i32.const 0)";
+    let server = served("wasmspin", &module("wasmspin", b"", Some(body)));
+    let r = post(&server, "wasmspin");
+    assert_eq!(r.status, 400, "{}", r.text());
+    assert!(r.text().contains("fuel exhausted"), "{}", r.text());
+    server.shutdown();
+}
+
+// docs/specs/plugin-system AC-8: output the contract forbids is a 502 and never reaches the client.
+#[test]
+fn an_answer_that_is_not_a_rest_response_is_a_502() {
+    let server = served("wasmbad", &module("wasmbad", b"not a response", None));
+    let r = post(&server, "wasmbad");
+    assert_eq!(r.status, 502, "{}", r.text());
+    assert!(r.text().contains("plugin_malformed"), "{}", r.text());
+    server.shutdown();
+}
+
+// docs/specs/plugin-system AC-8: a module that reports more output than its region is a 502.
+#[test]
+fn a_module_that_reports_more_than_its_region_holds_is_a_502() {
+    let body = "(global.set $len (i32.const 100000)) (i32.const 0)";
+    let server = served("wasmbig", &module("wasmbig", b"", Some(body)));
+    let r = post(&server, "wasmbig");
+    assert_eq!(r.status, 502, "{}", r.text());
+    server.shutdown();
+}
