@@ -302,3 +302,4 @@ src/ism_route/routes.rs	new		the route table under /_plugins/_ism and /_opendist
 src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusals (ADR 0080)
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
+src/plugins/tests.rs	new		the policy reader and the registry's refusals, tested (ADR 0080)
