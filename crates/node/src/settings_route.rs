@@ -14,6 +14,8 @@ use oss_doc::mapping::json::{Json, parse as parse_json};
 use oss_meta::{DescriptorStore, MetaError, Target};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
+mod block;
+
 use crate::metadata_block;
 use crate::route_util::{read_body, refuse};
 
