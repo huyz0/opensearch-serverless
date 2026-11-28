@@ -18,9 +18,9 @@ pub(crate) fn mount(
     config: &Config,
     budget: &MemoryBudget,
     search: Arc<dyn SqlBackend>,
-) -> Result<Router, AssembleError> {
+) -> Result<(Router, Option<Arc<Service>>), AssembleError> {
     if !config.async_search {
-        return Ok(router);
+        return Ok((router, None));
     }
     // Results are query output, and the plugin pool is empty on a node that
     // runs no extension, so they are reserved from the query pool.
@@ -29,11 +29,12 @@ pub(crate) fn mount(
         ..Limits::default()
     };
     let jobs = Jobs::new(&config.node_id, budget, limits, Arc::new(now_millis));
-    let service = Service::new(
+    let service = Arc::new(Service::new(
         jobs,
         Arc::new(SearchRunner::new(search)),
         "opensearch",
         &config.node_id,
-    );
-    super::routes(router, &Arc::new(service)).map_err(AssembleError::Route)
+    ));
+    let router = super::routes(router, &service).map_err(AssembleError::Route)?;
+    Ok((router, Some(service)))
 }
