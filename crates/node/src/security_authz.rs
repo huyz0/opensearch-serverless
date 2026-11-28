@@ -24,9 +24,7 @@ pub enum Rule {
     /// A `_bulk`: the cluster permission `indices:data/write/bulk` and
     /// write on every index, since its items name their own.
     Bulk,
-    /// An action on every index the request's body names: the authorizer lets
-    /// any authenticated user reach the handler, which checks each name before
-    /// it runs anything (SQL puts its index names in the statement).
+    /// An action on the indices the body names: the handler checks each name.
     Body(&'static str),
     /// Decided by the handler, which answers the recorded `FORBIDDEN` of the
     /// management API to a user without the administrator role.
@@ -39,7 +37,6 @@ pub enum Rule {
 const GET: &[Method] = &[Method::Get];
 const GET_POST: &[Method] = &[Method::Get, Method::Post];
 const GET_HEAD: &[Method] = &[Method::Get, Method::Head];
-/// The SQL routes: any authenticated user reaches the handler, which checks each name.
 const SQL: Rule = Rule::Body("indices:data/read/search");
 const WRITES: &[Method] = &[Method::Put, Method::Post];
 

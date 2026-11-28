@@ -9,6 +9,7 @@
 
 mod guard;
 mod handle;
+mod mount;
 mod routes;
 
 use std::sync::Arc;
@@ -17,6 +18,7 @@ use oss_rest::RestError;
 use serde_json::Value;
 
 pub use guard::NameGuard;
+pub(crate) use mount::mount;
 pub use routes::routes;
 
 /// What the node supplies to a statement: mappings and searches.
