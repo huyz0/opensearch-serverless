@@ -303,3 +303,8 @@ src/plugins/mod.rs	new		the plugin system's host side: policy, registry, refusal
 src/plugins/policy.rs	new		the plugin policy: which plugins, from which tier, with which grants and claims (ADR 0080)
 src/plugins/registry.rs	new		the registry: each plugin loaded or refused with its reason, route claims and collisions (ADR 0080)
 src/plugins/tests.rs	new		the policy reader and the registry's refusals, tested (ADR 0080)
+src/ad_setting.rs	new		serverless.ad.enabled
+src/ad_route/mod.rs	new		the anomaly detection detector service over a document set; the Java plugin is ported natively by ADR 0078
+src/ad_route/detector.rs	new		detector validation: the features, filters and bounds a serverless node can run
+src/ad_route/search.rs	new		the _search query a detectors id can answer without reading every detector
+src/ad_route/routes.rs	new		the route table under /_plugins/_anomaly_detection and /_opendistro/_anomaly_detection

@@ -75,6 +75,8 @@ pub enum DocKind {
     LtrModels,
     /// Index state management policies, `ism/policies/`.
     IsmPolicies,
+    /// Anomaly detection detectors, `ad/detectors/`.
+    AdDetectors,
 }
 
 impl DocKind {
@@ -95,6 +97,7 @@ impl DocKind {
             Self::LtrFeatureSets => "featuresets/",
             Self::LtrModels => "models/",
             Self::IsmPolicies => "ism/policies/",
+            Self::AdDetectors => "ad/detectors/",
         }
     }
 }
