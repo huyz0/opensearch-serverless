@@ -1,0 +1,5269 @@
+{
+  "name": "security management API: list, PATCH, reserved and hidden documents, account, authinfo, whoami and enforcement",
+  "description": "The stock Security plugin 3.10.0 with the demo configuration, recorded as admin unless a step names a user. Lists include the demo configuration's reserved documents.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-u1"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-u2"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-b1"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-b2"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-b4"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/roles/compat-sec-r1"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/roles/compat-sec-r6"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/roles/compat-sec-r7"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/rolesmapping/compat-sec-r1"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/rolesmapping/compat-sec-r7"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/actiongroups/compat-sec-ag1"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/actiongroups/compat-sec-ag5"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/actiongroups/compat-sec-ag4"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/actiongroups/compat-sec-ag6"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/tenants/compat-sec-t1"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/tenants/compat-sec-t3"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/tenants/compat-sec-t4"
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-sec-idx"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-u3"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/bad%20name"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/roles/compat-sec-r4"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/actiongroups/compat-sec-ag2"
+    }
+  ],
+  "steps": [
+    {
+      "name": "authinfo",
+      "request": {
+        "method": "GET",
+        "path": "/_opendistro/_security/authinfo"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/remote_address",
+          "reason": "client port"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "user": "User [name=admin, backend_roles=[admin], requestedTenant=null]",
+          "user_name": "admin",
+          "user_requested_tenant": null,
+          "remote_address": "127.0.0.1:41804",
+          "backend_roles": [
+            "admin"
+          ],
+          "custom_attribute_names": [],
+          "roles": [
+            "all_access"
+          ],
+          "tenants": {
+            "global_tenant": true,
+            "admin_tenant": true,
+            "admin": true
+          },
+          "principal": null,
+          "peer_certificates": "0",
+          "sso_logout_url": null
+        }
+      }
+    },
+    {
+      "name": "authinfo verbose",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/authinfo",
+        "query": {
+          "verbose": "true"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/remote_address",
+          "reason": "client port"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "user": "User [name=admin, backend_roles=[admin], requestedTenant=null]",
+          "user_name": "admin",
+          "user_requested_tenant": null,
+          "remote_address": "127.0.0.1:41820",
+          "backend_roles": [
+            "admin"
+          ],
+          "custom_attribute_names": [],
+          "roles": [
+            "all_access"
+          ],
+          "tenants": {
+            "global_tenant": true,
+            "admin_tenant": true,
+            "admin": true
+          },
+          "principal": null,
+          "peer_certificates": "0",
+          "sso_logout_url": null,
+          "size_of_user": "968 bytes",
+          "size_of_custom_attributes": "112 bytes",
+          "size_of_backendroles": "84 bytes"
+        }
+      }
+    },
+    {
+      "name": "whoami",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/whoami"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_security/api/whoami] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "whoami POST",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_security/api/whoami"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_security/api/whoami] and method [POST]"
+        }
+      }
+    },
+    {
+      "name": "health",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/health"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_security/api/health] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "health strict",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/health",
+        "query": {
+          "mode": "strict"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_security/api/health] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "account",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/account"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "user_name": "admin",
+          "is_reserved": true,
+          "is_hidden": false,
+          "is_internal_user": true,
+          "user_requested_tenant": null,
+          "backend_roles": [
+            "admin"
+          ],
+          "custom_attribute_names": [],
+          "tenants": {
+            "global_tenant": true,
+            "admin_tenant": true,
+            "admin": true
+          },
+          "roles": [
+            "all_access"
+          ]
+        }
+      }
+    },
+    {
+      "name": "without credentials",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles/kibana_user",
+        "auth": ""
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "Unauthorized"
+      }
+    },
+    {
+      "name": "with bad password",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles/kibana_user",
+        "auth": "admin:nope"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "Unauthorized"
+      }
+    },
+    {
+      "name": "with unknown user",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles/kibana_user",
+        "auth": "nobody:nope"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "Unauthorized"
+      }
+    },
+    {
+      "name": "put user",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1",
+        "body": {
+          "password": "Compat-Pass-9x!k",
+          "backend_roles": [
+            "b1"
+          ],
+          "attributes": {
+            "a": "1"
+          },
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-u1' created."
+        }
+      }
+    },
+    {
+      "name": "put user again",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1",
+        "body": {
+          "password": "Compat-Pass-9x!k",
+          "backend_roles": [
+            "b1",
+            "b2"
+          ],
+          "attributes": {
+            "a": "2"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-u1' updated."
+        }
+      }
+    },
+    {
+      "name": "get user",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-u1": {
+            "attributes": {
+              "a": "2"
+            },
+            "backend_roles": [
+              "b1",
+              "b2"
+            ],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          }
+        }
+      }
+    },
+    {
+      "name": "list users",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "logstash": {
+            "attributes": {},
+            "backend_roles": [
+              "logstash"
+            ],
+            "description": "Demo logstash user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "snapshotrestore": {
+            "attributes": {},
+            "backend_roles": [
+              "snapshotrestore"
+            ],
+            "description": "Demo snapshotrestore user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "admin": {
+            "attributes": {},
+            "backend_roles": [
+              "admin"
+            ],
+            "description": "Demo admin user",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": true,
+            "static": false
+          },
+          "kibanaserver": {
+            "attributes": {},
+            "backend_roles": [],
+            "description": "Demo OpenSearch Dashboards user",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": true,
+            "static": false
+          },
+          "kibanaro": {
+            "attributes": {
+              "attribute1": "value1",
+              "attribute2": "value2",
+              "attribute3": "value3"
+            },
+            "backend_roles": [
+              "kibanauser",
+              "readall"
+            ],
+            "description": "Demo OpenSearch Dashboards read only user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "readall": {
+            "attributes": {},
+            "backend_roles": [
+              "readall"
+            ],
+            "description": "Demo readall user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "anomalyadmin": {
+            "attributes": {},
+            "backend_roles": [],
+            "description": "Demo anomaly admin user, using internal role",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [
+              "anomaly_full_access"
+            ],
+            "reserved": false,
+            "static": false
+          },
+          "compat-sec-u1": {
+            "attributes": {
+              "a": "2"
+            },
+            "backend_roles": [
+              "b1",
+              "b2"
+            ],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          }
+        }
+      }
+    },
+    {
+      "name": "list users with the trailing slash",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers/"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "logstash": {
+            "attributes": {},
+            "backend_roles": [
+              "logstash"
+            ],
+            "description": "Demo logstash user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "snapshotrestore": {
+            "attributes": {},
+            "backend_roles": [
+              "snapshotrestore"
+            ],
+            "description": "Demo snapshotrestore user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "admin": {
+            "attributes": {},
+            "backend_roles": [
+              "admin"
+            ],
+            "description": "Demo admin user",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": true,
+            "static": false
+          },
+          "kibanaserver": {
+            "attributes": {},
+            "backend_roles": [],
+            "description": "Demo OpenSearch Dashboards user",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": true,
+            "static": false
+          },
+          "kibanaro": {
+            "attributes": {
+              "attribute1": "value1",
+              "attribute2": "value2",
+              "attribute3": "value3"
+            },
+            "backend_roles": [
+              "kibanauser",
+              "readall"
+            ],
+            "description": "Demo OpenSearch Dashboards read only user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "readall": {
+            "attributes": {},
+            "backend_roles": [
+              "readall"
+            ],
+            "description": "Demo readall user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "anomalyadmin": {
+            "attributes": {},
+            "backend_roles": [],
+            "description": "Demo anomaly admin user, using internal role",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [
+              "anomaly_full_access"
+            ],
+            "reserved": false,
+            "static": false
+          },
+          "compat-sec-u1": {
+            "attributes": {
+              "a": "2"
+            },
+            "backend_roles": [
+              "b1",
+              "b2"
+            ],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          }
+        }
+      }
+    },
+    {
+      "name": "put user with hash",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u2",
+        "body": {
+          "hash": "$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG",
+          "backend_roles": []
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-u2' created."
+        }
+      }
+    },
+    {
+      "name": "put user with bad hash",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u3",
+        "body": {
+          "hash": "nope"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-u3' created."
+        }
+      }
+    },
+    {
+      "name": "put user without password or hash",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u4",
+        "body": {
+          "backend_roles": []
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "Please specify either 'hash' or 'password' when creating a new internal user."
+        }
+      }
+    },
+    {
+      "name": "put user with unknown role",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u5",
+        "body": {
+          "password": "Compat-Pass-9x!k",
+          "opendistro_security_roles": [
+            "compat-nope"
+          ]
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "role 'compat-nope' not found."
+        }
+      }
+    },
+    {
+      "name": "put user with a weak password",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u6",
+        "body": {
+          "password": "abc"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Weak password"
+        }
+      }
+    },
+    {
+      "name": "put user with a password equal to the name",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u7",
+        "body": {
+          "password": "compat-sec-u7"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Weak password"
+        }
+      }
+    },
+    {
+      "name": "put user with unknown key",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u8",
+        "body": {
+          "password": "Compat-Pass-9x!k",
+          "nope": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "nope"
+          }
+        }
+      }
+    },
+    {
+      "name": "put user with wrong type",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u9",
+        "body": {
+          "password": "Compat-Pass-9x!k",
+          "backend_roles": "x"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Wrong datatype",
+          "backend_roles": "Array expected"
+        }
+      }
+    },
+    {
+      "name": "put user with invalid name",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/bad%20name",
+        "body": {
+          "password": "Compat-Pass-9x!k"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'bad%20name' created."
+        }
+      }
+    },
+    {
+      "name": "put reserved user",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/kibanaserver",
+        "body": {
+          "password": "Compat-Pass-9x!k"
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'kibanaserver' is reserved."
+        }
+      }
+    },
+    {
+      "name": "delete reserved user",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/internalusers/kibanaserver"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'kibanaserver' is reserved."
+        }
+      }
+    },
+    {
+      "name": "get hidden user",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers/hidden"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "user 'hidden' not found."
+        }
+      }
+    },
+    {
+      "name": "get missing user",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-nope"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "user 'compat-sec-nope' not found."
+        }
+      }
+    },
+    {
+      "name": "delete missing user",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-nope"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "user 'compat-sec-nope' not found."
+        }
+      }
+    },
+    {
+      "name": "patch one user",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/backend_roles",
+            "value": [
+              "patched"
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-u1' updated."
+        }
+      }
+    },
+    {
+      "name": "patch one user add attribute",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1",
+        "body": [
+          {
+            "op": "add",
+            "path": "/attributes/b",
+            "value": "2"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-u1' updated."
+        }
+      }
+    },
+    {
+      "name": "patch one user with a bad op",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1",
+        "body": [
+          {
+            "op": "nope",
+            "path": "/x",
+            "value": 1
+          }
+        ]
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "Unsupported patch operation: nope. Supported are: add,remove,replace"
+        }
+      }
+    },
+    {
+      "name": "patch one user with a bad path",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/nope",
+            "value": 1
+          }
+        ]
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "Missing field \"nope\""
+        }
+      }
+    },
+    {
+      "name": "patch missing user",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-nope",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/backend_roles",
+            "value": []
+          }
+        ]
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "user 'compat-sec-nope' not found."
+        }
+      }
+    },
+    {
+      "name": "patch with an object not an array",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1",
+        "body": {
+          "op": "replace",
+          "path": "/backend_roles",
+          "value": []
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "Wrong request body"
+        }
+      }
+    },
+    {
+      "name": "patch reserved user",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers/kibanaserver",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/description",
+            "value": "x"
+          }
+        ]
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'kibanaserver' is reserved."
+        }
+      }
+    },
+    {
+      "name": "bulk patch users add",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers",
+        "body": [
+          {
+            "op": "add",
+            "path": "/compat-sec-b1",
+            "value": {
+              "password": "Compat-Pass-9x!k",
+              "backend_roles": [
+                "x"
+              ]
+            }
+          },
+          {
+            "op": "add",
+            "path": "/compat-sec-b2",
+            "value": {
+              "password": "Compat-Pass-9x!k"
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "Resource updated."
+        }
+      }
+    },
+    {
+      "name": "bulk patch users remove",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers",
+        "body": [
+          {
+            "op": "remove",
+            "path": "/compat-sec-b2"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "Resource updated."
+        }
+      }
+    },
+    {
+      "name": "bulk patch users remove missing",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers",
+        "body": [
+          {
+            "op": "remove",
+            "path": "/compat-sec-nope"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "No updates required"
+        }
+      }
+    },
+    {
+      "name": "bulk patch users replace",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/compat-sec-b1",
+            "value": {
+              "password": "Compat-Pass-9x!k",
+              "backend_roles": [
+                "y"
+              ]
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "Resource updated."
+        }
+      }
+    },
+    {
+      "name": "bulk patch users with an invalid user",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers",
+        "body": [
+          {
+            "op": "add",
+            "path": "/compat-sec-b3",
+            "value": {
+              "password": "x",
+              "nope": 1
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "nope"
+          }
+        }
+      }
+    },
+    {
+      "name": "bulk patch users reserved",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers",
+        "body": [
+          {
+            "op": "remove",
+            "path": "/kibanaserver"
+          }
+        ]
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'kibanaserver' is reserved."
+        }
+      }
+    },
+    {
+      "name": "bulk patch users mixed valid and invalid",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/internalusers",
+        "body": [
+          {
+            "op": "add",
+            "path": "/compat-sec-b4",
+            "value": {
+              "password": "Compat-Pass-9x!k"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/compat-sec-b5",
+            "value": {
+              "nope": 1
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "nope"
+          }
+        }
+      }
+    },
+    {
+      "name": "get after mixed patch",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-b4"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "user 'compat-sec-b4' not found."
+        }
+      }
+    },
+    {
+      "name": "list users after patches",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "logstash": {
+            "attributes": {},
+            "backend_roles": [
+              "logstash"
+            ],
+            "description": "Demo logstash user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "snapshotrestore": {
+            "attributes": {},
+            "backend_roles": [
+              "snapshotrestore"
+            ],
+            "description": "Demo snapshotrestore user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "compat-sec-u2": {
+            "attributes": {},
+            "backend_roles": [],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "bad%20name": {
+            "attributes": {},
+            "backend_roles": [],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "admin": {
+            "attributes": {},
+            "backend_roles": [
+              "admin"
+            ],
+            "description": "Demo admin user",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": true,
+            "static": false
+          },
+          "compat-sec-u3": {
+            "attributes": {},
+            "backend_roles": [],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "compat-sec-b1": {
+            "attributes": {},
+            "backend_roles": [
+              "y"
+            ],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "kibanaserver": {
+            "attributes": {},
+            "backend_roles": [],
+            "description": "Demo OpenSearch Dashboards user",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": true,
+            "static": false
+          },
+          "kibanaro": {
+            "attributes": {
+              "attribute1": "value1",
+              "attribute2": "value2",
+              "attribute3": "value3"
+            },
+            "backend_roles": [
+              "kibanauser",
+              "readall"
+            ],
+            "description": "Demo OpenSearch Dashboards read only user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "readall": {
+            "attributes": {},
+            "backend_roles": [
+              "readall"
+            ],
+            "description": "Demo readall user, using external role mapping",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          },
+          "anomalyadmin": {
+            "attributes": {},
+            "backend_roles": [],
+            "description": "Demo anomaly admin user, using internal role",
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [
+              "anomaly_full_access"
+            ],
+            "reserved": false,
+            "static": false
+          },
+          "compat-sec-u1": {
+            "attributes": {
+              "a": "2",
+              "b": "2"
+            },
+            "backend_roles": [
+              "patched"
+            ],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          }
+        }
+      }
+    },
+    {
+      "name": "delete user",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-b1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-b1' deleted."
+        }
+      }
+    },
+    {
+      "name": "put role",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-r1",
+        "body": {
+          "cluster_permissions": [
+            "cluster_monitor"
+          ],
+          "index_permissions": [
+            {
+              "index_patterns": [
+                "compat-sec-*"
+              ],
+              "allowed_actions": [
+                "read"
+              ],
+              "masked_fields": [
+                "secret"
+              ],
+              "fls": [
+                "~hidden"
+              ],
+              "dls": "{\"term\":{\"a\":1}}"
+            }
+          ],
+          "tenant_permissions": [
+            {
+              "tenant_patterns": [
+                "compat-t1"
+              ],
+              "allowed_actions": [
+                "kibana_all_read"
+              ]
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-r1' created."
+        }
+      }
+    },
+    {
+      "name": "get role",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles/compat-sec-r1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-r1": {
+            "cluster_permissions": [
+              "cluster_monitor"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "read"
+                ],
+                "dls": "{\"term\":{\"a\":1}}",
+                "fls": [
+                  "~hidden"
+                ],
+                "index_patterns": [
+                  "compat-sec-*"
+                ],
+                "masked_fields": [
+                  "secret"
+                ]
+              }
+            ],
+            "reserved": false,
+            "static": false,
+            "tenant_permissions": [
+              {
+                "allowed_actions": [
+                  "kibana_all_read"
+                ],
+                "tenant_patterns": [
+                  "compat-t1"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "list roles",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "observability_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/observability/get"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "kibana_user": {
+            "cluster_permissions": [
+              "cluster_composite_ops"
+            ],
+            "description": "Provide the minimum permissions for a kibana user",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "delete",
+                  "index",
+                  "manage",
+                  "read"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".kibana",
+                  ".kibana-6",
+                  ".kibana_*",
+                  ".opensearch_dashboards",
+                  ".opensearch_dashboards-6",
+                  ".opensearch_dashboards_*"
+                ],
+                "masked_fields": []
+              },
+              {
+                "allowed_actions": [
+                  "indices_all"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".tasks",
+                  ".management-beats",
+                  "*:.tasks",
+                  "*:.management-beats"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "own_index": {
+            "cluster_permissions": [
+              "cluster_composite_ops"
+            ],
+            "description": "Allow all for indices named like the current user",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices_all"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "${user_name}"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "snapshot_management_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/snapshot_management/policy/explain",
+              "cluster:admin/opensearch/snapshot_management/policy/get",
+              "cluster:admin/opensearch/snapshot_management/policy/search",
+              "cluster:admin/repository/get",
+              "cluster:admin/snapshot/get"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "all_access": {
+            "cluster_permissions": [
+              "*"
+            ],
+            "description": "Allow full access to all indices and all cluster APIs",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "*"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": [
+              {
+                "allowed_actions": [
+                  "kibana_all_write"
+                ],
+                "tenant_patterns": [
+                  "*"
+                ]
+              }
+            ]
+          },
+          "logstash": {
+            "cluster_permissions": [
+              "cluster:admin/ingest/pipeline/get",
+              "cluster:admin/ingest/pipeline/put",
+              "cluster_composite_ops",
+              "cluster_monitor",
+              "indices:admin/template/get",
+              "indices:admin/template/put"
+            ],
+            "description": "Provide the minimum permissions for logstash and beats",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "create_index",
+                  "crud"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "logstash-*",
+                  "ecs-logstash-*"
+                ],
+                "masked_fields": []
+              },
+              {
+                "allowed_actions": [
+                  "crud",
+                  "create_index"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*beat*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "observability_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/observability/create",
+              "cluster:admin/opensearch/observability/delete",
+              "cluster:admin/opensearch/observability/get",
+              "cluster:admin/opensearch/observability/update"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "point_in_time_full_access": {
+            "cluster_permissions": [],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "manage_point_in_time"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "flow_framework_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/flow_framework/*",
+              "cluster_monitor"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/aliases/get",
+                  "indices:admin/mappings/get",
+                  "indices_monitor"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "base_dashboards_user": {
+            "cluster_permissions": [
+              "cluster_composite_ops"
+            ],
+            "description": "Provide base Dashboards alias permissions; tenant permissions must be granted separately",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "delete",
+                  "index",
+                  "manage",
+                  "read"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".kibana",
+                  ".opensearch_dashboards"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "cross_cluster_replication_leader_full_access": {
+            "cluster_permissions": [],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/plugins/replication/index/setup/validate",
+                  "indices:data/read/plugins/replication/changes",
+                  "indices:data/read/plugins/replication/file_chunk"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "ppl_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/ppl"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/mappings/get",
+                  "indices:admin/resolve/index",
+                  "indices:data/read/field_caps*",
+                  "indices:data/read/point_in_time/create",
+                  "indices:data/read/point_in_time/delete",
+                  "indices:data/read/search*",
+                  "indices:monitor/settings/get"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "security_analytics_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/securityanalytics/alerts/get",
+              "cluster:admin/opensearch/securityanalytics/alerts/get_page",
+              "cluster:admin/opensearch/securityanalytics/correlationAlerts/get",
+              "cluster:admin/opensearch/securityanalytics/correlations/findings",
+              "cluster:admin/opensearch/securityanalytics/correlations/list",
+              "cluster:admin/opensearch/securityanalytics/detector/get",
+              "cluster:admin/opensearch/securityanalytics/detector/search",
+              "cluster:admin/opensearch/securityanalytics/findings/get",
+              "cluster:admin/opensearch/securityanalytics/logtype/search",
+              "cluster:admin/opensearch/securityanalytics/mapping/get",
+              "cluster:admin/opensearch/securityanalytics/mapping/view/get",
+              "cluster:admin/opensearch/securityanalytics/rule/get",
+              "cluster:admin/opensearch/securityanalytics/rule/search",
+              "cluster:admin/opensearch/securityanalytics/threatintel/alerts/get",
+              "cluster:admin/opensearch/securityanalytics/threatintel/iocs/findings/get",
+              "cluster:admin/opensearch/securityanalytics/threatintel/iocs/list",
+              "cluster:admin/opensearch/securityanalytics/threatintel/monitors/search",
+              "cluster:admin/opensearch/securityanalytics/threatintel/sources/get",
+              "cluster:admin/opensearch/securityanalytics/threatintel/sources/search"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "security_analytics_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/securityanalytics/alerts/*",
+              "cluster:admin/opensearch/securityanalytics/connections/*",
+              "cluster:admin/opensearch/securityanalytics/correlationAlerts/*",
+              "cluster:admin/opensearch/securityanalytics/correlations/*",
+              "cluster:admin/opensearch/securityanalytics/detector/*",
+              "cluster:admin/opensearch/securityanalytics/findings/*",
+              "cluster:admin/opensearch/securityanalytics/logtype/*",
+              "cluster:admin/opensearch/securityanalytics/mapping/*",
+              "cluster:admin/opensearch/securityanalytics/rule/*",
+              "cluster:admin/opensearch/securityanalytics/threatintel/*"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/mapping/put",
+                  "indices:admin/mappings/get"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "knn_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/knn_delete_model_action",
+              "cluster:admin/knn_get_model_action",
+              "cluster:admin/knn_remove_model_from_cache_action",
+              "cluster:admin/knn_search_model_action",
+              "cluster:admin/knn_stats_action",
+              "cluster:admin/knn_training_job_route_decision_info_action",
+              "cluster:admin/knn_training_job_router_action",
+              "cluster:admin/knn_training_model_action",
+              "cluster:admin/knn_update_model_graveyard_action",
+              "cluster:admin/knn_warmup_action"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "readall_and_monitor": {
+            "cluster_permissions": [
+              "cluster_composite_ops_ro",
+              "cluster_monitor"
+            ],
+            "description": "Provide the minimum permissions for to readall indices and monitor the cluster",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "read"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "flow_framework_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/flow_framework/workflow/get",
+              "cluster:admin/opensearch/flow_framework/workflow/search",
+              "cluster:admin/opensearch/flow_framework/workflow_state/get",
+              "cluster:admin/opensearch/flow_framework/workflow_state/search",
+              "cluster:admin/opensearch/flow_framework/workflow_step/get"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "security_rest_api_full_access": {
+            "cluster_permissions": [
+              "restapi:admin/actiongroups",
+              "restapi:admin/allowlist",
+              "restapi:admin/config/update",
+              "restapi:admin/internalusers",
+              "restapi:admin/nodesdn",
+              "restapi:admin/resource_sharing/migrate",
+              "restapi:admin/roles",
+              "restapi:admin/rolesmapping",
+              "restapi:admin/ssl/certs/info",
+              "restapi:admin/ssl/certs/reload",
+              "restapi:admin/tenants"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "forecast_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/plugin/forecast/*",
+              "cluster:admin/settings/update",
+              "cluster_monitor"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/aliases/get",
+                  "indices:admin/mapping/get",
+                  "indices:admin/mapping/put",
+                  "indices:admin/mappings/fields/get*",
+                  "indices:admin/mappings/get",
+                  "indices:admin/resolve/index",
+                  "indices:data/read*",
+                  "indices:data/read/field_caps*",
+                  "indices:data/read/search",
+                  "indices:data/write*",
+                  "indices_monitor"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "kibana_read_only": {
+            "cluster_permissions": [],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "cross_cluster_search_remote_full_access": {
+            "cluster_permissions": [],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/shards/search_shards",
+                  "indices:data/read/search"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "anomaly_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/ad/detector/info",
+              "cluster:admin/opendistro/ad/detector/search",
+              "cluster:admin/opendistro/ad/detector/suggest",
+              "cluster:admin/opendistro/ad/detector/validate",
+              "cluster:admin/opendistro/ad/detectors/get",
+              "cluster:admin/opendistro/ad/result/search",
+              "cluster:admin/opendistro/ad/result/topAnomalies",
+              "cluster:admin/opendistro/ad/tasks/search"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "reports_instances_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/reports/instance/get",
+              "cluster:admin/opendistro/reports/instance/list",
+              "cluster:admin/opendistro/reports/menu/download"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "snapshot_management_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/notifications/feature/publish",
+              "cluster:admin/opensearch/snapshot_management/*",
+              "cluster:admin/repository/*",
+              "cluster:admin/snapshot/*"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "readall": {
+            "cluster_permissions": [
+              "cluster_composite_ops_ro"
+            ],
+            "description": "Provide the minimum permissions for to readall indices",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "read"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "asynchronous_search_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/asynchronous_search/*"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:data/read/search*"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "search_relevance_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/search_relevance/*"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/mappings/get",
+                  "indices:data/read/*"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "ml_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/ml/*",
+              "cluster_monitor"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices_monitor"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "reports_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/reports/definition/create",
+              "cluster:admin/opendistro/reports/definition/delete",
+              "cluster:admin/opendistro/reports/definition/get",
+              "cluster:admin/opendistro/reports/definition/list",
+              "cluster:admin/opendistro/reports/definition/on_demand",
+              "cluster:admin/opendistro/reports/definition/update",
+              "cluster:admin/opendistro/reports/instance/get",
+              "cluster:admin/opendistro/reports/instance/list",
+              "cluster:admin/opendistro/reports/menu/download"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "compat-sec-r1": {
+            "cluster_permissions": [
+              "cluster_monitor"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "read"
+                ],
+                "dls": "{\"term\":{\"a\":1}}",
+                "fls": [
+                  "~hidden"
+                ],
+                "index_patterns": [
+                  "compat-sec-*"
+                ],
+                "masked_fields": [
+                  "secret"
+                ]
+              }
+            ],
+            "reserved": false,
+            "static": false,
+            "tenant_permissions": [
+              {
+                "allowed_actions": [
+                  "kibana_all_read"
+                ],
+                "tenant_patterns": [
+                  "compat-t1"
+                ]
+              }
+            ]
+          },
+          "ip2geo_datasource_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/geospatial/datasource/*"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "base_dashboards_user_read_only": {
+            "cluster_permissions": [
+              "cluster_composite_ops_ro"
+            ],
+            "description": "Provide read-only Dashboards alias permissions; tenant permissions must be granted separately",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "read"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".kibana",
+                  ".opensearch_dashboards"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "notebooks_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/notebooks/get",
+              "cluster:admin/opendistro/notebooks/list"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "security_analytics_ack_alerts": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/securityanalytics/alerts/*",
+              "cluster:admin/opensearch/securityanalytics/correlationAlerts/*",
+              "cluster:admin/opensearch/securityanalytics/threatintel/alerts/*"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "ltr_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/ltr/*"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "alerting_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/alerting/*",
+              "cluster:admin/opensearch/alerting/*",
+              "cluster:admin/opensearch/notifications/feature/publish",
+              "cluster_monitor"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/aliases/get",
+                  "indices:admin/mappings/get",
+                  "indices_monitor"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "notifications_send_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/notifications/channel/send",
+              "cluster:admin/opensearch/notifications/channels/get",
+              "cluster:admin/opensearch/notifications/features"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "alerting_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/alerting/alerts/get",
+              "cluster:admin/opendistro/alerting/destination/get",
+              "cluster:admin/opendistro/alerting/monitor/get",
+              "cluster:admin/opendistro/alerting/monitor/search",
+              "cluster:admin/opensearch/alerting/comments/search",
+              "cluster:admin/opensearch/alerting/findings/get",
+              "cluster:admin/opensearch/alerting/remote/indexes/get",
+              "cluster:admin/opensearch/alerting/v2/alerts/get",
+              "cluster:admin/opensearch/alerting/v2/monitor/get",
+              "cluster:admin/opensearch/alerting/v2/monitor/search",
+              "cluster:admin/opensearch/alerting/workflow/get",
+              "cluster:admin/opensearch/alerting/workflow_alerts/get"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "cross_cluster_replication_follower_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/plugins/replication/autofollow/update"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/plugins/replication/index/pause",
+                  "indices:admin/plugins/replication/index/resume",
+                  "indices:admin/plugins/replication/index/setup/validate",
+                  "indices:admin/plugins/replication/index/start",
+                  "indices:admin/plugins/replication/index/status_check",
+                  "indices:admin/plugins/replication/index/stop",
+                  "indices:admin/plugins/replication/index/update",
+                  "indices:data/write/plugins/replication/changes"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "manage_snapshots": {
+            "cluster_permissions": [
+              "manage_snapshots"
+            ],
+            "description": "Provide the minimum permissions for managing snapshots",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/create",
+                  "indices:data/write/index"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "notifications_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/notifications/*"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "query_assistant_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/ml/config/get",
+              "cluster:admin/opensearch/ml/execute",
+              "cluster:admin/opensearch/ml/predict",
+              "cluster:admin/opensearch/ppl"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "notifications_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/notifications/channels/get",
+              "cluster:admin/opensearch/notifications/configs/get",
+              "cluster:admin/opensearch/notifications/features"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "knn_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/knn_get_model_action",
+              "cluster:admin/knn_search_model_action",
+              "cluster:admin/knn_stats_action"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "asynchronous_search_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/asynchronous_search/get"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "index_management_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/ism/*",
+              "cluster:admin/opendistro/rollup/*",
+              "cluster:admin/opendistro/transform/*",
+              "cluster:admin/opensearch/controlcenter/lron/*",
+              "cluster:admin/opensearch/notifications/channels/get",
+              "cluster:admin/opensearch/notifications/feature/publish"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/opensearch/ism/*",
+                  "indices:internal/plugins/replication/index/stop"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "ml_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/ml/config/get",
+              "cluster:admin/opensearch/ml/connectors/get",
+              "cluster:admin/opensearch/ml/connectors/search",
+              "cluster:admin/opensearch/ml/controllers/get",
+              "cluster:admin/opensearch/ml/memory/conversation/get",
+              "cluster:admin/opensearch/ml/memory/conversation/interaction/search",
+              "cluster:admin/opensearch/ml/memory/conversation/list",
+              "cluster:admin/opensearch/ml/memory/conversation/search",
+              "cluster:admin/opensearch/ml/memory/interaction/get",
+              "cluster:admin/opensearch/ml/memory/interaction/list",
+              "cluster:admin/opensearch/ml/memory/trace/get",
+              "cluster:admin/opensearch/ml/model_groups/get",
+              "cluster:admin/opensearch/ml/model_groups/search",
+              "cluster:admin/opensearch/ml/models/get",
+              "cluster:admin/opensearch/ml/models/search",
+              "cluster:admin/opensearch/ml/profile/nodes",
+              "cluster:admin/opensearch/ml/stats/nodes",
+              "cluster:admin/opensearch/ml/tasks/get",
+              "cluster:admin/opensearch/ml/tasks/search",
+              "cluster:admin/opensearch/ml/tools/get",
+              "cluster:admin/opensearch/ml/tools/list"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "reports_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/reports/definition/get",
+              "cluster:admin/opendistro/reports/definition/list",
+              "cluster:admin/opendistro/reports/instance/get",
+              "cluster:admin/opendistro/reports/instance/list",
+              "cluster:admin/opendistro/reports/menu/download"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "anomaly_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/ingest/pipeline/delete",
+              "cluster:admin/ingest/pipeline/put",
+              "cluster:admin/opendistro/ad/*",
+              "cluster_monitor"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/aliases/get",
+                  "indices:admin/mappings/fields/get",
+                  "indices:admin/mappings/fields/get*",
+                  "indices:admin/mappings/get",
+                  "indices:admin/resolve/index",
+                  "indices:admin/setting/put",
+                  "indices:data/read/field_caps*",
+                  "indices:data/read/search",
+                  "indices_monitor"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "forecast_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/plugin/forecast/forecaster/info",
+              "cluster:admin/plugin/forecast/forecaster/stats",
+              "cluster:admin/plugin/forecast/forecaster/suggest",
+              "cluster:admin/plugin/forecast/forecaster/validate",
+              "cluster:admin/plugin/forecast/forecasters/get",
+              "cluster:admin/plugin/forecast/forecasters/info",
+              "cluster:admin/plugin/forecast/forecasters/search",
+              "cluster:admin/plugin/forecast/result/topForecasts",
+              "cluster:admin/plugin/forecast/tasks/search"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/mappings/fields/get*",
+                  "indices:admin/resolve/index",
+                  "indices:data/read*"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "opensearch-forecast-result*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "security_rest_api_access": {
+            "cluster_permissions": [],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "ip2geo_datasource_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/geospatial/datasource/get"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "ltr_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/ltr/caches/stats",
+              "cluster:admin/ltr/featurestore/list",
+              "cluster:admin/ltr/stats"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "alerting_ack_alerts": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/alerting/alerts/*",
+              "cluster:admin/opendistro/alerting/chained_alerts/*",
+              "cluster:admin/opendistro/alerting/workflow_alerts/*",
+              "cluster:admin/opensearch/alerting/comments/*"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "search_relevance_read_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/search_relevance/experiment/get",
+              "cluster:admin/opensearch/search_relevance/judgment/get",
+              "cluster:admin/opensearch/search_relevance/queryset/get",
+              "cluster:admin/opensearch/search_relevance/search_configuration/get"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices:admin/mappings/get",
+                  "indices:data/read/*"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "search-relevance-*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "kibana_server": {
+            "cluster_permissions": [
+              "cluster_composite_ops",
+              "cluster_monitor",
+              "indices:admin/index_template*",
+              "indices:admin/template*",
+              "indices:data/read/scroll*",
+              "manage_point_in_time"
+            ],
+            "description": "Provide the minimum permissions for the Kibana server",
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices_all"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".kibana",
+                  ".opensearch_dashboards"
+                ],
+                "masked_fields": []
+              },
+              {
+                "allowed_actions": [
+                  "indices_all"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".kibana-6",
+                  ".opensearch_dashboards-6"
+                ],
+                "masked_fields": []
+              },
+              {
+                "allowed_actions": [
+                  "indices_all"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".kibana_*",
+                  ".opensearch_dashboards_*"
+                ],
+                "masked_fields": []
+              },
+              {
+                "allowed_actions": [
+                  "indices_all"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".tasks"
+                ],
+                "masked_fields": []
+              },
+              {
+                "allowed_actions": [
+                  "indices_all"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  ".management-beats*"
+                ],
+                "masked_fields": []
+              },
+              {
+                "allowed_actions": [
+                  "indices:admin/aliases*",
+                  "indices:admin/get"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": true,
+            "tenant_permissions": []
+          },
+          "notebooks_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opendistro/notebooks/create",
+              "cluster:admin/opendistro/notebooks/delete",
+              "cluster:admin/opendistro/notebooks/get",
+              "cluster:admin/opendistro/notebooks/list",
+              "cluster:admin/opendistro/notebooks/update"
+            ],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          },
+          "query_insights_full_access": {
+            "cluster_permissions": [
+              "cluster:admin/opensearch/insights/*"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "indices_all"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "top_queries-*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          }
+        }
+      }
+    },
+    {
+      "name": "put role with unknown action group",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-r2",
+        "body": {
+          "cluster_permissions": [
+            "compat-nope-group"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Unknown or invalid role permissions",
+          "invalid_permissions": [
+            "/cluster_permissions/0: \"compat-nope-group\""
+          ]
+        }
+      }
+    },
+    {
+      "name": "put role with bad dls",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-r3",
+        "body": {
+          "index_permissions": [
+            {
+              "index_patterns": [
+                "x"
+              ],
+              "allowed_actions": [
+                "read"
+              ],
+              "dls": "{nope"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Wrong datatype",
+          "index_permissions[0].dls": "DLS must contain exactly one valid query DSL object"
+        }
+      }
+    },
+    {
+      "name": "put role without index patterns",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-r4",
+        "body": {
+          "index_permissions": [
+            {
+              "allowed_actions": [
+                "read"
+              ]
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-r4' created."
+        }
+      }
+    },
+    {
+      "name": "put role with unknown key",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-r5",
+        "body": {
+          "nope": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "nope"
+          }
+        }
+      }
+    },
+    {
+      "name": "put empty role",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-r6",
+        "body": {}
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Request body required for this action."
+        }
+      }
+    },
+    {
+      "name": "put reserved role",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/kibana_user",
+        "body": {
+          "cluster_permissions": []
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'kibana_user' is static."
+        }
+      }
+    },
+    {
+      "name": "delete reserved role",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/roles/kibana_user"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'kibana_user' is static."
+        }
+      }
+    },
+    {
+      "name": "get hidden role",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles/security_rest_api_access"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "security_rest_api_access": {
+            "cluster_permissions": [],
+            "hidden": false,
+            "index_permissions": [],
+            "reserved": true,
+            "static": false,
+            "tenant_permissions": []
+          }
+        }
+      }
+    },
+    {
+      "name": "patch role",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/roles/compat-sec-r1",
+        "body": [
+          {
+            "op": "add",
+            "path": "/cluster_permissions/-",
+            "value": "cluster_composite_ops"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-r1' updated."
+        }
+      }
+    },
+    {
+      "name": "patch role replace index permissions",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/roles/compat-sec-r1",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/index_permissions/0/allowed_actions",
+            "value": [
+              "read",
+              "write"
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-r1' updated."
+        }
+      }
+    },
+    {
+      "name": "patch role bad index",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/roles/compat-sec-r1",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/index_permissions/7/allowed_actions",
+            "value": [
+              "read"
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "Array index 7 is out of bounds"
+        }
+      }
+    },
+    {
+      "name": "bulk patch roles",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/roles",
+        "body": [
+          {
+            "op": "add",
+            "path": "/compat-sec-r7",
+            "value": {
+              "cluster_permissions": [
+                "cluster_monitor"
+              ]
+            }
+          },
+          {
+            "op": "remove",
+            "path": "/compat-sec-r6"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "Resource updated."
+        }
+      }
+    },
+    {
+      "name": "bulk patch roles reserved",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/roles",
+        "body": [
+          {
+            "op": "remove",
+            "path": "/kibana_user"
+          }
+        ]
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'kibana_user' is static."
+        }
+      }
+    },
+    {
+      "name": "put rolesmapping",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r1",
+        "body": {
+          "backend_roles": [
+            "b1"
+          ],
+          "hosts": [
+            "h1"
+          ],
+          "users": [
+            "compat-sec-u1"
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-r1' created."
+        }
+      }
+    },
+    {
+      "name": "get rolesmapping",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-r1": {
+            "and_backend_roles": [],
+            "backend_roles": [
+              "b1"
+            ],
+            "hidden": false,
+            "hosts": [
+              "h1"
+            ],
+            "reserved": false,
+            "users": [
+              "compat-sec-u1"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "list rolesmapping",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/rolesmapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "manage_snapshots": {
+            "and_backend_roles": [],
+            "backend_roles": [
+              "snapshotrestore"
+            ],
+            "hidden": false,
+            "hosts": [],
+            "reserved": false,
+            "users": []
+          },
+          "logstash": {
+            "and_backend_roles": [],
+            "backend_roles": [
+              "logstash"
+            ],
+            "hidden": false,
+            "hosts": [],
+            "reserved": false,
+            "users": []
+          },
+          "kibana_user": {
+            "and_backend_roles": [],
+            "backend_roles": [
+              "kibanauser"
+            ],
+            "description": "Maps kibanauser to kibana_user",
+            "hidden": false,
+            "hosts": [],
+            "reserved": false,
+            "users": []
+          },
+          "compat-sec-r1": {
+            "and_backend_roles": [],
+            "backend_roles": [
+              "b1"
+            ],
+            "hidden": false,
+            "hosts": [
+              "h1"
+            ],
+            "reserved": false,
+            "users": [
+              "compat-sec-u1"
+            ]
+          },
+          "all_access": {
+            "and_backend_roles": [],
+            "backend_roles": [
+              "admin"
+            ],
+            "description": "Maps admin to all_access",
+            "hidden": false,
+            "hosts": [],
+            "reserved": false,
+            "users": []
+          },
+          "readall": {
+            "and_backend_roles": [],
+            "backend_roles": [
+              "readall"
+            ],
+            "hidden": false,
+            "hosts": [],
+            "reserved": false,
+            "users": []
+          },
+          "kibana_server": {
+            "and_backend_roles": [],
+            "backend_roles": [],
+            "hidden": false,
+            "hosts": [],
+            "reserved": true,
+            "users": [
+              "kibanaserver"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "put rolesmapping for missing role",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-nope",
+        "body": {
+          "users": [
+            "x"
+          ]
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "role 'compat-sec-nope' not found."
+        }
+      }
+    },
+    {
+      "name": "put rolesmapping with unknown key",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r7",
+        "body": {
+          "nope": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "nope"
+          },
+          "specify_one_of": {
+            "keys": "backend_roles,hosts,and_backend_roles,users"
+          }
+        }
+      }
+    },
+    {
+      "name": "patch rolesmapping",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r1",
+        "body": [
+          {
+            "op": "add",
+            "path": "/users/-",
+            "value": "compat-sec-b4"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-r1' updated."
+        }
+      }
+    },
+    {
+      "name": "patch rolesmapping remove",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r1",
+        "body": [
+          {
+            "op": "remove",
+            "path": "/hosts"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-r1' updated."
+        }
+      }
+    },
+    {
+      "name": "bulk patch rolesmapping",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/rolesmapping",
+        "body": [
+          {
+            "op": "add",
+            "path": "/compat-sec-r7",
+            "value": {
+              "users": [
+                "compat-sec-b4"
+              ]
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "Resource updated."
+        }
+      }
+    },
+    {
+      "name": "bulk patch rolesmapping for missing role",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/rolesmapping",
+        "body": [
+          {
+            "op": "add",
+            "path": "/compat-sec-nope",
+            "value": {
+              "users": [
+                "x"
+              ]
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "role 'compat-sec-nope' not found."
+        }
+      }
+    },
+    {
+      "name": "delete rolesmapping",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r7"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-r7' deleted."
+        }
+      }
+    },
+    {
+      "name": "get deleted rolesmapping",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r7"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "rolesmapping 'compat-sec-r7' not found."
+        }
+      }
+    },
+    {
+      "name": "put actiongroup",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag1",
+        "body": {
+          "allowed_actions": [
+            "indices:data/read/*"
+          ],
+          "type": "index",
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-ag1' created."
+        }
+      }
+    },
+    {
+      "name": "get actiongroup",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-ag1": {
+            "allowed_actions": [
+              "indices:data/read/*"
+            ],
+            "description": "d",
+            "hidden": false,
+            "reserved": false,
+            "static": false,
+            "type": "index"
+          }
+        }
+      }
+    },
+    {
+      "name": "list actiongroups",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/actiongroups"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-ag1": {
+            "allowed_actions": [
+              "indices:data/read/*"
+            ],
+            "description": "d",
+            "hidden": false,
+            "reserved": false,
+            "static": false,
+            "type": "index"
+          },
+          "data_access": {
+            "allowed_actions": [
+              "indices:data/*",
+              "crud"
+            ],
+            "description": "Allow all read/write operations on data",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "delete": {
+            "allowed_actions": [
+              "indices:data/write/delete*"
+            ],
+            "description": "Allow deleting documents",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "cluster_manage_pipelines": {
+            "allowed_actions": [
+              "cluster:admin/ingest/pipeline/*"
+            ],
+            "description": "Manage pipelines",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "cluster"
+          },
+          "manage_aliases": {
+            "allowed_actions": [
+              "indices:admin/aliases*"
+            ],
+            "description": "Allow managing index aliases",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "crud": {
+            "allowed_actions": [
+              "read",
+              "write"
+            ],
+            "description": "Allow all read/write operations on data",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "manage_snapshots": {
+            "allowed_actions": [
+              "cluster:admin/snapshot/*",
+              "cluster:admin/repository/*"
+            ],
+            "description": "Allow snapshots",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "cluster"
+          },
+          "kibana_all_read": {
+            "allowed_actions": [
+              "kibana:saved_objects/*/read"
+            ],
+            "description": "Allow reading in all OpenSearch Dashboards apps",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "kibana"
+          },
+          "search": {
+            "allowed_actions": [
+              "indices:data/read/search*",
+              "indices:data/read/msearch*",
+              "indices:admin/resolve/index",
+              "suggest"
+            ],
+            "description": "Allow searching",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "get": {
+            "allowed_actions": [
+              "indices:data/read/get*",
+              "indices:data/read/mget*"
+            ],
+            "description": "Allow get",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "manage_data_streams": {
+            "allowed_actions": [
+              "indices:admin/data_stream/*",
+              "indices:monitor/data_stream/stats"
+            ],
+            "description": "Manage data streams",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "write": {
+            "allowed_actions": [
+              "indices:data/write*",
+              "indices:admin/mapping/put"
+            ],
+            "description": "Allow writing data",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "cluster_manage_index_templates": {
+            "allowed_actions": [
+              "indices:admin/template/*",
+              "indices:admin/index_template/*",
+              "cluster:admin/component_template/*"
+            ],
+            "description": "Manage index templates",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "cluster"
+          },
+          "indices_all": {
+            "allowed_actions": [
+              "indices:*"
+            ],
+            "description": "Allow readonly everything with indices and data",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "read": {
+            "allowed_actions": [
+              "indices:data/read*",
+              "indices:admin/mappings/fields/get*",
+              "indices:admin/resolve/index"
+            ],
+            "description": "Allow all read operations",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "cluster_all": {
+            "allowed_actions": [
+              "cluster:*"
+            ],
+            "description": "Allow everything on cluster level",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "cluster"
+          },
+          "unlimited": {
+            "allowed_actions": [
+              "*"
+            ],
+            "description": "Allow all",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "all"
+          },
+          "create_index": {
+            "allowed_actions": [
+              "indices:admin/create",
+              "indices:admin/mapping/put"
+            ],
+            "description": "Allow creating new indices",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "index": {
+            "allowed_actions": [
+              "indices:data/write/index*",
+              "indices:data/write/update*",
+              "indices:admin/mapping/put",
+              "indices:data/write/bulk*"
+            ],
+            "description": "Allow indexing",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "cluster_composite_ops_ro": {
+            "allowed_actions": [
+              "indices:data/read/mget",
+              "indices:data/read/msearch",
+              "indices:data/read/mtv",
+              "indices:admin/aliases/exists*",
+              "indices:admin/aliases/get*",
+              "indices:data/read/scroll",
+              "indices:admin/resolve/index"
+            ],
+            "description": "Allow readonly bulk and m* operations",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "cluster"
+          },
+          "suggest": {
+            "allowed_actions": [
+              "indices:data/read/suggest*"
+            ],
+            "description": "Allow suggestions",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "manage": {
+            "allowed_actions": [
+              "indices:monitor/*",
+              "indices:admin/*"
+            ],
+            "description": "Allow indices management",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "manage_point_in_time": {
+            "allowed_actions": [
+              "indices:data/read/point_in_time/create",
+              "indices:data/read/point_in_time/delete",
+              "indices:data/read/point_in_time/readall",
+              "indices:data/read/search",
+              "indices:monitor/point_in_time/segments"
+            ],
+            "description": "Manage point in time actions",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "cluster_composite_ops": {
+            "allowed_actions": [
+              "indices:data/write/bulk",
+              "indices:admin/aliases*",
+              "indices:data/write/reindex",
+              "cluster_composite_ops_ro"
+            ],
+            "description": "Allow read/write bulk and m* operations",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "cluster"
+          },
+          "cluster_monitor": {
+            "allowed_actions": [
+              "cluster:monitor/*"
+            ],
+            "description": "Allow monitoring the cluster",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "cluster"
+          },
+          "indices_monitor": {
+            "allowed_actions": [
+              "indices:monitor/*"
+            ],
+            "description": "Allow monitoring indices",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "index"
+          },
+          "kibana_all_write": {
+            "allowed_actions": [
+              "kibana:saved_objects/*/write"
+            ],
+            "description": "Allow writing in all OpenSearch Dashboards apps",
+            "hidden": false,
+            "reserved": true,
+            "static": true,
+            "type": "kibana"
+          }
+        }
+      }
+    },
+    {
+      "name": "put actiongroup of unknown type",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag2",
+        "body": {
+          "allowed_actions": [
+            "x"
+          ],
+          "type": "nope"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "Invalid action group type: nope. Supported types are: cluster, index."
+        }
+      }
+    },
+    {
+      "name": "put actiongroup without actions",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag3",
+        "body": {
+          "type": "index"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "missing_mandatory_keys": {
+            "keys": "allowed_actions"
+          }
+        }
+      }
+    },
+    {
+      "name": "put actiongroup that references itself",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag4",
+        "body": {
+          "allowed_actions": [
+            "compat-sec-ag4"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "compat-sec-ag4 cannot be an allowed_action of itself"
+        }
+      }
+    },
+    {
+      "name": "put actiongroup that nests another",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag5",
+        "body": {
+          "allowed_actions": [
+            "compat-sec-ag1",
+            "read"
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-ag5' created."
+        }
+      }
+    },
+    {
+      "name": "put reserved actiongroup",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/actiongroups/read",
+        "body": {
+          "allowed_actions": [
+            "x"
+          ]
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'read' is static."
+        }
+      }
+    },
+    {
+      "name": "patch actiongroup",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag1",
+        "body": [
+          {
+            "op": "add",
+            "path": "/allowed_actions/-",
+            "value": "indices:data/write/*"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-ag1' updated."
+        }
+      }
+    },
+    {
+      "name": "bulk patch actiongroups",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/actiongroups",
+        "body": [
+          {
+            "op": "add",
+            "path": "/compat-sec-ag6",
+            "value": {
+              "allowed_actions": [
+                "x"
+              ]
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "Resource updated."
+        }
+      }
+    },
+    {
+      "name": "delete actiongroup in use",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-ag1' deleted."
+        }
+      }
+    },
+    {
+      "name": "delete actiongroup",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/actiongroups/compat-sec-ag6"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-ag6' deleted."
+        }
+      }
+    },
+    {
+      "name": "put tenant",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/tenants/compat-sec-t1",
+        "body": {
+          "description": "d"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-t1' created."
+        }
+      }
+    },
+    {
+      "name": "get tenant",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/tenants/compat-sec-t1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-t1": {
+            "description": "d",
+            "hidden": false,
+            "reserved": false,
+            "static": false
+          }
+        }
+      }
+    },
+    {
+      "name": "list tenants",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/tenants"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "global_tenant": {
+            "description": "Global tenant",
+            "hidden": false,
+            "reserved": true,
+            "static": true
+          },
+          "admin_tenant": {
+            "description": "Demo tenant for admin user",
+            "hidden": false,
+            "reserved": false,
+            "static": false
+          },
+          "compat-sec-t1": {
+            "description": "d",
+            "hidden": false,
+            "reserved": false,
+            "static": false
+          }
+        }
+      }
+    },
+    {
+      "name": "put tenant with unknown key",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/tenants/compat-sec-t2",
+        "body": {
+          "nope": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "nope"
+          }
+        }
+      }
+    },
+    {
+      "name": "put tenant without description",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/tenants/compat-sec-t3",
+        "body": {}
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Request body required for this action."
+        }
+      }
+    },
+    {
+      "name": "put reserved tenant",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/tenants/global_tenant",
+        "body": {
+          "description": "x"
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Resource 'global_tenant' is static."
+        }
+      }
+    },
+    {
+      "name": "patch tenant",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/tenants/compat-sec-t1",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/description",
+            "value": "patched"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-t1' updated."
+        }
+      }
+    },
+    {
+      "name": "bulk patch tenants",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/tenants",
+        "body": [
+          {
+            "op": "add",
+            "path": "/compat-sec-t4",
+            "value": {
+              "description": "x"
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "Resource updated."
+        }
+      }
+    },
+    {
+      "name": "delete tenant",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/tenants/compat-sec-t4"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-t4' deleted."
+        }
+      }
+    },
+    {
+      "name": "securityconfig",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/securityconfig"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "config": {
+            "dynamic": {
+              "api_tokens": {
+                "enabled": false,
+                "max_duration_seconds": 7776000,
+                "max_tokens": 100
+              },
+              "auth_failure_listeners": {},
+              "authc": {
+                "jwt_auth_domain": {
+                  "authentication_backend": {
+                    "config": {},
+                    "type": "noop"
+                  },
+                  "description": "Authenticate via Json Web Token",
+                  "http_authenticator": {
+                    "challenge": false,
+                    "config": {
+                      "jwks_uri": "https://your-jwks-endpoint.com/.well-known/jwks.json",
+                      "signing_key": "base64 encoded HMAC key or public RSA/ECDSA pem key",
+                      "jwt_header": "Authorization",
+                      "jwt_clock_skew_tolerance_seconds": 30
+                    },
+                    "type": "jwt"
+                  },
+                  "http_enabled": false,
+                  "order": 0
+                },
+                "ldap": {
+                  "authentication_backend": {
+                    "config": {
+                      "enable_ssl": false,
+                      "enable_start_tls": false,
+                      "enable_ssl_client_auth": false,
+                      "verify_hostnames": true,
+                      "hosts": [
+                        "localhost:8389"
+                      ],
+                      "userbase": "ou=people,dc=example,dc=com",
+                      "usersearch": "(sAMAccountName={0})"
+                    },
+                    "type": "ldap"
+                  },
+                  "description": "Authenticate via LDAP or Active Directory",
+                  "http_authenticator": {
+                    "challenge": false,
+                    "config": {},
+                    "type": "basic"
+                  },
+                  "http_enabled": false,
+                  "order": 5
+                },
+                "basic_internal_auth_domain": {
+                  "authentication_backend": {
+                    "config": {},
+                    "type": "intern"
+                  },
+                  "description": "Authenticate via HTTP Basic against internal users database",
+                  "http_authenticator": {
+                    "challenge": true,
+                    "config": {},
+                    "type": "basic"
+                  },
+                  "http_enabled": true,
+                  "order": 4
+                },
+                "proxy_auth_domain": {
+                  "authentication_backend": {
+                    "config": {},
+                    "type": "noop"
+                  },
+                  "description": "Authenticate via proxy",
+                  "http_authenticator": {
+                    "challenge": false,
+                    "config": {
+                      "user_header": "x-proxy-user",
+                      "roles_header": "x-proxy-roles"
+                    },
+                    "type": "proxy"
+                  },
+                  "http_enabled": false,
+                  "order": 3
+                },
+                "clientcert_auth_domain": {
+                  "authentication_backend": {
+                    "config": {},
+                    "type": "noop"
+                  },
+                  "description": "Authenticate via SSL client certificates",
+                  "http_authenticator": {
+                    "challenge": false,
+                    "config": {
+                      "username_attribute": "cn"
+                    },
+                    "type": "clientcert"
+                  },
+                  "http_enabled": false,
+                  "order": 2
+                },
+                "kerberos_auth_domain": {
+                  "authentication_backend": {
+                    "config": {},
+                    "type": "noop"
+                  },
+                  "http_authenticator": {
+                    "challenge": true,
+                    "config": {
+                      "krb_debug": false,
+                      "strip_realm_from_principal": true
+                    },
+                    "type": "kerberos"
+                  },
+                  "http_enabled": false,
+                  "order": 6
+                }
+              },
+              "authz": {
+                "roles_from_another_ldap": {
+                  "authorization_backend": {
+                    "config": {},
+                    "type": "ldap"
+                  },
+                  "description": "Authorize via another Active Directory",
+                  "http_enabled": false
+                },
+                "roles_from_myldap": {
+                  "authorization_backend": {
+                    "config": {
+                      "enable_ssl": false,
+                      "enable_start_tls": false,
+                      "enable_ssl_client_auth": false,
+                      "verify_hostnames": true,
+                      "hosts": [
+                        "localhost:8389"
+                      ],
+                      "rolebase": "ou=groups,dc=example,dc=com",
+                      "rolesearch": "(member={0})",
+                      "userrolename": "disabled",
+                      "rolename": "cn",
+                      "resolve_nested_roles": true,
+                      "userbase": "ou=people,dc=example,dc=com",
+                      "usersearch": "(uid={0})"
+                    },
+                    "type": "ldap"
+                  },
+                  "description": "Authorize via LDAP or Active Directory",
+                  "http_enabled": false
+                }
+              },
+              "disable_intertransport_auth": false,
+              "disable_rest_auth": false,
+              "do_not_fail_on_forbidden": false,
+              "do_not_fail_on_forbidden_empty": false,
+              "filtered_alias_mode": "warn",
+              "hosts_resolver_mode": "ip-only",
+              "http": {
+                "anonymous_auth_enabled": false,
+                "xff": {
+                  "enabled": false,
+                  "internalProxies": "192\\.168\\.0\\.10|192\\.168\\.0\\.11",
+                  "remoteIpHeader": "X-Forwarded-For"
+                }
+              },
+              "kibana": {
+                "default_tenant": "",
+                "index": ".kibana",
+                "multitenancy_enabled": true,
+                "preferred_tenants": [],
+                "private_tenant_enabled": true,
+                "server_username": "kibanaserver"
+              },
+              "multi_rolespan_enabled": true,
+              "on_behalf_of": {
+                "enabled": false
+              },
+              "privileges_evaluation_ignore_unauthorized_indices": true,
+              "respect_request_indices_options": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "securityconfig PUT",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/securityconfig/config",
+        "body": {
+          "dynamic": {}
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Access denied"
+        }
+      }
+    },
+    {
+      "name": "securityconfig PATCH to an unknown key",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/securityconfig",
+        "body": [
+          {
+            "op": "add",
+            "path": "/config/dynamic/nope",
+            "value": 1
+          }
+        ]
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Access denied"
+        }
+      }
+    },
+    {
+      "name": "allowlist",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/allowlist"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Access denied"
+        }
+      }
+    },
+    {
+      "name": "allowlist PUT",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/allowlist",
+        "body": {
+          "enabled": false
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Access denied"
+        }
+      }
+    },
+    {
+      "name": "audit config",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/audit"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_readonly": [],
+          "config": {
+            "audit": {
+              "disabled_categories": [
+                "AUTHENTICATED",
+                "GRANTED_PRIVILEGES",
+                "CLUSTER_SETTINGS_CHANGED",
+                "INDEX_SETTINGS_CHANGED"
+              ],
+              "disabled_rest_categories": [],
+              "disabled_transport_categories": [],
+              "enable_rest": true,
+              "enable_transport": true,
+              "exclude_sensitive_headers": true,
+              "ignore_headers": [],
+              "ignore_requests": [],
+              "ignore_url_params": [],
+              "ignore_users": [
+                "kibanaserver"
+              ],
+              "log_request_body": true,
+              "resolve_bulk_requests": false,
+              "resolve_indices": true
+            },
+            "compliance": {
+              "enabled": true,
+              "external_config": false,
+              "internal_config": true,
+              "read_ignore_users": [
+                "kibanaserver"
+              ],
+              "read_metadata_only": true,
+              "read_watched_fields": {},
+              "write_ignore_users": [
+                "kibanaserver"
+              ],
+              "write_log_diffs": false,
+              "write_metadata_only": true,
+              "write_watched_indices": []
+            },
+            "enabled": false
+          }
+        }
+      }
+    },
+    {
+      "name": "audit PATCH",
+      "request": {
+        "method": "PATCH",
+        "path": "/_plugins/_security/api/audit",
+        "body": [
+          {
+            "op": "replace",
+            "path": "/config/enabled",
+            "value": false
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "No updates required"
+        }
+      }
+    },
+    {
+      "name": "nodesdn",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/nodesdn"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_security/api/nodesdn] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "ssl certs",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/ssl/certs"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "Access denied"
+        }
+      }
+    },
+    {
+      "name": "permissionsinfo",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/permissionsinfo"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "user": "User [name=admin, backend_roles=[admin], requestedTenant=null]",
+          "user_name": "admin",
+          "has_api_access": true,
+          "disabled_endpoints": {}
+        }
+      }
+    },
+    {
+      "name": "flush cache",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/cache"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "Cache flushed successfully."
+        }
+      }
+    },
+    {
+      "name": "flush cache POST",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_security/api/cache"
+      },
+      "response": {
+        "status": 405,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "Incorrect HTTP method for uri [/_plugins/_security/api/cache] and method [POST], allowed: [DELETE]",
+          "status": 405
+        }
+      }
+    },
+    {
+      "name": "unknown api",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/nope"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_security/api/nope] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "account as a created user",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/account",
+        "auth": "compat-sec-u1:Compat-Pass-9x!k"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "user_name": "compat-sec-u1",
+          "is_reserved": false,
+          "is_hidden": false,
+          "is_internal_user": true,
+          "user_requested_tenant": null,
+          "backend_roles": [
+            "patched"
+          ],
+          "custom_attribute_names": [
+            "attr.internal.a",
+            "attr.internal.b"
+          ],
+          "tenants": {
+            "compat-sec-u1": true
+          },
+          "roles": [
+            "compat-sec-r1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "whoami as a created user",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/whoami",
+        "auth": "compat-sec-u1:Compat-Pass-9x!k"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": "no handler found for uri [/_plugins/_security/api/whoami] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "authinfo as a created user",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/authinfo",
+        "auth": "compat-sec-u1:Compat-Pass-9x!k"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/remote_address",
+          "reason": "client port"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "user": "User [name=compat-sec-u1, backend_roles=[patched], requestedTenant=null]",
+          "user_name": "compat-sec-u1",
+          "user_requested_tenant": null,
+          "remote_address": "127.0.0.1:36562",
+          "backend_roles": [
+            "patched"
+          ],
+          "custom_attribute_names": [
+            "attr.internal.a",
+            "attr.internal.b"
+          ],
+          "roles": [
+            "compat-sec-r1"
+          ],
+          "tenants": {
+            "compat-sec-u1": true
+          },
+          "principal": null,
+          "peer_certificates": "0",
+          "sso_logout_url": null
+        }
+      }
+    },
+    {
+      "name": "created user calls the management api",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles",
+        "auth": "compat-sec-u1:Compat-Pass-9x!k"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "No permission to access REST API: User compat-sec-u1 with Security roles [compat-sec-r1] does not have any role privileged for admin access. No client TLS certificate found in request"
+        }
+      }
+    },
+    {
+      "name": "change own password with a wrong current one",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/account",
+        "body": {
+          "current_password": "nope",
+          "password": "New-Pass-7y!q"
+        },
+        "auth": "compat-sec-u1:Compat-Pass-9x!k"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "Could not validate your current password."
+        }
+      }
+    },
+    {
+      "name": "change own password",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/account",
+        "body": {
+          "current_password": "Compat-Pass-9x!k",
+          "password": "New-Pass-7y!q"
+        },
+        "auth": "compat-sec-u1:Compat-Pass-9x!k"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-u1' updated."
+        }
+      }
+    },
+    {
+      "name": "login with the old password",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/account",
+        "auth": "compat-sec-u1:Compat-Pass-9x!k"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "Unauthorized"
+      }
+    },
+    {
+      "name": "login with the new password",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/account",
+        "auth": "compat-sec-u1:New-Pass-7y!q"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "user_name": "compat-sec-u1",
+          "is_reserved": false,
+          "is_hidden": false,
+          "is_internal_user": true,
+          "user_requested_tenant": null,
+          "backend_roles": [
+            "patched"
+          ],
+          "custom_attribute_names": [
+            "attr.internal.a",
+            "attr.internal.b"
+          ],
+          "tenants": {
+            "compat-sec-u1": true
+          },
+          "roles": [
+            "compat-sec-r1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "create data index as admin",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-sec-idx",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-sec-idx"
+        }
+      }
+    },
+    {
+      "name": "index a document as admin",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-sec-idx/_doc/1",
+        "query": {
+          "refresh": "true"
+        },
+        "body": {
+          "a": 1,
+          "secret": "s",
+          "hidden": "h"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-sec-idx",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "map the user to the role",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r1",
+        "body": {
+          "users": [
+            "compat-sec-u1"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-r1' updated."
+        }
+      }
+    },
+    {
+      "name": "remap",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-r1": {
+            "and_backend_roles": [],
+            "backend_roles": [],
+            "hidden": false,
+            "hosts": [],
+            "reserved": false,
+            "users": [
+              "compat-sec-u1"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search as a mapped user",
+      "request": {
+        "method": "POST",
+        "path": "/compat-sec-idx/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        },
+        "auth": "compat-sec-u1:New-Pass-7y!q"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 2.0,
+            "hits": [
+              {
+                "_index": "compat-sec-idx",
+                "_id": "1",
+                "_score": 2.0,
+                "_source": {
+                  "a": 1,
+                  "secret": "c52a59b736f2e29111b18bcebf6765e85a0169b19154e5ee8e8be39c67c85577"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "write as the mapped user",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-sec-idx/_doc/2",
+        "body": {
+          "a": 2
+        },
+        "auth": "compat-sec-u1:New-Pass-7y!q"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-sec-idx",
+          "_id": "2",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 1,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "search another index as a mapped user",
+      "request": {
+        "method": "POST",
+        "path": "/compat-sec-other/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        },
+        "auth": "compat-sec-u1:New-Pass-7y!q"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-sec-other]",
+                "index": "compat-sec-other",
+                "resource.id": "compat-sec-other",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-sec-other]",
+            "index": "compat-sec-other",
+            "resource.id": "compat-sec-other",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "cluster health as a mapped user",
+      "request": {
+        "method": "GET",
+        "path": "/_cluster/health",
+        "auth": "compat-sec-u1:New-Pass-7y!q"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "cluster_name": "opensearch",
+          "status": "green",
+          "timed_out": false,
+          "number_of_nodes": 1,
+          "number_of_data_nodes": 1,
+          "discovered_master": true,
+          "discovered_cluster_manager": true,
+          "active_primary_shards": 3,
+          "active_shards": 3,
+          "relocating_shards": 0,
+          "initializing_shards": 0,
+          "unassigned_shards": 0,
+          "delayed_unassigned_shards": 0,
+          "number_of_pending_tasks": 0,
+          "number_of_in_flight_fetch": 0,
+          "task_max_waiting_in_queue_millis": 0,
+          "active_shards_percent_as_number": 100.0
+        }
+      }
+    },
+    {
+      "name": "cluster stats as a mapped user",
+      "request": {
+        "method": "GET",
+        "path": "/_cluster/stats",
+        "query": {
+          "filter_path": "status"
+        },
+        "auth": "compat-sec-u1:New-Pass-7y!q"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "green"
+        }
+      }
+    },
+    {
+      "name": "search with unauthorised aggregation",
+      "request": {
+        "method": "POST",
+        "path": "/compat-sec-idx/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "x": {
+              "terms": {
+                "field": "a"
+              }
+            }
+          }
+        },
+        "auth": "compat-sec-u1:New-Pass-7y!q"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "x": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 1,
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete the user while mapped",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-u1' deleted."
+        }
+      }
+    },
+    {
+      "name": "login after delete",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/account",
+        "auth": "compat-sec-u1:New-Pass-7y!q"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "Unauthorized"
+      }
+    }
+  ]
+}

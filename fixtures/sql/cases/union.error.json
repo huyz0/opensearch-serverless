@@ -1,0 +1,16 @@
+{
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "status": 500,
+  "body": {
+    "error": {
+      "reason": "There was internal problem at backend",
+      "details": "Cannot invoke \"org.opensearch.sql.legacy.domain.QueryStatement.getClass()\" because \"queryStatement\" is null",
+      "type": "NullPointerException"
+    },
+    "status": 500
+  }
+}

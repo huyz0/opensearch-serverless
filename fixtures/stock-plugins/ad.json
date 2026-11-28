@@ -1,0 +1,5142 @@
+{
+  "name": "anomaly detection routes",
+  "description": "The stock Anomaly Detection plugin's detector, validate, preview, start, stop, profile, search, stats and results routes: single entity, high cardinality and historical analysis. Generated ids are placeholders.",
+  "setup": "index compat-ad-src: 120 documents one a minute from epoch ms 1700000000000, v a sine around 10 with a spike of 20 at minutes 90 and 91, keyword host (2 values) and city (3 values)",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "placeholders": "`{label}` in a request is the value the step that captured it received; `<label>` in a response is where that value appeared. `<volatile>` is a time, a counter or a generated value that differs on every run.",
+  "steps": [
+    {
+      "name": "create detector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-d1",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<d>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-d1",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "get detector",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<d>",
+          "_version": 1,
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-d1",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "get detector with job",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}",
+        "query": {
+          "job": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<d>",
+          "_version": 1,
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-d1",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "anomaly_detector_job": null
+        }
+      }
+    },
+    {
+      "name": "get detector task",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}",
+        "query": {
+          "task": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<d>",
+          "_version": 1,
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-d1",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "realtime_task": null,
+          "historical_analysis_task": null
+        }
+      }
+    },
+    {
+      "name": "get detector head",
+      "request": {
+        "method": "HEAD",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}"
+      },
+      "response": {
+        "status": 200,
+        "body": null
+      }
+    },
+    {
+      "name": "get missing detector",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/nope"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Can't find config with id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Can't find config with id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create duplicate name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-d1",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 409,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Cannot create anomaly detector with name [compat-d1] as it's already used by another detector"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Cannot create anomaly detector with name [compat-d1] as it's already used by another detector"
+          },
+          "status": 409
+        }
+      }
+    },
+    {
+      "name": "update detector",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}",
+        "body": {
+          "name": "compat-d1",
+          "description": "changed",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<d>",
+          "_version": 2,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-d1",
+            "description": "changed",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "update with seq_no",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}",
+        "query": {
+          "if_seq_no": "0",
+          "if_primary_term": "1"
+        },
+        "body": {
+          "name": "compat-d1",
+          "description": "changed 2",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "There was a problem updating the config:[<d>]"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "There was a problem updating the config:[<d>]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "update missing",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_anomaly_detection/detectors/nope",
+        "body": {
+          "name": "compat-d1",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Can't find config with id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Can't find config with id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create without time_field",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad1",
+          "description": "x",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Time field should be set"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Time field should be set"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create without features",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad2",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<bad2>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-bad2",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": []
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "create with feature of unknown field",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad3",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "nope"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Validation failed for feature(s) of detector compat-bad3 Exceptions: [Feature has an invalid query returning empty aggregated data: f]"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Validation failed for feature(s) of detector compat-bad3 Exceptions: [Feature has an invalid query returning empty aggregated data: f]"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "create with bad aggregation",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad4",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "nope": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Custom query error: Unknown aggregation type [nope]"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Custom query error: Unknown aggregation type [nope]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create with two aggregations in a feature",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad5",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                },
+                "g": {
+                  "max": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<bad5>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-bad5",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "create with duplicate feature names",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad6",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            },
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "g": {
+                  "max": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "[f] appears more than once. Feature name has to be unique"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "[f] appears more than once. Feature name has to be unique"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create with unknown index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad7",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-nope"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-ad-nope]",
+                "index": "compat-ad-nope",
+                "resource.id": "compat-ad-nope",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-ad-nope]",
+            "index": "compat-ad-nope",
+            "resource.id": "compat-ad-nope",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create with bad interval",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad8",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 0,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Detection interval must be a positive integer"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Detection interval must be a positive integer"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create with bad unit",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad9",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Fortnights"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "No enum constant java.time.temporal.ChronoUnit.FORTNIGHTS"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "No enum constant java.time.temporal.ChronoUnit.FORTNIGHTS"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create with negative window_delay",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad10",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": -1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Window delay interval must be a positive integer"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Window delay interval must be a positive integer"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create with shingle_size zero",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad11",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "shingle_size": 0
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Suggested shingle size must be between 1 and 128. Got 0."
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Suggested shingle size must be between 1 and 128. Got 0."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create with shingle_size 60",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad12",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "shingle_size": 60
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<bad12>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-bad12",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 60,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 92,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "create with name too long",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Name should be shortened. The maximum limit is 64 characters."
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Name should be shortened. The maximum limit is 64 characters."
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "create with bad name characters",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "bad name!",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Valid characters for name are a-z, A-Z, 0-9, -(hyphen), _(underscore) and .(period)"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Valid characters for name are a-z, A-Z, 0-9, -(hyphen), _(underscore) and .(period)"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "create with unknown key",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad13",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "nope": 1
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<bad13>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-bad13",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "create high cardinality",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-hc",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "category_field": [
+            "host"
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<hc>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-hc",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "category_field": [
+              "host"
+            ],
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "MULTI_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "get high cardinality",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{hc}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<hc>",
+          "_version": 1,
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-hc",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "category_field": [
+              "host"
+            ],
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "MULTI_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create with category field of unknown type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad14",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "category_field": [
+            "v"
+          ]
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Categorical field v must be of type keyword or ip."
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Categorical field v must be of type keyword or ip."
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "create with two category fields",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-hc2",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "category_field": [
+            "host",
+            "city"
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<hc2>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-hc2",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "category_field": [
+              "host",
+              "city"
+            ],
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "MULTI_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "create with three category fields",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad15",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "category_field": [
+            "host",
+            "city",
+            "city"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Currently we only support up to 2 categorical field/s in order to bound system resource consumption."
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Currently we only support up to 2 categorical field/s in order to bound system resource consumption."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create with result index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-ri",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "result_index": "opensearch-ad-plugin-result-compat"
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "_id": "<ri>",
+          "_version": 1,
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-ri",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "result_index": "opensearch-ad-plugin-result-compat",
+            "flatten_custom_result_index": false,
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "create with bad result index",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors",
+        "body": {
+          "name": "compat-bad16",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "result_index": "nope-index"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Result index must start with opensearch-ad-plugin-result-"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Result index must start with opensearch-ad-plugin-result-"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "validate detector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_validate",
+        "body": {
+          "name": "compat-v1",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {}
+      }
+    },
+    {
+      "name": "validate detector with problems",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_validate",
+        "body": {
+          "name": "compat-v2"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "detector": {
+            "time_field": {
+              "message": "Time field should be set"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "validate unknown type",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_validate/nope",
+        "body": {
+          "name": "compat-v1",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_state_exception",
+                "reason": "The given validation type doesn't exist"
+              }
+            ],
+            "type": "illegal_state_exception",
+            "reason": "The given validation type doesn't exist"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "validate duplicate name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_validate",
+        "body": {
+          "name": "compat-d1",
+          "description": "x",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "detector": {
+            "name": {
+              "message": "Cannot create anomaly detector with name [compat-d1] as it's already used by another detector"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "preview detector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_preview",
+        "body": {
+          "period_start": 1700002400000,
+          "period_end": 1700006900000,
+          "detector": {
+            "name": "compat-p1",
+            "description": "x",
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "feature_attributes": [
+              {
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "filter_query": {
+              "match_all": {}
+            },
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "anomaly_result": [],
+          "anomaly_detector": {
+            "name": "compat-p1",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "preview by id",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_preview",
+        "body": {
+          "period_start": 1700002400000,
+          "period_end": 1700006900000
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "anomaly_result": [],
+          "anomaly_detector": {
+            "name": "compat-d1",
+            "description": "changed",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "preview with too short a period",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_preview",
+        "body": {
+          "period_start": 1700000000000,
+          "period_end": 1700000060000,
+          "detector": {
+            "name": "compat-p2",
+            "description": "x",
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "feature_attributes": [
+              {
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "filter_query": {
+              "match_all": {}
+            },
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "anomaly_result": [],
+          "anomaly_detector": {
+            "name": "compat-p2",
+            "description": "x",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "preview with start after end",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_preview",
+        "body": {
+          "period_start": 1700006900000,
+          "period_end": 1700000000000,
+          "detector": {
+            "name": "compat-p3",
+            "description": "x",
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "feature_attributes": [
+              {
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "filter_query": {
+              "match_all": {}
+            },
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": "Period start date should be before end date"
+      }
+    },
+    {
+      "name": "preview without detector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_preview",
+        "body": {
+          "period_start": 1700000000000,
+          "period_end": 1700003600000
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": "Must set detector id or detector"
+      }
+    },
+    {
+      "name": "search detectors",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "name.keyword": "asc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<bad12>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "description": "x",
+                  "rules": [
+                    {
+                      "action": "IGNORE_ANOMALY",
+                      "conditions": [
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        },
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        }
+                      ]
+                    }
+                  ],
+                  "history": 92,
+                  "feature_attributes": [
+                    {
+                      "feature_id": "<volatile>",
+                      "feature_enabled": true,
+                      "feature_name": "f",
+                      "aggregation_query": {
+                        "f": {
+                          "avg": {
+                            "field": "v"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-bad12",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 60,
+                  "detector_type": "SINGLE_ENTITY"
+                },
+                "sort": [
+                  "compat-bad12"
+                ]
+              },
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<bad13>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "description": "x",
+                  "rules": [
+                    {
+                      "action": "IGNORE_ANOMALY",
+                      "conditions": [
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        },
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        }
+                      ]
+                    }
+                  ],
+                  "history": 40,
+                  "feature_attributes": [
+                    {
+                      "feature_id": "<volatile>",
+                      "feature_enabled": true,
+                      "feature_name": "f",
+                      "aggregation_query": {
+                        "f": {
+                          "avg": {
+                            "field": "v"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-bad13",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 8,
+                  "detector_type": "SINGLE_ENTITY"
+                },
+                "sort": [
+                  "compat-bad13"
+                ]
+              },
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<bad2>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "description": "x",
+                  "rules": [],
+                  "history": 40,
+                  "feature_attributes": [],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-bad2",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 8,
+                  "detector_type": "SINGLE_ENTITY"
+                },
+                "sort": [
+                  "compat-bad2"
+                ]
+              },
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<bad5>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "description": "x",
+                  "rules": [
+                    {
+                      "action": "IGNORE_ANOMALY",
+                      "conditions": [
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        },
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        }
+                      ]
+                    }
+                  ],
+                  "history": 40,
+                  "feature_attributes": [
+                    {
+                      "feature_id": "<volatile>",
+                      "feature_enabled": true,
+                      "feature_name": "f",
+                      "aggregation_query": {
+                        "f": {
+                          "avg": {
+                            "field": "v"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-bad5",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 8,
+                  "detector_type": "SINGLE_ENTITY"
+                },
+                "sort": [
+                  "compat-bad5"
+                ]
+              },
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<d>",
+                "_version": 2,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "description": "changed",
+                  "rules": [
+                    {
+                      "action": "IGNORE_ANOMALY",
+                      "conditions": [
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        },
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        }
+                      ]
+                    }
+                  ],
+                  "history": 40,
+                  "feature_attributes": [
+                    {
+                      "feature_id": "<volatile>",
+                      "feature_enabled": true,
+                      "feature_name": "f",
+                      "aggregation_query": {
+                        "f": {
+                          "avg": {
+                            "field": "v"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-d1",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 8,
+                  "detector_type": "SINGLE_ENTITY"
+                },
+                "sort": [
+                  "compat-d1"
+                ]
+              },
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<hc>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "category_field": [
+                    "host"
+                  ],
+                  "description": "x",
+                  "rules": [
+                    {
+                      "action": "IGNORE_ANOMALY",
+                      "conditions": [
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        },
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        }
+                      ]
+                    }
+                  ],
+                  "history": 40,
+                  "feature_attributes": [
+                    {
+                      "feature_id": "<volatile>",
+                      "feature_enabled": true,
+                      "feature_name": "f",
+                      "aggregation_query": {
+                        "f": {
+                          "avg": {
+                            "field": "v"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-hc",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 8,
+                  "detector_type": "MULTI_ENTITY"
+                },
+                "sort": [
+                  "compat-hc"
+                ]
+              },
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<hc2>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "category_field": [
+                    "host",
+                    "city"
+                  ],
+                  "description": "x",
+                  "rules": [
+                    {
+                      "action": "IGNORE_ANOMALY",
+                      "conditions": [
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        },
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        }
+                      ]
+                    }
+                  ],
+                  "history": 40,
+                  "feature_attributes": [
+                    {
+                      "feature_id": "<volatile>",
+                      "feature_enabled": true,
+                      "feature_name": "f",
+                      "aggregation_query": {
+                        "f": {
+                          "avg": {
+                            "field": "v"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-hc2",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 8,
+                  "detector_type": "MULTI_ENTITY"
+                },
+                "sort": [
+                  "compat-hc2"
+                ]
+              },
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<ri>",
+                "_version": 1,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "description": "x",
+                  "rules": [
+                    {
+                      "action": "IGNORE_ANOMALY",
+                      "conditions": [
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        },
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        }
+                      ]
+                    }
+                  ],
+                  "history": 40,
+                  "flatten_custom_result_index": false,
+                  "feature_attributes": [
+                    {
+                      "feature_id": "<volatile>",
+                      "feature_enabled": true,
+                      "feature_name": "f",
+                      "aggregation_query": {
+                        "f": {
+                          "avg": {
+                            "field": "v"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "result_index": "opensearch-ad-plugin-result-compat",
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-ri",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 8,
+                  "detector_type": "SINGLE_ENTITY"
+                },
+                "sort": [
+                  "compat-ri"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search detectors by name",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/_search",
+        "body": {
+          "query": {
+            "term": {
+              "name.keyword": "compat-d1"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": ".opendistro-anomaly-detectors",
+                "_id": "<d>",
+                "_version": 2,
+                "_seq_no": "<volatile>",
+                "_primary_term": "<volatile>",
+                "_score": "<volatile>",
+                "_source": {
+                  "description": "changed",
+                  "rules": [
+                    {
+                      "action": "IGNORE_ANOMALY",
+                      "conditions": [
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        },
+                        {
+                          "feature_name": "f",
+                          "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                          "value": "<volatile>",
+                          "operator": "LTE"
+                        }
+                      ]
+                    }
+                  ],
+                  "history": 40,
+                  "feature_attributes": [
+                    {
+                      "feature_id": "<volatile>",
+                      "feature_enabled": true,
+                      "feature_name": "f",
+                      "aggregation_query": {
+                        "f": {
+                          "avg": {
+                            "field": "v"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "recency_emphasis": 2560,
+                  "schema_version": 0,
+                  "time_field": "ts",
+                  "last_update_time": "<volatile>",
+                  "indices": [
+                    "compat-ad-src"
+                  ],
+                  "window_delay": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "detection_interval": {
+                    "period": {
+                      "unit": "Minutes",
+                      "interval": 1
+                    }
+                  },
+                  "name": "compat-d1",
+                  "filter_query": {
+                    "match_all": {
+                      "boost": 1.0
+                    }
+                  },
+                  "shingle_size": 8,
+                  "detector_type": "SINGLE_ENTITY"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "search detectors GET",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "size": 0
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "detector count",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/count"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "count": 8,
+          "match": false
+        }
+      }
+    },
+    {
+      "name": "detector match",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/compat-d1/_match"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": "no handler found for uri [/_plugins/_anomaly_detection/detectors/compat-d1/_match] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "detector match missing",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/compat-nope/_match"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": "no handler found for uri [/_plugins/_anomaly_detection/detectors/compat-nope/_match] and method [GET]"
+        }
+      }
+    },
+    {
+      "name": "stats",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/stats"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "hc_detector_count": 2,
+          "anomaly_detectors_index_status": "yellow",
+          "anomaly_detection_state_status": "yellow",
+          "detector_count": 8,
+          "forecast_config_index_status": "non-existent",
+          "anomaly_detection_job_index_status": "yellow",
+          "models_checkpoint_index_status": "non-existent",
+          "single_stream_detector_count": 6,
+          "anomaly_results_index_status": "green",
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {
+              "ad_execute_request_count": "<volatile>",
+              "ad_model_corruption_count": 0,
+              "models": [],
+              "ad_canceled_batch_task_count": "<volatile>",
+              "ad_hc_execute_request_count": "<volatile>",
+              "ad_hc_execute_failure_count": "<volatile>",
+              "model_count": 0,
+              "ad_execute_failure_count": "<volatile>",
+              "ad_batch_task_failure_count": "<volatile>",
+              "ad_total_batch_task_execution_count": "<volatile>",
+              "ad_executing_batch_task_count": "<volatile>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "stats by name",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/stats/anomaly_detectors_index_status,detector_count"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "anomaly_detectors_index_status": "yellow",
+          "detector_count": 8,
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {}
+          }
+        }
+      }
+    },
+    {
+      "name": "stats of a node",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/_local/stats"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "hc_detector_count": 2,
+          "anomaly_detectors_index_status": "yellow",
+          "anomaly_detection_state_status": "yellow",
+          "detector_count": 8,
+          "forecast_config_index_status": "non-existent",
+          "anomaly_detection_job_index_status": "yellow",
+          "models_checkpoint_index_status": "non-existent",
+          "single_stream_detector_count": 6,
+          "anomaly_results_index_status": "green",
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {
+              "ad_execute_request_count": "<volatile>",
+              "ad_model_corruption_count": 0,
+              "models": [],
+              "ad_canceled_batch_task_count": "<volatile>",
+              "ad_hc_execute_request_count": "<volatile>",
+              "ad_hc_execute_failure_count": "<volatile>",
+              "model_count": 0,
+              "ad_execute_failure_count": "<volatile>",
+              "ad_batch_task_failure_count": "<volatile>",
+              "ad_total_batch_task_execution_count": "<volatile>",
+              "ad_executing_batch_task_count": "<volatile>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "stats unknown name",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/stats/nope"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "request [/_plugins/_anomaly_detection/stats/nope] contains unrecognized stat: [nope]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "request [/_plugins/_anomaly_detection/stats/nope] contains unrecognized stat: [nope]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "profile stopped",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_profile"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "state": "DISABLED"
+        }
+      }
+    },
+    {
+      "name": "profile of one type",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_profile/state"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "state": "DISABLED"
+        }
+      }
+    },
+    {
+      "name": "profile with unknown type",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_profile/nope"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "profiles to collect are missing or invalid"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "profiles to collect are missing or invalid"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "profile all",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_profile",
+        "query": {
+          "_all": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {}
+      }
+    },
+    {
+      "name": "profile missing",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/nope/_profile"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Can't find config with id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Can't find config with id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "start detector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_start"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<d>"
+        }
+      }
+    },
+    {
+      "name": "start again",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_start"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Anomaly detector job is already running: <d>"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Anomaly detector job is already running: <d>"
+          },
+          "status": 200
+        }
+      }
+    },
+    {
+      "name": "start missing",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/nope/_start"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Can't find config with id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Can't find config with id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "profile started",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_profile"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "state": "INIT"
+        }
+      }
+    },
+    {
+      "name": "get detector with job after start",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}",
+        "query": {
+          "job": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<d>",
+          "_version": 2,
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-d1",
+            "description": "changed",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "anomaly_detector_job": {
+            "name": "<d>",
+            "schedule": {
+              "interval": {
+                "start_time": "<volatile>",
+                "period": 1,
+                "unit": "Minutes"
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "enabled": true,
+            "enabled_time": "<volatile>",
+            "last_update_time": "<volatile>",
+            "lock_duration_seconds": 60,
+            "type": "AD"
+          }
+        }
+      }
+    },
+    {
+      "name": "update running detector",
+      "request": {
+        "method": "PUT",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}",
+        "body": {
+          "name": "compat-d1",
+          "description": "while running",
+          "time_field": "ts",
+          "indices": [
+            "compat-ad-src"
+          ],
+          "feature_attributes": [
+            {
+              "feature_name": "f",
+              "feature_enabled": true,
+              "aggregation_query": {
+                "f": {
+                  "avg": {
+                    "field": "v"
+                  }
+                }
+              }
+            }
+          ],
+          "filter_query": {
+            "match_all": {}
+          },
+          "detection_interval": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          },
+          "window_delay": {
+            "period": {
+              "interval": 1,
+              "unit": "Minutes"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Job is running: <d>"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Job is running: <d>"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "delete running detector",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}"
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Job is running: <d>"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Job is running: <d>"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "stop detector",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_stop"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<d>"
+        }
+      }
+    },
+    {
+      "name": "stop again",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_stop"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "job is already stopped: <d>"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "job is already stopped: <d>"
+          },
+          "status": 200
+        }
+      }
+    },
+    {
+      "name": "stop missing",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/nope/_stop"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Can't find config with id: nope"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Can't find config with id: nope"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "profile stopped again",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_profile"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "state": "DISABLED",
+          "error": "No data in current window between <n> and <n> for <d>"
+        }
+      }
+    },
+    {
+      "name": "start historical analysis",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_start",
+        "body": {
+          "start_time": 1700000000000,
+          "end_time": 1700006000000
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<task>"
+        }
+      }
+    },
+    {
+      "name": "get detector task after historical start",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}",
+        "query": {
+          "task": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_id": "<d>",
+          "_version": 2,
+          "_primary_term": "<volatile>",
+          "_seq_no": "<volatile>",
+          "anomaly_detector": {
+            "name": "compat-d1",
+            "description": "changed",
+            "filter_query": {
+              "match_all": {
+                "boost": 1.0
+              }
+            },
+            "window_delay": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "shingle_size": 8,
+            "schema_version": 0,
+            "feature_attributes": [
+              {
+                "feature_id": "<volatile>",
+                "feature_name": "f",
+                "feature_enabled": true,
+                "aggregation_query": {
+                  "f": {
+                    "avg": {
+                      "field": "v"
+                    }
+                  }
+                }
+              }
+            ],
+            "recency_emphasis": 2560,
+            "history": 40,
+            "time_field": "ts",
+            "indices": [
+              "compat-ad-src"
+            ],
+            "last_update_time": "<volatile>",
+            "detection_interval": {
+              "period": {
+                "interval": 1,
+                "unit": "Minutes"
+              }
+            },
+            "detector_type": "SINGLE_ENTITY",
+            "rules": [
+              {
+                "action": "IGNORE_ANOMALY",
+                "conditions": [
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  },
+                  {
+                    "feature_name": "f",
+                    "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                    "operator": "LTE",
+                    "value": "<volatile>"
+                  }
+                ]
+              }
+            ]
+          },
+          "realtime_task": {
+            "task_id": "<volatile>",
+            "last_update_time": "<volatile>",
+            "error": "No data in current window between <n> and <n> for <d>",
+            "state": "STOPPED",
+            "task_progress": "<volatile>",
+            "init_progress": "<volatile>",
+            "execution_start_time": "<volatile>",
+            "is_latest": true,
+            "task_type": "REALTIME_SINGLE_ENTITY",
+            "coordinating_node": "<volatile>",
+            "detector_id": "<d>",
+            "detector": {
+              "name": "compat-d1",
+              "description": "changed",
+              "filter_query": {
+                "match_all": {
+                  "boost": 1.0
+                }
+              },
+              "window_delay": {
+                "period": {
+                  "interval": 1,
+                  "unit": "Minutes"
+                }
+              },
+              "shingle_size": 8,
+              "schema_version": 0,
+              "feature_attributes": [
+                {
+                  "feature_id": "<volatile>",
+                  "feature_name": "f",
+                  "feature_enabled": true,
+                  "aggregation_query": {
+                    "f": {
+                      "avg": {
+                        "field": "v"
+                      }
+                    }
+                  }
+                }
+              ],
+              "recency_emphasis": 2560,
+              "history": 40,
+              "time_field": "ts",
+              "indices": [
+                "compat-ad-src"
+              ],
+              "last_update_time": "<volatile>",
+              "detection_interval": {
+                "period": {
+                  "interval": 1,
+                  "unit": "Minutes"
+                }
+              },
+              "detector_type": "SINGLE_ENTITY",
+              "rules": [
+                {
+                  "action": "IGNORE_ANOMALY",
+                  "conditions": [
+                    {
+                      "feature_name": "f",
+                      "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                      "operator": "LTE",
+                      "value": "<volatile>"
+                    },
+                    {
+                      "feature_name": "f",
+                      "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                      "operator": "LTE",
+                      "value": "<volatile>"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "historical_analysis_task": {
+            "task_id": "<task>",
+            "last_update_time": "<volatile>",
+            "state": "FINISHED",
+            "task_progress": "<volatile>",
+            "init_progress": "<volatile>",
+            "current_piece": 1700005980000,
+            "execution_start_time": "<volatile>",
+            "execution_end_time": "<volatile>",
+            "is_latest": true,
+            "task_type": "HISTORICAL_SINGLE_ENTITY",
+            "coordinating_node": "<volatile>",
+            "worker_node": "<volatile>",
+            "detector_id": "<d>",
+            "detector": {
+              "name": "compat-d1",
+              "description": "changed",
+              "filter_query": {
+                "match_all": {
+                  "boost": 1.0
+                }
+              },
+              "window_delay": {
+                "period": {
+                  "interval": 1,
+                  "unit": "Minutes"
+                }
+              },
+              "shingle_size": 8,
+              "schema_version": 0,
+              "feature_attributes": [
+                {
+                  "feature_id": "<volatile>",
+                  "feature_name": "f",
+                  "feature_enabled": true,
+                  "aggregation_query": {
+                    "f": {
+                      "avg": {
+                        "field": "v"
+                      }
+                    }
+                  }
+                }
+              ],
+              "recency_emphasis": 2560,
+              "history": 40,
+              "time_field": "ts",
+              "indices": [
+                "compat-ad-src"
+              ],
+              "last_update_time": "<volatile>",
+              "detection_interval": {
+                "period": {
+                  "interval": 1,
+                  "unit": "Minutes"
+                }
+              },
+              "detector_type": "SINGLE_ENTITY",
+              "rules": [
+                {
+                  "action": "IGNORE_ANOMALY",
+                  "conditions": [
+                    {
+                      "feature_name": "f",
+                      "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                      "operator": "LTE",
+                      "value": "<volatile>"
+                    },
+                    {
+                      "feature_name": "f",
+                      "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                      "operator": "LTE",
+                      "value": "<volatile>"
+                    }
+                  ]
+                }
+              ]
+            },
+            "detection_date_range": {
+              "start_time": "<volatile>",
+              "end_time": "<volatile>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "historical task profile",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_profile",
+        "query": {
+          "_all": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "state": "DISABLED",
+          "error": "No data in current window between <n> and <n> for <d>",
+          "total_size_in_bytes": 0,
+          "ad_task": {
+            "ad_task": {
+              "task_id": "<task>",
+              "last_update_time": "<volatile>",
+              "state": "FINISHED",
+              "task_progress": "<volatile>",
+              "init_progress": "<volatile>",
+              "current_piece": 1700005980000,
+              "execution_start_time": "<volatile>",
+              "execution_end_time": "<volatile>",
+              "is_latest": true,
+              "task_type": "HISTORICAL_SINGLE_ENTITY",
+              "coordinating_node": "<volatile>",
+              "worker_node": "<volatile>",
+              "detector_id": "<d>",
+              "detector": {
+                "name": "compat-d1",
+                "description": "changed",
+                "filter_query": {
+                  "match_all": {
+                    "boost": 1.0
+                  }
+                },
+                "window_delay": {
+                  "period": {
+                    "interval": 1,
+                    "unit": "Minutes"
+                  }
+                },
+                "shingle_size": 8,
+                "schema_version": 0,
+                "feature_attributes": [
+                  {
+                    "feature_id": "<volatile>",
+                    "feature_name": "f",
+                    "feature_enabled": true,
+                    "aggregation_query": {
+                      "f": {
+                        "avg": {
+                          "field": "v"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "recency_emphasis": 2560,
+                "history": 40,
+                "time_field": "ts",
+                "indices": [
+                  "compat-ad-src"
+                ],
+                "last_update_time": "<volatile>",
+                "detection_interval": {
+                  "period": {
+                    "interval": 1,
+                    "unit": "Minutes"
+                  }
+                },
+                "detector_type": "SINGLE_ENTITY",
+                "rules": [
+                  {
+                    "action": "IGNORE_ANOMALY",
+                    "conditions": [
+                      {
+                        "feature_name": "f",
+                        "threshold_type": "ACTUAL_OVER_EXPECTED_RATIO",
+                        "operator": "LTE",
+                        "value": "<volatile>"
+                      },
+                      {
+                        "feature_name": "f",
+                        "threshold_type": "EXPECTED_OVER_ACTUAL_RATIO",
+                        "operator": "LTE",
+                        "value": "<volatile>"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "detection_date_range": {
+                "start_time": "<volatile>",
+                "end_time": "<volatile>"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "search tasks",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/tasks/_search",
+        "body": {
+          "size": 0,
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "stop historical",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}/_stop",
+        "query": {
+          "historical": "true"
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "No running task found"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "No running task found"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "results search",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/results/_search",
+        "body": {
+          "size": 0,
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "took": "<volatile>",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": "<volatile>",
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "top anomalies",
+      "request": {
+        "method": "POST",
+        "path": "/_plugins/_anomaly_detection/detectors/{hc}/results/_topAnomalies/true",
+        "body": {
+          "size": 3,
+          "category_field": [
+            "host"
+          ],
+          "start_time_ms": 1700000000000,
+          "end_time_ms": 1700007200000
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": "no handler found for uri [/_plugins/_anomaly_detection/detectors/<hc>/results/_topAnomalies/true] and method [POST]"
+        }
+      }
+    },
+    {
+      "name": "delete result index detector",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{ri}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-anomaly-detectors",
+          "_id": "<ri>",
+          "_version": 2,
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete hc2",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{hc2}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-anomaly-detectors",
+          "_id": "<hc2>",
+          "_version": 2,
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete bad2",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{bad2}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-anomaly-detectors",
+          "_id": "<bad2>",
+          "_version": 2,
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete bad5",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{bad5}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-anomaly-detectors",
+          "_id": "<bad5>",
+          "_version": 2,
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete bad12",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{bad12}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-anomaly-detectors",
+          "_id": "<bad12>",
+          "_version": 2,
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete bad13",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{bad13}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-anomaly-detectors",
+          "_id": "<bad13>",
+          "_version": 2,
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete hc",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{hc}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-anomaly-detectors",
+          "_id": "<hc>",
+          "_version": 2,
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete detector",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "_index": ".opendistro-anomaly-detectors",
+          "_id": "<d>",
+          "_version": 3,
+          "result": "deleted",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": "<volatile>",
+          "_primary_term": "<volatile>"
+        }
+      }
+    },
+    {
+      "name": "delete again",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}"
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Failed to delete all tasks"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Failed to delete all tasks"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "get deleted",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_anomaly_detection/detectors/{d}"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "status_exception",
+                "reason": "Can't find config with id: <d>"
+              }
+            ],
+            "type": "status_exception",
+            "reason": "Can't find config with id: <d>"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "legacy route",
+      "request": {
+        "method": "GET",
+        "path": "/_opendistro/_anomaly_detection/stats/detector_count"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "detector_count": 0,
+          "nodes": {
+            "rHWwN0xGQOu0Jwtg3VxcwQ": {}
+          }
+        }
+      }
+    },
+    {
+      "name": "settings",
+      "request": {
+        "method": "GET",
+        "path": "/_cluster/settings",
+        "query": {
+          "include_defaults": "true",
+          "filter_path": "defaults.plugins.anomaly_detection.*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "defaults": {
+            "plugins": {
+              "anomaly_detection": {
+                "entity_cold_start_queue_max_heap_percent": "0.001",
+                "max_anomaly_features": "5",
+                "breaker": {
+                  "enabled": "true"
+                },
+                "request_timeout": "60s",
+                "checkpoint_read_queue_max_heap_percent": "0.001",
+                "max_batch_task_per_node": "10",
+                "checkpoint_read_queue_batch_size": "25",
+                "max_top_entities_for_historical_analysis": "1000",
+                "jvm_heap_usage_threshold": "95",
+                "cooldown_minutes": "5m",
+                "expected_cold_entity_execution_time_in_millisecs": "3000",
+                "model_max_size_percent": "0.1",
+                "max_running_entities_per_detector_for_historical_analysis": "10",
+                "door_keeper_in_cache": {
+                  "enabled": "false"
+                },
+                "page_size": "1000",
+                "checkpoint_read_queue_concurrency": "1",
+                "index_pressure_soft_limit": "0.6",
+                "max_multi_entity_anomaly_detectors": "10",
+                "max_entities_per_query": "1000000",
+                "checkpoint_saving_freq": "12h",
+                "delete_anomaly_result_when_delete_detector": "false",
+                "max_concurrent_preview": "2",
+                "max_cached_deleted_tasks": "1000",
+                "max_retry_for_unresponsive_node": "5",
+                "entity_cold_start_queue_concurrency": "1",
+                "ad_result_history_max_docs_per_shard": "<n>",
+                "batch_task_piece_interval_seconds": "5",
+                "checkpoint_maintain_queue_max_heap_percent": "0.001",
+                "dedicated_cache_size": "10",
+                "filter_by_backend_roles": "false",
+                "ad_result_history_rollover_period": "12h",
+                "checkpoint_write_queue_concurrency": "2",
+                "hcad_cold_start_interpolation": {
+                  "enabled": "false"
+                },
+                "backoff_initial_delay": "1000ms",
+                "batch_task_piece_size": "1000",
+                "checkpoint_ttl": "7d",
+                "enabled": "true",
+                "category_field_limit": "2",
+                "checkpoint_write_queue_batch_size": "25",
+                "result_write_queue_batch_size": "5000",
+                "expected_checkpoint_maintain_time_in_millisecs": "1000",
+                "max_primary_shards": "10",
+                "result_write_queue_concurrency": "2",
+                "insights_enabled": "false",
+                "result_write_queue_max_heap_percent": "0.01",
+                "cold_entity_queue_max_heap_percent": "0.001",
+                "ad_result_history_retention_period": "30d",
+                "backoff_minutes": "15m",
+                "detection_window_delay": "0m",
+                "checkpoint_write_queue_max_heap_percent": "0.01",
+                "max_entities_for_preview": "5",
+                "index_pressure_hard_limit": "0.9",
+                "max_model_size_per_node": "100",
+                "detection_interval": "10m",
+                "max_old_ad_task_docs_per_detector": "1",
+                "max_retry_for_backoff": "3",
+                "max_anomaly_detectors": "1000"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

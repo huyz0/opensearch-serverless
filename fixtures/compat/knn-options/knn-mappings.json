@@ -1,0 +1,7035 @@
+{
+  "name": "knn_vector mappings: engines, methods, parameters and their refusals",
+  "description": "Creating an index with a knn_vector field over faiss, lucene and nmslib, every parameter on and off its limits, with the validation messages and the mapping the plugin stores. Recorded with the plugin's native libraries loaded.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-0",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-1",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-2",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-3",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-4",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-5",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-6",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-7",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-8",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-9",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-10",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-11",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-12",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-13",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-14",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-15",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-16",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-17",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-18",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-19",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-20",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-21",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-22",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-23",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-24",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-25",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-26",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-27",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-28",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-29",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-30",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-31",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-32",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-33",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-34",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-35",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-36",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-37",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-38",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-39",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-40",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-41",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-42",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-43",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-44",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-45",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-46",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-47",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-48",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-49",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-50",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-51",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-52",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-53",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-54",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-55",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-56",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-57",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-58",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-59",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-60",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-61",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-62",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-63",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-64",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-65",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-66",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-67",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-68",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-69",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-70",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-71",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-72",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-73",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-74",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-75",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-76",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-77",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-78",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knnmap-79",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create: faiss hnsw defaults",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-0",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-0"
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw defaults",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-0/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-0": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw l2 params",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-1",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "ef_construction": 128,
+                    "m": 16
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-1"
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw l2 params",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-1/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-1": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "ef_construction": 128,
+                      "m": 16
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw innerproduct",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-2",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "innerproduct"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-2"
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw innerproduct",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-2/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-2": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "innerproduct",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw cosinesimil",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-3",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "cosinesimil"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-3"
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw cosinesimil",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-3/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-3": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "cosinesimil",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw l1",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-4",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l1"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"faiss\" configuration does not support space type: \"l1\".;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"faiss\" configuration does not support space type: \"l1\".;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: \"hnsw\" with \"faiss\" configuration does not support space type: \"l1\".;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw l1",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-4/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-4]",
+                "index": "compat-knnmap-4",
+                "resource.id": "compat-knnmap-4",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-4]",
+            "index": "compat-knnmap-4",
+            "resource.id": "compat-knnmap-4",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw linf",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-5",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "linf"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"faiss\" configuration does not support space type: \"linf\".;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"faiss\" configuration does not support space type: \"linf\".;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: \"hnsw\" with \"faiss\" configuration does not support space type: \"linf\".;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw linf",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-5/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-5]",
+                "index": "compat-knnmap-5",
+                "resource.id": "compat-knnmap-5",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-5]",
+            "index": "compat-knnmap-5",
+            "resource.id": "compat-knnmap-5",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw hamming",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-6",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "hamming"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Space type [hamming] is not supported with [float] data type"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Space type [hamming] is not supported with [float] data type",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Space type [hamming] is not supported with [float] data type"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw hamming",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-6/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-6]",
+                "index": "compat-knnmap-6",
+                "resource.id": "compat-knnmap-6",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-6]",
+            "index": "compat-knnmap-6",
+            "resource.id": "compat-knnmap-6",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw ef_search param",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-7",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "ef_search": 50,
+                    "ef_construction": 100,
+                    "m": 8
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-7"
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw ef_search param",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-7/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-7": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "ef_search": 50,
+                      "ef_construction": 100,
+                      "m": 8
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw sq fp16",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-8",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "sq",
+                      "parameters": {
+                        "type": "fp16"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw sq fp16",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-8/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-8]",
+                "index": "compat-knnmap-8",
+                "resource.id": "compat-knnmap-8",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-8]",
+            "index": "compat-knnmap-8",
+            "resource.id": "compat-knnmap-8",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw sq fp16 clip",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-9",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "sq",
+                      "parameters": {
+                        "type": "fp16",
+                        "clip": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw sq fp16 clip",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-9/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-9]",
+                "index": "compat-knnmap-9",
+                "resource.id": "compat-knnmap-9",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-9]",
+            "index": "compat-knnmap-9",
+            "resource.id": "compat-knnmap-9",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw sq bad type",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-10",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "sq",
+                      "parameters": {
+                        "type": "int8"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 16, 4];"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw sq bad type",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-10/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-10]",
+                "index": "compat-knnmap-10",
+                "resource.id": "compat-knnmap-10",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-10]",
+            "index": "compat-knnmap-10",
+            "resource.id": "compat-knnmap-10",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw flat encoder",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-11",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "flat"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-11"
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw flat encoder",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-11/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-11": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "encoder": {
+                        "name": "flat",
+                        "parameters": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw pq",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-12",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "pq",
+                      "parameters": {
+                        "m": 1,
+                        "code_size": 8
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"method\" requires training.;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"method\" requires training.;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: \"method\" requires training.;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw pq",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-12/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-12]",
+                "index": "compat-knnmap-12",
+                "resource.id": "compat-knnmap-12",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-12]",
+            "index": "compat-knnmap-12",
+            "resource.id": "compat-knnmap-12",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw binary encoder",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-13",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-13"
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw binary encoder",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-13/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-13": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "encoder": {
+                        "name": "binary",
+                        "parameters": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw unknown encoder",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-14",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "nope"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Cannot invoke \"org.opensearch.knn.index.engine.MethodComponent.isTrainingRequired(org.opensearch.knn.index.engine.MethodComponentContext)\" because \"methodComponent\" is null"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Cannot invoke \"org.opensearch.knn.index.engine.MethodComponent.isTrainingRequired(org.opensearch.knn.index.engine.MethodComponentContext)\" because \"methodComponent\" is null",
+            "caused_by": {
+              "type": "null_pointer_exception",
+              "reason": "Cannot invoke \"org.opensearch.knn.index.engine.MethodComponent.isTrainingRequired(org.opensearch.knn.index.engine.MethodComponentContext)\" because \"methodComponent\" is null"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw unknown encoder",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-14/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-14]",
+                "index": "compat-knnmap-14",
+                "resource.id": "compat-knnmap-14",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-14]",
+            "index": "compat-knnmap-14",
+            "resource.id": "compat-knnmap-14",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw unknown parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-15",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "nope": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Unknown parameter 'nope' found;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Unknown parameter 'nope' found;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Unknown parameter 'nope' found;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw unknown parameter",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-15/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-15]",
+                "index": "compat-knnmap-15",
+                "resource.id": "compat-knnmap-15",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-15]",
+            "index": "compat-knnmap-15",
+            "resource.id": "compat-knnmap-15",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw m zero",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-16",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "m": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [m].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [m].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: parameter validation failed for Integer parameter [m].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw m zero",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-16/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-16]",
+                "index": "compat-knnmap-16",
+                "resource.id": "compat-knnmap-16",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-16]",
+            "index": "compat-knnmap-16",
+            "resource.id": "compat-knnmap-16",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw m too large",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-17",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "m": 100000
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-17"
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw m too large",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-17/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-17": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "m": 100000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw ef_construction zero",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-18",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "ef_construction": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [ef_construction].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [ef_construction].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: parameter validation failed for Integer parameter [ef_construction].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw ef_construction zero",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-18/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-18]",
+                "index": "compat-knnmap-18",
+                "resource.id": "compat-knnmap-18",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-18]",
+            "index": "compat-knnmap-18",
+            "resource.id": "compat-knnmap-18",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss hnsw m string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-19",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "m": "x"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss hnsw m string",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-19/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-19]",
+                "index": "compat-knnmap-19",
+                "resource.id": "compat-knnmap-19",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-19]",
+            "index": "compat-knnmap-19",
+            "resource.id": "compat-knnmap-19",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss ivf requires training",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-20",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "ivf",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "nlist": 4
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"method\" requires training.;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"method\" requires training.;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: \"method\" requires training.;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss ivf requires training",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-20/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-20]",
+                "index": "compat-knnmap-20",
+                "resource.id": "compat-knnmap-20",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-20]",
+            "index": "compat-knnmap-20",
+            "resource.id": "compat-knnmap-20",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss ivf bad params",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-21",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "ivf",
+                  "engine": "faiss",
+                  "space_type": "l2",
+                  "parameters": {
+                    "nlist": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"method\" requires training.;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"method\" requires training.;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: \"method\" requires training.;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss ivf bad params",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-21/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-21]",
+                "index": "compat-knnmap-21",
+                "resource.id": "compat-knnmap-21",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-21]",
+            "index": "compat-knnmap-21",
+            "resource.id": "compat-knnmap-21",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss flat method",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-22",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "flat",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "[flat] method does not support [engine] parameter"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [flat] method does not support [engine] parameter",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "[flat] method does not support [engine] parameter"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss flat method",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-22/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-22]",
+                "index": "compat-knnmap-22",
+                "resource.id": "compat-knnmap-22",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-22]",
+            "index": "compat-knnmap-22",
+            "resource.id": "compat-knnmap-22",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss unknown method",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-23",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "nope",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Invalid method name: nope"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid method name: nope",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Invalid method name: nope"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss unknown method",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-23/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-23]",
+                "index": "compat-knnmap-23",
+                "resource.id": "compat-knnmap-23",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-23]",
+            "index": "compat-knnmap-23",
+            "resource.id": "compat-knnmap-23",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: faiss no method name",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-24",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "name needs to be set"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: name needs to be set",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "name needs to be set"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: faiss no method name",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-24/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-24]",
+                "index": "compat-knnmap-24",
+                "resource.id": "compat-knnmap-24",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-24]",
+            "index": "compat-knnmap-24",
+            "resource.id": "compat-knnmap-24",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: lucene hnsw defaults",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-25",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-25"
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene hnsw defaults",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-25/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-25": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: lucene hnsw params",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-26",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2",
+                  "parameters": {
+                    "m": 16,
+                    "ef_construction": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-26"
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene hnsw params",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-26/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-26": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "ef_construction": 100,
+                      "m": 16
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: lucene hnsw innerproduct",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-27",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "innerproduct"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-27"
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene hnsw innerproduct",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-27/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-27": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "innerproduct",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: lucene hnsw cosinesimil",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-28",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "cosinesimil"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-28"
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene hnsw cosinesimil",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-28/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-28": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "cosinesimil",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: lucene hnsw l1",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-29",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l1"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"l1\".;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"l1\".;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"l1\".;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene hnsw l1",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-29/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-29]",
+                "index": "compat-knnmap-29",
+                "resource.id": "compat-knnmap-29",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-29]",
+            "index": "compat-knnmap-29",
+            "resource.id": "compat-knnmap-29",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: lucene hnsw hamming",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-30",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "hamming"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Space type [hamming] is not supported with [float] data type"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Space type [hamming] is not supported with [float] data type",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Space type [hamming] is not supported with [float] data type"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene hnsw hamming",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-30/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-30]",
+                "index": "compat-knnmap-30",
+                "resource.id": "compat-knnmap-30",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-30]",
+            "index": "compat-knnmap-30",
+            "resource.id": "compat-knnmap-30",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: lucene sq encoder",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-31",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "sq",
+                      "parameters": {
+                        "bits": 7
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-31"
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene sq encoder",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-31/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-31": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "encoder": {
+                        "name": "sq",
+                        "parameters": {
+                          "bits": 7
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: lucene sq bits 4",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-32",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "sq",
+                      "parameters": {
+                        "bits": 4
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-32"
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene sq bits 4",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-32/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-32": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "encoder": {
+                        "name": "sq",
+                        "parameters": {
+                          "bits": 4
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: lucene sq bits 8",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-33",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "sq",
+                      "parameters": {
+                        "bits": 8
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Unsupported bits value: 8"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unsupported bits value: 8",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Unsupported bits value: 8"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene sq bits 8",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-33/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-33]",
+                "index": "compat-knnmap-33",
+                "resource.id": "compat-knnmap-33",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-33]",
+            "index": "compat-knnmap-33",
+            "resource.id": "compat-knnmap-33",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: lucene sq confidence_interval",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-34",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2",
+                  "parameters": {
+                    "encoder": {
+                      "name": "sq",
+                      "parameters": {
+                        "confidence_interval": 0.9
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 7, 4];"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 7, 4];",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Parameter [bits] is required for encoder [sq] on indices created with version 3.6.0 or later. Supported values: [2, 1, 7, 4];"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene sq confidence_interval",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-34/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-34]",
+                "index": "compat-knnmap-34",
+                "resource.id": "compat-knnmap-34",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-34]",
+            "index": "compat-knnmap-34",
+            "resource.id": "compat-knnmap-34",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: lucene ivf",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-35",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "ivf",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Invalid method name: ivf"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid method name: ivf",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Invalid method name: ivf"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene ivf",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-35/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-35]",
+                "index": "compat-knnmap-35",
+                "resource.id": "compat-knnmap-35",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-35]",
+            "index": "compat-knnmap-35",
+            "resource.id": "compat-knnmap-35",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: lucene m too large",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-36",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2",
+                  "parameters": {
+                    "m": 1000
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-36"
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene m too large",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-36/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-36": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "m": 1000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: lucene unknown parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-37",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2",
+                  "parameters": {
+                    "nope": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Unknown parameter 'nope' found;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Unknown parameter 'nope' found;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Unknown parameter 'nope' found;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene unknown parameter",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-37/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-37]",
+                "index": "compat-knnmap-37",
+                "resource.id": "compat-knnmap-37",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-37]",
+            "index": "compat-knnmap-37",
+            "resource.id": "compat-knnmap-37",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: lucene ef_search parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-38",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2",
+                  "parameters": {
+                    "ef_search": 10
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Unknown parameter 'ef_search' found;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Unknown parameter 'ef_search' found;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Unknown parameter 'ef_search' found;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: lucene ef_search parameter",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-38/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-38]",
+                "index": "compat-knnmap-38",
+                "resource.id": "compat-knnmap-38",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-38]",
+            "index": "compat-knnmap-38",
+            "resource.id": "compat-knnmap-38",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: nmslib hnsw",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-39",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "nmslib",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: nmslib engine is deprecated in OpenSearch  and cannot be used for new index creation in OpenSearch from  3.0.0."
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: nmslib engine is deprecated in OpenSearch  and cannot be used for new index creation in OpenSearch from  3.0.0.",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "nmslib engine is deprecated in OpenSearch  and cannot be used for new index creation in OpenSearch from  3.0.0."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: nmslib hnsw",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-39/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-39]",
+                "index": "compat-knnmap-39",
+                "resource.id": "compat-knnmap-39",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-39]",
+            "index": "compat-knnmap-39",
+            "resource.id": "compat-knnmap-39",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: nmslib no name",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-40",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "engine": "nmslib"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "name needs to be set"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: name needs to be set",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "name needs to be set"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: nmslib no name",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-40/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-40]",
+                "index": "compat-knnmap-40",
+                "resource.id": "compat-knnmap-40",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-40]",
+            "index": "compat-knnmap-40",
+            "resource.id": "compat-knnmap-40",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: unknown engine",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-41",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "nope",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Invalid engine: nope"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid engine: nope",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Invalid engine: nope"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: unknown engine",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-41/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-41]",
+                "index": "compat-knnmap-41",
+                "resource.id": "compat-knnmap-41",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-41]",
+            "index": "compat-knnmap-41",
+            "resource.id": "compat-knnmap-41",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: engine as top level",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-42",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "engine": "faiss"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-42"
+        }
+      }
+    },
+    {
+      "name": "mapping of: engine as top level",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-42/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-42": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "engine": "faiss"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: space_type as top level",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-43",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "space_type": "l2"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-43"
+        }
+      }
+    },
+    {
+      "name": "mapping of: space_type as top level",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-43/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-43": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: top level engine and method",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-44",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "engine": "faiss"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-44"
+        }
+      }
+    },
+    {
+      "name": "mapping of: top level engine and method",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-44/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-44": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  },
+                  "engine": "faiss"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: no method",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-45",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-45"
+        }
+      }
+    },
+    {
+      "name": "mapping of: no method",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-45/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-45": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: dimension zero",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-46",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 0,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Dimension value must be greater than 0 for vector: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Dimension value must be greater than 0 for vector: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Dimension value must be greater than 0 for vector: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: dimension zero",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-46/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-46]",
+                "index": "compat-knnmap-46",
+                "resource.id": "compat-knnmap-46",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-46]",
+            "index": "compat-knnmap-46",
+            "resource.id": "compat-knnmap-46",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: dimension negative",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-47",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": -1,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Dimension value must be greater than 0 for vector: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Dimension value must be greater than 0 for vector: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Dimension value must be greater than 0 for vector: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: dimension negative",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-47/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-47]",
+                "index": "compat-knnmap-47",
+                "resource.id": "compat-knnmap-47",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-47]",
+            "index": "compat-knnmap-47",
+            "resource.id": "compat-knnmap-47",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: dimension at faiss limit",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-48",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 16000,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-48"
+        }
+      }
+    },
+    {
+      "name": "mapping of: dimension at faiss limit",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-48/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-48": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 16000,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: dimension over faiss limit",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-49",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 16001,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: faiss;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: faiss;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: faiss;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: dimension over faiss limit",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-49/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-49]",
+                "index": "compat-knnmap-49",
+                "resource.id": "compat-knnmap-49",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-49]",
+            "index": "compat-knnmap-49",
+            "resource.id": "compat-knnmap-49",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: dimension at lucene limit",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-50",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 16000,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-50"
+        }
+      }
+    },
+    {
+      "name": "mapping of: dimension at lucene limit",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-50/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-50": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 16000,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: dimension over lucene limit",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-51",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 16001,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: lucene;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: lucene;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: lucene;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: dimension over lucene limit",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-51/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-51]",
+                "index": "compat-knnmap-51",
+                "resource.id": "compat-knnmap-51",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-51]",
+            "index": "compat-knnmap-51",
+            "resource.id": "compat-knnmap-51",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: dimension string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-52",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": "3",
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-52"
+        }
+      }
+    },
+    {
+      "name": "mapping of: dimension string",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-52/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-52": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: dimension missing",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-53",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Dimension value missing for vector: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Dimension value missing for vector: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Dimension value missing for vector: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: dimension missing",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-53/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-53]",
+                "index": "compat-knnmap-53",
+                "resource.id": "compat-knnmap-53",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-53]",
+            "index": "compat-knnmap-53",
+            "resource.id": "compat-knnmap-53",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: data_type byte lucene",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-54",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                },
+                "data_type": "byte"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-54"
+        }
+      }
+    },
+    {
+      "name": "mapping of: data_type byte lucene",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-54/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-54": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "data_type": "BYTE",
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: data_type byte faiss",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-55",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "data_type": "byte"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-55"
+        }
+      }
+    },
+    {
+      "name": "mapping of: data_type byte faiss",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-55/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-55": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "data_type": "BYTE",
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: data_type float",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-56",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "data_type": "float"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-56"
+        }
+      }
+    },
+    {
+      "name": "mapping of: data_type float",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-56/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-56": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: data_type binary faiss",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-57",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 8,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "hamming"
+                },
+                "data_type": "binary"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-57"
+        }
+      }
+    },
+    {
+      "name": "mapping of: data_type binary faiss",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-57/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-57": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 8,
+                  "data_type": "BINARY",
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "hamming",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: data_type binary dimension not multiple of 8",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-58",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "hamming"
+                },
+                "data_type": "binary"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension should be multiply of 8 for binary vector data type;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension should be multiply of 8 for binary vector data type;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Dimension should be multiply of 8 for binary vector data type;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: data_type binary dimension not multiple of 8",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-58/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-58]",
+                "index": "compat-knnmap-58",
+                "resource.id": "compat-knnmap-58",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-58]",
+            "index": "compat-knnmap-58",
+            "resource.id": "compat-knnmap-58",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: data_type binary l2",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-59",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 8,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "data_type": "binary"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Space type [l2] is not supported with [binary] data type"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Space type [l2] is not supported with [binary] data type",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Space type [l2] is not supported with [binary] data type"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: data_type binary l2",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-59/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-59]",
+                "index": "compat-knnmap-59",
+                "resource.id": "compat-knnmap-59",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-59]",
+            "index": "compat-knnmap-59",
+            "resource.id": "compat-knnmap-59",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: data_type unknown",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-60",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "data_type": "half"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Invalid value provided for [data_type] field. Supported values are [binary,byte,float,half_float]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid value provided for [data_type] field. Supported values are [binary,byte,float,half_float]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Invalid value provided for [data_type] field. Supported values are [binary,byte,float,half_float]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: data_type unknown",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-60/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-60]",
+                "index": "compat-knnmap-60",
+                "resource.id": "compat-knnmap-60",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-60]",
+            "index": "compat-knnmap-60",
+            "resource.id": "compat-knnmap-60",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: mode on_disk",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-61",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "mode": "on_disk"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-61"
+        }
+      }
+    },
+    {
+      "name": "mapping of: mode on_disk",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-61/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-61": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "mode": "on_disk"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: mode on_disk with compression 16x",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-62",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "mode": "on_disk",
+                "compression_level": "16x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-62"
+        }
+      }
+    },
+    {
+      "name": "mapping of: mode on_disk with compression 16x",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-62/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-62": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "mode": "on_disk",
+                  "compression_level": "16x"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: mode in_memory",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-63",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "mode": "in_memory"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-63"
+        }
+      }
+    },
+    {
+      "name": "mapping of: mode in_memory",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-63/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-63": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "mode": "in_memory"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: mode unknown",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-64",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "mode": "nope"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Unknown value [nope] for field [mode] - accepted values are [null, in_memory, on_disk]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unknown value [nope] for field [mode] - accepted values are [null, in_memory, on_disk]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Unknown value [nope] for field [mode] - accepted values are [null, in_memory, on_disk]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: mode unknown",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-64/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-64]",
+                "index": "compat-knnmap-64",
+                "resource.id": "compat-knnmap-64",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-64]",
+            "index": "compat-knnmap-64",
+            "resource.id": "compat-knnmap-64",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: compression 32x",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-65",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "compression_level": "32x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-65"
+        }
+      }
+    },
+    {
+      "name": "mapping of: compression 32x",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-65/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-65": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "compression_level": "32x"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: compression 2x",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-66",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "compression_level": "2x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-66"
+        }
+      }
+    },
+    {
+      "name": "mapping of: compression 2x",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-66/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-66": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "compression_level": "2x"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: compression 1x",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-67",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "compression_level": "1x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-67"
+        }
+      }
+    },
+    {
+      "name": "mapping of: compression 1x",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-67/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-67": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "compression_level": "1x"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: compression 3x",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-68",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "compression_level": "3x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Unknown value [3x] for field [compression_level] - accepted values are [, 1x, 2x, 4x, 8x, 16x, 32x]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unknown value [3x] for field [compression_level] - accepted values are [, 1x, 2x, 4x, 8x, 16x, 32x]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Unknown value [3x] for field [compression_level] - accepted values are [, 1x, 2x, 4x, 8x, 16x, 32x]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: compression 3x",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-68/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-68]",
+                "index": "compat-knnmap-68",
+                "resource.id": "compat-knnmap-68",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-68]",
+            "index": "compat-knnmap-68",
+            "resource.id": "compat-knnmap-68",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: compression with explicit method",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-69",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "compression_level": "32x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-69"
+        }
+      }
+    },
+    {
+      "name": "mapping of: compression with explicit method",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-69/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-69": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  },
+                  "compression_level": "32x"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: mode with explicit lucene",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-70",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                },
+                "mode": "on_disk"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-70"
+        }
+      }
+    },
+    {
+      "name": "mapping of: mode with explicit lucene",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-70/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-70": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  },
+                  "mode": "on_disk"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: space_type innerproduct with mode",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-71",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "mode": "on_disk",
+                "space_type": "innerproduct"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-71"
+        }
+      }
+    },
+    {
+      "name": "mapping of: space_type innerproduct with mode",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-71/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-71": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "mode": "on_disk",
+                  "space_type": "innerproduct"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: model_id missing",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-72",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "model_id": "nope"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Cannot specify both a modelId and dimension in the mapping: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Cannot specify both a modelId and dimension in the mapping: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Cannot specify both a modelId and dimension in the mapping: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: model_id missing",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-72/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-72]",
+                "index": "compat-knnmap-72",
+                "resource.id": "compat-knnmap-72",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-72]",
+            "index": "compat-knnmap-72",
+            "resource.id": "compat-knnmap-72",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: model_id with dimension",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-73",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "model_id": "nope"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Cannot specify both a modelId and dimension in the mapping: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Cannot specify both a modelId and dimension in the mapping: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Cannot specify both a modelId and dimension in the mapping: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: model_id with dimension",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-73/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-73]",
+                "index": "compat-knnmap-73",
+                "resource.id": "compat-knnmap-73",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-73]",
+            "index": "compat-knnmap-73",
+            "resource.id": "compat-knnmap-73",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: model_id with method",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-74",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "model_id": "nope"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Method and model can not be both specified in the mapping: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Method and model can not be both specified in the mapping: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Method and model can not be both specified in the mapping: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: model_id with method",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-74/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-74]",
+                "index": "compat-knnmap-74",
+                "resource.id": "compat-knnmap-74",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-74]",
+            "index": "compat-knnmap-74",
+            "resource.id": "compat-knnmap-74",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: doc_values true",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-75",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "doc_values": true
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-75"
+        }
+      }
+    },
+    {
+      "name": "mapping of: doc_values true",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-75/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-75": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "doc_values": true,
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: store true",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-76",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "store": true
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-76"
+        }
+      }
+    },
+    {
+      "name": "mapping of: store true",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-76/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-76": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "store": true,
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: unknown field parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-77",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "nope": 1
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "unknown parameter [nope] on mapper [v] of type [knn_vector]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: unknown parameter [nope] on mapper [v] of type [knn_vector]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "unknown parameter [nope] on mapper [v] of type [knn_vector]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "mapping of: unknown field parameter",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-77/_mapping"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "generated index uuid"
+        }
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-knnmap-77]",
+                "index": "compat-knnmap-77",
+                "resource.id": "compat-knnmap-77",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-knnmap-77]",
+            "index": "compat-knnmap-77",
+            "resource.id": "compat-knnmap-77",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    },
+    {
+      "name": "create: index false",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-78",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "index": false
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-78"
+        }
+      }
+    },
+    {
+      "name": "mapping of: index false",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-78/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-78": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create: copy_to",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knnmap-79",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "faiss",
+                  "space_type": "l2"
+                },
+                "copy_to": "x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knnmap-79"
+        }
+      }
+    },
+    {
+      "name": "mapping of: copy_to",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knnmap-79/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knnmap-79": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "faiss",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  },
+                  "copy_to": [
+                    "x"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

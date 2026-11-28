@@ -1,0 +1,1 @@
+source=compat-sql | where like(name, 'a%') | fields name
