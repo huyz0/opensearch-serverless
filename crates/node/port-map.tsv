@@ -390,3 +390,5 @@ src/reports_route/definition.rs	new		what a report definition must hold: the sto
 src/reports_route/cron.rs	new		the shape of a five-field cron expression
 src/reports_route/routes.rs	new		the route table under /_plugins/_reports/definition
 src/ad_route/schedule.rs	new		the per-node loop step: refresh enabled detectors from the registry, run the ones this node owns that are due; no stock recording exists (AC-15 gap)
+src/ism_run/schedule.rs	new		the runner schedule: the indices this node owns and evaluates, found by registry and rendezvous, claimed by slot
+src/ism_run/schedule_tests.rs	new		the schedule over an emulator
