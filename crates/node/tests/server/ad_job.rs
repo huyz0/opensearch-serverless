@@ -121,3 +121,30 @@ fn a_start_with_a_range_is_a_historical_analysis_which_is_not_served_yet() {
     assert!(job_of(&r, &id).is_null(), "nothing was started");
     assert!(!registry(&r, "ad").is_registered("_default_").unwrap());
 }
+
+#[test]
+fn a_profile_says_disabled_then_init_and_refuses_what_it_cannot_answer() {
+    let rig = rig_with(None);
+    let id = create(&rig, &detector());
+    let profile = |tail: &str| {
+        call(
+            &rig,
+            "GET",
+            &format!("{ROOT}/detectors/{id}/_profile{tail}"),
+            None,
+        )
+    };
+    assert_eq!(json_of(&profile(""))["state"], "DISABLED");
+    let started = call(&rig, "POST", &format!("{ROOT}/detectors/{id}/_start"), None);
+    assert_eq!(started.status, 200, "{}", started.text());
+    // its first slot is not due yet, so no run has been offered
+    assert_eq!(json_of(&profile("/state"))["state"], "INIT");
+    assert_eq!(profile("/models").status, 400);
+    let missing = call(
+        &rig,
+        "GET",
+        &format!("{ROOT}/detectors/nope/_profile"),
+        None,
+    );
+    assert_eq!(missing.status, 404);
+}
